@@ -490,11 +490,26 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
 
       return result;
       } catch (error) {
-        console.error("submitDiagnostic error:", error);
-        setSubmitError(error.message || "Something went wrong.");
-        setPhase(previousPhase);
-        return null;
-      } finally {
+      console.error("submitDiagnostic error:", error);
+
+      const rawMessage =
+        error instanceof Error ? error.message : String(error || "");
+
+      const isLikelyFetchIssue =
+        rawMessage.includes("Failed to fetch") ||
+        rawMessage.includes("NetworkError") ||
+        rawMessage.includes("Load failed") ||
+        rawMessage.includes("Network issue");
+
+      setSubmitError(
+        isLikelyFetchIssue
+          ? "Waking up analysis engine..."
+          : rawMessage || "Something went wrong."
+      );
+
+  setPhase(previousPhase);
+  return null;
+} finally {
         setIsSubmitting(false);
         submittingRef.current = false;
       }
@@ -528,7 +543,7 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
         <div style={styles.card}>
           <div style={styles.questionTitle}>Submitting diagnostic...</div>
           <div style={styles.exampleHint}>
-            Please wait while we generate your preview.
+            Generating your diagnostic... (first load may take ~10s)
           </div>
           {submitError ? <div style={styles.errorText}>{submitError}</div> : null}
         </div>

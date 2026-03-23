@@ -929,8 +929,8 @@ function ReportHero({ result, sessionId }) {
           {result.title}
         </h1>
 
-        <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
-          {heroLine}
+        <p className="mt-2 max-w-3xl text-sm text-slate-500">
+          This pattern reflects how your responses signal workflow stability, traceability, and coordination effort.
         </p>
 
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
