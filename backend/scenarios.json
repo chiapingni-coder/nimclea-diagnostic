@@ -1,0 +1,98 @@
+{
+  "version": "1.0",
+  "type": "scenario_registry",
+  "tie_break_priority": [
+    "evidence_fragmentation_score",
+    "governance_strength_score",
+    "complexity_score",
+    "pressure_context_score"
+  ],
+  "intensity_levels": [
+    {
+      "level": 1,
+      "label": "Early Structural Signals",
+      "min_score": 0,
+      "max_score": 6
+    },
+    {
+      "level": 2,
+      "label": "Emerging Control Pressure",
+      "min_score": 7,
+      "max_score": 12
+    },
+    {
+      "level": 3,
+      "label": "Active Traceability Risk",
+      "min_score": 13,
+      "max_score": 18
+    },
+    {
+      "level": 4,
+      "label": "High-Friction Responsibility Environment",
+      "min_score": 19,
+      "max_score": 999
+    }
+  ],
+  "scenarios": {
+    "scenario_a": {
+      "code": "SCN_A",
+      "id": "scenario_a",
+      "label": "Localized Control Gap",
+      "primary_signal_group": "evidence_fragmentation_score",
+      "primary_group_code": "SG_E",
+      "trigger_questions": ["Q4", "Q6", "Q10", "Q11", "Q12"],
+      "preview_block": "Evidence / verification friction",
+      "top_signal_priority": [
+        "Evidence Fragmentation",
+        "Retrieval Friction",
+        "Version Drift Risk",
+        "Reconstruction Burden"
+      ]
+    },
+    "scenario_b": {
+      "code": "SCN_B",
+      "id": "scenario_b",
+      "label": "Responsibility Runtime Pressure",
+      "primary_signal_group": "governance_strength_score",
+      "primary_group_code": "SG_G",
+      "trigger_questions": ["Q2", "Q5", "Q7", "Q8", "Q13", "Q14", "Q15"],
+      "preview_block": "Approval / accountability",
+      "top_signal_priority": [
+       "authority_clarity",
+       "traceability_gap",
+       "change_governance_maturity",
+       "ownership_strength"
+      ]
+    },
+    "scenario_c": {
+      "code": "SCN_C",
+      "id": "scenario_c",
+      "label": "Cross-System Drift",
+      "primary_signal_group": "complexity_score",
+      "primary_group_code": "SG_C",
+      "trigger_questions": ["Q3", "Q9", "Q16", "Q17", "Q18"],
+      "preview_block": "Coordination / alignment",
+      "top_signal_priority": [
+        "Cross-Team / Cross-System Drift",
+        "Definition Conflict",
+        "Coordination Complexity",
+        "Multi-System Coupling"
+      ]
+    },
+    "scenario_d": {
+      "code": "SCN_D",
+      "id": "scenario_d",
+      "label": "Audit-Facing Fragility",
+      "primary_signal_group": "pressure_context_score",
+      "primary_group_code": "SG_P",
+      "trigger_questions": ["Q1", "Q19", "Q20"],
+      "preview_block": "Pressure-revealed risk",
+      "top_signal_priority": [
+        "Pressure-Revealed Risk",
+        "Audit-Facing Fragility",
+        "External Pressure Exposure",
+        "Dominant Failure Mode"
+      ]
+    }
+  }
+}

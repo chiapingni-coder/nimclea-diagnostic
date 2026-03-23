@@ -1,0 +1,270 @@
+{
+  "Q1": {
+    "external_audit": [
+      { "code": "SIG_P01", "group": "SG_P", "strength": 2 }
+    ],
+    "customer_or_partner_verification_request": [
+      { "code": "SIG_P02", "group": "SG_P", "strength": 2 }
+    ],
+    "compliance_review_or_regulatory_check": [
+      { "code": "SIG_P02", "group": "SG_P", "strength": 2 }
+    ],
+    "incident_investigation": [
+      { "code": "SIG_P03", "group": "SG_P", "strength": 2 }
+    ],
+    "none_of_the_above": []
+  },
+
+  "Q2": {
+    "very_easy": [],
+    "somewhat_easy": [
+      { "code": "SIG_G01", "group": "SG_G", "strength": 1 }
+    ],
+    "difficult": [
+      { "code": "SIG_G01", "group": "SG_G", "strength": 2 }
+    ],
+    "very_difficult": [
+      { "code": "SIG_G01", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q3": {
+    "rarely": [],
+    "occasionally": [
+      { "code": "SIG_C01", "group": "SG_C", "strength": 1 }
+    ],
+    "frequently": [
+      { "code": "SIG_C01", "group": "SG_C", "strength": 2 }
+    ],
+    "very_frequently": [
+      { "code": "SIG_C01", "group": "SG_C", "strength": 3 }
+    ]
+  },
+
+  "Q4": {
+    "immediately": [],
+    "same_day": [
+      { "code": "SIG_E02", "group": "SG_E", "strength": 1 }
+    ],
+    "within_week": [
+      { "code": "SIG_E01", "group": "SG_E", "strength": 2 }
+    ],
+    "reconstructed": [
+      { "code": "SIG_E01", "group": "SG_E", "strength": 3 }
+    ]
+  },
+
+  "Q5": {
+    "fully_traceable": [],
+    "partially_traceable": [
+      { "code": "SIG_G02", "group": "SG_G", "strength": 1 }
+    ],
+    "difficult_to_trace": [
+      { "code": "SIG_G02", "group": "SG_G", "strength": 2 }
+    ],
+    "not_traceable": [
+      { "code": "SIG_G02", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q6": {
+    "centralized_system": [],
+    "few_structured_systems": [
+      { "code": "SIG_E03", "group": "SG_E", "strength": 1 }
+    ],
+    "multiple_spreadsheets": [
+      { "code": "SIG_E03", "group": "SG_E", "strength": 2 }
+    ],
+    "mixed_docs_emails_folders": [
+      { "code": "SIG_E03", "group": "SG_E", "strength": 3 }
+    ]
+  },
+
+  "Q7": {
+    "monthly": [],
+    "quarterly": [
+      { "code": "SIG_G03", "group": "SG_G", "strength": 1 }
+    ],
+    "only_during_audits": [
+      { "code": "SIG_G03", "group": "SG_G", "strength": 2 }
+    ],
+    "rarely": [
+      { "code": "SIG_G03", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q8": {
+    "formal_approval": [],
+    "informal_review": [
+      { "code": "SIG_G04", "group": "SG_G", "strength": 1 }
+    ],
+    "direct_change": [
+      { "code": "SIG_G04", "group": "SG_G", "strength": 2 }
+    ],
+    "no_clear_process": [
+      { "code": "SIG_G04", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q9": {
+    "one_team": [],
+    "two_teams": [
+      { "code": "SIG_C02", "group": "SG_C", "strength": 1 }
+    ],
+    "multiple_teams": [
+      { "code": "SIG_C02", "group": "SG_C", "strength": 2 }
+    ],
+    "multiple_organizations": [
+      { "code": "SIG_C02", "group": "SG_C", "strength": 3 }
+    ]
+  },
+
+  "Q10": {
+    "system_of_record": [],
+    "shared_internal_drive": [
+      { "code": "SIG_E06", "group": "SG_E", "strength": 1 }
+    ],
+    "spreadsheets": [
+      { "code": "SIG_E06", "group": "SG_E", "strength": 2 }
+    ],
+    "email_chat_personal_files": [
+      { "code": "SIG_E06", "group": "SG_E", "strength": 3 }
+    ]
+  },
+
+  "Q11": {
+    "rarely": [],
+    "sometimes": [
+      { "code": "SIG_E04", "group": "SG_E", "strength": 1 }
+    ],
+    "often": [
+      { "code": "SIG_E04", "group": "SG_E", "strength": 2 },
+      { "code": "SIG_C02", "group": "SG_C", "strength": 1 }
+    ],
+    "very_often": [
+      { "code": "SIG_E04", "group": "SG_E", "strength": 3 },
+      { "code": "SIG_C02", "group": "SG_C", "strength": 1 }
+    ]
+  },
+
+  "Q12": {
+    "almost_none": [],
+    "some_manual_consolidation": [
+      { "code": "SIG_E05", "group": "SG_E", "strength": 1 }
+    ],
+    "significant_manual_work": [
+      { "code": "SIG_E05", "group": "SG_E", "strength": 2 }
+    ],
+    "mostly_rebuilt_by_hand": [
+      { "code": "SIG_E05", "group": "SG_E", "strength": 3 }
+    ]
+  },
+
+  "Q13": {
+    "clearly_assigned_owner": [],
+    "usually_assigned": [
+      { "code": "SIG_G05", "group": "SG_G", "strength": 1 }
+    ],
+    "shared_responsibility": [
+      { "code": "SIG_G05", "group": "SG_G", "strength": 2 }
+    ],
+    "often_unclear": [
+      { "code": "SIG_G05", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q14": {
+    "almost_always": [],
+    "usually": [
+      { "code": "SIG_G06", "group": "SG_G", "strength": 1 }
+    ],
+    "sometimes": [
+      { "code": "SIG_G06", "group": "SG_G", "strength": 2 }
+    ],
+    "rarely": [
+      { "code": "SIG_G06", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q15": {
+    "documented_repeatable": [],
+    "partly_documented": [
+      { "code": "SIG_G07", "group": "SG_G", "strength": 1 }
+    ],
+    "mostly_informal": [
+      { "code": "SIG_G07", "group": "SG_G", "strength": 2 }
+    ],
+    "different_every_time": [
+      { "code": "SIG_G07", "group": "SG_G", "strength": 3 }
+    ]
+  },
+
+  "Q16": {
+    "rarely": [],
+    "occasionally": [
+      { "code": "SIG_C03", "group": "SG_C", "strength": 1 }
+    ],
+    "frequently": [
+      { "code": "SIG_C03", "group": "SG_C", "strength": 2 }
+    ],
+    "constantly": [
+      { "code": "SIG_C03", "group": "SG_C", "strength": 3 }
+    ]
+  },
+
+  "Q17": {
+    "very_clear": [],
+    "mostly_clear": [
+      { "code": "SIG_C04", "group": "SG_C", "strength": 1 }
+    ],
+    "sometimes_unclear": [
+      { "code": "SIG_C04", "group": "SG_C", "strength": 2 }
+    ],
+    "often_unclear": [
+      { "code": "SIG_C04", "group": "SG_C", "strength": 3 }
+    ]
+  },
+
+  "Q18": {
+    "rarely": [],
+    "sometimes": [
+      { "code": "SIG_C05", "group": "SG_C", "strength": 1 }
+    ],
+    "often": [
+      { "code": "SIG_C05", "group": "SG_C", "strength": 2 }
+    ],
+    "almost_always": [
+      { "code": "SIG_C05", "group": "SG_C", "strength": 3 }
+    ]
+  },
+
+  "Q19": {
+    "audit_assurance_requests": [
+      { "code": "SIG_P02", "group": "SG_P", "strength": 2 }
+    ],
+    "customer_partner_verification": [
+      { "code": "SIG_P02", "group": "SG_P", "strength": 2 }
+    ],
+    "internal_reporting_deadlines": [
+      { "code": "SIG_P01", "group": "SG_P", "strength": 1 }
+    ],
+    "incident_exception_handling": [
+      { "code": "SIG_P03", "group": "SG_P", "strength": 2 }
+    ]
+  },
+
+  "Q20": {
+    "finding_right_evidence": [
+      { "code": "SIG_P04", "group": "SG_P", "strength": 2 }
+    ],
+    "confirming_correct_version": [
+      { "code": "SIG_P04", "group": "SG_P", "strength": 2 }
+    ],
+    "coordinating_across_teams": [
+      { "code": "SIG_P04", "group": "SG_P", "strength": 2 }
+    ],
+    "identifying_approvals": [
+      { "code": "SIG_P04", "group": "SG_P", "strength": 2 }
+    ]
+  }
+}

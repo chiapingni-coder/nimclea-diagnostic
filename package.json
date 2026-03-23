@@ -1,0 +1,26 @@
+{
+  "name": "nimclea-diagnostic",
+  "version": "0.1.0",
+  "description": "Nimclea Diagnostic MVP system",
+  "private": true,
+  "type": "module",
+
+  "scripts": {
+    "dev": "node backend/index.js",
+    "build": "echo \"Build step placeholder\"",
+    "start": "node backend/index.js",
+    "lint": "eslint ."
+  },
+
+  "dependencies": {
+    "dotenv": "^16.0.0"
+  },
+
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  },
+
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,259 @@
+{
+  "version": "1.0",
+  "type": "preview_templates",
+  "title": "Your Nimclea Structural Diagnostic",
+  "subtitle": "Based on your responses, your system shows patterns commonly seen in organizations under structural pressure.",
+  "scenario_labels": {
+    "scenario_a": "Localized Control Gap",
+    "scenario_b": "Responsibility Runtime Pressure",
+    "scenario_c": "Cross-System Drift",
+    "scenario_d": "Audit-Facing Fragility"
+  },
+  "intensity_labels": {
+    "1": "Early Structural Signals",
+    "2": "Emerging Control Pressure",
+    "3": "Active Traceability Risk",
+    "4": "High-Friction Responsibility Environment"
+  },
+  "scenario_intensity_matrix": {
+    "scenario_a": {
+      "1": {
+        "summary": [
+          "Your responses suggest that supporting evidence and final outputs may be somewhat harder to locate or align than they should be.",
+          "These signals appear early, but they are worth addressing before verification pressure increases.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, retrieval, and version control interact."
+        ]
+      },
+      "2": {
+        "summary": [
+          "Your responses suggest that supporting evidence and final outputs may be harder to locate, align, or reconstruct than they should be.",
+          "The process may still work under normal conditions, but structural friction appears to be increasing when verification is needed.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, retrieval, and version control interact."
+        ]
+      },
+      "3": {
+        "summary": [
+          "Your responses suggest that evidence pathways are already creating noticeable friction in how results are supported or reconstructed.",
+          "These patterns point to active traceability risk, not just early warning signs.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, retrieval, and version control interact."
+        ]
+      },
+      "4": {
+        "summary": [
+          "Your responses suggest that evidence retrieval, reconstruction, or alignment is creating systemic friction around important outputs.",
+          "These patterns suggest a high-friction environment where structural weaknesses are likely affecting speed, confidence, or audit readiness.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, retrieval, and version control interact."
+        ]
+      }
+    },
+    "scenario_b": {
+      "1": {
+        "summary": [
+          "Your responses suggest that reporting or operational changes may already depend on clearer approval ownership and more repeatable review pathways.",
+          "These signals appear early, but they are worth addressing before change pressure increases.",
+          "Organizations in this pattern typically benefit from clarifying how approval, review, and accountability interact."
+        ]
+      },
+      "2": {
+        "summary": [
+          "Your responses suggest that reporting or operational changes increasingly depend on approval clarity, review discipline, and repeatable change pathways.",
+          "The process may still function, but pressure appears to be rising faster than governance is maturing.",
+          "Organizations in this pattern typically benefit from clarifying how approval, review, and accountability interact."
+        ]
+      },
+      "3": {
+        "summary": [
+          "Your responses suggest that approval ownership, review discipline, or change accountability is already creating visible pressure in day-to-day work.",
+          "These patterns suggest active traceability or governance risk, not just early warning signs.",
+          "Organizations in this pattern typically benefit from clarifying how approval, review, and accountability interact."
+        ]
+      },
+      "4": {
+        "summary": [
+          "Your responses suggest that the current operating model depends on governance pathways that may no longer be clear or repeatable enough for the level of change your team is handling.",
+          "These patterns suggest a high-friction environment where structural weaknesses are likely affecting trust, speed, or control.",
+          "Organizations in this pattern typically benefit from clarifying how approval, review, and accountability interact."
+        ]
+      }
+    },
+    "scenario_c": {
+      "1": {
+        "summary": [
+          "Your responses suggest that multiple teams, definitions, or systems may already be introducing small amounts of drift in how results are produced or interpreted.",
+          "These signals appear early, but they are worth addressing before complexity increases.",
+          "Organizations in this pattern typically benefit from clarifying how coordination, definitions, and system boundaries interact."
+        ]
+      },
+      "2": {
+        "summary": [
+          "Your responses suggest that multiple teams, systems, or definitions may be contributing to drift in how results are produced and interpreted.",
+          "This can make final outputs harder to align, especially as coordination complexity increases.",
+          "Organizations in this pattern typically benefit from clarifying how coordination, definitions, and system boundaries interact."
+        ]
+      },
+      "3": {
+        "summary": [
+          "Your responses suggest that cross-team or cross-system complexity is already creating visible friction in how outputs are assembled, interpreted, or handed off.",
+          "These patterns suggest active coordination risk, not just early warning signs.",
+          "Organizations in this pattern typically benefit from clarifying how coordination, definitions, and system boundaries interact."
+        ]
+      },
+      "4": {
+        "summary": [
+          "Your responses suggest that multiple teams, systems, or semantic definitions are creating systemic drift in how important outputs are produced and understood.",
+          "These patterns suggest a high-friction environment where coordination burden is likely affecting reliability and explainability.",
+          "Organizations in this pattern typically benefit from clarifying how coordination, definitions, and system boundaries interact."
+        ]
+      }
+    },
+    "scenario_d": {
+      "1": {
+        "summary": [
+          "Your responses suggest that structural weaknesses may not always be visible in routine work, but could become more noticeable under audit, deadline, or exception pressure.",
+          "These signals appear early, but they are worth addressing before external scrutiny increases.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, approvals, and coordination behave under pressure."
+        ]
+      },
+      "2": {
+        "summary": [
+          "Your responses suggest that structural weaknesses are most likely to surface when external pressure increases, especially during audit, verification, deadline, or incident-driven conditions.",
+          "The issue may be less visible in routine work than in high-pressure moments.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, approvals, and coordination behave under pressure."
+        ]
+      },
+      "3": {
+        "summary": [
+          "Your responses suggest that external or high-pressure situations are already exposing gaps in evidence, coordination, or approval pathways.",
+          "These patterns suggest active risk, not just early warning signs.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, approvals, and coordination behave under pressure."
+        ]
+      },
+      "4": {
+        "summary": [
+          "Your responses suggest that audit, verification, deadline, or incident pressure is already surfacing structural weaknesses across evidence, approval, or coordination pathways.",
+          "These patterns suggest a high-friction environment where pressure is likely amplifying risk faster than the current structure can absorb it.",
+          "Organizations in this pattern typically benefit from clarifying how evidence, approvals, and coordination behave under pressure."
+        ]
+      }
+    }
+  },
+  "signal_copy": {
+    "evidence_fragmentation_score": {
+      "label": "Evidence Fragmentation",
+      "description": "Supporting records appear to be distributed across multiple locations, formats, or retrieval paths, which can slow verification and increase reconstruction effort."
+    },
+    "governance_strength_score": {
+      "label": "Responsibility & Approval Weakness",
+      "description": "Approval ownership, review discipline, or change accountability may not always be explicit enough to keep reporting and operational changes easy to explain."
+    },
+    "complexity_score": {
+      "label": "Cross-Team / Cross-System Drift",
+      "description": "Multiple teams, definitions, or systems may be contributing to drift in how final results are assembled or interpreted."
+    },
+    "pressure_context_score": {
+      "label": "Pressure-Revealed Risk",
+      "description": "The most serious structural weaknesses may become visible only when pressure increases, such as during audit requests, deadlines, or incident handling."
+    }
+  },
+  "top_signal_priority_by_scenario": {
+    "scenario_a": [
+      "evidence_fragmentation_score",
+      "complexity_score",
+      "governance_strength_score",
+      "pressure_context_score"
+    ],
+    "scenario_b": [
+      "governance_strength_score",
+      "evidence_fragmentation_score",
+      "complexity_score",
+      "pressure_context_score"
+    ],
+    "scenario_c": [
+      "complexity_score",
+      "evidence_fragmentation_score",
+      "governance_strength_score",
+      "pressure_context_score"
+    ],
+    "scenario_d": [
+      "pressure_context_score",
+      "evidence_fragmentation_score",
+      "governance_strength_score",
+      "complexity_score"
+    ]
+  },
+  "pilot_cta": {
+    "default": {
+      "header": "If You Run a 14-Day Pilot",
+      "deliverables": [
+        "Identity Registry",
+        "Authority Map",
+        "First Evidence Pack",
+        "Drift Findings Report"
+      ],
+      "button": "Start a 14-Day Pilot"
+    },
+    "scenario_a": {
+      "header": "If You Run a 14-Day Pilot",
+      "deliverables": [
+        "First Evidence Pack",
+        "Identity Registry",
+        "Authority Map",
+        "Drift Findings Report"
+      ],
+      "button": "Start a 14-Day Pilot"
+    },
+    "scenario_b": {
+      "header": "If You Run a 14-Day Pilot",
+      "deliverables": [
+        "Authority Map",
+        "Identity Registry",
+        "First Evidence Pack",
+        "Drift Findings Report"
+      ],
+      "button": "Start a 14-Day Pilot"
+    },
+    "scenario_c": {
+      "header": "If You Run a 14-Day Pilot",
+      "deliverables": [
+        "Drift Findings Report",
+        "Authority Map",
+        "Identity Registry",
+        "First Evidence Pack"
+      ],
+      "button": "Start a 14-Day Pilot"
+    },
+    "scenario_d": {
+      "header": "If You Run a 14-Day Pilot",
+      "deliverables": [
+        "Identity Registry",
+        "First Evidence Pack",
+        "Authority Map",
+        "Drift Findings Report"
+      ],
+      "button": "Start a 14-Day Pilot"
+    }
+  },
+  "fallback": {
+    "summary": [
+      "Your responses suggest emerging structural pressure in how evidence, approvals, or cross-team coordination are handled.",
+      "Some part of the current operating structure may be creating avoidable effort, delay, or uncertainty when results need to be explained or verified.",
+      "Nimclea can help make those pathways more visible and easier to verify."
+    ],
+    "top_signals": [
+      {
+        "label": "Structural Friction",
+        "description": "Some part of the current operating structure may be creating avoidable effort, delay, or uncertainty when results need to be explained or verified."
+      }
+    ],
+    "pilot_cta": {
+      "header": "Explore a 14-Day Pilot",
+      "deliverables": [
+        "Identity Registry",
+        "Authority Map",
+        "First Evidence Pack",
+        "Drift Findings Report"
+      ],
+      "button": "Start a 14-Day Pilot"
+    }
+  }
+}
