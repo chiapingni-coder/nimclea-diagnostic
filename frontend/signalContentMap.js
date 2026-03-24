@@ -5,8 +5,10 @@ const signalContentMap = {
       "When deadlines, audits, or cross-team requests increase, the workflow appears to lose clarity and becomes harder to explain or defend.",
     whyThisMatters:
       "This usually means the process is not failing randomly. It is struggling when pressure reveals missing structure, unclear ownership, or weak traceability.",
-    whyYou:
-      "Your answers suggest that the workflow may look workable in normal moments, but becomes harder to trust when the stakes rise.",
+    whyYou: {
+      pattern: "things look manageable in normal moments",
+      contrast: "feeling solid when the stakes rise"
+    },
     realWorld:
       "This often shows up as last-minute clarification, repeated follow-up, or a scramble to reconstruct what happened before something can be approved or delivered.",
     recommendedAction:
@@ -23,8 +25,10 @@ const signalContentMap = {
       "The same task likely depends on memory, side conversations, or individual judgment rather than a path another person could follow cleanly.",
     whyThisMatters:
       "A workflow that only works when the right person is holding it together becomes fragile, slow to scale, and difficult to audit.",
-    whyYou:
-      "Your responses point to a pattern where execution still works, but consistency depends too much on manual intervention.",
+    whyYou: {
+      pattern: "the workflow still depends on memory, side coordination, or extra manual effort",
+      contrast: "following a path another person could run the same way"
+    },
     realWorld:
       "This may look like re-explaining the same steps, checking with the same people each time, or getting different results depending on who is involved.",
     recommendedAction:
@@ -41,8 +45,10 @@ const signalContentMap = {
       "Supporting records do not seem to live in one dependable path, so validation may require searching across folders, messages, tools, or old threads.",
     whyThisMatters:
       "When evidence is hard to trace, every explanation takes longer and confidence drops right when speed and clarity matter most.",
-    whyYou:
-      "Your answers suggest that documentation and proof may exist, but not in a form that is easy to retrieve consistently.",
+    whyYou: {
+      pattern: "you often have to search across tools, chats, or folders to find information",
+      contrast: "knowing exactly where to go every time"
+    },
     realWorld:
       "This often feels like reopening old chats, searching several versions of a file, or asking teammates again for information that should already be easy to find."
   },
@@ -53,8 +59,10 @@ const signalContentMap = {
       "The workflow may appear functional on the surface, but only because people are repeatedly filling structural gaps by hand.",
     whyThisMatters:
       "This kind of hidden debt quietly consumes time, creates inconsistency, and makes the system look healthier than it really is.",
-    whyYou:
-      "Your responses suggest that day-to-day execution is being kept alive through extra effort rather than clean process design.",
+    whyYou: {
+      pattern: "people are keeping the workflow moving through extra effort",
+      contrast: "letting the process carry more of the work on its own"
+    },
     realWorld:
       "This can show up as patching spreadsheets, rewriting summaries, chasing approvals manually, or stitching together outputs that should already connect."
   },
@@ -65,8 +73,10 @@ const signalContentMap = {
       "Instead of flowing cleanly from prior steps, final deliverables appear to require extra assembly, interpretation, or cleanup before they are usable.",
     whyThisMatters:
       "The more reconstruction required at the end, the more time, ambiguity, and hidden cost get injected into every cycle.",
-    whyYou:
-      "Your answers suggest that important outputs may not be generated from a clean chain of evidence, but from a late-stage effort to piece things together.",
+    whyYou: {
+      pattern: "important outputs still have to be pieced together near the end",
+      contrast: "having them flow from a cleaner chain of evidence"
+    },
     realWorld:
       "This often looks like rebuilding context before a meeting, manually combining inputs from several places, or polishing results that should have arrived in a more complete form."
   },
@@ -77,8 +87,10 @@ const signalContentMap = {
       "Important supporting records appear to be spread across multiple locations or storage patterns rather than connected through one reliable path.",
     whyThisMatters:
       "When evidence is fragmented, verification slows down and confidence drops right when pressure increases.",
-    whyYou:
-      "Your answers suggest that evidence exists, but is scattered and needs to be reassembled when it matters most.",
+    whyYou: {
+      pattern: "you rely on multiple places to find evidence",
+      contrast: "having one clear path everyone follows"
+    },
     realWorld:
       "This often looks like reopening multiple folders, checking different versions, or piecing together proof before a decision can move forward.",
     recommendedAction:
@@ -95,8 +107,10 @@ const signalContentMap = {
       "Important choices do not yet appear to follow a stable path that others could review, repeat, or trust without extra explanation.",
     whyThisMatters:
       "When decision structure is unstable, quality becomes harder to predict and accountability becomes harder to defend.",
-    whyYou:
-      "Your answers suggest that decisions may still rely on interpretation, escalation, or context held in people rather than in a visible structure.",
+    whyYou: {
+      pattern: "decisions still depend too much on interpretation or context held in people",
+      contrast: "having a visible structure others can review and trust"
+    },
     realWorld:
       "This often appears as inconsistent approvals, uncertainty about who should decide, or needing to explain the same reasoning from scratch each time."
   }
@@ -151,7 +165,10 @@ export function enrichSignals(signals = []) {
       whyYou:
         signal.whyYou ||
         content.whyYou ||
-        "Your responses suggest this pattern is showing up often enough to influence the overall result.",
+      {
+        pattern: "this pattern is showing up often enough to influence the overall result",
+        contrast: ""
+      },
       realWorld:
         signal.realWorld ||
         content.realWorld ||

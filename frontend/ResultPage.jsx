@@ -312,6 +312,39 @@ function generateHeroLine({ scenarioCode, pressureProfile }) {
   return "Your responses point to a real structural pattern, but the sharpest improvement path is still emerging.";
 }
 
+function generatePressureLine({ scenarioCode, pressureProfile }) {
+  const isPressureSensitive =
+    pressureProfile?.code === "pressure_sensitive" ||
+    pressureProfile?.code === "pressure_fragile";
+
+  // ===== C1 / 崩溃型 =====
+  if (scenarioCode === "pre_audit_collapse" || scenarioCode === "C1") {
+    return "When someone asks for proof, things can quickly turn into a scramble.";
+  }
+
+  // ===== C2 / 勉强能用 =====
+  if (scenarioCode === "barely_functional" || scenarioCode === "C2") {
+    return "Things work, but explaining them often takes more effort than it should.";
+  }
+
+  // ===== C3 / 边界模糊 =====
+  if (scenarioCode === "boundary_blur" || scenarioCode === "C3") {
+    return isPressureSensitive
+      ? "It works day to day, but under pressure, small gaps start to show."
+      : "Most things work, but not everything is as clear as it looks.";
+  }
+
+  // ===== C4 / fully_ready =====
+  if (scenarioCode === "fully_ready" || scenarioCode === "C4") {
+    return isPressureSensitive
+      ? "Most things are clear, but a few edge cases may still get messy under pressure."
+      : "Things are generally clear, and explanations don’t rely on guesswork.";
+  }
+
+  // ===== fallback =====
+  return "Some parts of your workflow may be harder to explain than expected.";
+}
+
 const SCENARIO_LABEL_MAP = {
   pre_audit_collapse: "Pre-Audit Collapse",
   barely_functional: "Barely Functional",
@@ -855,6 +888,44 @@ function SectionTitle({
   );
 }
 
+function CollapsibleCard({
+  title,
+  hint,
+  children,
+  defaultOpen = false,
+  closedLabel = "Why this result",
+  openLabel = "Hide explanation",
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <Card className="p-6 md:p-7">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+            {title}
+          </h2>
+          {hint ? (
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              {hint}
+            </p>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className="shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          {open ? openLabel : closedLabel}
+        </button>
+      </div>
+
+      {open ? <div className="mt-5">{children}</div> : null}
+    </Card>
+  );
+}
+
 function Pill({ children, dark = false, success = false }) {
   const cls = success
     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -912,6 +983,15 @@ function ReportHero({ result, sessionId }) {
     [result]
   );
 
+  const pressureLine = useMemo(
+    () =>
+      generatePressureLine({
+        scenarioCode: result?.scenario?.code,
+        pressureProfile: result?.pressureProfile,
+      }),
+    [result]
+  );
+
   return (
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
@@ -929,24 +1009,17 @@ function ReportHero({ result, sessionId }) {
           {result.title}
         </h1>
 
-        <p className="mt-2 max-w-3xl text-sm text-slate-500">
-          This pattern reflects how your responses signal workflow stability, traceability, and coordination effort.
+        <p className="mt-5 max-w-2xl text-base leading-7 text-slate-700">
+          {heroLine}
         </p>
 
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          You do not need to fix everything first. A narrow pilot is enough to test whether this can improve quickly.
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+          {pressureLine}
         </p>
 
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-700">
-          Small scope. One workflow. No full rollout required.
-        </p>
-
-        <p className="mt-5 max-w-3xl text-base leading-8 text-slate-600">
-          This lightweight diagnostic first identified your likely structural
-          pattern, then used a small number of follow-up questions to sharpen the result.
-          What you see below is the most likely structural pattern based on both your core and follow-up responses.
-
-          This view focuses on where clarity, traceability, or decision confidence may be breaking down before that pressure turns into repeated manual cleanup, delivery drag, or audit stress.
+        <p className="mt-4 max-w-2xl text-sm font-medium text-slate-900">
+          You do not need to fix everything first.
+          Start with the one workflow that breaks most often under pressure.
         </p>
 
         <div className="mt-8">
@@ -969,14 +1042,17 @@ function ReportHero({ result, sessionId }) {
 }
 
 function SummarySection({ summary }) {
-  return (
-    <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Why This Diagnosis Fits"
-        hint="A short explanation of the structural pattern your core and follow-up answers most likely point to."
-      />
+  if (!summary || summary.length === 0) return null;
 
-      <ul className="mt-5 space-y-3">
+  return (
+    <CollapsibleCard
+      title="Why This Diagnosis Fits"
+      hint="See why this matches the way your workflow is behaving right now."
+      defaultOpen={false}
+      closedLabel="See why this matches your situation"
+      openLabel="Hide details"
+    >
+      <ul className="space-y-3">
         {summary.map((sentence, index) => (
           <li
             key={`${index}-${sentence.slice(0, 30)}`}
@@ -986,19 +1062,22 @@ function SummarySection({ summary }) {
           </li>
         ))}
       </ul>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
 function SynthesisSection({ items }) {
-  return (
-    <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="What This Means for Your System"
-        hint="These signals point to a broader structural pattern, not just isolated symptoms."
-      />
+  if (!items || items.length === 0) return null;
 
-      <ul className="mt-5 space-y-3">
+  return (
+    <CollapsibleCard
+      title="What This Means for Your System"
+      hint="See what this is likely to affect when the work gets real."
+      defaultOpen={false}
+      closedLabel="What this means in practice"
+      openLabel="Hide details"
+    >
+      <ul className="space-y-3">
         {items.map((sentence, index) => (
           <li
             key={`${index}-${sentence.slice(0, 30)}`}
@@ -1008,7 +1087,7 @@ function SynthesisSection({ items }) {
           </li>
         ))}
       </ul>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
@@ -1031,118 +1110,153 @@ function SignalScoreBadge({ score }) {
   );
 }
 
-function SignalsSection({ signals }) {
+function SignalDetailCard({ signal, index }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Top Structural Signals"
-        hint="These are the strongest indicators shaping your result, strengthened by your follow-up answers after the core diagnostic."
-      />
+    <li className="rounded-2xl border border-slate-200 bg-slate-50">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-start justify-between gap-4 p-5 text-left"
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-900">
+              {signal.label}
+            </h3>
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+              Signal {index + 1}
+            </span>
+          </div>
 
-      <ul className="mt-5 space-y-3">
-        {signals.map((signal, index) => (
-          <li
-            key={signal.id || `${signal.label}-${index}`}
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {signal.label}
-                  </h3>
-                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                    Signal {index + 1}
-                  </span>
-                </div>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            {signal.description}
+          </p>
+        </div>
 
-                <p className="mt-3 text-sm leading-6 text-slate-700">
-                  {signal.description}
-                </p>
+        <div className="flex shrink-0 items-start gap-3">
+          <SignalScoreBadge score={signal.score} />
+          <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+            {open ? "Hide" : "Open"}
+          </span>
+        </div>
+      </button>
 
-                {signal.whyYou ? (
-                  <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
-                      Why this shows up for you
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-sky-800">
-                      {signal.whyYou}
-                    </p>
-                  </div>
-                ) : null}
-
-                {signal.realWorld ? (
-                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                      What this looks like in practice
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-700">
-                      {signal.realWorld}
-                    </p>
-                  </div>
-                ) : null}
-
-                {signal.whyThisMatters ? (
-                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-                      Why this matters
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-amber-800">
-                      {signal.whyThisMatters}
-                    </p>
-                  </div>
-                ) : null}
-
-                {signal.recommendedAction ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-                      Recommended action
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-emerald-800">
-                      {signal.recommendedAction}
-                    </p>
-                  </div>
-                ) : null}
-
-                {signal.pilotStep ? (
-                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                      Pilot step
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-700">
-                      {signal.pilotStep}
-                    </p>
-                  </div>
-                ) : null}
-
-                {signal.pilotMetric ? (
-                  <div className="mt-3 rounded-2xl border border-fuchsia-200 bg-fuchsia-50 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fuchsia-700">
-                      Pilot metric
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-fuchsia-800">
-                      {signal.pilotMetric}
-                    </p>
-                  </div>
-                ) : null}
-
-                {signal.insight ? (
-                  <p className="mt-3 text-xs leading-5 text-slate-600">
-                    {signal.insight}
-                  </p>
-                ) : null}
-
-                <div className="mt-3 text-xs font-medium text-slate-500">
-                  Source: {signal.source || "Diagnostic Engine"}
-                </div>
+      {open ? (
+        <div className="border-t border-slate-200 px-5 pb-5 pt-4">
+          {signal.whyYou ? (
+            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+                What your answers are pointing to
               </div>
-
-              <SignalScoreBadge score={signal.score} />
+              <p className="mt-1 text-xs leading-5 text-sky-800">
+                {typeof signal.whyYou === "string" ? (
+                  <>Based on how you answered, {signal.whyYou}</>
+                ) : (
+                  <>
+                    Based on how you answered, it looks like {signal.whyYou?.pattern}
+                      {signal.whyYou?.contrast ? (
+                      <> rather than {signal.whyYou.contrast}</>
+                    ) : null}
+                    .
+                  </>
+                )}
+              </p>
             </div>
-          </li>
+          ) : null}
+
+          {signal.realWorld ? (
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                What this looks like in practice
+              </div>
+              <p className="mt-1 text-xs leading-5 text-slate-700">
+                {signal.realWorld}
+              </p>
+            </div>
+          ) : null}
+
+          {signal.whyThisMatters ? (
+            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                Why this matters
+              </div>
+              <p className="mt-1 text-xs leading-5 text-amber-800">
+                {signal.whyThisMatters}
+              </p>
+            </div>
+          ) : null}
+
+          {signal.recommendedAction ? (
+            <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                Recommended action
+              </div>
+              <p className="mt-1 text-xs leading-5 text-emerald-800">
+                {signal.recommendedAction}
+              </p>
+            </div>
+          ) : null}
+
+          {signal.pilotStep ? (
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                Pilot step
+              </div>
+              <p className="mt-1 text-xs leading-5 text-slate-700">
+                {signal.pilotStep}
+              </p>
+            </div>
+          ) : null}
+
+          {signal.pilotMetric ? (
+            <div className="mt-3 rounded-2xl border border-fuchsia-200 bg-fuchsia-50 px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fuchsia-700">
+                Pilot metric
+              </div>
+              <p className="mt-1 text-xs leading-5 text-fuchsia-800">
+                {signal.pilotMetric}
+              </p>
+            </div>
+          ) : null}
+
+          {signal.insight ? (
+            <p className="mt-3 text-xs leading-5 text-slate-600">
+              {signal.insight}
+            </p>
+          ) : null}
+
+          <div className="mt-3 text-xs font-medium text-slate-500">
+            Source: {signal.source || "Diagnostic Engine"}
+          </div>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function SignalsSection({ signals }) {
+  if (!signals || signals.length === 0) return null;
+
+  return (
+    <CollapsibleCard
+      title="Top Structural Signals"
+      hint="These are the issues that will cause problems when you're under pressure."
+      defaultOpen={false}
+      closedLabel="See the specific issues"
+      openLabel="Hide issues"
+    >
+      <ul className="space-y-3">
+        {signals.map((signal, index) => (
+          <SignalDetailCard
+            key={signal.id || `${signal.label}-${index}`}
+            signal={signal}
+            index={index}
+          />
         ))}
       </ul>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
