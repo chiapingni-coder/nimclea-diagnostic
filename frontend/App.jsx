@@ -1,26 +1,27 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 
-import Questionnaire from "./Questionnaire.jsx";
-import ResultPage from "./ResultPage.jsx";
-import PilotPage from "./PilotPage.jsx"; // 👈 加这一行
+import Homepage from "./pages/Homepage.jsx";
+import DiagnosticPage from "./pages/DiagnosticPage.jsx";
+import ResultPage from "./pages/ResultPage.jsx";
+import PilotPage from "./pages/PilotPage.jsx";
+import PilotResultPage from "./pages/PilotResultPage.jsx";
+import PilotSetupPage from "./PilotSetupPage.jsx";
+import ReceiptPage from "./pages/ReceiptPage.jsx";
+import VerificationPage from "./pages/VerificationPage.jsx";
+import ROUTES from "./routes";
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-        {/* 问卷页 */}
-        <Route path="/" element={<Questionnaire />} />
-
-        {/* 结果页 */}
-        <Route path="/result" element={<ResultPage />} />
-
-        {/* 🔥 Pilot页 */}
-        <Route path="/pilot" element={<PilotPage />} />
-
-        {/* 🔥 下一步（避免报错） */}
-        <Route path="/pilot/setup" element={<div>Next Step</div>} />
-      </Routes>
-    </Router>
+    <Routes>
+      <Route path={ROUTES.HOME} element={<Homepage />} />
+      <Route path={ROUTES.DIAGNOSTIC} element={<DiagnosticPage />} />
+      <Route path={ROUTES.RESULT} element={<ResultPage />} />
+      <Route path={ROUTES.PILOT} element={<PilotPage />} />
+      <Route path={ROUTES.PILOT_SETUP} element={<PilotSetupPage />} />
+      <Route path={ROUTES.PILOT_RESULT} element={<PilotResultPage />} />
+      <Route path={ROUTES.RECEIPT} element={<ReceiptPage />} />
+      <Route path={ROUTES.VERIFICATION} element={<VerificationPage />} />
+    </Routes>
   );
 }

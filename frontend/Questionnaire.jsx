@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import questions, { coreQuestions, branchQuestionMap } from "./questions.js";
 import { getRoutingResultFromCoreAnswers } from "./routingLogic";
+import { ROUTES } from "./routes.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -218,7 +219,7 @@ const routingFeedbackViewModel = buildRoutingFeedbackViewModel(
       console.log("🔥 ANSWERS AFTER SELECT:", next);
 
       return next;
-   });
+    });
   }
 
   function updateMultiSelect(question, option) {
@@ -437,16 +438,12 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
       }
 
       const result = data || null;
-      const preview = result?.preview || null;
-      const scenario = result?.scenario || null;
-
-      const returnedSessionId =
+      const preview = result?.preview || result;
+      const sessionId =
         result?.session_id ||
         result?.sessionId ||
         result?.id ||
         "";
-
-      const sessionId = returnedSessionId || "";
 
       if (!preview) {
         throw new Error("Preview payload is missing.");
@@ -459,7 +456,7 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
         if (sessionId) {
           localStorage.setItem("nimclea_session_id", sessionId);
           localStorage.setItem(
-            `nimclea_result_${sessionId}`,
+           `nimclea_result_${sessionId}`,
             JSON.stringify(result)
           );
           localStorage.setItem(
@@ -471,26 +468,18 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
         console.error("localStorage write error:", storageError);
       }
 
-      const resultUrl = sessionId
-        ? `/result?session_id=${encodeURIComponent(sessionId)}`
-        : "/result";
-
-      console.log("🔥 SAVED RESULT:", result);
-      console.log("🔥 SAVED PREVIEW:", preview);
-      console.log("🔥 SAVED SCENARIO:", scenario);
-
       setPhase(PHASE.DONE);
 
-      navigate(resultUrl, {
+      navigate(ROUTES.RESULT, {
         state: {
-          session_id: sessionId,
-          result
+          preview,
+          session_id: sessionId
         }
       });
 
       return result;
-      } catch (error) {
-      console.error("submitDiagnostic error:", error);
+            } catch (error) {
+            console.error("submitDiagnostic error:", error);
 
       const rawMessage =
         error instanceof Error ? error.message : String(error || "");
@@ -710,24 +699,24 @@ if (phase === PHASE.ROUTING_FEEDBACK) {
   }
 
     return (
-    <div style={styles.shell}>
-      <div style={styles.card}>
-        <div style={styles.errorText}>
-          Questionnaire state is unavailable. Please restart the diagnostic.
-        </div>
-        <div style={{ marginTop: "16px" }}>
-          <button
-            type="button"
-            style={styles.primaryButton}
-            onClick={startDiagnostic}
-          >
-            Restart Diagnostic
-          </button>
+      <div style={styles.shell}>
+        <div style={styles.card}>
+          <div style={styles.errorText}>
+            Questionnaire state is unavailable. Please restart the diagnostic.
+          </div>
+          <div style={{ marginTop: "16px" }}>
+            <button
+              type="button"
+              style={styles.primaryButton}
+              onClick={startDiagnostic}
+            >
+              Restart Diagnostic
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 const styles = {
   shell: {

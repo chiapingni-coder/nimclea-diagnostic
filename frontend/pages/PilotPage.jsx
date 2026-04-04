@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getPilotFocusBySignal } from "./pilotFocusMap";
+import { getPilotFocusBySignal } from "../pilotFocusMap.js";
+import { buildPilotPageData } from "../lib/buildPilotPageData.js";
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
@@ -272,7 +273,7 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
   const workflowName =
     selectedWorkflow === "Other"
       ? customWorkflow.trim() || "Custom workflow"
-     : selectedWorkflow || "Selected workflow";
+      : selectedWorkflow || "Selected workflow";
 
   const primarySignalKey =
     strongestSignal?.key ||
@@ -431,6 +432,147 @@ function PilotActions({ onBack, onStart }) {
   );
 }
 
+function StagePilotPlanSection({ preview }) {
+  const scenarioKey =
+    preview?.scenario?.key ||
+    preview?.scenario?.id ||
+    "";
+
+  const strongestSignal = preview?.top_signals?.[0] || null;
+
+  const signalKey =
+    strongestSignal?.key ||
+    strongestSignal?.signalKey ||
+    "";
+
+  function resolveChainId() {
+    if (scenarioKey.includes("authority")) return "CHAIN-001";
+    if (signalKey.includes("boundary")) return "CHAIN-003";
+    return "CHAIN-002";
+  }
+
+  function resolveStage() {
+    const score =
+      strongestSignal?.score ??
+      strongestSignal?.value ??
+      strongestSignal?.strength ??
+      0;
+
+    if (score >= 85) return "S4";
+    if (score >= 70) return "S3";
+    if (score >= 50) return "S2";
+    return "S1";
+  }
+
+  const chainId = resolveChainId();
+  const stage = resolveStage();
+
+  const pilotData = buildPilotPageData({
+    chainId,
+    chainName:
+      chainId === "CHAIN-001"
+        ? "Authority Infrastructure"
+        : chainId === "CHAIN-003"
+        ? "Boundary Pressure"
+        : "Reality Control Recovery",
+    stage,
+    stageName: stage,
+    patternName:
+      preview?.scenario?.label ||
+      preview?.title ||
+      "Pattern not available",
+    currentRun:
+      strongestSignal?.currentRun ||
+      strongestSignal?.run ||
+      "RUN-UNKNOWN",
+    nextRun:
+      strongestSignal?.nextRun ||
+      preview?.pilot_preview?.next_run ||
+      "RUN-NEXT",
+  });
+
+  if (!pilotData) return null;
+
+  return (
+    <Card className="p-6 md:p-7">
+      <SectionTitle
+        title="Your 7-day stage-driven plan"
+        hint="This layer converts your current structural position into a 7-day execution path."
+      />
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+            Chain
+          </div>
+          <p className="mt-2 text-sm font-medium text-slate-900">
+            {pilotData.chainName}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+            Current stage
+          </div>
+          <p className="mt-2 text-sm font-medium text-slate-900">
+            {pilotData.stage}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+          Pilot goal
+        </div>
+        <p className="mt-2 text-sm leading-6 text-emerald-900">
+          {pilotData.pilotGoal}
+        </p>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {pilotData.dayPlanList.map((item) => (
+          <div
+            key={item.day}
+            className="rounded-2xl border border-slate-200 bg-white p-4"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {item.day} · {item.status}
+            </div>
+
+            <h3 className="mt-2 text-base font-semibold text-slate-950">
+              {item.title}
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {item.description}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+            Milestone
+          </div>
+          <p className="mt-2 text-sm leading-6 text-sky-900">
+            {pilotData.milestone}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+            Expected outcome
+          </div>
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            {pilotData.expectedOutcome}
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function PilotPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -525,6 +667,8 @@ export default function PilotPage() {
             selectedWorkflow={selectedWorkflow}
             customWorkflow={customWorkflow}
           />
+
+          <StagePilotPlanSection preview={preview} />
 
           <WorkflowPicker
             selectedWorkflow={selectedWorkflow}

@@ -1,15 +1,63 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { enrichSignals } from "./signalContentMap.js";
-import { getSignalAction } from "./signalActionMap.js";
-import { getPilotFocusBySignal } from "./pilotFocusMap.js";
+import { enrichSignals } from "../signalContentMap.js";
+import { getSignalAction } from "../signalActionMap.js";
+import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { ROUTES } from "../routes.js";
+import StructurePathSection from "./components/StructurePathSection";
+import { getRunRouteMeta } from "./runRoutingMap";
 
 const STORAGE_KEYS = {
   RESULT: "nimclea_result",
   PREVIEW: "nimclea_preview_result",
   SESSION_ID: "nimclea_session_id",
 };
+
+const RUN_TO_STAGE = {
+  RUN007: "S1",
+  RUN042: "S1",
+  RUN044: "S2",
+  RUN048: "S2",
+  RUN050: "S3",
+  RUN052: "S4",
+  RUN063: "S3",
+  RUN064: "S4",
+  RUN065: "S5",
+};
+
+function resolveRun({ scenarioCode = "", primarySignalKey = "", intensityLevel = 3 }) {
+  const signal = String(primarySignalKey).toLowerCase();
+  const scenario = String(scenarioCode).toLowerCase();
+  const level = Number(intensityLevel) || 3;
+
+  // ===== Boundary =====
+  if (
+    signal.includes("boundary") ||
+    scenario === "boundary_blur"
+  ) {
+    if (level >= 5) return "RUN052";
+    if (level >= 4) return "RUN052";
+    if (level >= 3) return "RUN050";
+    if (level >= 2) return "RUN048";
+    return "RUN042";
+  }
+
+  // ===== Pre-audit collapse（你当前场景）=====
+  if (scenario === "pre_audit_collapse") {
+    if (level >= 5) return "RUN065"; // ⭐ S5
+    if (level >= 4) return "RUN064";
+    if (level >= 3) return "RUN063";
+    if (level >= 2) return "RUN044";
+    return "RUN007";
+  }
+
+  // ===== fallback =====
+  if (level >= 5) return "RUN065";
+  if (level >= 4) return "RUN064";
+  if (level >= 3) return "RUN063";
+  if (level >= 2) return "RUN044";
+  return "RUN007";
+}
 
 function safeParse(jsonString) {
   if (!jsonString) return null;
@@ -963,7 +1011,7 @@ function IntensityBars({ level }) {
   );
 }
 
-function ReportHero({ result, sessionId }) {
+function ReportHero({ result, sessionId, onStartPilot }) {
   const reportId = useMemo(() => createReportId(sessionId), [sessionId]);
   const dateText = useMemo(
     () =>
@@ -992,6 +1040,12 @@ function ReportHero({ result, sessionId }) {
       }),
     [result]
   );
+
+  const primarySignalLabel =
+    result?.top_signals?.[0]?.label || "Structural Signal";
+
+  const ctaLabel =
+    result?.pilot_preview?.cta_label || "Start My 7-Day Pilot →";
 
   return (
     <Card className="overflow-hidden">
@@ -1028,6 +1082,39 @@ function ReportHero({ result, sessionId }) {
           You do not need to fix everything first.
           You need to test your next real decision inside a controlled pilot.
         </p>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Dominant Scenario
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {result?.scenario?.label || "No Dominant Scenario"}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Primary Signal
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {primarySignalLabel}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+              Best Next Step
+            </div>
+            <button
+              type="button"
+              onClick={onStartPilot}
+              className="mt-2 text-left text-sm font-semibold text-emerald-900 transition hover:text-emerald-700"
+            >
+              {ctaLabel}
+            </button>
+          </div>
+        </div>
 
         <div className="mt-8">
           <IntensityBars level={result.intensity?.level} />
@@ -1117,7 +1204,7 @@ function SignalScoreBadge({ score }) {
   );
 }
 
-function SignalDetailCard({ signal, index }) {
+function SignalDetailCard({ signal, index, onStartPilot }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -1237,13 +1324,28 @@ function SignalDetailCard({ signal, index }) {
           <div className="mt-3 text-xs font-medium text-slate-500">
             Source: {signal.source || "Diagnostic Engine"}
           </div>
+
+          {onStartPilot ? (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartPilot(signal);
+                }}
+                className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+              >
+                Use this in Pilot →
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </li>
   );
 }
 
-function SignalsSection({ signals }) {
+function SignalsSection({ signals, onStartPilot }) {
   if (!signals || signals.length === 0) return null;
 
   return (
@@ -1260,6 +1362,7 @@ function SignalsSection({ signals }) {
             key={signal.id || `${signal.label}-${index}`}
             signal={signal}
             index={index}
+            onStartPilot={onStartPilot}
           />
         ))}
       </ul>
@@ -1270,23 +1373,23 @@ function SignalsSection({ signals }) {
 function getPilotTriggerCopy(scenarioCode) {
   const copyMap = {
     pre_audit_collapse: {
-      label: "Pressure Test",
-      title: "This may already feel unstable when pressure hits.",
+      label: "Act Before Pressure Wins",
+      title: "Test this now before the next deadline turns it into a scramble.",
       body1:
-        "Parts of this workflow are likely harder to retrieve, explain, or defend than they should be. You may already feel this when deadlines or reviews come up.",
+        "You already have enough signal to know this is not random friction. The structure is showing where it breaks when retrieval, explanation, or proof are required.",
       body2:
-        "Run one real workflow through a 7-day pilot to see if this structure can hold without last-minute scrambling.",
-      footer: "One workflow. 7 days. No rollout.",
+        "Use one real workflow in a 7-day pilot to see whether Nimclea can make that path easier to defend, easier to verify, and harder to derail.",
+      footer: "One workflow. 7 days. No rollout. Real validation.",
     },
 
     barely_functional: {
-      label: "Next Step",
-      title: "This works, but probably takes more effort than it should.",
+      label: "Move Before It Drifts",
+      title: "This still works, but it is costing more than it should.",
       body1:
-        "Things get done, but likely rely on reminders, coordination, or repeated explanation to stay on track.",
+        "The workflow is holding together, but too much of that stability may still depend on manual coordination, reminders, or repeated explanation.",
       body2:
-        "Run one real workflow through a 7-day pilot to test a simpler, more repeatable way of operating.",
-      footer: "Just one workflow. 7 days. No rollout.",
+        "Run one real workflow through a 7-day pilot to test whether Nimclea can reduce hidden effort before this becomes a larger operational habit.",
+      footer: "One workflow. 7 days. No rollout.",
     },
 
     boundary_blur: {
@@ -1313,65 +1416,49 @@ function getPilotTriggerCopy(scenarioCode) {
   return copyMap[scenarioCode] || copyMap.boundary_blur;
 }
 
-function PilotTriggerCard({ onStartPilot, scenarioCode, ctaState }) {
+function PilotTriggerCard({ onStartPilot, scenarioCode, ctaState, ctaLabel }) {
   const copy = getPilotTriggerCopy(scenarioCode);
 
   return (
-    <>
-      <Card className="border-amber-200 bg-amber-50 p-6 md:p-7">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-2xl">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-              {copy.label}
-            </div>
-
-            <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-              {copy.title}
-            </h2>
-
-            <p className="mt-3 text-sm leading-7 text-slate-700">
-              {copy.body1}
-            </p>
-
-            <p className="mt-2 text-sm leading-7 text-slate-700">
-              {copy.body2}
-            </p>
-
-            <p className="mt-2 text-xs leading-6 text-slate-500">
-              {copy.footer}
-            </p>
+    <Card className="border-amber-200 bg-amber-50 p-6 md:p-7">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="max-w-2xl">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
+            {copy.label}
           </div>
 
-          <div className="flex flex-col items-start md:items-end">
-            <button
-              type="button"
-              onClick={() => {
-                console.log("🔥 CARD BUTTON CLICKED");
-                onStartPilot?.();
-              }}
-              className={getButtonClass(ctaState)}
-            >
-              Start My 7-Day Pilot →
-            </button>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+            {copy.title}
+          </h2>
 
-            <p className="mt-2 text-xs text-slate-600">
-              Takes less than 2 minutes. No setup.
-            </p>
-          </div>
+          <p className="mt-3 text-sm leading-7 text-slate-700">
+            {copy.body1}
+          </p>
+
+          <p className="mt-2 text-sm leading-7 text-slate-700">
+            {copy.body2}
+          </p>
+
+          <p className="mt-2 text-xs leading-6 text-slate-500">
+            {copy.footer}
+          </p>
         </div>
-      </Card>
 
-      <button
-        type="button"
-        onClick={() => {
-          console.log("🔥 FIXED BUTTON CLICKED");
-          onStartPilot?.();
-        }}
-        className="fixed bottom-6 right-6 z-[99999] rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg"
-      >
-        Emergency Pilot Button
-      </button>
-    </>
+                <div className="flex flex-col items-start md:items-end">
+          <button
+            type="button"
+            onClick={onStartPilot}
+            className={getButtonClass(ctaState)}
+          >
+            {ctaLabel || "Start My 7-Day Pilot →"}
+          </button>
+
+          <p className="mt-2 text-xs text-slate-600">
+            Takes less than 2 minutes. No setup.
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -1597,20 +1684,6 @@ export default function ResultPage({
   const navigate = useNavigate();
   const location = useLocation();
   const [ctaState, setCtaState] = useState("default"); // default | warm | ready
-  useEffect(() => {
-  const t1 = setTimeout(() => {
-    setCtaState("warm");
-  }, 20000);
-
-  const t2 = setTimeout(() => {
-    setCtaState("ready");
-  }, 45000);
-
-  return () => {
-    clearTimeout(t1);
-    clearTimeout(t2);
-  };
-}, []);
 
   const isLikelyResultPayload = (value) =>
     !!(
@@ -1688,7 +1761,6 @@ export default function ResultPage({
     const [result, setResult] = useState(() =>
       initialPreview && isValidPreview(initialPreview) ? initialPreview : null
     );
-    const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
   useEffect(() => {
@@ -1709,15 +1781,14 @@ export default function ResultPage({
 }, []);
 
 useEffect(() => {
-    if (initialPreview && isValidPreview(initialPreview)) {
-      setResult(initialPreview);
-      setError("");
-      setLoading(false);
-      return;
-    }
+  if (initialPreview && isValidPreview(initialPreview)) {
+    setResult(initialPreview);
+    setError("");
+    return;
+  }
 
-    setLoading(true);
-  }, [initialPreview]);
+  setResult(null);
+}, [initialPreview]);
 
 const handleRestart = useCallback(() => {
   if (typeof window !== "undefined") {
@@ -1739,38 +1810,63 @@ const handleRestart = useCallback(() => {
   navigate(ROUTES.HOME);
 }, [navigate, onRestartProp, resolvedSessionId]);
 
-const handleStartPilot = useCallback(() => {
-  if (!result || !isValidPreview(result)) {
-    console.log("❌ invalid result, pilot not started");
-    return;
-  }
-
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.PREVIEW, JSON.stringify(result));
-
-    if (resolvedSessionId) {
-      localStorage.setItem(STORAGE_KEYS.SESSION_ID, resolvedSessionId);
-      localStorage.setItem(
-        `nimclea_preview_result_${resolvedSessionId}`,
-        JSON.stringify(result)
-      );
+const handleStartPilot = useCallback(
+  (signal = null) => {
+    if (!result || !isValidPreview(result)) {
+      console.error("invalid result, pilot not started");
+      return;
     }
-  }
 
-  console.log("🚀 pilot redirect to:", ROUTES.PILOT);
-  window.location.assign(ROUTES.PILOT);
-}, [result, resolvedSessionId]);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.PREVIEW, JSON.stringify(result));
 
-const fetchPreview = useCallback(async () => {
+      if (resolvedSessionId) {
+        localStorage.setItem(STORAGE_KEYS.SESSION_ID, resolvedSessionId);
+        localStorage.setItem(
+          `nimclea_preview_result_${resolvedSessionId}`,
+          JSON.stringify(result)
+        );
+      }
+    }
+
+    const primarySignalKey =
+      signal?.key ||
+      signal?.signalKey ||
+      result?.top_signals?.[0]?.key ||
+      result?.top_signals?.[0]?.signalKey ||
+      "";
+
+    if (typeof onStartPilotProp === "function") {
+      onStartPilotProp({
+        sessionId: resolvedSessionId,
+        sourceInput: result,
+        scenarioCode: result?.scenario?.code || "",
+        primarySignalKey,
+      });
+      return;
+    }
+
+    navigate(ROUTES.PILOT, {
+      state: {
+        sessionId: resolvedSessionId,
+        sourceInput: result,
+        preview: result,
+        scenarioCode: result?.scenario?.code || "",
+        primarySignalKey,
+      },
+    });
+  },
+  [navigate, onStartPilotProp, result, resolvedSessionId]
+);
+
+const fetchPreview = useCallback(() => {
   try {
-    setLoading(true);
     setError("");
 
     const storedResult = normalizePreview(getStoredResult(resolvedSessionId));
     if (storedResult && isValidPreview(storedResult)) {
       setResult(storedResult);
       setError("");
-      setLoading(false);
       return;
     }
 
@@ -1778,20 +1874,17 @@ const fetchPreview = useCallback(async () => {
     if (storedPreview && isValidPreview(storedPreview)) {
       setResult(storedPreview);
       setError("");
-      setLoading(false);
       return;
     }
 
     if (!resolvedSessionId) {
       setResult(null);
       setError("No session_id was found for this result page.");
-      setLoading(false);
       return;
     }
 
     setResult(null);
     setError("No diagnostic preview was found for this session.");
-    setLoading(false);
   } catch (err) {
     setResult(null);
     setError(
@@ -1799,7 +1892,6 @@ const fetchPreview = useCallback(async () => {
         ? err.message
         : "Something went wrong while loading the preview."
     );
-    setLoading(false);
   }
 }, [resolvedSessionId]);
 
@@ -1817,7 +1909,6 @@ useEffect(() => {
       }
     }
 
-    setLoading(false);
     setError("");
     return;
   }
@@ -1828,10 +1919,6 @@ useEffect(() => {
 const handleRetry = useCallback(async () => {
   await fetchPreview();
 }, [fetchPreview]);
-
-if (loading) {
-  return <LoadingState />;
-}
 
 if (error && !result) {
   return (
@@ -1856,24 +1943,75 @@ const primarySignalKey =
   result?.top_signals?.[0]?.signalKey ||
   "";
 
+const resolvedRun = resolveRun({
+  scenarioCode: result?.scenario?.code,
+  primarySignalKey,
+  intensityLevel: result?.intensity?.level,
+});
+
+const runMeta = getRunRouteMeta(resolvedRun);
+
+const resolvedPath = {
+  pattern: result?.scenario?.label || "Unknown Pattern",
+  chain:
+    result?.scenario?.code === "boundary_blur"
+      ? "Boundary Pressure"
+      : "Boundary → Pressure → Optional Exit",
+  stage: RUN_TO_STAGE[resolvedRun] || "Unknown Stage",
+  run: resolvedRun,
+  explanation: result?.summary?.[0] || "",
+  nextAction:
+  result?.pilot_preview?.entry
+    ? `Focus on one workflow where evidence retrieval breaks under pressure, and use it as a controlled pilot.`
+    : "Focus on one workflow where evidence retrieval breaks under pressure, and use it as a controlled pilot.",
+};
+
 const pilotFocus = getPilotFocusBySignal(primarySignalKey);
 
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
         <div className="space-y-6">
-          <ReportHero result={result} sessionId={resolvedSessionId} />
+          <ReportHero
+            result={result}
+            sessionId={resolvedSessionId}
+            onStartPilot={handleStartPilot}
+          />
+
+          {runMeta?.microNote && (
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
+              {runMeta.microNote}
+            </div>
+          )}
 
           <SummarySection summary={result.summary} />
 
           <SynthesisSection items={result.synthesis || []} />
 
-          <SignalsSection signals={result.top_signals} />
+          <StructurePathSection data={resolvedPath} />
+
+          <SignalsSection
+            signals={result.top_signals}
+            onStartPilot={handleStartPilot}
+          />
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
+              Why act now
+            </div>
+            <p className="mt-2 text-sm leading-7 text-slate-800">
+              Most teams stop at understanding the problem. The pilot is where this stops being theory.
+            </p>
+            <p className="mt-2 text-sm leading-7 text-slate-700">
+              If this structure is already showing pressure, the cheapest moment to test it is now, before the next real deadline, audit, or review forces the issue.
+            </p>
+          </div>
 
           <PilotTriggerCard
             onStartPilot={handleStartPilot}
             scenarioCode={result?.scenario?.code}
             ctaState={ctaState}
+            ctaLabel={result?.pilot_preview?.cta_label}
           />
 
           <PilotSection
