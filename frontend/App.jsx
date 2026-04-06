@@ -10,6 +10,7 @@ import PilotSetupPage from "./PilotSetupPage.jsx";
 import ReceiptPage from "./pages/ReceiptPage.jsx";
 import VerificationPage from "./pages/VerificationPage.jsx";
 import ROUTES from "./routes";
+import RunLedgerPage from "./pages/RunLedgerPage";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       <Route path={ROUTES.PILOT_RESULT} element={<PilotResultPage />} />
       <Route path={ROUTES.RECEIPT} element={<ReceiptPage />} />
       <Route path={ROUTES.VERIFICATION} element={<VerificationPage />} />
+      <Route path={ROUTES.RUN_LEDGER} element={<RunLedgerPage />} />
     </Routes>
   );
 }

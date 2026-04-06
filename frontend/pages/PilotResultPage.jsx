@@ -4,6 +4,7 @@ import { buildReceiptPageData } from "../buildReceiptPageData";
 import { buildVerificationPageData } from "../buildVerificationPageData";
 import ROUTES from "../routes";
 import { logEvent } from "../utils/eventLogger";
+import { recordRun } from "./runLedger";
 
 const SCENARIO_LABEL_MAP = {
   pre_audit_collapse: "Pre-Audit Collapse",
@@ -17,6 +18,11 @@ function buildSourceInputFromState(locationState = {}) {
   const sourceInput = locationState?.sourceInput || null;
   const pilotSetup = locationState?.pilot_setup || null;
   const pilotResult = locationState?.pilot_result || null;
+  const caseInput =
+    locationState?.caseInput ||
+    pilotSetup?.caseInput ||
+    pilotResult?.caseInput ||
+    "";
 
   const upstream = sourceInput || preview || {};
   const extraction = upstream?.extraction || {};
@@ -100,6 +106,8 @@ function buildSourceInputFromState(locationState = {}) {
       upstream?.summary?.[0] ||
       resultSeed?.summary ||
       "No structured summary available.",
+
+    caseInput: caseInput,
   };
 }
 
@@ -119,6 +127,7 @@ export default function PilotResultPage() {
     receiptTitle: "Decision Receipt",
     receiptId: rawReceipt.receipt_id,
     generatedAt: new Date(rawReceipt.timestamp).toLocaleString(),
+    caseInput: sourceInput.caseInput || "",
 
     summaryTitle: "Decision Summary",
     summaryText: sourceInput.summaryText || rawReceipt.decision,
@@ -183,7 +192,7 @@ const verificationPageData = {
     {
       time: "Step 2",
       title: "Receipt generated",
-      detail: `Receipt captured ${sourceInput.scenarioLabel} / ${sourceInput.stage} / ${sourceInput.runId}.`,
+      detail: `Receipt captured ${sourceInput.scenarioLabel} / ${sourceInput.stage} / ${sourceInput.runId}${sourceInput.caseInput ? ` / Case: ${sourceInput.caseInput}` : ""}.`,
     },
     {
       time: "Step 3",
@@ -204,7 +213,7 @@ const verificationPageData = {
           <p className="text-sm font-medium text-slate-500 mb-2">Pilot Result</p>
           <h1 className="text-3xl font-bold mb-3">Pilot Result</h1>
           <p className="text-slate-700 leading-7">
-            This shows what changed after forcing execution into the system and lets the user generate a receipt.
+            This shows the result of one concrete pilot case and prepares it for receipt generation and verification.
           </p>
         </header>
 
@@ -216,10 +225,17 @@ const verificationPageData = {
             </p>
           </div>
 
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
             <p className="text-sm text-slate-500">Scenario</p>
             <p className="text-base font-semibold text-slate-900">
               {sourceInput.scenarioLabel}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+            <p className="text-sm text-slate-500">Case tested</p>
+            <p className="text-base font-semibold text-slate-900">
+              {sourceInput.caseInput || "No case attached"}
             </p>
           </div>
 
@@ -227,6 +243,17 @@ const verificationPageData = {
             <button
               type="button"
               onClick={() => {
+              recordRun({
+                receiptId: receiptPageData.receiptId,
+                caseInput: sourceInput.caseInput || "",
+                workflow: sourceInput.workflow || "",
+                scenarioLabel: sourceInput.scenarioLabel || "",
+                stageLabel: sourceInput.stage || "",
+                runLabel: sourceInput.runId || "",
+                receiptPageData,
+                verificationPageData,
+              });
+                
                 localStorage.setItem("receiptPageData", JSON.stringify(receiptPageData));
                 localStorage.setItem(
                   "verificationPageData",

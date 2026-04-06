@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "./routes";
 import { logEvent } from "./utils/eventLogger";
@@ -317,6 +317,35 @@ function CarryOverSection({ preview, workflow }) {
   );
 }
 
+function CaseInputSection({ caseInput, setCaseInput }) {
+  return (
+    <Card className="p-6 md:p-7">
+      <SectionTitle
+        title="Case to test"
+        hint="Name one real case in a single sentence so this pilot stays tied to a real event."
+      />
+
+      <div className="mt-5">
+        <label className="block text-sm font-medium text-slate-700 mb-2">
+          What case are you testing?
+        </label>
+
+        <input
+          type="text"
+          value={caseInput}
+          onChange={(e) => setCaseInput(e.target.value)}
+          placeholder="e.g. Q1 audit evidence reconstruction for vendor files"
+          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+        />
+
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          This is not the whole project. Just one concrete case for this 7-day pilot.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 function ActionBar({ onBack, onConfirm }) {
   return (
     <div className="flex flex-wrap gap-3">
@@ -342,6 +371,7 @@ function ActionBar({ onBack, onConfirm }) {
 export default function PilotSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [caseInput, setCaseInput] = useState("");
 
   const pilotSetup = location.state?.pilot_setup || null;
   const preview = location.state?.preview || null;
@@ -379,7 +409,19 @@ export default function PilotSetupPage() {
   };
 
   const handleConfirm = () => {
+    const trimmedCaseInput = caseInput.trim();
+
+    if (!trimmedCaseInput) {
+      alert("Please enter one real case before confirming the pilot setup.");
+      return;
+    }
+
     logEvent("pilot_entry_clicked");
+    logEvent("case_created", {
+      case_input: trimmedCaseInput,
+      workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+      session_id: sessionId,
+    });
 
     const strongestSignal = Array.isArray(preview?.top_signals)
       ? preview.top_signals[0]
@@ -454,6 +496,8 @@ export default function PilotSetupPage() {
       "No structured summary available.",
   };
 
+    caseInput: trimmedCaseInput,
+
   navigate(
     sessionId
       ? `${ROUTES.PILOT_RESULT}?session_id=${sessionId}`
@@ -470,8 +514,12 @@ export default function PilotSetupPage() {
         extraction: preview?.extraction || {},
         resultSeed: preview?.resultSeed || preview?.extraction || {},
 
-        pilot_setup: pilotSetup,
+        pilot_setup: {
+          ...pilotSetup,
+          caseInput: trimmedCaseInput,
+        },
         pilot_result: pilotResult,
+        caseInput: trimmedCaseInput,
       },
     }
   );
@@ -494,6 +542,11 @@ return (
         <DayPlanSection preview={preview} workflow={workflow} />
 
         <CarryOverSection preview={preview} workflow={workflow} />
+
+        <CaseInputSection
+          caseInput={caseInput}
+          setCaseInput={setCaseInput}
+        />
 
         <ActionBar onBack={handleBack} onConfirm={handleConfirm} />
       </div>

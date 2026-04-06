@@ -7,11 +7,11 @@ import { ROUTES } from "../routes.js";
 import StructurePathSection from "./components/StructurePathSection";
 import { getRunRouteMeta } from "./runRoutingMap";
 import buildResultSeed from "./resultSeedBuilder";
-import { logEvent } from "../utils/eventLogger";
 import { patternRegistry } from "../data/patternRegistry";
 import { chainRegistry } from "../data/chainRegistry";
 import { getRun } from "../data/stageRunMap";
 import { resultStageCopy } from "../data/resultStageCopy";
+import { logEvent } from "../utils/eventLogger";
 
 const STORAGE_KEYS = {
   RESULT: "nimclea_result",
