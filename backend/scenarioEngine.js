@@ -730,7 +730,7 @@ if (totalScore === 0) {
     scenario = {
       id: "scenario_1",
       code: "pre_audit_collapse",
-      label: "审计前崩溃型",
+      label: "Pre-Audit Collapse",
       primary_signal_group: "evidence_fragmentation_score",
       primary_group_code: "collapse_risk",
       preview_block: {
@@ -747,7 +747,7 @@ if (totalScore === 0) {
     scenario = {
       id: "scenario_2",
       code: "barely_functional",
-      label: "勉强能用型",
+      label: "Barely Functional",
       primary_signal_group: winner.groupKey,
       primary_group_code: "operational_friction",
       preview_block: {
@@ -764,7 +764,7 @@ if (totalScore === 0) {
     scenario = {
       id: "scenario_3",
       code: "boundary_blur",
-      label: "边界模糊型",
+      label: "Boundary Blur",
       primary_signal_group: winner.groupKey,
       primary_group_code: "mixed_readiness",
       preview_block: {
@@ -781,7 +781,7 @@ if (totalScore === 0) {
     scenario = {
       id: "scenario_4",
       code: "basically_stable",
-      label: "基本稳定型",
+      label: "Basically Stable",
       primary_signal_group: "governance_strength_score",
       primary_group_code: "stable_foundation",
       preview_block: {
@@ -798,7 +798,7 @@ if (totalScore === 0) {
     scenario = {
       id: "scenario_5",
       code: "fully_ready",
-      label: "完全准备好型",
+      label: "Fully Ready",
       primary_signal_group: "governance_strength_score",
       primary_group_code: "fully_ready",
       preview_block: {

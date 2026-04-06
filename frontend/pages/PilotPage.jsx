@@ -2,11 +2,52 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { buildPilotPageData } from "../lib/buildPilotPageData.js";
+import { logEvent } from "../utils/eventLogger";
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
   SESSION_ID: "nimclea_session_id",
 };
+
+const SCENARIO_LABEL_MAP = {
+  pre_audit_collapse: "Pre-Audit Collapse",
+  barely_functional: "Barely Functional",
+  boundary_blur: "Boundary Blur",
+  basically_stable: "Basically Stable",
+  fully_ready: "Fully Ready",
+  audit_ready: "Audit-Ready",
+  C0: "Moderate Fit / Wedge Unclear",
+  C1: "Judgment + Evidence Pain",
+  C2: "Standardization Opportunity",
+  C3: "Pilot-Ready Diagnostic Fit",
+  C4: "Stable Structure",
+};
+
+function getEnglishScenarioLabel(preview) {
+  const scenarioCode =
+    preview?.scenario?.code ||
+    preview?.scenarioCode ||
+    preview?.scenario_code ||
+    "";
+
+  const rawLabel =
+    preview?.scenario?.label ||
+    preview?.scenarioLabel ||
+    "";
+
+  if (SCENARIO_LABEL_MAP[scenarioCode]) {
+    return SCENARIO_LABEL_MAP[scenarioCode];
+  }
+
+  if (
+    typeof rawLabel === "string" &&
+    /^[\x00-\x7F\s\-\/+]+$/.test(rawLabel)
+  ) {
+    return rawLabel;
+  }
+
+  return "No Dominant Scenario";
+}
 
 function safeParse(jsonString) {
   if (!jsonString) return null;
@@ -97,12 +138,11 @@ function EmptyState({ onBack }) {
       <div className="mx-auto max-w-3xl px-6 py-16">
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
-            No pilot context found
+            No pilot context available
           </h1>
 
           <p className="mt-3 text-sm leading-7 text-slate-600">
-            Open this page from the result screen so the pilot can inherit your
-            scenario, top signals, and recommended next step.
+            Open this page from the result screen so the pilot can inherit your result, current scenario, and recommended next step.
           </p>
 
           <div className="mt-6">
@@ -138,7 +178,7 @@ function PilotHero({ preview, sessionId }) {
   const pilotId = useMemo(() => createPilotId(sessionId), [sessionId]);
 
   const strongestSignal = preview?.top_signals?.[0] || null;
-  const scenarioLabel = preview?.scenario?.label || "No Dominant Scenario";
+  const scenarioLabel = getEnglishScenarioLabel(preview);
 
   const primarySignalKey =
     strongestSignal?.key ||
@@ -156,7 +196,7 @@ function PilotHero({ preview, sessionId }) {
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
         <div className="flex flex-wrap items-center gap-2">
-          <Pill success>Pilot Starter</Pill>
+          <Pill success>7-Day Pilot</Pill>
           {scenarioLabel ? <Pill>{scenarioLabel}</Pill> : null}
           {preview?.pressureProfile?.label ? (
             <Pill dark>{preview.pressureProfile.label}</Pill>
@@ -164,15 +204,16 @@ function PilotHero({ preview, sessionId }) {
         </div>
 
         <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          Start Your 7-Day Pilot
+          Test whether your decision path actually holds in reality
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
-          This 7-day pilot turns your diagnostic result into one real test. You will use one workflow to see whether Nimclea can reduce friction, sharpen boundaries, and make the decision path easier to verify.
+          This 7-day pilot is not about improvement. It is about proof.
+          You will take one real workflow and see whether your path actually works under real conditions.
         </p>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-700">
-          Small scope. One workflow. No full rollout required.
+          One workflow. Seven days. Either it holds, or it breaks.
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -196,7 +237,7 @@ function PilotHero({ preview, sessionId }) {
 
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-              Pilot focus
+              Recommended focus
             </div>
             <p className="mt-2 text-sm font-medium text-emerald-900">
               {focusText}
@@ -226,8 +267,8 @@ function WorkflowPicker({ selectedWorkflow, onSelect, customWorkflow, onCustomCh
   return (
     <Card className="p-6 md:p-7">
       <SectionTitle
-        title="Choose the workflow for this 7-day pilot"
-        hint="Use one real workflow to test the plan above. Do not pilot the whole system at once."
+        title="Choose one workflow to test"
+        hint="Use one real workflow for this pilot. Keep the scope narrow so the result is easier to observe and verify."
       />
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -305,8 +346,8 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
   return (
     <Card className="p-6 md:p-7">
       <SectionTitle
-        title="Your pilot plan"
-        hint="This plan is intentionally narrow. It is designed to help you test one improvement without opening a full rollout."
+        title="Your 7-day pilot plan"
+        hint="This plan is intentionally narrow. It is designed to test one structural improvement in one real workflow."
       />
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -347,7 +388,7 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
           What success looks like
         </div>
         <p className="mt-2 text-sm leading-6 text-amber-900">
-          {success}
+          The workflow becomes easier to execute, easier to explain, and easier to verify without extra coordination effort.
         </p>
       </div>
     </Card>
@@ -367,8 +408,8 @@ function CarryOverSection({ preview }) {
   return (
     <Card className="p-6 md:p-7">
       <SectionTitle
-        title="Why this pilot was suggested"
-        hint="This recommendation comes directly from your diagnostic result and strongest structural signal."
+        title="Why this pilot is the recommended next step"
+        hint="This recommendation comes directly from your result, current scenario, and strongest structural signal."
       />
 
       <div className="mt-5 space-y-3">
@@ -377,7 +418,7 @@ function CarryOverSection({ preview }) {
             Scenario
           </div>
           <p className="mt-2 text-sm text-slate-900">
-            {preview?.scenario?.label || "No Dominant Scenario"}
+            {getEnglishScenarioLabel(preview)}
           </p>
         </div>
 
@@ -416,15 +457,15 @@ function PilotActions({ onBack, onStart }) {
       <button
         type="button"
         onClick={onStart}
-        className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
       >
-        Start 7-Day Pilot →
+        Start My 7-Day Test →
       </button>
 
       <button
         type="button"
         onClick={onBack}
-        className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+        className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
       >
         Back to Result
       </button>
@@ -432,40 +473,11 @@ function PilotActions({ onBack, onStart }) {
   );
 }
 
-function StagePilotPlanSection({ preview }) {
-  const scenarioKey =
-    preview?.scenario?.key ||
-    preview?.scenario?.id ||
-    "";
-
+function StagePilotPlanSection({ preview, stageFromResult, chainIdFromResult }) {
   const strongestSignal = preview?.top_signals?.[0] || null;
 
-  const signalKey =
-    strongestSignal?.key ||
-    strongestSignal?.signalKey ||
-    "";
-
-  function resolveChainId() {
-    if (scenarioKey.includes("authority")) return "CHAIN-001";
-    if (signalKey.includes("boundary")) return "CHAIN-003";
-    return "CHAIN-002";
-  }
-
-  function resolveStage() {
-    const score =
-      strongestSignal?.score ??
-      strongestSignal?.value ??
-      strongestSignal?.strength ??
-      0;
-
-    if (score >= 85) return "S4";
-    if (score >= 70) return "S3";
-    if (score >= 50) return "S2";
-    return "S1";
-  }
-
-  const chainId = resolveChainId();
-  const stage = resolveStage();
+  const chainId = chainIdFromResult || "CHAIN-001";
+  const stage = stageFromResult || "S1";
 
   const pilotData = buildPilotPageData({
     chainId,
@@ -478,7 +490,7 @@ function StagePilotPlanSection({ preview }) {
     stage,
     stageName: stage,
     patternName:
-      preview?.scenario?.label ||
+      getEnglishScenarioLabel(preview) ||
       preview?.title ||
       "Pattern not available",
     currentRun:
@@ -496,8 +508,8 @@ function StagePilotPlanSection({ preview }) {
   return (
     <Card className="p-6 md:p-7">
       <SectionTitle
-        title="Your 7-day stage-driven plan"
-        hint="This layer converts your current structural position into a 7-day execution path."
+        title="Your 7-day execution plan"
+        hint="This plan translates your current stage into concrete steps you can apply immediately."
       />
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -574,8 +586,32 @@ function StagePilotPlanSection({ preview }) {
 }
 
 export default function PilotPage() {
+  useEffect(() => {
+    logEvent("pilot_started");
+  }, []);
+
   const navigate = useNavigate();
   const location = useLocation();
+
+  console.log("🧠 location.state:", location.state);
+
+  const resolvedChainId =
+    location.state?.chainId ||
+    location.state?.result?.chainId ||
+    location.state?.preview?.chainId ||
+    location.state?.sourceInput?.chainId ||
+    "CHAIN-001";
+
+  const rawStage =
+    location.state?.stage ||
+    location.state?.resolvedStage ||
+    location.state?.result?.stage ||
+    location.state?.preview?.stage ||
+    location.state?.sourceInput?.stage ||
+    "S3";
+
+  const resolvedStage =
+    typeof rawStage === "string" ? rawStage.toUpperCase() : "S3";
 
   const resolvedSessionId =
     location.state?.session_id ||
@@ -633,7 +669,16 @@ export default function PilotPage() {
 
     const pilotState = {
       session_id: resolvedSessionId,
+      sessionId: resolvedSessionId,
+
       preview,
+      result: preview,
+      sourceInput: preview,
+
+      stage: resolvedStage,
+      resolvedStage,
+      chainId: resolvedChainId,
+
       pilot_setup: {
         workflow,
         created_from: "pilot_starter_page",
@@ -646,7 +691,15 @@ export default function PilotPage() {
         : "/pilot/setup",
       { state: pilotState }
     );
-  }, [navigate, preview, resolvedSessionId, selectedWorkflow, customWorkflow]);
+  }, [
+  navigate,
+  preview,
+  resolvedSessionId,
+  resolvedChainId,
+  resolvedStage,
+  selectedWorkflow,
+  customWorkflow,
+  ]);
 
   if (loading) {
     return <LoadingState />;
@@ -668,7 +721,11 @@ export default function PilotPage() {
             customWorkflow={customWorkflow}
           />
 
-          <StagePilotPlanSection preview={preview} />
+          <StagePilotPlanSection
+            preview={preview}
+            stageFromResult={resolvedStage}
+            chainIdFromResult={resolvedChainId}
+          />
 
           <WorkflowPicker
             selectedWorkflow={selectedWorkflow}

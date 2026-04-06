@@ -1,6 +1,41 @@
 import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "./routes";
+import { logEvent } from "./utils/eventLogger";
+
+const SCENARIO_LABEL_MAP = {
+  pre_audit_collapse: "Pre-Audit Collapse",
+  barely_functional: "Barely Functional",
+  boundary_blur: "Boundary Blur",
+  fully_ready: "Fully Ready",
+};
+
+function getEnglishScenarioLabel(preview) {
+  const scenarioCode =
+    preview?.scenario?.code ||
+    preview?.scenarioCode ||
+    preview?.scenario_code ||
+    preview?.extraction?.scenarioKey ||
+    "";
+
+  const rawLabel =
+    preview?.scenario?.label ||
+    preview?.scenarioLabel ||
+    "";
+
+  if (SCENARIO_LABEL_MAP[scenarioCode]) {
+    return SCENARIO_LABEL_MAP[scenarioCode];
+  }
+
+  if (
+    typeof rawLabel === "string" &&
+    /^[\x00-\x7F\s\-\/+]+$/.test(rawLabel)
+  ) {
+    return rawLabel;
+  }
+
+  return "No Dominant Scenario";
+}
 
 function Card({ children, className = "" }) {
   return (
@@ -71,7 +106,7 @@ function EmptyState({ onBack }) {
 }
 
 function SetupHero({ preview, workflow, sessionId }) {
-  const scenarioLabel = preview?.scenario?.label || "No Dominant Scenario";
+  const scenarioLabel = getEnglishScenarioLabel(preview);
   const strongestSignal = preview?.top_signals?.[0] || null;
   const pilotId = useMemo(() => {
     if (!sessionId) return "NIM-PILOT";
@@ -93,11 +128,11 @@ function SetupHero({ preview, workflow, sessionId }) {
         </div>
 
         <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          Confirm Your 7-Day Pilot
+          Lock in your execution path
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
-          This page turns your pilot starter into one concrete execution path.
+          You are committing one real workflow to execution. No expansion. No fallback.
           You are not rolling out the full system. You are testing one real
           workflow in a controlled way.
         </p>
@@ -242,7 +277,7 @@ function CarryOverSection({ preview, workflow }) {
             Scenario
           </div>
           <p className="mt-2 text-sm text-slate-900">
-            {preview?.scenario?.label || "No Dominant Scenario"}
+            {getEnglishScenarioLabel(preview)}
           </p>
         </div>
 
@@ -331,47 +366,93 @@ export default function PilotSetupPage() {
         state: {
           session_id: sessionId,
           preview,
-        },
+          result: preview,
+          stage:
+            location.state?.stage ||
+            location.state?.result?.stage ||
+            preview?.stage ||
+            preview?.extraction?.stageCode ||
+            "S1",
+        }
       }
     );
   };
 
   const handleConfirm = () => {
+    logEvent("pilot_entry_clicked");
+
     const strongestSignal = Array.isArray(preview?.top_signals)
       ? preview.top_signals[0]
       : null;
 
-    const pilotResult = {
-      runId: preview?.run_id || preview?.anchor_run || "RUN000",
+  const extraction = preview?.extraction || {};
+  const resultSeed = preview?.resultSeed || preview?.extraction || {};
 
-      pattern:
-        preview?.pattern ||
-        preview?.pattern_id ||
-        "PAT-00",
+  const pilotResult = {
+    runId:
+      extraction?.runCode ||
+      resultSeed?.runCode ||
+      preview?.run_id ||
+      preview?.anchor_run ||
+      "RUN000",
 
-      stage:
-        preview?.stage ||
-        "S0",
+    pattern:
+      extraction?.patternCode ||
+      resultSeed?.patternCode ||
+      preview?.pattern ||
+      preview?.pattern_id ||
+      "PAT-00",
 
-      decision:
-        preview?.recommended_next_step ||
-        preview?.pilot_preview?.entry ||
-        "Continue with structured pilot execution.",
+    stage:
+      extraction?.stageCode ||
+      resultSeed?.stageCode ||
+      preview?.stage ||
+      "S0",
 
-      signals: Array.isArray(preview?.top_signals)
-        ? preview.top_signals.map((signal) => ({
-            label: signal?.label || signal?.key || "unknown_signal",
-            value: signal?.value || signal?.level || "unknown",
-          }))
-        : [],
+    decision:
+      resultSeed?.recommendedAction ||
+      preview?.recommended_next_step ||
+      preview?.pilot_preview?.entry ||
+      "Continue with structured pilot execution.",
 
-      workflow: pilotSetup?.workflow || "Selected workflow",
+    signals: Array.isArray(preview?.top_signals)
+      ? preview.top_signals.map((signal) => ({
+          label: signal?.label || signal?.key || "unknown_signal",
+          value: signal?.value || signal?.level || signal?.description || "unknown",
+        }))
+      : Array.isArray(resultSeed?.signals)
+      ? resultSeed.signals.map((signal, index) => ({
+          label:
+            typeof signal === "string"
+              ? signal
+              : signal?.label || signal?.key || `signal_${index + 1}`,
+          value:
+            typeof signal === "string"
+              ? "present"
+              : signal?.description || signal?.value || "present",
+        }))
+      : [],
 
-      successMetric:
-        strongestSignal?.pilotMetric ||
-        preview?.pilot_preview?.outcome ||
-        "Reduction in friction and clearer workflow structure.",
-    };
+    workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+
+    scenarioLabel: getEnglishScenarioLabel(preview),
+
+    scenarioCode:
+      extraction?.scenarioKey ||
+      resultSeed?.scenarioKey ||
+      preview?.scenario?.code ||
+      "unknown_scenario",
+
+    successMetric:
+      strongestSignal?.pilotMetric ||
+      preview?.pilot_preview?.outcome ||
+      "Reduction in friction and clearer workflow structure.",
+
+    summaryText:
+      preview?.summary?.[0] ||
+      resultSeed?.summary ||
+      "No structured summary available.",
+  };
 
   navigate(
     sessionId
@@ -380,6 +461,16 @@ export default function PilotSetupPage() {
     {
       state: {
         ...location.state,
+        session_id: sessionId,
+        sessionId: sessionId,
+
+        preview,
+        sourceInput: preview,
+
+        extraction: preview?.extraction || {},
+        resultSeed: preview?.resultSeed || preview?.extraction || {},
+
+        pilot_setup: pilotSetup,
         pilot_result: pilotResult,
       },
     }

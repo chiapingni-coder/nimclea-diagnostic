@@ -6,6 +6,12 @@ import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { ROUTES } from "../routes.js";
 import StructurePathSection from "./components/StructurePathSection";
 import { getRunRouteMeta } from "./runRoutingMap";
+import buildResultSeed from "./resultSeedBuilder";
+import { logEvent } from "../utils/eventLogger";
+import { patternRegistry } from "../data/patternRegistry";
+import { chainRegistry } from "../data/chainRegistry";
+import { getRun } from "../data/stageRunMap";
+import { resultStageCopy } from "../data/resultStageCopy";
 
 const STORAGE_KEYS = {
   RESULT: "nimclea_result",
@@ -24,6 +30,94 @@ const RUN_TO_STAGE = {
   RUN064: "S4",
   RUN065: "S5",
 };
+
+function getHeroTitle({ scenarioCode = "", stage = "", primarySignalLabel = "" }) {
+  // ⭐ S1：看起来稳定，但其实有风险（最关键一刀）
+  if (stage === "S1") {
+    return "Your system looks stable — but hidden risk often starts in paths that have not been tested.";
+  }
+  if (stage === "S4" || stage === "S5" || scenarioCode === "pre_audit_collapse") {
+    return "You can now see exactly where your decision path will fail.";
+  }
+
+  if (scenarioCode === "boundary_blur") {
+    return "Your decision path is predictable now — including where it breaks.";
+  }
+
+  if (scenarioCode === "barely_functional") {
+    return "Your decision path is working, but hidden friction is already shaping the outcome.";
+  }
+
+  if (scenarioCode === "fully_ready") {
+    return "Your decision path is clear enough to test under real conditions.";
+  }
+
+  return "Your decision path is now visible and testable.";
+}
+
+function getHeroSupportLine({ scenarioCode = "", pressureProfileCode = "" }) {
+  if (scenarioCode === "pre_audit_collapse") {
+    return "This result shows where retrieval, ownership, and explanation are most likely to break under pressure.";
+  }
+
+  if (scenarioCode === "boundary_blur" && pressureProfileCode === "pressure_sensitive") {
+    return "This result shows where normal execution still works, but pressure begins to expose soft boundaries.";
+  }
+
+  if (scenarioCode === "boundary_blur") {
+    return "This result shows where unclear boundaries are already making execution harder to trust.";
+  }
+
+  if (scenarioCode === "barely_functional") {
+    return "This result shows where manual coordination is still holding the path together.";
+  }
+
+  if (scenarioCode === "fully_ready") {
+    return "This result shows a path that is structured enough to validate, not just interpret.";
+  }
+
+  return "This result shows where the current path becomes harder to execute, explain, or verify.";
+}
+
+function getPilotCtaLabel({ scenarioCode = "", stage = "" }) {
+  if (stage === "S4" || stage === "S5" || scenarioCode === "pre_audit_collapse") {
+    return "Test This Before It Breaks →";
+  }
+
+  if (scenarioCode === "boundary_blur") {
+    return "Test This Path in Reality →";
+  }
+
+  if (scenarioCode === "barely_functional") {
+    return "Run This as a 7-Day Test →";
+  }
+
+  if (scenarioCode === "fully_ready") {
+    return "Validate This Path Now →";
+  }
+
+  return "Start My 7-Day Pilot →";
+}
+
+function getPilotCtaMicrocopy({ scenarioCode = "", primarySignalLabel = "" }) {
+  if (scenarioCode === "pre_audit_collapse") {
+    return "Use one workflow to test the weakest proof path now.";
+  }
+
+  if (scenarioCode === "boundary_blur") {
+    return "Use one workflow to test whether this path really holds.";
+  }
+
+  if (scenarioCode === "barely_functional") {
+    return "Use one workflow to reduce hidden coordination cost.";
+  }
+
+  if (scenarioCode === "fully_ready") {
+    return "Use one workflow to validate clarity under real pressure.";
+  }
+
+  return "Test this structure in one workflow.";
+}
 
 function resolveRun({ scenarioCode = "", primarySignalKey = "", intensityLevel = 3 }) {
   const signal = String(primarySignalKey).toLowerCase();
@@ -463,6 +557,8 @@ function generateSystemMeaning({ scenarioCode, pressureProfile, signals = [] }) 
 function normalizePreview(raw) {
   if (!raw || typeof raw !== "object") return null;
 
+  const extraction = raw?.extraction || raw?.preview?.extraction || {};
+
   const source =
     raw?.preview && typeof raw.preview === "object" ? raw.preview : raw;
 
@@ -884,7 +980,7 @@ const actionReadySignals = normalizedSignals.map((signal) => {
             "Identify one workflow with the highest operational friction",
           ],
 
-    cta_label: source.pilot_preview?.cta_label || "Start My 7-Day Pilot →",
+    cta_label: source.pilot_preview?.cta_label || "Start my 7-Day Pilot →",
   };
 
   return {
@@ -896,6 +992,12 @@ const actionReadySignals = normalizedSignals.map((signal) => {
     synthesis,
     top_signals: actionReadySignals,
     pilot_preview,
+
+    extraction,
+
+    // ⭐ Day 5.1 核心（保留链路）
+    stage: raw?.stage || source?.stage || null,
+    chainId: raw?.chainId || source?.chainId || null,
   };
 }
 
@@ -964,13 +1066,13 @@ function CollapsibleCard({
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          className="shrink-0 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
         >
           {open ? openLabel : closedLabel}
         </button>
       </div>
 
-      {open ? <div className="mt-5">{children}</div> : null}
+      {open ? <div className="mt-6 pb-2">{children}</div> : null}
     </Card>
   );
 }
@@ -979,7 +1081,7 @@ function Pill({ children, dark = false, success = false }) {
   const cls = success
     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
     : dark
-    ? "bg-slate-950 text-white border border-slate-950"
+    ? "bg-amber-50 text-amber-700 border border-amber-200"
     : "bg-white text-slate-700 border border-slate-200";
 
   return (
@@ -1011,7 +1113,16 @@ function IntensityBars({ level }) {
   );
 }
 
-function ReportHero({ result, sessionId, onStartPilot }) {
+function ReportHero({
+  result,
+  sessionId,
+  onStartPilot,
+  heroTitle,
+  heroSupportLine,
+  pilotCtaLabel,
+  pilotCtaMicrocopy,
+}) {
+
   const reportId = useMemo(() => createReportId(sessionId), [sessionId]);
   const dateText = useMemo(
     () =>
@@ -1044,8 +1155,7 @@ function ReportHero({ result, sessionId, onStartPilot }) {
   const primarySignalLabel =
     result?.top_signals?.[0]?.label || "Structural Signal";
 
-  const ctaLabel =
-    result?.pilot_preview?.cta_label || "Start My 7-Day Pilot →";
+  const ctaLabel = pilotCtaLabel || result?.pilot_preview?.cta_label || "Start my 7-Day Pilot →";
 
   return (
     <Card className="overflow-hidden">
@@ -1061,26 +1171,19 @@ function ReportHero({ result, sessionId, onStartPilot }) {
         </div>
 
         <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          {result.title}
+          {heroTitle}
         </h1>
 
-        <p className="mt-5 max-w-2xl text-base leading-7 text-slate-700">
-          {heroLine}
+        <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-800">
+          {heroSupportLine}
         </p>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
           {pressureLine}
         </p>
 
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          This preview is not just about what is wrong. It shows where Nimclea can help
-          control what enters the workflow, who gets to influence decisions, and how the
-          record holds under pressure.
-        </p>
-
-        <p className="mt-4 max-w-2xl text-sm font-medium text-slate-900">
-          You do not need to fix everything first.
-          You need to test your next real decision inside a controlled pilot.
+        <p className="mt-4 max-w-2xl text-sm text-slate-600">
+          The lowest-cost next step is to test this path now, before coordination cost rises further.
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -1104,15 +1207,20 @@ function ReportHero({ result, sessionId, onStartPilot }) {
 
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-              Best Next Step
+              NEXT STEP
             </div>
+
             <button
               type="button"
               onClick={onStartPilot}
-              className="mt-2 text-left text-sm font-semibold text-emerald-900 transition hover:text-emerald-700"
+              className="mt-4 inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-[9px] text-sm font-semibold text-white transition hover:bg-emerald-700 shadow-[0_3px_8px_rgba(0,0,0,0.18)]"
             >
-              {ctaLabel}
+              Start My 7-Day Pilot →
             </button>
+
+            <p className="mt-4 text-xs text-emerald-900">
+              {pilotCtaMicrocopy}
+            </p>
           </div>
         </div>
 
@@ -1140,22 +1248,17 @@ function SummarySection({ summary }) {
 
   return (
     <CollapsibleCard
-      title="Why This Diagnosis Fits"
-      hint="See why this matches the way your workflow is behaving right now."
+      title="Why this result shows up"
+      hint="This explains how your responses lead to this structural pattern."
       defaultOpen={false}
       closedLabel="See why this matches your situation"
       openLabel="Hide details"
     >
-      <ul className="space-y-3">
-        {summary.map((sentence, index) => (
-          <li
-            key={`${index}-${sentence.slice(0, 30)}`}
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700"
-          >
-            {sentence}
-          </li>
-        ))}
-      </ul>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+        <p className="text-sm leading-7 text-slate-700">
+          Your responses do not just describe a problem. They reveal a repeatable path that can now be tested in one controlled workflow.
+        </p>
+      </div>
     </CollapsibleCard>
   );
 }
@@ -1165,22 +1268,17 @@ function SynthesisSection({ items }) {
 
   return (
     <CollapsibleCard
-      title="What This Means for Your System"
-      hint="See what this is likely to affect when the work gets real."
+      title="What this means for your decision path"
+      hint="This shows where your current structure will slow you down, break, or require extra effort to defend."
       defaultOpen={false}
       closedLabel="What this means in practice"
       openLabel="Hide details"
     >
-      <ul className="space-y-3">
-        {items.map((sentence, index) => (
-          <li
-            key={`${index}-${sentence.slice(0, 30)}`}
-            className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm leading-7 text-violet-900"
-          >
-            {sentence}
-          </li>
-        ))}
-      </ul>
+      <div className="rounded-2xl border border-violet-200 bg-violet-50 px-5 py-4">
+        <p className="text-sm leading-7 text-violet-900">
+          This is the exact point where a 7-day pilot becomes useful: you can test this path before pressure turns it into cost, delay, or rework.
+        </p>
+      </div>
     </CollapsibleCard>
   );
 }
@@ -1208,11 +1306,11 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <li className="rounded-2xl border border-slate-200 bg-slate-50">
+    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 md:px-5">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-start justify-between gap-4 p-5 text-left"
+        className="flex w-full items-center justify-between gap-6 rounded-2xl bg-transparent px-2 py-1 text-left"
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -1229,9 +1327,9 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
           </p>
         </div>
 
-        <div className="flex shrink-0 items-start gap-3">
+        <div className="flex shrink-0 items-center gap-3 self-center">
           <SignalScoreBadge score={signal.score} />
-          <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+          <span className="inline-flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white px-4 text-[11px] font-semibold text-slate-700">
             {open ? "Hide" : "Open"}
           </span>
         </div>
@@ -1327,16 +1425,7 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
 
           {onStartPilot ? (
             <div className="mt-4">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStartPilot(signal);
-                }}
-                className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-              >
-                Use this in Pilot →
-              </button>
+          
             </div>
           ) : null}
         </div>
@@ -1350,13 +1439,13 @@ function SignalsSection({ signals, onStartPilot }) {
 
   return (
     <CollapsibleCard
-      title="Top Structural Signals"
-      hint="These are the issues that will cause problems when you're under pressure."
+      title="What is creating friction right now"
+      hint="These signals show what is making work harder to retrieve, explain, or verify right now."
       defaultOpen={false}
       closedLabel="See the specific issues"
       openLabel="Hide issues"
     >
-      <ul className="space-y-3">
+      <ul className="mt-6 space-y-4">
         {signals.map((signal, index) => (
           <SignalDetailCard
             key={signal.id || `${signal.label}-${index}`}
@@ -1374,41 +1463,41 @@ function getPilotTriggerCopy(scenarioCode) {
   const copyMap = {
     pre_audit_collapse: {
       label: "Act Before Pressure Wins",
-      title: "Test this now before the next deadline turns it into a scramble.",
+      title: "This structure is already under pressure. The fastest way to reduce future coordination cost is to test it now.",
       body1:
         "You already have enough signal to know this is not random friction. The structure is showing where it breaks when retrieval, explanation, or proof are required.",
       body2:
-        "Use one real workflow in a 7-day pilot to see whether Nimclea can make that path easier to defend, easier to verify, and harder to derail.",
+        "Use one real workflow in a 7-day pilot now, before this same structure demands more explanation, more repair, and more manual coordination later.",
       footer: "One workflow. 7 days. No rollout. Real validation.",
     },
 
     barely_functional: {
       label: "Move Before It Drifts",
-      title: "This still works, but it is costing more than it should.",
+      title: "This still works, but waiting will make the hidden coordination cost harder to unwind.",
       body1:
         "The workflow is holding together, but too much of that stability may still depend on manual coordination, reminders, or repeated explanation.",
       body2:
-        "Run one real workflow through a 7-day pilot to test whether Nimclea can reduce hidden effort before this becomes a larger operational habit.",
+        "Run one real workflow through a 7-day pilot now, before hidden effort hardens into a more expensive operating habit.",
       footer: "One workflow. 7 days. No rollout.",
     },
 
     boundary_blur: {
       label: "Decision Point",
-      title: "Things work, but not as clearly as they appear.",
+      title: "Things still work, but unclear boundaries become more expensive the longer they stay untested.",
       body1:
         "You may find yourself re-explaining decisions, clarifying ownership, or double-checking what should already be clear.",
       body2:
-        "Run one real workflow through a 7-day pilot to make the path of ownership, data, and decisions easier to follow.",
+         "Run one real workflow through a 7-day pilot now, while the cost of clarifying ownership, data, and decisions is still low.",
       footer: "Just one workflow. 7 days. No rollout.",
     },
 
     fully_ready: {
       label: "Pilot Opportunity",
-      title: "This looks stable. Now is a good time to validate it in practice.",
+      title: "This is the cheapest moment to validate the path before scale adds more complexity.",
       body1:
         "Your workflow already feels relatively clear and structured. The next step is to confirm it holds under real conditions, not just in theory.",
       body2:
-        "Run one real workflow through a 7-day pilot to validate this before scaling or adding complexity.",
+        "Run one real workflow through a 7-day pilot now, before scale makes validation slower, noisier, and more expensive.",
       footer: "Lightweight pilot. 7 days. Real-world validation.",
     },
   };
@@ -1421,8 +1510,8 @@ function PilotTriggerCard({ onStartPilot, scenarioCode, ctaState, ctaLabel }) {
 
   return (
     <Card className="border-amber-200 bg-amber-50 p-6 md:p-7">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="max-w-2xl">
+      <div className="space-y-4">
+        <div>
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
             {copy.label}
           </div>
@@ -1444,17 +1533,13 @@ function PilotTriggerCard({ onStartPilot, scenarioCode, ctaState, ctaLabel }) {
           </p>
         </div>
 
-                <div className="flex flex-col items-start md:items-end">
-          <button
-            type="button"
-            onClick={onStartPilot}
-            className={getButtonClass(ctaState)}
-          >
-            {ctaLabel || "Start My 7-Day Pilot →"}
-          </button>
+        <div className="mt-4">
+          <p className="mt-3 text-xs text-slate-500">
+            This is the path your pilot will test.
+          </p>
 
-          <p className="mt-2 text-xs text-slate-600">
-            Takes less than 2 minutes. No setup.
+          <p className="mt-3 max-w-xl text-xs leading-5 text-slate-500">
+            Delaying this test usually increases explanation effort, repair work, and coordination cost.
           </p>
         </div>
       </div>
@@ -1476,106 +1561,141 @@ function getButtonClass(ctaState) {
 
 function PilotSection({ pilotPreview, pilotFocus }) {
   return (
-    <Card className="overflow-hidden border-slate-900 bg-slate-950 text-white">
-      <div className="grid gap-0 md:grid-cols-[1.2fr_0.8fr]">
-        <div className="p-7 md:p-8">
-          <SectionTitle
-            title="Start a 7-day controlled pilot"
-            titleClassName="text-white"
-            hintClassName="text-slate-300"
-            hint="Use your next real workflow to test whether Nimclea can control what gets in, who can influence, and how the decision is recorded."
-          />
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="px-8 py-10 md:px-10 md:py-11">
+        <SectionTitle
+          title="Start a 7-day controlled pilot"
+          titleClassName="text-slate-950 text-xl"
+          hintClassName="text-slate-500"
+          hint="One workflow. Seven days. Controlled test."
+        />
 
-          {pilotFocus && (
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">
-                Pilot Focus
-              </div>
-
-              <h3 className="mt-1 text-base font-semibold text-emerald-900">
-                {pilotFocus.title}
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-emerald-800">
-                {pilotFocus.intro}
-              </p>
-
-              <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-                {pilotFocus.bullets?.map((item, index) => (
-                  <li key={index}>• {item}</li>
-                ))}
-              </ul>
+        {pilotFocus && (
+          <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">
+              Pilot Focus
             </div>
-          )}
 
-          <p className="mt-4 text-sm leading-7 text-slate-300">
-            This is not a generic improvement plan.
-            It is a controlled test using one real workflow inside a 7-day window.
+            <h3 className="mt-2 text-base font-semibold text-emerald-900">
+              {pilotFocus.title}
+            </h3>
 
-            In this pilot, Nimclea helps you test whether your next real decision can be handled with clearer entry control, stronger authority boundaries, and a traceable decision record.
+            <ul className="mt-3 space-y-1.5 text-sm leading-6 text-emerald-900">
+              {pilotFocus.bullets?.slice(0, 3).map((item, index) => (
+                <li key={index}>• {item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-            You are not committing to a large rollout.
-            You are testing whether one real decision becomes easier to explain, easier to verify, and harder to derail within a short 7-day window.
-          </p>
+        <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="min-w-0">
+            <div className="h-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                What this pilot is
+              </div>
+              <div className="mt-2 text-sm leading-7 text-slate-700">
+                A controlled 7-day test using one real workflow.
+              </div>
+            </div>
+          </div>
 
-          <div className="mt-6 space-y-4">
-            <div>
-              <div className="text-xs font-semibold uppercase text-slate-400">
+          <div className="min-w-0">
+            <div className="h-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                What Nimclea will test
+              </div>
+              <div className="mt-2 text-sm leading-7 text-slate-700">
+                Whether one decision becomes easier to explain, verify, and control.
+              </div>
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="h-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                What you are not committing to
+              </div>
+              <div className="mt-2 text-sm leading-7 text-slate-700">
+                Not a rollout. Just one short pilot.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="min-w-0">
+            <div className="h-full rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                 Where to start
               </div>
-              <p className="mt-1 text-sm text-white">{pilotPreview.entry}</p>
-            </div>
+              <div className="mt-2 text-sm leading-7 text-slate-900">
+                {pilotPreview.entry}
+              </div>
+           </div>
+          </div>
 
-            <div>
-              <div className="text-xs font-semibold uppercase text-slate-400">
+          <div className="min-w-0 md:col-span-2">
+            <div className="h-full rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                 What to do
               </div>
-              <ul className="mt-2 space-y-2 text-sm text-slate-200">
+              <ul className="mt-2 space-y-2 text-sm leading-7 text-slate-700">
                 {pilotPreview.actions.map((step, i) => (
                   <li key={i}>• {step}</li>
                 ))}
               </ul>
             </div>
-
-            <div>
-              <div className="text-xs font-semibold uppercase text-slate-400">
-                What you’ll see
-              </div>
-              <p className="mt-1 text-sm text-slate-200">{pilotPreview.outcome}</p>
-            </div>
           </div>
 
-          <ul className="mt-5 grid gap-3 md:grid-cols-2">
+          <div className="min-w-0 md:col-span-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                What you'll see
+              </div>
+              <div className="mt-2 text-sm leading-7 text-slate-700">
+                {pilotPreview.outcome}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <div className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-600">
+            Deliverables
+          </div>
+
+          <ul className="mt-4 grid gap-3 md:grid-cols-2">
             {pilotPreview.deliverables.map((item, index) => (
               <li
                 key={`${item}-${index}`}
-                className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-100"
+                className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800"
               >
-                <span className="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-white" />
+                <span className="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-slate-900" />
                 <span>{item}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="border-t border-white/10 bg-white/5 p-7 md:border-l md:border-t-0 md:p-8">
-          <div className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-300">
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <div className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-600">
             Suggested Next Steps
           </div>
 
-          <div className="mt-5 space-y-5">
+          <div className="mt-5 space-y-4">
             {pilotPreview.next_steps.map((step, index) => (
               <div key={`${step}-${index}`} className="flex gap-4">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-slate-900 text-xs font-bold text-slate-300">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-700">
                   {index + 1}
                 </div>
-                <p className="text-sm leading-6 text-slate-200">{step}</p>
+                <p className="text-sm leading-7 text-slate-700">{step}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -1681,6 +1801,10 @@ export default function ResultPage({
   onRestart: onRestartProp,
   onStartPilot: onStartPilotProp,
 }) {
+  useEffect(() => {
+    logEvent("result_viewed");
+  }, []);
+  
   const navigate = useNavigate();
   const location = useLocation();
   const [ctaState, setCtaState] = useState("default"); // default | warm | ready
@@ -1754,14 +1878,119 @@ export default function ResultPage({
       rawFromStoragePreview ||
       null;
 
+    console.log("🔥 raw before normalize:", raw);
+
     const normalized = normalizePreview(raw);
-      return normalized;
-    }, [resultProp, resultFromLocation, previewFromLocation, resolvedSessionId]);
+
+    console.log("🧠 extraction after normalize:", normalized?.extraction);
+
+    return normalized;
+  }, [resultProp, resultFromLocation, previewFromLocation, resolvedSessionId]);
 
     const [result, setResult] = useState(() =>
       initialPreview && isValidPreview(initialPreview) ? initialPreview : null
     );
     const [error, setError] = useState("");
+
+    const resultSeed = useMemo(() => {
+      if (!result) return null;
+      return buildResultSeed({ preview: result, result });
+    }, [result]);
+
+  const displayResult = useMemo(() => {
+  if (!result && !resultSeed) return null;
+
+  const safeResult = result || {};
+  const safeSeed =
+    safeResult?.resultSeed ||
+    safeResult?.extraction ||
+    resultSeed ||
+    {};
+
+  return {
+    ...safeResult,
+
+    title:
+      safeResult.title ||
+      safeSeed.title ||
+      "Your Nimclea Structural Diagnostic",
+
+    scenario:
+      safeResult.scenario || {
+        code: safeSeed.scenarioKey || "unknown_scenario",
+        label: safeSeed.scenarioKey || "No Dominant Scenario",
+      },
+
+    intensity:
+      safeResult.intensity || {
+        level: 3,
+        label: "Moderate Structural Intensity",
+      },
+
+    pressureProfile:
+      safeResult.pressureProfile || {
+        code: "",
+        label: "",
+      },
+
+    summary:
+      Array.isArray(safeResult.summary) && safeResult.summary.length > 0
+        ? safeResult.summary
+        : safeSeed.summary
+        ? [safeSeed.summary]
+        : [],
+
+    synthesis:
+      Array.isArray(safeResult.synthesis) && safeResult.synthesis.length > 0
+        ? safeResult.synthesis
+        : safeSeed.recommendedAction
+        ? [safeSeed.recommendedAction]
+        : [],
+
+    top_signals:
+      Array.isArray(safeResult.top_signals) && safeResult.top_signals.length > 0
+        ? safeResult.top_signals
+        : Array.isArray(safeSeed.signals)
+        ? safeSeed.signals.map((item, index) => ({
+            id: `seed-signal-${index + 1}`,
+            key: typeof item === "string" ? item : item?.key || `signal_${index + 1}`,
+            label: typeof item === "string" ? item : item?.label || `Signal ${index + 1}`,
+            description:
+              typeof item === "string"
+                ? item
+                : item?.description || "Extraction-derived structural signal.",
+            source: "Extraction Layer",
+          }))
+        : [],
+
+    pilot_preview:
+      safeResult.pilot_preview || {
+        entry:
+          safeSeed?.pilot?.entryAction ||
+          safeSeed?.recommendedAction ||
+          "Start with one workflow where clarity or traceability feels inconsistent.",
+        actions: [
+          "Clarify the current structure.",
+          "Select one workflow to test.",
+          "Use the pilot to verify the path.",
+        ],
+        outcome:
+          "This pilot should help confirm whether the issue is structural and repeatable.",
+        deliverables: [
+          "Workflow Visibility Map",
+          "Priority Signal Summary",
+        ],
+        next_steps: [
+          "Review the extraction-derived path",
+          "Choose one workflow",
+          "Start the pilot",
+        ],
+        cta_label: "Test This Path in Reality →",
+      },
+
+    extraction: safeResult.extraction || safeSeed,
+  };
+}, [result, resultSeed]);
 
   useEffect(() => {
   // 20秒后 → warm
@@ -1810,55 +2039,6 @@ const handleRestart = useCallback(() => {
   navigate(ROUTES.HOME);
 }, [navigate, onRestartProp, resolvedSessionId]);
 
-const handleStartPilot = useCallback(
-  (signal = null) => {
-    if (!result || !isValidPreview(result)) {
-      console.error("invalid result, pilot not started");
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.PREVIEW, JSON.stringify(result));
-
-      if (resolvedSessionId) {
-        localStorage.setItem(STORAGE_KEYS.SESSION_ID, resolvedSessionId);
-        localStorage.setItem(
-          `nimclea_preview_result_${resolvedSessionId}`,
-          JSON.stringify(result)
-        );
-      }
-    }
-
-    const primarySignalKey =
-      signal?.key ||
-      signal?.signalKey ||
-      result?.top_signals?.[0]?.key ||
-      result?.top_signals?.[0]?.signalKey ||
-      "";
-
-    if (typeof onStartPilotProp === "function") {
-      onStartPilotProp({
-        sessionId: resolvedSessionId,
-        sourceInput: result,
-        scenarioCode: result?.scenario?.code || "",
-        primarySignalKey,
-      });
-      return;
-    }
-
-    navigate(ROUTES.PILOT, {
-      state: {
-        sessionId: resolvedSessionId,
-        sourceInput: result,
-        preview: result,
-        scenarioCode: result?.scenario?.code || "",
-        primarySignalKey,
-      },
-    });
-  },
-  [navigate, onStartPilotProp, result, resolvedSessionId]
-);
-
 const fetchPreview = useCallback(() => {
   try {
     setError("");
@@ -1897,18 +2077,6 @@ const fetchPreview = useCallback(() => {
 
 useEffect(() => {
   if (result && isValidPreview(result)) {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.PREVIEW, JSON.stringify(result));
-
-      if (resolvedSessionId) {
-        localStorage.setItem(STORAGE_KEYS.SESSION_ID, resolvedSessionId);
-        localStorage.setItem(
-          `nimclea_preview_result_${resolvedSessionId}`,
-          JSON.stringify(result)
-        );
-      }
-    }
-
     setError("");
     return;
   }
@@ -1919,6 +2087,216 @@ useEffect(() => {
 const handleRetry = useCallback(async () => {
   await fetchPreview();
 }, [fetchPreview]);
+
+const SCENARIO_TO_PATTERN_ID = {
+  barely_functional: "PATTERN-001",
+  boundary_blur: "PATTERN-002",
+  pre_audit_collapse: "PATTERN-003",
+  fully_ready: "PATTERN-001",
+};
+
+const SCENARIO_TO_CHAIN_ID = {
+  barely_functional: "CHAIN-001",
+  boundary_blur: "CHAIN-002",
+  pre_audit_collapse: "CHAIN-003",
+  fully_ready: "CHAIN-001",
+};
+
+const resolvedPath = useMemo(() => {
+  const scenarioCode = displayResult?.scenario?.code || "";
+  const primarySignalKey =
+    displayResult?.top_signals?.[0]?.key ||
+    displayResult?.top_signals?.[0]?.signalKey ||
+    "";
+  const intensityLevel = displayResult?.intensity?.level || 3;
+
+  const fallbackRunCode = resolveRun({
+    scenarioCode,
+    primarySignalKey,
+    intensityLevel,
+  });
+
+  const patternId =
+    SCENARIO_TO_PATTERN_ID[scenarioCode] || "PATTERN-001";
+  const chainId =
+    SCENARIO_TO_CHAIN_ID[scenarioCode] || "CHAIN-001";
+
+  const patternData = patternRegistry[patternId] || null;
+  const chainData = chainRegistry[chainId] || null;
+
+  const pattern =
+    patternData?.patternName || "Operational Friction";
+  const chain =
+    chainData?.chainName || "Reality Control Recovery";
+
+  const stage =
+    RUN_TO_STAGE[fallbackRunCode] ||
+    chainData?.defaultStage ||
+    "S1";
+
+  const mappedRunCode = getRun(chainId, stage) || fallbackRunCode;
+
+  return {
+    scenarioCode,
+    primarySignalKey,
+    intensityLevel,
+
+    patternId,
+    chainId,
+
+    pattern,
+    chain,
+
+    patternDescription: patternData?.description || "",
+    chainDescription: chainData?.description || "",
+    registryDefaultStage: chainData?.defaultStage || "",
+
+    runCode: mappedRunCode,
+    stage,
+
+    routeMeta: getRunRouteMeta(mappedRunCode),
+  };
+}, [displayResult]);
+
+const enrichedResult = useMemo(() => {
+  if (!displayResult) return null;
+
+  return {
+    ...displayResult,
+    stage: resolvedPath?.stage || displayResult?.stage || "S1",
+    chainId: resolvedPath?.chainId || "CHAIN-001",
+  };
+}, [displayResult, resolvedPath]);
+
+const handleStartPilot = useCallback(
+  (signal = null) => {
+    if (!enrichedResult || !isValidPreview(enrichedResult)) {
+      console.error("invalid result, pilot not started");
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.PREVIEW, JSON.stringify(enrichedResult));
+
+      if (resolvedSessionId) {
+        localStorage.setItem(STORAGE_KEYS.SESSION_ID, resolvedSessionId);
+        localStorage.setItem(
+          `nimclea_preview_result_${resolvedSessionId}`,
+          JSON.stringify(enrichedResult)
+        );
+      }
+    }
+
+    const primarySignalKey =
+      signal?.key ||
+      signal?.signalKey ||
+      displayResult?.top_signals?.[0]?.key ||
+      displayResult?.top_signals?.[0]?.signalKey ||
+      "";
+
+    logEvent("pilot_entry_clicked", {
+      source: "result_hero_cta",
+    });
+
+    if (typeof onStartPilotProp === "function") {
+      onStartPilotProp({
+        sessionId: resolvedSessionId,
+        sourceInput: enrichedResult,
+        scenarioCode: enrichedResult?.scenario?.code || "",
+        primarySignalKey,
+      });
+      return;
+    }
+
+    navigate(ROUTES.PILOT, {
+      state: {
+        sessionId: resolvedSessionId,
+        session_id: resolvedSessionId,
+    
+        sourceInput: enrichedResult,
+        preview: enrichedResult,
+        result: enrichedResult,
+
+        stage: enrichedResult?.stage || "S1",
+        chainId: enrichedResult?.chainId || "CHAIN-001",
+
+        extraction: enrichedResult?.extraction || {},
+        resultSeed:
+          enrichedResult?.resultSeed ||
+          enrichedResult?.extraction ||
+          {},
+
+        scenarioCode: enrichedResult?.scenario?.code || "",
+        primarySignalKey,
+      },
+    });
+  },
+  [
+    navigate,
+    onStartPilotProp,
+    enrichedResult,
+    resolvedSessionId,
+  ]
+);
+
+const runMeta = useMemo(() => {
+  const runCode =
+    resolvedPath?.runCode ||
+    resolvedPath?.run ||
+    displayResult?.runCode ||
+    displayResult?.run ||
+    "";
+
+  if (!runCode) return null;
+
+  return getRunRouteMeta(runCode) || null;
+}, [resolvedPath, displayResult]);
+
+const pilotFocus = useMemo(() => {
+  const primarySignalKey =
+    displayResult?.top_signals?.[0]?.key ||
+    displayResult?.top_signals?.[0]?.signalKey ||
+    resolvedPath?.primarySignalKey ||
+    "";
+
+  if (!primarySignalKey) return null;
+
+  return getPilotFocusBySignal(primarySignalKey) || null;
+}, [displayResult, resolvedPath]);
+
+const stageCopy = useMemo(() => {
+  const currentStage = resolvedPath?.stage || "S1";
+  return resultStageCopy[currentStage] || resultStageCopy.S1;
+}, [resolvedPath]);
+
+const heroTitle = useMemo(() => {
+  return getHeroTitle({
+    scenarioCode: displayResult?.scenario?.code || "",
+    stage: resolvedPath?.stage || "",
+    primarySignalLabel: displayResult?.top_signals?.[0]?.label || "",
+  });
+}, [displayResult, resolvedPath]);
+
+const heroSupportLine = useMemo(() => {
+  return getHeroSupportLine({
+    scenarioCode: displayResult?.scenario?.code || "",
+    pressureProfileCode: displayResult?.pressureProfile?.code || "",
+  });
+}, [displayResult]);
+
+const pilotCtaLabel = useMemo(() => {
+  return getPilotCtaLabel({
+    scenarioCode: displayResult?.scenario?.code || "",
+    stage: resolvedPath?.stage || "",
+  });
+}, [displayResult, resolvedPath]);
+
+const pilotCtaMicrocopy = useMemo(() => {
+  return getPilotCtaMicrocopy({
+    scenarioCode: displayResult?.scenario?.code || "",
+    primarySignalLabel: displayResult?.top_signals?.[0]?.label || "",
+  });
+}, [displayResult]);
 
 if (error && !result) {
   return (
@@ -1938,44 +2316,18 @@ if (!isValidPreview(result)) {
   return <EmptyState onRestart={handleRestart} />;
 }
 
-const primarySignalKey =
-  result?.top_signals?.[0]?.key ||
-  result?.top_signals?.[0]?.signalKey ||
-  "";
-
-const resolvedRun = resolveRun({
-  scenarioCode: result?.scenario?.code,
-  primarySignalKey,
-  intensityLevel: result?.intensity?.level,
-});
-
-const runMeta = getRunRouteMeta(resolvedRun);
-
-const resolvedPath = {
-  pattern: result?.scenario?.label || "Unknown Pattern",
-  chain:
-    result?.scenario?.code === "boundary_blur"
-      ? "Boundary Pressure"
-      : "Boundary → Pressure → Optional Exit",
-  stage: RUN_TO_STAGE[resolvedRun] || "Unknown Stage",
-  run: resolvedRun,
-  explanation: result?.summary?.[0] || "",
-  nextAction:
-  result?.pilot_preview?.entry
-    ? `Focus on one workflow where evidence retrieval breaks under pressure, and use it as a controlled pilot.`
-    : "Focus on one workflow where evidence retrieval breaks under pressure, and use it as a controlled pilot.",
-};
-
-const pilotFocus = getPilotFocusBySignal(primarySignalKey);
-
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
         <div className="space-y-6">
           <ReportHero
-            result={result}
+            result={enrichedResult}
             sessionId={resolvedSessionId}
             onStartPilot={handleStartPilot}
+            heroTitle={heroTitle}
+            heroSupportLine={heroSupportLine}
+           pilotCtaLabel={pilotCtaLabel}
+            pilotCtaMicrocopy={pilotCtaMicrocopy}
           />
 
           {runMeta?.microNote && (
@@ -1984,40 +2336,52 @@ const pilotFocus = getPilotFocusBySignal(primarySignalKey);
             </div>
           )}
 
-          <SummarySection summary={result.summary} />
-
-          <SynthesisSection items={result.synthesis || []} />
-
           <StructurePathSection data={resolvedPath} />
 
-          <SignalsSection
-            signals={result.top_signals}
-            onStartPilot={handleStartPilot}
-          />
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">
+              Current Stage
+            </div>
+            <h3 className="mt-2 text-lg font-semibold text-slate-900">
+              {stageCopy.title}
+            </h3>
+            <p className="mt-2 text-sm leading-7 text-slate-800">
+              {stageCopy.description}
+            </p>
+            <p className="mt-2 text-sm leading-7 text-slate-700">
+              {stageCopy.action}
+            </p>
+          </div>
 
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
               Why act now
             </div>
             <p className="mt-2 text-sm leading-7 text-slate-800">
-              Most teams stop at understanding the problem. The pilot is where this stops being theory.
+              Most teams stop at understanding the problem. That’s where execution stalls.
             </p>
             <p className="mt-2 text-sm leading-7 text-slate-700">
               If this structure is already showing pressure, the cheapest moment to test it is now, before the next real deadline, audit, or review forces the issue.
             </p>
           </div>
+          
+          <SummarySection summary={enrichedResult.summary} />
 
-          <PilotTriggerCard
+          <SynthesisSection items={enrichedResult.synthesis || []} />
+
+          <SignalsSection
+            signals={enrichedResult.top_signals}
             onStartPilot={handleStartPilot}
-            scenarioCode={result?.scenario?.code}
-            ctaState={ctaState}
-            ctaLabel={result?.pilot_preview?.cta_label}
           />
 
           <PilotSection
-            pilotPreview={result.pilot_preview}
+            pilotPreview={enrichedResult.pilot_preview}
             pilotFocus={pilotFocus}
           />
+        <div className="mt-10 text-center text-sm text-slate-500">
+          End of diagnostic preview · Ready to start your pilot
+        </div>
+        
         </div>
       </div>
     </main>

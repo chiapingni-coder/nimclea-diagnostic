@@ -1,8 +1,11 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import questions, { coreQuestions, branchQuestionMap } from "./questions.js";
-import { getRoutingResultFromCoreAnswers } from "./routingLogic";
-import { ROUTES } from "./routes.js";
+import questions, { coreQuestions, branchQuestionMap } from "../questions.js";
+import { getRoutingResultFromCoreAnswers } from "../routingLogic.js";
+import { ROUTES } from "../routes.js";
+import { extractStructure } from "../engines/structureExtraction.js";
+import { buildResultSeed } from "./resultSeedBuilder";
+import { logEvent } from "../utils/eventLogger";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -86,7 +89,7 @@ function buildRoutingFeedbackViewModel(routingResult, activeBranchQuestions = []
       routingResult?.validationNote ||
       `The next ${activeBranchQuestions.length || 2} follow-up questions help validate and sharpen this initial result before the final preview.`,
     strongestSignals,
-    ctaPrimary: "Continue validation",
+    ctaPrimary: "See My Final Result",
     ctaSecondary: "Back to Question 9"
   };
 }
@@ -437,17 +440,40 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
         throw new Error(detailMessage);
       }
 
-      const result = data || null;
-      const preview = result?.preview || result;
-      const sessionId =
-        result?.session_id ||
-        result?.sessionId ||
-        result?.id ||
-        "";
+      const apiResult = data || null;
+const extraction = extractStructure(payloadAnswers);
 
-      if (!preview) {
-        throw new Error("Preview payload is missing.");
-      }
+logEvent("diagnostic_submitted", {
+  answers: payloadAnswers
+});
+
+const resultSeed = buildResultSeed({
+  answers: payloadAnswers,
+  extraction
+});
+
+const preview = {
+  ...(apiResult?.preview || apiResult || {}),
+  extraction,
+  resultSeed
+};
+
+const result = {
+  ...(apiResult || {}),
+  preview,
+  extraction,
+  resultSeed
+};
+
+const sessionId =
+  result?.session_id ||
+  result?.sessionId ||
+  result?.id ||
+  "";
+
+if (!apiResult?.preview && !apiResult) {
+  throw new Error("Preview payload is missing.");
+}
 
       try {
         localStorage.setItem("nimclea_result", JSON.stringify(result));
@@ -473,6 +499,7 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
       navigate(ROUTES.RESULT, {
         state: {
           preview,
+          result,
           session_id: sessionId
         }
       });
@@ -504,27 +531,58 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
       }
     }
 
-  if (phase === PHASE.LANDING) {
-    return (
-      <div style={styles.shell}>
-        <div style={styles.heroCard}>
-          <div style={styles.kicker}>Nimclea Diagnostic</div>
-          <h1 style={styles.heroTitle}>3-Minute Responsibility Diagnostic</h1>
-          <p style={styles.heroSubtitle}>
-            Understand how resilient your audit, compliance, or evidence chain really is in about 3 minutes.
-          </p>
-          <p style={styles.heroText}>
-            Answer a few quick questions and receive a one-page structural diagnostic preview.
-            After the preview, you can apply for a 14-day pilot to test Nimclea with your real workflow.
-          </p>
-          <button type="button" style={styles.primaryButton} onClick={startDiagnostic}>
-            Start the Diagnostic
-          </button>
-          <div style={styles.microcopy}>Takes about 3 minutes • No preparation needed</div>
+if (phase === PHASE.LANDING) {
+  return (
+    <div style={styles.shell}>
+      <div style={styles.heroCard}>
+        <div style={styles.kicker}>Nimclea Diagnostic</div>
+
+        <h1 style={styles.heroTitle}>
+          See where your decision path starts breaking, and whether it is worth testing in a 7-day pilot
+        </h1>
+
+        <p style={styles.heroSubtitle}>
+          A 3-minute diagnostic that shows where structural risk sits, what it is already costing, and what the next controlled step should be.
+        </p>
+
+        <p style={styles.heroText}>
+          You will answer a short set of questions about evidence, coordination, ownership, and pressure conditions. At the end, you will get a result that explains the structure and recommends the next step.
+        </p>
+
+        <button type="button" style={styles.primaryButton} onClick={startDiagnostic}>
+          See My Structural Path
+        </button>
+
+        <div style={styles.microcopy}>
+          No prep required • No rollout required • One clear next step
+        </div>
+
+        <div style={styles.landingGrid}>
+          <div style={styles.landingCard}>
+            <div style={styles.landingCardTitle}>What you’ll get in 3 minutes</div>
+            <div style={styles.landingCardText}>
+              A clear structural result showing where the current decision path is creating friction, ambiguity, or weak traceability.
+            </div>
+          </div>
+
+          <div style={styles.landingCard}>
+            <div style={styles.landingCardTitle}>A recommended next step</div>
+            <div style={styles.landingCardText}>
+              Understand whether the right move is to stabilize, clarify, or test the path in action.
+            </div>
+          </div>
+
+          <div style={styles.landingCard}>
+            <div style={styles.landingCardTitle}>This is not a scorecard</div>
+            <div style={styles.landingCardText}>
+              This diagnostic does not rate your organization with a generic score. It identifies where the current decision path becomes harder to execute, explain, or verify.
+            </div>
+          </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (phase === PHASE.SUBMITTING) {
     return (
@@ -892,6 +950,33 @@ routingBlockTitle: {
   fontWeight: 700,
   color: "#142033",
   marginBottom: "10px"
+},
+
+landingGrid: {
+  marginTop: "24px",
+  display: "grid",
+  gap: "14px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))"
+},
+
+landingCard: {
+  background: "#f8fafc",
+  border: "1px solid #e6ebf2",
+  borderRadius: "16px",
+  padding: "16px 18px"
+},
+
+landingCardTitle: {
+  fontSize: "15px",
+  fontWeight: 700,
+  color: "#142033",
+  marginBottom: "8px"
+},
+
+landingCardText: {
+  fontSize: "14px",
+  lineHeight: 1.6,
+  color: "#5b677a"
 }
 
 };
