@@ -1205,22 +1205,32 @@ function ReportHero({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+          <div className="flex flex-col items-start justify-center p-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               NEXT STEP
             </div>
 
             <button
               type="button"
               onClick={onStartPilot}
-              className="mt-4 inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-[9px] text-sm font-semibold text-white transition hover:bg-emerald-700 shadow-[0_3px_8px_rgba(0,0,0,0.18)]"
+              className="mt-3 inline-flex items-center justify-center"
+              style={{
+                backgroundColor: "#047857",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "9999px",
+                padding: "14px 28px",
+                fontSize: "16px",
+                fontWeight: 600,
+                lineHeight: 1,
+                boxShadow: "0 4px 12px rgba(5, 150, 105, 0.22)",
+                cursor: "pointer",
+                appearance: "none",
+                WebkitAppearance: "none"
+              }}
             >
-              Start My 7-Day Pilot →
+              Test this path →
             </button>
-
-            <p className="mt-4 text-xs text-emerald-900">
-              {pilotCtaMicrocopy}
-            </p>
           </div>
         </div>
 

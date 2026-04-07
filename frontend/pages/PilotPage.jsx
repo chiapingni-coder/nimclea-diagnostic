@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPilotFocusBySignal } from "../pilotFocusMap.js";
-import { buildPilotPageData } from "../lib/buildPilotPageData.js";
 import { logEvent } from "../utils/eventLogger";
 
 const STORAGE_KEYS = {
@@ -73,10 +72,6 @@ function getStoredPreview(sessionId = "") {
 function createPilotId(sessionId = "") {
   if (!sessionId) return "NIM-PILOT";
   return `PILOT-${String(sessionId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 10).toUpperCase()}`;
-}
-
-function toArray(value) {
-  return Array.isArray(value) ? value : [];
 }
 
 function isValidPreview(preview) {
@@ -175,7 +170,7 @@ function LoadingState() {
   );
 }
 
-function PilotHero({ preview, sessionId }) {
+function PilotHero({ preview, sessionId, onStart }) {
   const pilotId = useMemo(() => createPilotId(sessionId), [sessionId]);
 
   const strongestSignal = preview?.top_signals?.[0] || null;
@@ -202,9 +197,9 @@ function PilotHero({ preview, sessionId }) {
           {preview?.pressureProfile?.label ? (
             <Pill
               style={{
-                backgroundColor: "#FEF3C7",   // 浅黄底
-                color: "#78350F",           // 深黄字
-                border: "1px solid #FCD34D"
+                backgroundColor: "#FEF3C7",
+                color: "#78350F",
+                border: "1px solid #FCD34D",
               }}
             >
               {preview.pressureProfile.label}
@@ -212,45 +207,59 @@ function PilotHero({ preview, sessionId }) {
           ) : null}
         </div>
 
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          Test whether your decision path actually holds in reality
+        <h1 className="mt-5 max-w-[820px] text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+          Prepare your decision path for a real 7-day pilot
         </h1>
 
-        <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
+        <p className="mt-4 max-w-[820px] text-lg leading-8 text-slate-800">
           This 7-day pilot is not about improvement. It is about proof.
           You will take one real workflow and see whether your path actually works under real conditions.
         </p>
 
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-700">
+        <p className="mt-3 max-w-[820px] text-sm leading-6 text-emerald-700">
           One workflow. Seven days. Either it holds, or it breaks.
         </p>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Scenario
+        <div className="mt-8">
+          <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
+            <div className="h-full w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Scenario
+              </div>
+              <p className="mt-2 text-sm font-medium text-slate-900">
+                {scenarioLabel}
+              </p>
             </div>
-            <p className="mt-2 text-sm font-medium text-slate-900">
-              {scenarioLabel}
-            </p>
-          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Strongest signal
+            <div className="h-full w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Strongest signal
+              </div>
+              <p className="mt-2 text-sm font-medium text-slate-900">
+                {strongestSignal?.label || "Structural Signal"}
+              </p>
             </div>
-            <p className="mt-2 text-sm font-medium text-slate-900">
-              {strongestSignal?.label || "Structural Signal"}
-            </p>
-          </div>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-              Recommended focus
+            <div className="h-full w-full flex items-center justify-center">
+              <button
+                type="button"
+                onClick={onStart}
+                style={{
+                  backgroundColor: "#047857",
+                  color: "#FFFFFF",
+                  border: "none",
+                  borderRadius: "9999px",
+                  padding: "22px 28px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
+                className="inline-flex items-center justify-center"
+              >
+                Start My 7-Day Pilot →
+              </button>
             </div>
-            <p className="mt-2 text-sm font-medium text-emerald-900">
-              {focusText}
-            </p>
           </div>
         </div>
       </div>
@@ -263,7 +272,12 @@ function PilotHero({ preview, sessionId }) {
   );
 }
 
-function WorkflowPicker({ selectedWorkflow, onSelect, customWorkflow, onCustomChange }) {
+function WorkflowPicker({
+  selectedWorkflow,
+  onSelect,
+  customWorkflow,
+  onCustomChange,
+}) {
   const workflowOptions = [
     "Audit preparation",
     "Approval review",
@@ -304,11 +318,7 @@ function WorkflowPicker({ selectedWorkflow, onSelect, customWorkflow, onCustomCh
             >
               <div
                 className="text-sm font-semibold"
-                style={
-                  isSelected
-                    ? { color: "#991B1B" }   // 深红
-                    : undefined
-                }
+                style={isSelected ? { color: "#991B1B" } : undefined}
               >
                 {option}
               </div>
@@ -336,6 +346,7 @@ function WorkflowPicker({ selectedWorkflow, onSelect, customWorkflow, onCustomCh
 }
 
 function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
+  const [open, setOpen] = useState(false);
   const strongestSignal = preview?.top_signals?.[0] || null;
   const workflowName =
     selectedWorkflow === "Other"
@@ -359,10 +370,6 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
     preview?.pilot_preview?.outcome ||
     "Reduction in friction, reconstruction effort, or repeated clarification.";
 
-  const success =
-    strongestSignal?.expectedShift ||
-    "The workflow becomes easier to explain, easier to verify, and less dependent on hidden effort.";
-
   const firstPilotStep =
     pilotFocus?.bullets?.[0] ||
     strongestSignal?.pilotStep ||
@@ -371,12 +378,27 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
 
   return (
     <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Your 7-day pilot plan"
-        hint="This plan is intentionally narrow. It is designed to test one structural improvement in one real workflow."
-      />
+      <div
+        onClick={() => setOpen(!open)}
+        className="cursor-pointer flex items-center justify-between"
+      >
+        <h2 className="text-lg font-semibold text-slate-950">
+          Your 7-day pilot plan
+        </h2>
+        <span className="text-sm text-slate-500">
+          {open ? "Hide" : "View"}
+        </span>
+      </div>
 
+      {open && (
+        <p className="mt-1 text-sm leading-6 text-slate-500">
+          This plan is intentionally narrow. It is designed to test one structural improvement in one real workflow.
+        </p>
+      )}
+
+      {/* 第一层：永远显示 */}
       <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {/* Focus */}
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
             Focus
@@ -386,42 +408,54 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
           </p>
         </div>
 
+        {/* What to change */}
         <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
             What to change
           </div>
           <p className="mt-2 text-sm text-sky-900">{firstPilotStep}</p>
         </div>
-
-        <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fuchsia-700">
-            What to observe
-          </div>
-          <p className="mt-2 text-sm text-fuchsia-900">{observe}</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Workflow
-          </div>
-          <p className="mt-2 text-sm font-medium text-slate-900">
-            {workflowName}
-          </p>
-        </div>
       </div>
-      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-          What success looks like
-        </div>
-        <p className="mt-2 text-sm leading-6 text-amber-900">
-          The workflow becomes easier to execute, easier to explain, and easier to verify without extra coordination effort.
-        </p>
-      </div>
+
+      {/* 第二层：折叠 */}
+      {open && (
+        <>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {/* What to observe */}
+            <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fuchsia-700">
+                What to observe
+              </div>
+              <p className="mt-2 text-sm text-fuchsia-900">{observe}</p>
+            </div>
+
+            {/* Workflow */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Workflow
+              </div>
+              <p className="mt-2 text-sm font-medium text-slate-900">
+                {workflowName}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+              What success looks like
+            </div>
+            <p className="mt-2 text-sm leading-6 text-amber-900">
+              The workflow becomes easier to execute, easier to explain, and easier to verify without extra coordination effort.
+            </p>
+          </div>
+        </>
+      )}
     </Card>
   );
 }
 
 function CarryOverSection({ preview }) {
+  const [open, setOpen] = useState(false);
   const strongestSignal = preview?.top_signals?.[0] || null;
 
   const primarySignalKey =
@@ -433,61 +467,66 @@ function CarryOverSection({ preview }) {
 
   return (
     <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Why this pilot is the recommended next step"
-        hint="This recommendation comes directly from your result, current scenario, and strongest structural signal."
-      />
-
-      <div className="mt-5 space-y-3">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Scenario
-          </div>
-          <p className="mt-2 text-sm text-slate-900">
-            {getEnglishScenarioLabel(preview)}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Strongest signal
-          </div>
-          <p className="mt-2 text-sm text-slate-900">
-            {strongestSignal?.label || "Structural Signal"}
-          </p>
-          {strongestSignal?.description ? (
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {strongestSignal.description}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-            Recommended focus
-          </div>
-          <p className="mt-2 text-sm text-emerald-900">
-            {pilotFocus?.title ||
-              preview?.pilot_preview?.entry ||
-              "Clarify one structural improvement in one workflow."}
-          </p>
-        </div>
+      <div
+        onClick={() => setOpen(!open)}
+        className="cursor-pointer flex items-center justify-between"
+      >
+        <h2 className="text-lg font-semibold text-slate-950">
+          Why this pilot is the recommended next step
+        </h2>
+        <span className="text-sm text-slate-500">
+          {open ? "Hide" : "View"}
+        </span>
       </div>
+
+      {open && (
+        <div className="mt-5 space-y-3">
+          <p className="text-sm leading-6 text-slate-500">
+            This recommendation comes directly from your result, current scenario, and strongest structural signal.
+          </p>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Scenario
+            </div>
+            <p className="mt-2 text-sm text-slate-900">
+              {getEnglishScenarioLabel(preview)}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Strongest signal
+            </div>
+            <p className="mt-2 text-sm text-slate-900">
+              {strongestSignal?.label || "Structural Signal"}
+            </p>
+            {strongestSignal?.description ? (
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {strongestSignal.description}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+              Recommended focus
+            </div>
+            <p className="mt-2 text-sm text-emerald-900">
+              {pilotFocus?.title ||
+                preview?.pilot_preview?.entry ||
+                "Clarify one structural improvement in one workflow."}
+            </p>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
 
-function PilotActions({ onBack, onStart }) {
+function PilotActions({ onBack }) {
   return (
     <div className="flex flex-wrap gap-3">
-      <button
-        type="button"
-        onClick={onStart}
-        className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-      >
-        Start My 7-Day Test →
-      </button>
-
       <button
         type="button"
         onClick={onBack}
@@ -496,118 +535,6 @@ function PilotActions({ onBack, onStart }) {
         Back to Result
       </button>
     </div>
-  );
-}
-
-function StagePilotPlanSection({ preview, stageFromResult, chainIdFromResult }) {
-  const strongestSignal = preview?.top_signals?.[0] || null;
-
-  const chainId = chainIdFromResult || "CHAIN-001";
-  const stage = stageFromResult || "S1";
-
-  const pilotData = buildPilotPageData({
-    chainId,
-    chainName:
-      chainId === "CHAIN-001"
-        ? "Authority Infrastructure"
-        : chainId === "CHAIN-003"
-        ? "Boundary Pressure"
-        : "Reality Control Recovery",
-    stage,
-    stageName: stage,
-    patternName:
-      getEnglishScenarioLabel(preview) ||
-      preview?.title ||
-      "Pattern not available",
-    currentRun:
-      strongestSignal?.currentRun ||
-      strongestSignal?.run ||
-      "RUN-UNKNOWN",
-    nextRun:
-      strongestSignal?.nextRun ||
-      preview?.pilot_preview?.next_run ||
-      "RUN-NEXT",
-  });
-
-  if (!pilotData) return null;
-
-  return (
-    <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Your 7-day execution plan"
-        hint="This plan translates your current stage into concrete steps you can apply immediately."
-      />
-
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Chain
-          </div>
-          <p className="mt-2 text-sm font-medium text-slate-900">
-            {pilotData.chainName}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Current stage
-          </div>
-          <p className="mt-2 text-sm font-medium text-slate-900">
-            {pilotData.stage}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-          Pilot goal
-        </div>
-        <p className="mt-2 text-sm leading-6 text-emerald-900">
-          {pilotData.pilotGoal}
-        </p>
-      </div>
-
-      <div className="mt-5 space-y-3">
-        {pilotData.dayPlanList.map((item) => (
-          <div
-            key={item.day}
-            className="rounded-2xl border border-slate-200 bg-white p-4"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              {item.day} · {item.status}
-            </div>
-
-            <h3 className="mt-2 text-base font-semibold text-slate-950">
-              {item.title}
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {item.description}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
-            Milestone
-          </div>
-          <p className="mt-2 text-sm leading-6 text-sky-900">
-            {pilotData.milestone}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-            Expected outcome
-          </div>
-          <p className="mt-2 text-sm leading-6 text-amber-900">
-            {pilotData.expectedOutcome}
-          </p>
-        </div>
-      </div>
-    </Card>
   );
 }
 
@@ -696,15 +623,12 @@ export default function PilotPage() {
     const pilotState = {
       session_id: resolvedSessionId,
       sessionId: resolvedSessionId,
-
       preview,
       result: preview,
       sourceInput: preview,
-
       stage: resolvedStage,
       resolvedStage,
       chainId: resolvedChainId,
-
       pilot_setup: {
         workflow,
         created_from: "pilot_starter_page",
@@ -718,13 +642,13 @@ export default function PilotPage() {
       { state: pilotState }
     );
   }, [
-  navigate,
-  preview,
-  resolvedSessionId,
-  resolvedChainId,
-  resolvedStage,
-  selectedWorkflow,
-  customWorkflow,
+    navigate,
+    preview,
+    resolvedSessionId,
+    resolvedChainId,
+    resolvedStage,
+    selectedWorkflow,
+    customWorkflow,
   ]);
 
   if (loading) {
@@ -739,18 +663,10 @@ export default function PilotPage() {
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
         <div className="space-y-6">
-          <PilotHero preview={preview} sessionId={resolvedSessionId} />
-
-          <PilotPlanCard
+          <PilotHero
             preview={preview}
-            selectedWorkflow={selectedWorkflow}
-            customWorkflow={customWorkflow}
-          />
-
-          <StagePilotPlanSection
-            preview={preview}
-            stageFromResult={resolvedStage}
-            chainIdFromResult={resolvedChainId}
+            sessionId={resolvedSessionId}
+            onStart={handleStart}
           />
 
           <WorkflowPicker
@@ -760,9 +676,15 @@ export default function PilotPage() {
             onCustomChange={setCustomWorkflow}
           />
 
+          <PilotPlanCard
+            preview={preview}
+            selectedWorkflow={selectedWorkflow}
+            customWorkflow={customWorkflow}
+          />
+
           <CarryOverSection preview={preview} />
 
-          <PilotActions onBack={handleBack} onStart={handleStart} />
+          <PilotActions onBack={handleBack} />
         </div>
       </div>
     </main>
