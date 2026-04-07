@@ -10,6 +10,77 @@ const SCENARIO_LABEL_MAP = {
   fully_ready: "Fully Ready",
 };
 
+const EVENT_ROUTE_MAP = {
+  decision_suggested: {
+    pattern: "PAT-02",
+    runId: "RUN066",
+    patternLabel: "Authority Interaction Structure",
+    routeReason: "Suggested decision enters an authority interaction pattern.",
+  },
+  decision_override_attempt: {
+    pattern: "PAT-02",
+    runId: "RUN062",
+    patternLabel: "Authority Interaction Structure",
+    routeReason: "Override attempt points to an authority interaction pattern.",
+  },
+  resource_control_request: {
+    pattern: "PAT-03",
+    runId: "RUN044",
+    patternLabel: "Reality-Critical Decision Structure",
+    routeReason: "Resource or control requests usually trigger a critical decision path.",
+  },
+  high_pressure_decision: {
+    pattern: "PAT-03",
+    runId: "RUN064",
+    patternLabel: "Reality-Critical Decision Structure",
+    routeReason: "High-pressure decisions belong to the critical decision layer.",
+  },
+  role_boundary_blur: {
+    pattern: "PAT-04",
+    runId: "RUN050",
+    patternLabel: "Boundary Defense Structure",
+    routeReason: "Blurred responsibility or role shifts point to a boundary defense pattern.",
+  },
+  other: {
+    pattern: "PAT-11",
+    runId: "RUN040",
+    patternLabel: "Product and Wiring Structure",
+    routeReason: "Fallback route for uncategorized inputs.",
+  },
+};
+
+function resolveEventRoute(eventType, preview) {
+  const mapped = EVENT_ROUTE_MAP[eventType];
+
+  if (mapped) {
+    return {
+      runId: mapped.runId,
+      pattern: mapped.pattern,
+      patternLabel: mapped.patternLabel,
+      routeReason: mapped.routeReason,
+      source: "event_route_map",
+    };
+  }
+
+  return {
+    runId:
+      preview?.extraction?.runCode ||
+      preview?.resultSeed?.runCode ||
+      preview?.run_id ||
+      preview?.anchor_run ||
+      "RUN000",
+    pattern:
+      preview?.extraction?.patternCode ||
+      preview?.resultSeed?.patternCode ||
+      preview?.pattern ||
+      preview?.pattern_id ||
+      "PAT-00",
+    patternLabel: "Unresolved Pattern",
+    routeReason: "No direct event mapping found. Fell back to preview.",
+    source: "preview_fallback",
+  };
+}
+
 function getEnglishScenarioLabel(preview) {
   const scenarioCode =
     preview?.scenario?.code ||
@@ -191,6 +262,8 @@ function SetupHero({ preview, workflow, sessionId }) {
 }
 
 function DayPlanSection({ workflow, preview }) {
+  const [open, setOpen] = useState(false);
+
   const entry =
     preview?.pilot_preview?.entry ||
     "Start with one workflow where structural friction is easiest to observe.";
@@ -249,29 +322,38 @@ function DayPlanSection({ workflow, preview }) {
 
   return (
     <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Your 7-day pilot plan"
-        hint="This is the smallest executable version. One workflow, one boundary, one test."
-      />
-
-      <div className="mt-6 grid gap-4">
-        {days.map((item) => (
-          <div
-            key={item.day}
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              {item.day}
-            </div>
-            <h3 className="mt-2 text-sm font-semibold text-slate-950">
-              {item.title}
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
-              {item.text}
-            </p>
-          </div>
-        ))}
+      <div
+        onClick={() => setOpen(!open)}
+        className="flex cursor-pointer items-center justify-between"
+      >
+        <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+          View 7-day structure (optional)
+        </h2>
+        <span className="text-sm text-slate-500">
+          {open ? "Hide" : "View"}
+        </span>
       </div>
+
+      {open ? (
+        <div className="mt-6 grid gap-4">
+          {days.map((item) => (
+            <div
+              key={item.day}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                {item.day}
+              </div>
+              <h3 className="mt-2 text-sm font-semibold text-slate-950">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {item.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -332,30 +414,159 @@ function CarryOverSection({ preview, workflow }) {
   );
 }
 
-function CaseInputSection({ caseInput, setCaseInput }) {
+function PilotEventInputSection({
+  eventType,
+  setEventType,
+  signalLevels,
+  setSignalLevels,
+  description,
+  setDescription,
+}) {
+  const EVENT_OPTIONS = [
+    { value: "decision_suggested", label: "Someone suggested a decision for me" },
+    { value: "decision_override_attempt", label: "Someone tried to decide on my behalf" },
+    { value: "resource_control_request", label: "A resource / money / control request" },
+    { value: "high_pressure_decision", label: "I felt pressure to decide quickly" },
+    { value: "role_boundary_blur", label: "Roles or responsibilities became unclear" },
+    { value: "other", label: "Other" },
+  ];
+
+  const SIGNAL_OPTIONS = ["low", "medium", "high"];
+  const AUTHORITY_OPTIONS = ["clear", "slightly_unclear", "unclear"];
+
+  const signalButtonClass = (isActive) =>
+    `rounded-xl border px-3 py-2 text-sm font-medium transition ${
+      isActive
+        ? "border-slate-950 bg-slate-950 text-white"
+        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+    }`;
+
   return (
     <Card className="p-6 md:p-7">
       <SectionTitle
-        title="Case to test"
-        hint="Name one real case in a single sentence so this pilot stays tied to a real event."
+        title="Record a real event"
+        hint="Pilot input should help the system identify structure, not just collect text."
       />
 
-      <div className="mt-5">
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          What case are you testing?
-        </label>
+      <div className="mt-6 space-y-8">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">
+            1. What just happened?
+          </div>
+          <div className="mt-3 grid gap-3">
+            {EVENT_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
+                  eventType === option.value
+                    ? "border-slate-950 bg-slate-50"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="eventType"
+                  value={option.value}
+                  checked={eventType === option.value}
+                  onChange={(e) => setEventType(e.target.value)}
+                  className="mt-1 h-4 w-4"
+                />
+                <span className="text-sm text-slate-800">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
 
-        <input
-          type="text"
-          value={caseInput}
-          onChange={(e) => setCaseInput(e.target.value)}
-          placeholder="e.g. Q1 audit evidence reconstruction for vendor files"
-          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-        />
+        <div>
+          <div className="text-sm font-semibold text-slate-900">
+            2. Confirm system signals
+          </div>
 
-        <p className="mt-2 text-xs leading-5 text-slate-500">
-          This is not the whole project. Just one concrete case for this 7-day pilot.
-        </p>
+          <div className="mt-4 grid gap-5">
+            <div>
+              <div className="text-sm text-slate-700">External pressure</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {SIGNAL_OPTIONS.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() =>
+                      setSignalLevels((prev) => ({
+                        ...prev,
+                        externalPressure: level,
+                      }))
+                    }
+                    className={signalButtonClass(
+                      signalLevels.externalPressure === level
+                    )}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm text-slate-700">Authority boundary</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {AUTHORITY_OPTIONS.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() =>
+                      setSignalLevels((prev) => ({
+                        ...prev,
+                        authorityBoundary: level,
+                      }))
+                    }
+                    className={signalButtonClass(
+                      signalLevels.authorityBoundary === level
+                    )}
+                  >
+                    {level.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm text-slate-700">Dependency</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {SIGNAL_OPTIONS.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() =>
+                      setSignalLevels((prev) => ({
+                        ...prev,
+                        dependency: level,
+                      }))
+                    }
+                    className={signalButtonClass(
+                      signalLevels.dependency === level
+                    )}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="text-sm font-semibold text-slate-900">
+            3. Describe what happened (optional)
+          </div>
+
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            placeholder="Add one sentence of context if needed."
+            className="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+          />
+        </div>
       </div>
     </Card>
   );
@@ -386,7 +597,14 @@ function ActionBar({ onBack, onConfirm }) {
 export default function PilotSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [caseInput, setCaseInput] = useState("");
+
+  const [eventType, setEventType] = useState("");
+  const [signalLevels, setSignalLevels] = useState({
+    externalPressure: "medium",
+    authorityBoundary: "slightly_unclear",
+    dependency: "medium",
+  });
+  const [description, setDescription] = useState("");
 
   const pilotSetup = location.state?.pilot_setup || null;
   const preview = location.state?.preview || null;
@@ -423,43 +641,41 @@ export default function PilotSetupPage() {
     );
   };
 
-  const handleConfirm = () => {
-    const trimmedCaseInput = caseInput.trim();
+const handleConfirm = () => {
+  const trimmedDescription = description.trim();
 
-    if (!trimmedCaseInput) {
-      alert("Please enter one real case before confirming the pilot setup.");
-      return;
-    }
+  if (!eventType) {
+    alert("Please select what just happened before confirming the pilot.");
+    return;
+  }
 
-    logEvent("pilot_entry_clicked");
-    logEvent("case_created", {
-      case_input: trimmedCaseInput,
-      workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
-      session_id: sessionId,
-    });
+  logEvent("pilot_entry_clicked");
 
-    const strongestSignal = Array.isArray(preview?.top_signals)
-      ? preview.top_signals[0]
-      : null;
+  const structuredEvent = {
+    eventType,
+    signals: {
+      externalPressure: signalLevels.externalPressure,
+      authorityBoundary: signalLevels.authorityBoundary,
+      dependency: signalLevels.dependency,
+    },
+    description: trimmedDescription,
+    timestamp: new Date().toISOString(),
+  };
+
+  logEvent("pilot_event_structured", structuredEvent);
+
+  const strongestSignal = Array.isArray(preview?.top_signals)
+    ? preview.top_signals[0]
+    : null;
 
   const extraction = preview?.extraction || {};
   const resultSeed = preview?.resultSeed || preview?.extraction || {};
+  const resolvedRoute = resolveEventRoute(eventType, preview);
 
   const pilotResult = {
-    runId:
-      extraction?.runCode ||
-      resultSeed?.runCode ||
-      preview?.run_id ||
-      preview?.anchor_run ||
-      "RUN000",
+    runId: resolvedRoute.runId,
 
-    pattern:
-      extraction?.patternCode ||
-      resultSeed?.patternCode ||
-      preview?.pattern ||
-      preview?.pattern_id ||
-      "PAT-00",
-
+    pattern: resolvedRoute.pattern,
     stage:
       extraction?.stageCode ||
       resultSeed?.stageCode ||
@@ -472,27 +688,47 @@ export default function PilotSetupPage() {
       preview?.pilot_preview?.entry ||
       "Continue with structured pilot execution.",
 
-    signals: Array.isArray(preview?.top_signals)
-      ? preview.top_signals.map((signal) => ({
-          label: signal?.label || signal?.key || "unknown_signal",
-          value: signal?.value || signal?.level || signal?.description || "unknown",
-        }))
-      : Array.isArray(resultSeed?.signals)
-      ? resultSeed.signals.map((signal, index) => ({
-          label:
-            typeof signal === "string"
-              ? signal
-              : signal?.label || signal?.key || `signal_${index + 1}`,
-          value:
-            typeof signal === "string"
-              ? "present"
-              : signal?.description || signal?.value || "present",
-        }))
-      : [],
+    signals: [
+      {
+        label: "Event Type",
+        value: eventType,
+      },
+      {
+        label: "External Pressure",
+        value: signalLevels.externalPressure,
+      },
+      {
+        label: "Authority Boundary",
+        value: signalLevels.authorityBoundary,
+      },
+      {
+        label: "Dependency",
+        value: signalLevels.dependency,
+      },
+      ...(trimmedDescription
+        ? [
+            {
+              label: "Description",
+              value: trimmedDescription,
+            },
+          ]
+        : []),
+      {
+        label: "Resolved Pattern",
+        value: resolvedRoute.pattern,
+      },
+{
+  label: "Resolved RUN",
+  value: resolvedRoute.runId,
+},
+    ],
 
     workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
 
     scenarioLabel: getEnglishScenarioLabel(preview),
+    patternLabel: resolvedRoute.patternLabel,
+    routeReason: resolvedRoute.routeReason,
+    routeSource: resolvedRoute.source,
 
     scenarioCode:
       extraction?.scenarioKey ||
@@ -506,12 +742,11 @@ export default function PilotSetupPage() {
       "Reduction in friction and clearer workflow structure.",
 
     summaryText:
+      trimmedDescription ||
       preview?.summary?.[0] ||
       resultSeed?.summary ||
       "No structured summary available.",
   };
-
-    caseInput: trimmedCaseInput,
 
   navigate(
     sessionId
@@ -531,10 +766,18 @@ export default function PilotSetupPage() {
 
         pilot_setup: {
           ...pilotSetup,
-          caseInput: trimmedCaseInput,
+          eventType,
+          signalLevels,
+          description: trimmedDescription,
+          events: [structuredEvent],
+          resolvedPattern: resolvedRoute.pattern,
+          resolvedRunId: resolvedRoute.runId,
+          resolvedPatternLabel: resolvedRoute.patternLabel,
+          routeReason: resolvedRoute.routeReason,
+          routeSource: resolvedRoute.source,
         },
+
         pilot_result: pilotResult,
-        caseInput: trimmedCaseInput,
       },
     }
   );
@@ -554,13 +797,13 @@ return (
           sessionId={sessionId}
         />
 
-        <DayPlanSection preview={preview} workflow={workflow} />
-
-        <CarryOverSection preview={preview} workflow={workflow} />
-
-        <CaseInputSection
-          caseInput={caseInput}
-          setCaseInput={setCaseInput}
+        <PilotEventInputSection
+          eventType={eventType}
+          setEventType={setEventType}
+          signalLevels={signalLevels}
+          setSignalLevels={setSignalLevels}
+          description={description}
+          setDescription={setDescription}
         />
 
         <ActionBar onBack={handleBack} onConfirm={handleConfirm} />

@@ -249,7 +249,7 @@ function PilotHero({ preview, sessionId, onStart }) {
                   color: "#FFFFFF",
                   border: "none",
                   borderRadius: "9999px",
-                  padding: "22px 28px",
+                  padding: "24px 28px",
                   fontSize: "16px",
                   fontWeight: 600,
                   lineHeight: 1,
