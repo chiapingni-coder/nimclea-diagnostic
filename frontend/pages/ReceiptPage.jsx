@@ -36,6 +36,7 @@ function normalizeReceiptData(input = {}) {
     receiptTitle: input.receiptTitle || "Decision Receipt",
     receiptId: input.receiptId || "RCPT-DEMO-001",
     generatedAt: input.generatedAt || new Date().toLocaleString(),
+    verifiedAt: input.verifiedAt || "",
     receiptHash: input.receiptHash || "",
 
     summaryTitle: input.summaryTitle || "Recorded Decision Path",
@@ -77,13 +78,53 @@ export default function ReceiptPage() {
   const routeData = location.state?.receiptPageData || location.state || null;
   const storedData = getStoredReceiptData();
   const normalized = normalizeReceiptData(routeData || storedData || {});
+  const isVerified =
+    normalized.verifiedAt ||
+    location.state?.verificationPageData?.verifiedAt;
+
   const data = {
     ...normalized,
+    generatedAt: normalized.generatedAt || new Date().toLocaleString(),
+
+    verifiedAt:
+      normalized.verifiedAt ||
+      location.state?.verificationPageData?.verifiedAt ||
+      "",
+
     receiptHash: normalized.receiptHash || createReceiptHash(normalized),
+
+    decisionStatus: isVerified
+      ? "Verified"
+      : "Ready for Verification",
   };
 
   console.log("ReceiptPage location.state:", location.state);
   console.log("ReceiptPage data:", data);
+
+  const verificationPayload = {
+    ...(location.state?.verificationPageData || {}),
+    receiptId: data.receiptId,
+    caseInput: data.caseInput,
+    scenarioLabel: data.scenarioLabel,
+    stageLabel: data.stageLabel,
+    runLabel: data.runLabel,
+    topSignals: data.topSignals,
+    receiptHash: data.receiptHash,
+    verificationTitle: "Verification",
+    verifiedAt: data.verifiedAt,
+  };
+
+  function handleProceedToVerification() {
+    try {
+      localStorage.setItem("receiptPageData", JSON.stringify(data));
+      localStorage.setItem(
+        "verificationPageData",
+        JSON.stringify(verificationPayload)
+      );
+    } catch (error) {
+      console.error("Failed to persist verification payload:", error);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
@@ -92,7 +133,7 @@ export default function ReceiptPage() {
           <p className="text-sm font-medium text-slate-500 mb-2">Decision Receipt</p>
           <h1 className="text-3xl font-bold mb-3">{data.receiptTitle}</h1>
 
-          <div className="grid md:grid-cols-2 gap-4 text-sm">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Receipt ID</p>
               <p className="font-semibold break-all">{data.receiptId}</p>
@@ -109,7 +150,14 @@ export default function ReceiptPage() {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1"></p>
+              <p className="text-slate-500 mb-1">Verified At</p>
+              <p className="font-semibold">
+                {data.verifiedAt || "Not verified yet"}
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Status</p>
               <p className="font-semibold">{data.decisionStatus}</p>
             </div>
           </div>
@@ -194,22 +242,14 @@ export default function ReceiptPage() {
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             to={ROUTES.VERIFICATION}
+            onClick={handleProceedToVerification}
             state={{
               receiptPageData: data,
-              verificationPageData: {
-                ...(location.state?.verificationPageData || {}),
-                receiptId: data.receiptId,
-                caseInput: data.caseInput,
-                scenarioLabel: data.scenarioLabel,
-                stageLabel: data.stageLabel,
-                runLabel: data.runLabel,
-                topSignals: data.topSignals,
-                receiptHash: data.receiptHash,
-              },
+              verificationPageData: verificationPayload,
             }}
             className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
           >
-            Proceed to Verification →
+            {data.verificationCtaText || "Proceed to Verification"} →
           </Link>
         </div>
       </div>

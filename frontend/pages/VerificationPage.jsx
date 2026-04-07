@@ -17,7 +17,7 @@ function normalizeVerificationData(input = {}) {
     verificationTitle: input.verificationTitle || "Verification",
     overallStatus: input.overallStatus || "Ready for Review",
     receiptId: input.receiptId || "RCPT-DEMO-001",
-    verifiedAt: input.verifiedAt || new Date().toLocaleString(),
+    verifiedAt: input.verifiedAt || "",
     caseInput: input.caseInput || "",
 
     scenarioLabel: input.scenarioLabel || "",
@@ -163,33 +163,79 @@ export default function VerificationPage() {
 
   const dynamicData = buildDynamicVerificationData(baseData);
 
+  const hasVerificationPayload = !!(receiptContext || routeData || storedData);
+
   const data = {
     ...baseData,
-    overallStatus: dynamicData.overallStatus,
-    checks: dynamicData.checks,
+    overallStatus: hasVerificationPayload
+      ? dynamicData.overallStatus
+      : "Verification Preview",
+    checks: hasVerificationPayload
+      ? dynamicData.checks
+      : [
+          {
+            label: "Receipt payload",
+            status: "warning",
+            detail: "No receipt payload was passed into this page.",
+          },
+          {
+            label: "Structure alignment",
+            status: "warning",
+            detail: "No scenario/stage/run context is currently attached.",
+          },
+          {
+            label: "Verification readiness",
+            status: "warning",
+            detail: "This page is open in preview mode. Open it from Receipt for live data.",
+          },
+        ],
+    eventTimeline: hasVerificationPayload
+      ? baseData.eventTimeline
+      : [
+          {
+            time: "Step 1",
+            title: "Preview opened",
+            detail: "Verification was opened directly without a live receipt payload.",
+          },
+          {
+            time: "Step 2",
+            title: "Awaiting receipt context",
+            detail: "Scenario, stage, RUN, and case details will appear once this page is opened from Receipt.",
+          },
+          {
+            time: "Step 3",
+            title: "Ready for live verification",
+            detail: "Return to the recorded flow to load a live verification record.",
+          },
+        ],
   };
+
+  const proofRecordId =
+    data.proofRecordId ||
+    `LBP-${String(data.receiptId || "NO-RECEIPT").replace(/[^a-zA-Z0-9]/g, "")}`;
+
+  const anchorStatus =
+    data.anchorStatus ||
+    (hasVerificationPayload ? "Anchored" : "Pending");
+
+  const anchoredAt =
+    data.anchoredAt ||
+    data.verifiedAt ||
+    "Not recorded yet";
+
+  const proofReceiptHash =
+    data.receiptHash ||
+    "Unavailable";
+
+  const displayReceiptHash =
+    proofReceiptHash && proofReceiptHash !== "Unavailable"
+      ? `${proofReceiptHash.slice(0, 10)}…${proofReceiptHash.slice(-6)}`
+      : proofReceiptHash;
 
   console.log("VerificationPage location.state:", location.state);
   console.log("VerificationPage receiptContext:", receiptContext);
   console.log("VerificationPage routeData:", routeData);
   console.log("VerificationPage data:", data);
-
-  if (!receiptContext && !routeData && !storedData) {
-    return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <p className="text-sm font-medium text-slate-500 mb-2">Verification</p>
-            <h1 className="text-2xl font-bold mb-3">No verification payload found</h1>
-            <p className="text-slate-700 leading-7">
-              This page was opened without receipt or verification data.
-              Please return to Ledger or Receipt and reopen verification from the recorded flow.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
@@ -198,7 +244,9 @@ export default function VerificationPage() {
           <p className="text-sm font-medium text-slate-500 mb-2">Verification</p>
           <h1 className="text-3xl font-bold mb-3">{data.verificationTitle}</h1>
           <p className="text-slate-700 leading-7 mb-5">
-            This verifies whether the recorded case, workflow, and decision path hold together under inspection.
+            {hasVerificationPayload
+              ? "This verifies whether the recorded case, workflow, and decision path hold together under inspection."
+              : "This page is currently open in preview mode. Live verification data will appear when opened from Receipt."}
           </p>
 
           <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -219,12 +267,14 @@ export default function VerificationPage() {
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Receipt ID</p>
-              <p className="font-semibold break-all">{data.receiptId}</p>
+              <p className="font-semibold break-all">
+                {hasVerificationPayload ? data.receiptId : "No live receipt attached"}
+              </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Verified At</p>
-              <p className="font-semibold">{data.verifiedAt}</p>
+              <p className="font-semibold">{data.verifiedAt || "Not recorded yet"}</p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -249,20 +299,20 @@ export default function VerificationPage() {
               textAlign: "center",
             }}
           >
-           <div style={{ flex: 1, opacity: 0.9 }}>
+            <div style={{ flex: 1, opacity: 0.9 }}>
               Verification Status
             </div>
 
             <div style={{ flex: 1 }}>
-              ✓ Receipt Hash verified
+              {hasVerificationPayload ? "✓ Receipt Hash verified" : "Receipt Hash pending"}
             </div>
 
             <div style={{ flex: 1 }}>
-              ✓ Structure consistent
+              {hasVerificationPayload ? "✓ Structure consistent" : "Structure pending"}
             </div>
 
             <div style={{ flex: 1 }}>
-             ✓ Ready for audit
+              {hasVerificationPayload ? "✓ Ready for audit" : "Preview mode"}
             </div>
           </div>
         </div>
@@ -313,6 +363,50 @@ export default function VerificationPage() {
           </div>
         </section>
 
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2 className="text-xl font-semibold mb-4">Ledger-backed proof</h2>
+
+          <p className="mb-4 text-sm text-slate-600">
+            This receipt is supported by a backend verification record for traceability and audit readiness.
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Anchor status</p>
+              <p
+                className={`font-semibold ${
+                  anchorStatus === "Anchored"
+                    ? "text-emerald-700"
+                    : anchorStatus === "Pending"
+                    ? "text-amber-700"
+                    : "text-slate-700"
+                }`}
+              >
+                {anchorStatus}
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Proof record ID</p>
+              <p className="font-semibold break-all">{proofRecordId}</p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Receipt hash</p>
+              <p className="font-semibold break-all">{displayReceiptHash}</p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Anchored at</p>
+              <p className="font-semibold">{anchoredAt}</p>
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm text-slate-500 leading-6">
+            This page does not expose the full ledger. It shows the proof layer linked to the current receipt.
+          </p>
+        </section>
+
         <section className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
           <h2 className="text-lg font-semibold mb-2">Verification note</h2>
           <p className="text-slate-700 leading-7">
@@ -325,7 +419,7 @@ export default function VerificationPage() {
           <Link
             to={ROUTES.RECEIPT}
             state={{
-              receiptPageData: receiptContext || data,
+              receiptPageData: receiptContext || routeData || data,
               verificationPageData: routeData || null,
             }}
             className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
