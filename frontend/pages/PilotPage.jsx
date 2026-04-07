@@ -103,15 +103,16 @@ function Card({ children, className = "" }) {
   );
 }
 
-function Pill({ children, dark = false, success = false }) {
+function Pill({ children, dark = false, success = false, style = {} }) {
   const cls = success
     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
     : dark
-    ? "bg-slate-950 text-white border border-slate-950"
+    ? "bg-amber-100 text-amber-800 border border-amber-300"
     : "bg-white text-slate-700 border border-slate-200";
 
   return (
     <span
+      style={style}
       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cls}`}
     >
       {children}
@@ -199,7 +200,15 @@ function PilotHero({ preview, sessionId }) {
           <Pill success>7-Day Pilot</Pill>
           {scenarioLabel ? <Pill>{scenarioLabel}</Pill> : null}
           {preview?.pressureProfile?.label ? (
-            <Pill dark>{preview.pressureProfile.label}</Pill>
+            <Pill
+              style={{
+                backgroundColor: "#FEF3C7",   // 浅黄底
+                color: "#78350F",           // 深黄字
+                border: "1px solid #FCD34D"
+              }}
+            >
+              {preview.pressureProfile.label}
+            </Pill>
           ) : null}
         </div>
 
@@ -281,11 +290,28 @@ function WorkflowPicker({ selectedWorkflow, onSelect, customWorkflow, onCustomCh
               onClick={() => onSelect(option)}
               className={`rounded-2xl border px-4 py-4 text-left transition ${
                 isSelected
-                  ? "border-slate-950 bg-slate-950 text-white"
+                  ? "text-slate-900 shadow-md"
                   : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
               }`}
+              style={
+                isSelected
+                  ? {
+                      backgroundColor: "#FEE2E2",
+                      borderColor: "#FCA5A5",
+                    }
+                  : undefined
+              }
             >
-              <div className="text-sm font-semibold">{option}</div>
+              <div
+                className="text-sm font-semibold"
+                style={
+                  isSelected
+                    ? { color: "#991B1B" }   // 深红
+                    : undefined
+                }
+              >
+                {option}
+              </div>
             </button>
           );
         })}

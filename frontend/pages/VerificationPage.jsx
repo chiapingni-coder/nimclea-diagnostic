@@ -234,12 +234,36 @@ export default function VerificationPage() {
           </div>
         </header>
 
-        {/* ✅ Verification Trust Block */}
-        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl px-5 py-4 shadow-sm">
-          <div className="flex flex-wrap gap-4 text-sm font-medium text-emerald-800">
-            <div>✔ Receipt Hash verified</div>
-            <div>✔ Structure consistent</div>
-            <div>✔ Ready for audit</div>
+        <div
+          className="rounded-2xl px-10 py-8 shadow-md"
+          style={{ backgroundColor: "#047857" }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              color: "#ffffff",
+              fontSize: "18px",
+              fontWeight: 600,
+              textAlign: "center",
+            }}
+          >
+           <div style={{ flex: 1, opacity: 0.9 }}>
+              Verification Status
+            </div>
+
+            <div style={{ flex: 1 }}>
+              ✓ Receipt Hash verified
+            </div>
+
+            <div style={{ flex: 1 }}>
+              ✓ Structure consistent
+            </div>
+
+            <div style={{ flex: 1 }}>
+             ✓ Ready for audit
+            </div>
           </div>
         </div>
 

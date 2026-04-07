@@ -47,15 +47,28 @@ function Card({ children, className = "" }) {
   );
 }
 
-function Pill({ children, dark = false, success = false }) {
-  const cls = success
-    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-    : dark
-    ? "bg-slate-950 text-white border border-slate-950"
-    : "bg-white text-slate-700 border border-slate-200";
+function Pill({ children, variant = "default" }) {
+  const cls =
+    variant === "success"
+      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+      : variant === "pressure"
+      ? "border text-xs font-semibold"
+      : variant === "scenario"
+      ? "bg-slate-100 text-slate-700 border border-slate-200"
+      : "bg-white text-slate-700 border border-slate-200";
+
+  const style =
+    variant === "pressure"
+      ? {
+          backgroundColor: "#FEF3C7",
+          color: "#78350F",
+          borderColor: "#FCD34D",
+        }
+      : undefined;
 
   return (
     <span
+      style={style}
       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cls}`}
     >
       {children}
@@ -120,10 +133,12 @@ function SetupHero({ preview, workflow, sessionId }) {
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
         <div className="flex flex-wrap items-center gap-2">
-          <Pill success>Pilot Setup</Pill>
-          <Pill>{scenarioLabel}</Pill>
+          <Pill variant="success">Pilot Setup</Pill>
+          <Pill variant="scenario">{scenarioLabel}</Pill>
           {preview?.pressureProfile?.label ? (
-            <Pill dark>{preview.pressureProfile.label}</Pill>
+            <Pill variant="pressure">
+              {preview.pressureProfile.label}
+            </Pill>
           ) : null}
         </div>
 

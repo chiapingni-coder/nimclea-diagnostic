@@ -2190,12 +2190,18 @@ const handleStartPilot = useCallback(
     const primarySignalKey =
       signal?.key ||
       signal?.signalKey ||
-      displayResult?.top_signals?.[0]?.key ||
-      displayResult?.top_signals?.[0]?.signalKey ||
+      enrichedResult?.top_signals?.[0]?.key ||
+      enrichedResult?.top_signals?.[0]?.signalKey ||
       "";
 
-    logEvent("pilot_entry_clicked", {
-      source: "result_hero_cta",
+    logEvent("pilot_started", {
+      sessionId: resolvedSessionId || "",
+      pattern: enrichedResult?.patternId || "",
+      chain: enrichedResult?.chainId || "",
+      stage: enrichedResult?.stage || "",
+      run: enrichedResult?.runId || "",
+      scenarioCode: enrichedResult?.scenario?.code || "",
+      primarySignalKey,
     });
 
     if (typeof onStartPilotProp === "function") {
@@ -2212,7 +2218,7 @@ const handleStartPilot = useCallback(
       state: {
         sessionId: resolvedSessionId,
         session_id: resolvedSessionId,
-    
+
         sourceInput: enrichedResult,
         preview: enrichedResult,
         result: enrichedResult,
