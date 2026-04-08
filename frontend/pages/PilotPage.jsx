@@ -629,6 +629,10 @@ export default function PilotPage() {
       stage: resolvedStage,
       resolvedStage,
       chainId: resolvedChainId,
+      runEntries: [],
+      totalRunHits: 0,
+      primaryRunLabel: "",
+      runSummaryText: "",
       pilot_setup: {
         workflow,
         created_from: "pilot_starter_page",

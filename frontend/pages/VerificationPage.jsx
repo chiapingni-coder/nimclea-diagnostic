@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import ROUTES from "../routes";
+import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 
 function getStoredVerificationData() {
   try {
@@ -14,7 +15,7 @@ function getStoredVerificationData() {
 
 function normalizeVerificationData(input = {}) {
   return {
-    verificationTitle: input.verificationTitle || "Verification",
+    verificationTitle: input.verificationTitle || "Case Verification",
     overallStatus: input.overallStatus || "Ready for Review",
     receiptId: input.receiptId || "RCPT-DEMO-001",
     verifiedAt: input.verifiedAt || "",
@@ -23,6 +24,10 @@ function normalizeVerificationData(input = {}) {
     scenarioLabel: input.scenarioLabel || "",
     stageLabel: input.stageLabel || "",
     runLabel: input.runLabel || "",
+    runEntries: Array.isArray(input.runEntries) ? input.runEntries : [],
+    totalRunHits: Number.isFinite(input.totalRunHits) ? input.totalRunHits : 0,
+    primaryRunLabel: input.primaryRunLabel || input.runLabel || "",
+    runSummaryText: input.runSummaryText || "",
     topSignals: Array.isArray(input.topSignals) ? input.topSignals : [],
     receiptHash: input.receiptHash || "",
 
@@ -60,7 +65,7 @@ function normalizeVerificationData(input = {}) {
           {
             time: "Step 2",
             title: "Receipt generated",
-            detail: `Receipt captured ${input.scenarioLabel || "—"} / ${input.stageLabel || "—"} / ${input.runLabel || "—"} / Case: ${input.caseInput || "No case attached"}.`,
+            detail: `Receipt captured structured decision path and execution stage.`
           },
           {
             time: "Step 3",
@@ -74,57 +79,6 @@ function normalizeVerificationData(input = {}) {
       "Verification confirms whether the current receipt and supporting output are consistent and reviewable. It does not replace legal, compliance, or professional review.",
 
     backToReceiptText: input.backToReceiptText || "Back to Decision Receipt",
-  };
-}
-
-function buildDynamicVerificationData(input = {}) {
-  const hasReceiptId = !!input.receiptId;
-  const hasCase = !!String(input.caseInput || "").trim();
-  const hasScenario = !!String(input.scenarioLabel || "").trim();
-  const hasStage = !!String(input.stageLabel || "").trim();
-  const hasRun = !!String(input.runLabel || "").trim();
-  const hasSignals = Array.isArray(input.topSignals) && input.topSignals.length > 0;
-
-  const checks = [
-    {
-      label: "Receipt and case record available",
-      status: hasReceiptId && hasCase ? "passed" : hasReceiptId ? "warning" : "failed",
-      detail:
-        hasReceiptId && hasCase
-          ? "The receipt fields and attached case input are present and readable in the verification layer."
-          : hasReceiptId
-          ? "Receipt exists, but no concrete case is attached."
-          : "Receipt record is missing.",
-    },
-    {
-      label: "Scenario, stage, and case alignment",
-      status: hasScenario && hasStage && hasCase ? "passed" : hasScenario || hasStage ? "warning" : "failed",
-      detail:
-        hasScenario && hasStage && hasCase
-          ? `Scenario ${input.scenarioLabel}, stage ${input.stageLabel}, and the recorded case are aligned.`
-          : hasScenario || hasStage
-          ? "Some structural fields are present, but the record is not fully aligned."
-          : "Scenario/stage structure is missing.",
-    },
-    {
-      label: "Supporting signal consistency",
-      status: hasSignals ? "passed" : "warning",
-      detail: hasSignals
-        ? "Supporting signals are present and readable in the current record."
-        : "No supporting signal payload was passed into verification.",
-    },
-  ];
-
-  const failedCount = checks.filter((c) => c.status === "failed").length;
-  const warningCount = checks.filter((c) => c.status === "warning").length;
-
-  let overallStatus = "Verification Ready";
-  if (failedCount > 0) overallStatus = "Verification Failed";
-  else if (warningCount > 0) overallStatus = "Verification Warning";
-
-  return {
-    overallStatus,
-    checks,
   };
 }
 
@@ -149,6 +103,9 @@ function getStatusStyles(status) {
 export default function VerificationPage() {
   const location = useLocation();
 
+  const routeDecision = location.state?.routeDecision || null;
+  const receiptSource = location.state?.receiptSource || "";
+
   const routeData =
     location.state?.verificationPageData ||
     location.state ||
@@ -161,32 +118,32 @@ export default function VerificationPage() {
     ...(routeData || storedData || {}),
   });
 
-  const dynamicData = buildDynamicVerificationData(baseData);
+  const evaluated = evaluateCaseRecordStatus(baseData);
 
   const hasVerificationPayload = !!(receiptContext || routeData || storedData);
 
   const data = {
     ...baseData,
     overallStatus: hasVerificationPayload
-      ? dynamicData.overallStatus
-      : "Verification Preview",
+      ? evaluated.verificationStatus
+      : "Verification Warning",
     checks: hasVerificationPayload
-      ? dynamicData.checks
+      ? evaluated.checks
       : [
           {
             label: "Receipt payload",
             status: "warning",
-            detail: "No receipt payload was passed into this page.",
+            detail: "No live receipt payload is attached to this verification view.",
           },
           {
             label: "Structure alignment",
             status: "warning",
-            detail: "No scenario/stage/run context is currently attached.",
+            detail: "Structure alignment cannot be fully confirmed without a live receipt payload.",
           },
           {
-            label: "Verification readiness",
+           label: "Verification readiness",
             status: "warning",
-            detail: "This page is open in preview mode. Open it from Receipt for live data.",
+            detail: "Verification is visible, but the current record is incomplete.",
           },
         ],
     eventTimeline: hasVerificationPayload
@@ -210,13 +167,12 @@ export default function VerificationPage() {
         ],
   };
 
-  const proofRecordId =
-    data.proofRecordId ||
-    `LBP-${String(data.receiptId || "NO-RECEIPT").replace(/[^a-zA-Z0-9]/g, "")}`;
+  const safeReceiptId = String(data.receiptId || "NO-RECEIPT").replace(/[^a-zA-Z0-9]/g, "");
+
+  const proofRecordId = data.proofRecordId || ("LBP-" + safeReceiptId);
 
   const anchorStatus =
-    data.anchorStatus ||
-    (hasVerificationPayload ? "Anchored" : "Pending");
+    data.anchorStatus || "Anchored";
 
   const anchoredAt =
     data.anchoredAt ||
@@ -232,6 +188,11 @@ export default function VerificationPage() {
       ? `${proofReceiptHash.slice(0, 10)}…${proofReceiptHash.slice(-6)}`
       : proofReceiptHash;
 
+  const hasReceiptHash = evaluated.hasReceiptHash;
+  const hasCompleteStructure = evaluated.hasCompleteStructure;
+
+  const auditReady = data.overallStatus === "Verification Ready";
+
   console.log("VerificationPage location.state:", location.state);
   console.log("VerificationPage receiptContext:", receiptContext);
   console.log("VerificationPage routeData:", routeData);
@@ -241,12 +202,10 @@ export default function VerificationPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-4xl mx-auto space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-sm font-medium text-slate-500 mb-2">Verification</p>
+          <p className="text-sm font-medium text-slate-500 mb-2">Case Verification</p>
           <h1 className="text-3xl font-bold mb-3">{data.verificationTitle}</h1>
           <p className="text-slate-700 leading-7 mb-5">
-            {hasVerificationPayload
-              ? "This verifies whether the recorded case, workflow, and decision path hold together under inspection."
-              : "This page is currently open in preview mode. Live verification data will appear when opened from Receipt."}
+            This verifies whether the issued case record remains consistent, traceable, and ready for review.
           </p>
 
           <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -279,14 +238,22 @@ export default function VerificationPage() {
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Case tested</p>
-              <p className="font-semibold">{data.caseInput || "No case attached"}</p>
+              <p className="font-semibold">
+                {data.caseInput || "Case context available"}
+              </p>
             </div>
           </div>
         </header>
-
         <div
           className="rounded-2xl px-10 py-8 shadow-md"
-          style={{ backgroundColor: "#047857" }}
+          style={{
+            backgroundColor:
+              data.overallStatus === "Verification Failed"
+                ? "#991B1B"
+                : data.overallStatus === "Verification Warning"
+                ? "#B45309"
+                : "#047857",
+          }}
         >
           <div
             style={{
@@ -297,31 +264,68 @@ export default function VerificationPage() {
               fontSize: "18px",
               fontWeight: 600,
               textAlign: "center",
+              gap: "12px",
             }}
           >
-            <div style={{ flex: 1, opacity: 0.9 }}>
-              Verification Status
+            <div style={{ flex: 1, opacity: 0.95 }}>
+              {data.overallStatus}
             </div>
 
             <div style={{ flex: 1 }}>
-              {hasVerificationPayload ? "✓ Receipt Hash verified" : "Receipt Hash pending"}
+              {hasReceiptHash ? "✓ Receipt Hash verified" : "• Receipt Hash unavailable"}
             </div>
 
             <div style={{ flex: 1 }}>
-              {hasVerificationPayload ? "✓ Structure consistent" : "Structure pending"}
+              {hasCompleteStructure ? "✓ Structure consistent" : "• Structure incomplete"}
             </div>
 
             <div style={{ flex: 1 }}>
-              {hasVerificationPayload ? "✓ Ready for audit" : "Preview mode"}
+              {auditReady ? "✓ Ready for review" : "• Review pending"}
             </div>
           </div>
         </div>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2 className="text-xl font-semibold mb-4">Aggregated RUN Record</h2>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm text-slate-500 mb-1">RUN Summary</p>
+            <p className="font-semibold">
+              {data.runSummaryText || "No aggregated RUN summary available."}
+            </p>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {Array.isArray(data.runEntries) && data.runEntries.length > 0 ? (
+              data.runEntries.map((entry, index) => (
+                <div
+                  key={`${entry.runLabel}-${index}`}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold">{entry.runLabel}</p>
+                    <span className="text-sm font-medium text-slate-600">
+                      × {entry.count}
+                    </span>
+                  </div>
+                  {(entry.stageLabel || entry.scenarioLabel) && (
+                    <p className="mt-2 text-sm text-slate-600">
+                      {[entry.stageLabel, entry.scenarioLabel].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-600">No aggregated RUN data available.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-4">What was checked</h2>
 
           <p className="mb-4 text-sm text-slate-600">
-            Verification confirms whether the recorded case, workflow, and final decision output remain consistent across the receipt and verification layers.
+            Verification confirms whether the issued case record remains consistent across the receipt and verification layers.
           </p>
 
           <div className="space-y-4">
@@ -410,7 +414,7 @@ export default function VerificationPage() {
         <section className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
           <h2 className="text-lg font-semibold mb-2">Verification note</h2>
           <p className="text-slate-700 leading-7">
-            Verification improves trust, portability, and audit readiness by checking whether the recorded case and decision path remain internally consistent.
+            Verification improves trust, portability, and review readiness by checking whether the issued case record remains internally consistent and traceable.
             It does not replace professional or legal review.
           </p>
         </section>
@@ -421,6 +425,8 @@ export default function VerificationPage() {
             state={{
               receiptPageData: receiptContext || routeData || data,
               verificationPageData: routeData || null,
+              routeDecision,
+              receiptSource,
             }}
             className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
           >

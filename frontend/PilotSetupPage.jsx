@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "./routes";
 import { logEvent } from "./utils/eventLogger";
+import { buildPilotNavigationState } from "./utils/pilotRouting";
+import { appendPilotEntry } from "./utils/pilotEntries";
 
 const SCENARIO_LABEL_MAP = {
   pre_audit_collapse: "Pre-Audit Collapse",
@@ -651,6 +653,8 @@ const handleConfirm = () => {
 
   logEvent("pilot_entry_clicked");
 
+  const entryTimestamp = new Date().toISOString();
+
   const structuredEvent = {
     eventType,
     signals: {
@@ -659,7 +663,7 @@ const handleConfirm = () => {
       dependency: signalLevels.dependency,
     },
     description: trimmedDescription,
-    timestamp: new Date().toISOString(),
+    timestamp: entryTimestamp,
   };
 
   logEvent("pilot_event_structured", structuredEvent);
@@ -672,10 +676,37 @@ const handleConfirm = () => {
   const resultSeed = preview?.resultSeed || preview?.extraction || {};
   const resolvedRoute = resolveEventRoute(eventType, preview);
 
+    const evidenceLevel =
+    trimmedDescription || eventType !== "other" ? "has_explanation" : "low_evidence";
+
+  const pilotEntry = {
+    id: `entry_${Date.now()}`,
+    timestamp: entryTimestamp,
+    workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+    eventType,
+    externalPressure: signalLevels.externalPressure,
+    authorityBoundary: signalLevels.authorityBoundary,
+    dependency: signalLevels.dependency,
+    description: trimmedDescription,
+    runId: resolvedRoute.runId,
+    pattern: resolvedRoute.pattern,
+    patternLabel: resolvedRoute.patternLabel,
+    scenarioLabel: getEnglishScenarioLabel(preview),
+    scenarioCode:
+      extraction?.scenarioKey ||
+      resultSeed?.scenarioKey ||
+      preview?.scenario?.code ||
+      "unknown_scenario",
+    evidenceLevel,
+    summaryMode: false,
+  };
+
+  const allPilotEntries = appendPilotEntry(pilotEntry);
+
   const pilotResult = {
     runId: resolvedRoute.runId,
-
     pattern: resolvedRoute.pattern,
+    patternLabel: resolvedRoute.patternLabel,
     stage:
       extraction?.stageCode ||
       resultSeed?.stageCode ||
@@ -717,16 +748,15 @@ const handleConfirm = () => {
         label: "Resolved Pattern",
         value: resolvedRoute.pattern,
       },
-{
-  label: "Resolved RUN",
-  value: resolvedRoute.runId,
-},
+      {
+        label: "Resolved RUN",
+        value: resolvedRoute.runId,
+      },
     ],
 
     workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
 
     scenarioLabel: getEnglishScenarioLabel(preview),
-    patternLabel: resolvedRoute.patternLabel,
     routeReason: resolvedRoute.routeReason,
     routeSource: resolvedRoute.source,
 
@@ -746,26 +776,85 @@ const handleConfirm = () => {
       preview?.summary?.[0] ||
       resultSeed?.summary ||
       "No structured summary available.",
+    
+    pilotEntriesCount: allPilotEntries.length,
+    latestEntryId: pilotEntry.id,
+    summaryTriggerMode: "manual_click",
   };
+
+  const navState = buildPilotNavigationState({
+    ...location.state,
+
+    session_id: sessionId,
+    sessionId,
+
+    preview,
+    sourceInput: preview,
+    extraction,
+    resultSeed,
+
+    resolvedRunId: resolvedRoute.runId,
+    pattern: resolvedRoute.pattern,
+    patternLabel: resolvedRoute.patternLabel,
+
+    stage:
+      extraction?.stageCode ||
+      resultSeed?.stageCode ||
+      preview?.stage ||
+      "S0",
+
+    caseId:
+      location.state?.caseId ||
+      location.state?.case_id ||
+      preview?.caseId ||
+      null,
+
+    signals: pilotResult.signals,
+
+    // 现在先把“确认 Pilot Setup 后”视为进入总结页模式
+    // 这样会走 pilot_complete -> /pilot-result
+    pilotComplete: true,
+    usePilotSummary: false,
+    allowReceipt: false,
+
+    pilot_setup: {
+      ...pilotSetup,
+      eventType,
+      signalLevels,
+      description: trimmedDescription,
+      events: [structuredEvent],
+      resolvedPattern: resolvedRoute.pattern,
+      resolvedRunId: resolvedRoute.runId,
+      resolvedPatternLabel: resolvedRoute.patternLabel,
+      routeReason: resolvedRoute.routeReason,
+      routeSource: resolvedRoute.source,
+    },
+
+    pilot_entries: allPilotEntries,
+    latest_pilot_entry: pilotEntry,
+    pilot_result: pilotResult,
+  });
 
   navigate(
     sessionId
-      ? `${ROUTES.PILOT_RESULT}?session_id=${sessionId}`
-      : ROUTES.PILOT_RESULT,
+      ? `${navState.routeMeta.pathname}?session_id=${sessionId}`
+      : navState.routeMeta.pathname,
     {
       state: {
         ...location.state,
+        ...navState,
+
         session_id: sessionId,
-        sessionId: sessionId,
+        sessionId,
 
         preview,
         sourceInput: preview,
-
-        extraction: preview?.extraction || {},
-        resultSeed: preview?.resultSeed || preview?.extraction || {},
+        extraction,
+        resultSeed,
 
         pilot_setup: {
-          ...pilotSetup,
+          ...navState.pilot_setup,
+          workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
           eventType,
           signalLevels,
           description: trimmedDescription,
@@ -777,7 +866,15 @@ const handleConfirm = () => {
           routeSource: resolvedRoute.source,
         },
 
-        pilot_result: pilotResult,
+        pilot_entries: allPilotEntries,
+        latest_pilot_entry: pilotEntry,
+
+        pilot_result: {
+          ...pilotResult,
+          summaryMode: navState.pilot_result.summaryMode,
+          structureStatus: navState.routeMeta.structureStatus,
+          nextAction: navState.routeMeta.nextAction,
+        },
       },
     }
   );
