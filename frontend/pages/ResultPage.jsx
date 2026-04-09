@@ -32,91 +32,91 @@ const RUN_TO_STAGE = {
 };
 
 function getHeroTitle({ scenarioCode = "", stage = "", primarySignalLabel = "" }) {
-  // ⭐ S1：看起来稳定，但其实有风险（最关键一刀）
   if (stage === "S1") {
-    return "Your system looks stable — but hidden risk often starts in paths that have not been tested.";
+    return "Your structure looks usable, but the real risk may be hiding in paths that have never been tested.";
   }
+
   if (stage === "S4" || stage === "S5" || scenarioCode === "pre_audit_collapse") {
-    return "You can now see exactly where your decision path will fail.";
+    return "Your decision path is already showing where it will fail under pressure.";
   }
 
   if (scenarioCode === "boundary_blur") {
-    return "Your decision path is predictable now — including where it breaks.";
+    return "Your structure still works, but key boundaries are too soft to trust under pressure.";
   }
 
   if (scenarioCode === "barely_functional") {
-    return "Your decision path is working, but hidden friction is already shaping the outcome.";
+    return "Your workflow is still moving, but hidden coordination cost is already shaping the outcome.";
   }
 
   if (scenarioCode === "fully_ready") {
-    return "Your decision path is clear enough to test under real conditions.";
+    return "Your decision path is clear enough to test before scale adds more noise.";
   }
 
-  return "Your decision path is now visible and testable.";
+  return "Your decision path is visible now. The next step is to test whether it actually holds.";
 }
 
 function getHeroSupportLine({ scenarioCode = "", pressureProfileCode = "" }) {
   if (scenarioCode === "pre_audit_collapse") {
-    return "This result shows where retrieval, ownership, and explanation are most likely to break under pressure.";
+    return "This result shows where retrieval, ownership, and explanation are most likely to break first when pressure arrives.";
   }
 
   if (scenarioCode === "boundary_blur" && pressureProfileCode === "pressure_sensitive") {
-    return "This result shows where normal execution still works, but pressure begins to expose soft boundaries.";
+    return "This result shows a path that still works in normal conditions, but already weakens when pressure exposes soft boundaries.";
   }
 
   if (scenarioCode === "boundary_blur") {
-    return "This result shows where unclear boundaries are already making execution harder to trust.";
+    return "This result shows where unclear boundaries are already making execution harder to trust and harder to defend.";
   }
 
   if (scenarioCode === "barely_functional") {
-    return "This result shows where manual coordination is still holding the path together.";
+    return "This result shows where manual coordination is still compensating for missing structure.";
   }
 
   if (scenarioCode === "fully_ready") {
-    return "This result shows a path that is structured enough to validate, not just interpret.";
+    return "This result shows a path that is structured enough to validate now, before scale makes verification more expensive.";
   }
 
-  return "This result shows where the current path becomes harder to execute, explain, or verify.";
+  return "This result shows where the current path becomes harder to execute, explain, or verify once real pressure appears.";
 }
 
 function getPilotCtaLabel({ scenarioCode = "", stage = "" }) {
   if (stage === "S4" || stage === "S5" || scenarioCode === "pre_audit_collapse") {
-    return "Test This Before It Breaks →";
+    return "Test this decision in a 7-day pilot →";
   }
 
   if (scenarioCode === "boundary_blur") {
-    return "Test This Path in Reality →";
+    return "Test this path in a 7-day pilot →";
   }
 
   if (scenarioCode === "barely_functional") {
-    return "Run This as a 7-Day Test →";
+    return "Run this workflow in a 7-day pilot →";
   }
 
   if (scenarioCode === "fully_ready") {
-    return "Validate This Path Now →";
+    return "Validate this path in a 7-day pilot →";
   }
 
-  return "Start My 7-Day Pilot →";
+  return "Start this path in a 7-day pilot →";
 }
 
 function getPilotCtaMicrocopy({ scenarioCode = "", primarySignalLabel = "" }) {
   if (scenarioCode === "pre_audit_collapse") {
-    return "Use one workflow to test the weakest proof path now.";
+    return "If this path is solid, it will show. If not, you will see exactly where it breaks.";
   }
 
   if (scenarioCode === "boundary_blur") {
-    return "Use one workflow to test whether this path really holds.";
+    return "Use one real workflow to see whether this path truly holds under pressure.";
   }
 
   if (scenarioCode === "barely_functional") {
-    return "Use one workflow to reduce hidden coordination cost.";
+    return "Use one real workflow to see where hidden coordination cost is still doing the work.";
   }
 
   if (scenarioCode === "fully_ready") {
-    return "Use one workflow to validate clarity under real pressure.";
+    return "Use one real workflow to validate this clarity before complexity grows.";
   }
 
-  return "Test this structure in one workflow.";
+  return "Use one real workflow to test whether this path actually holds.";
 }
 
 function resolveRun({ scenarioCode = "", primarySignalKey = "", intensityLevel = 3 }) {
@@ -1183,7 +1183,7 @@ function ReportHero({
         </p>
 
         <p className="mt-4 max-w-2xl text-sm text-slate-600">
-          The lowest-cost next step is to test this path now, before coordination cost rises further.
+          Most teams stop at understanding the problem. The lowest-cost next step is to test this path now, before delay turns into repair work, explanation effort, or coordination cost.
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -1229,7 +1229,7 @@ function ReportHero({
                 WebkitAppearance: "none"
               }}
             >
-              Test this path →
+              {ctaLabel}
             </button>
           </div>
         </div>
@@ -1259,14 +1259,14 @@ function SummarySection({ summary }) {
   return (
     <CollapsibleCard
       title="Why this result shows up"
-      hint="This explains how your responses lead to this structural pattern."
+      hint="This is not just a description of a problem. It shows the path that is now ready to be tested."
       defaultOpen={false}
       closedLabel="See why this matches your situation"
       openLabel="Hide details"
     >
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
         <p className="text-sm leading-7 text-slate-700">
-          Your responses do not just describe a problem. They reveal a repeatable path that can now be tested in one controlled workflow.
+          Your responses do not just describe a problem. They show a repeatable structure that will keep producing the same pressure until it is tested in one real workflow.
         </p>
       </div>
     </CollapsibleCard>
@@ -1279,14 +1279,14 @@ function SynthesisSection({ items }) {
   return (
     <CollapsibleCard
       title="What this means for your decision path"
-      hint="This shows where your current structure will slow you down, break, or require extra effort to defend."
+      hint="This shows where your current structure will slow you down, break, or become more expensive to defend."
       defaultOpen={false}
       closedLabel="What this means in practice"
       openLabel="Hide details"
     >
       <div className="rounded-2xl border border-violet-200 bg-violet-50 px-5 py-4">
         <p className="text-sm leading-7 text-violet-900">
-          This is the exact point where a 7-day pilot becomes useful: you can test this path before pressure turns it into cost, delay, or rework.
+          This is the point where a 7-day pilot becomes useful: not because you need more analysis, but because you need to see whether this path actually holds in reality.
         </p>
       </div>
     </CollapsibleCard>
@@ -1449,8 +1449,8 @@ function SignalsSection({ signals, onStartPilot }) {
 
   return (
     <CollapsibleCard
-      title="What is creating friction right now"
-      hint="These signals show what is making work harder to retrieve, explain, or verify right now."
+      title="Where this path starts to break"
+      hint="These signals show what is already making work harder to retrieve, explain, or verify under real conditions."
       defaultOpen={false}
       closedLabel="See the specific issues"
       openLabel="Hide issues"
@@ -1545,12 +1545,24 @@ function PilotTriggerCard({ onStartPilot, scenarioCode, ctaState, ctaLabel }) {
 
         <div className="mt-4">
           <p className="mt-3 text-xs text-slate-500">
-            This is the path your pilot will test.
+            This is not a theoretical suggestion. This is the exact path that will either hold or break in your next real workflow.
           </p>
 
           <p className="mt-3 max-w-xl text-xs leading-5 text-slate-500">
             Delaying this test usually increases explanation effort, repair work, and coordination cost.
           </p>
+
+          <p className="mt-4 text-xs font-semibold text-amber-700">
+            This is the lowest-cost moment to test this.
+          </p>
+
+          <button
+            type="button"
+            onClick={onStartPilot}
+            className="mt-5 inline-flex items-center justify-center rounded-full bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+          >
+            {ctaLabel || "Test this path in a 7-day pilot →"}
+          </button>
         </div>
       </div>
     </Card>
@@ -2374,7 +2386,7 @@ if (!isValidPreview(result)) {
               Why act now
             </div>
             <p className="mt-2 text-sm leading-7 text-slate-800">
-              Most teams stop at understanding the problem. That’s where execution stalls.
+              Most teams stop here. The ones who move next are the ones who actually reduce cost.
             </p>
             <p className="mt-2 text-sm leading-7 text-slate-700">
               If this structure is already showing pressure, the cheapest moment to test it is now, before the next real deadline, audit, or review forces the issue.
@@ -2390,12 +2402,19 @@ if (!isValidPreview(result)) {
             onStartPilot={handleStartPilot}
           />
 
+          <PilotTriggerCard
+            onStartPilot={handleStartPilot}
+            scenarioCode={enrichedResult?.scenario?.code}
+            ctaState={ctaState}
+            ctaLabel={pilotCtaLabel}
+          />
+
           <PilotSection
             pilotPreview={enrichedResult.pilot_preview}
             pilotFocus={pilotFocus}
           />
         <div className="mt-10 text-center text-sm text-slate-500">
-          End of diagnostic preview · Ready to start your pilot
+          End of diagnostic preview · The next useful step is to test one real workflow
         </div>
         
         </div>

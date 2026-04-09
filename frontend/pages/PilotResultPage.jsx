@@ -5,6 +5,7 @@ import { buildVerificationPageData } from "../buildVerificationPageData";
 import ROUTES from "../routes";
 import { logEvent } from "../utils/eventLogger";
 import { getPilotEntries } from "../utils/pilotEntries";
+import { evaluatePilotCombinationStatus } from "../utils/verificationStatus";
 import { recordRun } from "./runLedger";
 
 const SCENARIO_LABEL_MAP = {
@@ -104,6 +105,48 @@ function buildRunSummaryText(runEntries = []) {
   );
 
   return `${runEntries.length} RUN pattern${runEntries.length > 1 ? "s" : ""} recorded across ${totalRunHits} structured hit${totalRunHits > 1 ? "s" : ""}.`;
+}
+
+function getEntryTimestamp(entry = {}) {
+  const raw =
+    entry.timestamp ||
+    entry.createdAt ||
+    entry.created_at ||
+    entry.recordedAt ||
+    entry.recorded_at ||
+    null;
+
+  if (!raw) return null;
+
+  const time = new Date(raw).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function hasSevenDayWindowElapsed(entries = [], locationState = {}) {
+  const explicitPilotStart =
+    locationState?.pilot_setup?.startedAt ||
+    locationState?.pilot_setup?.startTime ||
+    locationState?.pilot_setup?.createdAt ||
+    locationState?.pilot_setup?.timestamp ||
+    null;
+
+  const explicitStartTime = explicitPilotStart
+    ? new Date(explicitPilotStart).getTime()
+    : null;
+
+  const entryTimes = (Array.isArray(entries) ? entries : [])
+    .map(getEntryTimestamp)
+    .filter(Boolean);
+
+  const fallbackStartTime =
+    entryTimes.length > 0 ? Math.min(...entryTimes) : null;
+
+  const startTime = explicitStartTime || fallbackStartTime;
+
+  if (!startTime) return false;
+
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  return Date.now() - startTime >= sevenDaysMs;
 }
 
 function buildSourceInputFromState(locationState = {}) {
@@ -237,6 +280,8 @@ export default function PilotResultPage() {
   }, []);
 
   const sourceInput = buildSourceInputFromState(location.state || {});
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("");
 
   const passedPilotEntries =
     location.state?.pilot_entries ||
@@ -319,62 +364,57 @@ export default function PilotResultPage() {
     return buildRunSummaryText(runEntries);
   }, [runEntries]);
 
-  const hasStructuredCase = entries.some(
-    (item) =>
-      String(item.description || "").trim().length > 0 &&
-      item.eventType &&
-      item.externalPressure &&
-      item.authorityBoundary &&
-      item.dependency
-  );
+const combinationStatus = useMemo(() => {
+  return evaluatePilotCombinationStatus({
+    entries,
+    summaryMode: forceWeeklySummary,
+    topSignals: (sourceInput.signals || []).map(
+      (signal) => `${signal.label}: ${signal.value}`
+    ),
+  });
+}, [entries, forceWeeklySummary, sourceInput.signals]);
 
-  const canGenerateWeeklySummary = entries.length > 0;
+const hasPilotEntries = entries.length > 0;
+const canShowProgressSummary = hasPilotEntries;
 
-  const weeklyReceiptEligible =
-    entries.length >= 3 &&
-    entries.some(
-      (item) =>
-        String(item.description || "").trim().length > 0 &&
-        item.eventType &&
-        item.externalPressure &&
-        item.authorityBoundary &&
-        item.dependency
-    );
+const weeklySummaryDue = hasSevenDayWindowElapsed(entries, location.state || {});
+const canGenerateWeeklySummary = weeklySummaryDue;
 
-  const isWeeklySummaryFlow = forceWeeklySummary === true;
-  const isCaseReceiptFlow = !isWeeklySummaryFlow && hasStructuredCase;
+const weeklyReceiptEligible =
+  weeklySummaryDue && combinationStatus.finalReceiptEligible;
 
-  const resolvedSummaryMode = isWeeklySummaryFlow;
+const isWeeklySummaryFlow = forceWeeklySummary === true;
+const isCaseReceiptFlow =
+  !isWeeklySummaryFlow && combinationStatus.canGenerateCaseReceipt;
 
-  const resolvedStructureStatus =
-    isWeeklySummaryFlow
-      ? weeklyReceiptEligible
-        ? "pilot_complete"
-        : "insufficient"
-      : isCaseReceiptFlow
-      ? "emerging"
-      : pilotFlow === "explanation_only"
-      ? "insufficient"
-      : sourceInput.structureStatus || "not_set";
+const resolvedSummaryMode = isWeeklySummaryFlow;
+const resolvedStructureStatus = combinationStatus.structureStatus;
 
   const resolvedCaseInput = sourceInput.caseInput || "";
 
   const resolvedSummaryText =
     sourceInput.summaryText || "No structured summary available.";
 
-  const enhancedSourceInput = {
-    ...sourceInput,
-    summaryMode: resolvedSummaryMode,
-    structureStatus: resolvedStructureStatus,
-    caseInput: resolvedCaseInput,
-    summaryText: resolvedSummaryText,
-    pilotEntriesCount: entries.length,
-    pilotFlow,
-    runEntries,
-    totalRunHits,
-    primaryRunLabel,
-    runSummaryText,
-  };
+const enhancedSourceInput = {
+  ...sourceInput,
+  summaryMode: resolvedSummaryMode,
+  structureStatus: resolvedStructureStatus,
+  caseInput: resolvedCaseInput,
+  summaryText: resolvedSummaryText,
+  pilotEntriesCount: entries.length,
+  pilotFlow,
+  runEntries,
+  totalRunHits,
+  primaryRunLabel,
+  runSummaryText,
+
+  continuity: combinationStatus.continuity,
+  consistency: combinationStatus.consistency,
+  structureCompleteness: combinationStatus.structureCompleteness,
+  evidenceSupport: combinationStatus.evidenceSupport,
+  score: combinationStatus.score,
+  receiptEligible: combinationStatus.receiptEligible,
+};
 
   const receiptSourceInput = isWeeklySummaryFlow
     ? {
@@ -657,6 +697,29 @@ const receiptSource = isWeeklySummaryFlow
                 </p>
               </div>
 
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                <p className="text-sm text-slate-500 mb-2">Combination judgment</p>
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
+                    Continuity: {combinationStatus.continuity}
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
+                    Consistency: {combinationStatus.consistency}
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
+                    Structure: {combinationStatus.structureCompleteness}
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
+                    Evidence: {combinationStatus.evidenceSupport}
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm font-medium text-slate-700">
+                  Score: {combinationStatus.score.toFixed(1)} / 4
+                </p>
+              </div>
+
             </div>
 
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
@@ -673,117 +736,111 @@ const receiptSource = isWeeklySummaryFlow
               ) : null}
             </div>
           </div>
-                    {(isWeeklySummaryFlow || canGenerateWeeklySummary) && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          {canShowProgressSummary && (
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={
+                weeklySummaryDue || isWeeklySummaryFlow
+                  ? {
+                      backgroundColor: "#FEF2F2",
+                      border: "1px solid #FECACA",
+                    }
+                  : {
+                      backgroundColor: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                    }
+              }
+            >
               <button
                 type="button"
                 onClick={() => setWeeklySummaryExpanded((prev) => !prev)}
                 className="w-full flex items-center justify-between px-4 py-4 text-left"
               >
                 <div>
-                  <p className="text-sm text-slate-500">Weekly Summary</p>
-                  <p className="text-base font-semibold text-slate-900">
-                    {isWeeklySummaryFlow
-                      ? "7-Day summary generated"
-                      : "Generate and review 7-day summary"}
+                  <p
+                    className="text-sm font-medium"
+                   style={
+                      weeklySummaryDue || isWeeklySummaryFlow
+                        ? { color: "#B91C1C" }
+                        : { color: "#64748B" }
+                    }
+                  >
+                    {weeklySummaryDue || isWeeklySummaryFlow ? "Weekly Summary" : "Progress Summary"}
+                  </p>
+
+                  <p
+                    className="text-base font-semibold"
+                    style={
+                      weeklySummaryDue || isWeeklySummaryFlow
+                        ? { color: "#991B1B" }
+                        : { color: "#0F172A" }
+                    }
+                  >
+                    {weeklySummaryDue || isWeeklySummaryFlow
+                      ? isWeeklySummaryFlow
+                        ? "7-Day review is active"
+                        : "7-Day review is now due"
+                      : "Current pilot accumulation"}
                   </p>
                 </div>
 
-                <span className="text-sm font-medium text-slate-600">
+                <span
+                  className="text-sm font-medium"
+                  style={
+                    weeklySummaryDue || isWeeklySummaryFlow
+                      ? { color: "#B91C1C" }
+                      : { color: "#475569" }
+                  }
+                >
                   {weeklySummaryExpanded ? "Hide" : "View"}
                 </span>
               </button>
 
               {weeklySummaryExpanded && (
-                <div className="border-t border-slate-200 px-4 py-4 space-y-4 bg-slate-50">
+                <div
+                  className="border-t px-4 py-4 space-y-4"
+                  style={
+                    weeklySummaryDue || isWeeklySummaryFlow
+                     ? {
+                          borderColor: "#FECACA",
+                          backgroundColor: "#FFF7F7",
+                        }
+                      : {
+                          borderColor: "#E2E8F0",
+                          backgroundColor: "#F8FAFC",
+                        }
+                  }
+                >
                   <div>
-                    <p className="text-sm text-slate-500 mb-1">Pilot summary</p>
+                    <p
+                      className="text-sm mb-1"
+                      style={
+                        weeklySummaryDue || isWeeklySummaryFlow
+                          ? { color: "#B91C1C" }
+                          : { color: "#64748B" }
+                      }
+                    >
+                      Pilot summary
+                    </p>
+
                     <p className="text-sm leading-6 text-slate-700">
                       {weeklySummaryText}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div
-                      className={`inline-flex rounded-xl px-3 py-2 text-sm font-medium ${
-                        weeklyReceiptEligible
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                          : "bg-amber-100 text-amber-800 border border-amber-200"
-                      }`}
-                    >
-                      {weeklyReceiptEligible
-                        ? "Receipt eligible"
-                        : "Receipt not yet eligible"}
-                    </div>
-
-                    <div className="text-sm text-slate-600">
-                      {entries.length} pilot entr{entries.length > 1 ? "ies" : "y"} recorded
-                    </div>
-                  </div>
-
-                  {isWeeklySummaryFlow ? (
-                    weeklyReceiptEligible ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const receiptState = {
-                            receiptPageData,
-                            verificationPageData,
-                            routeDecision,
-                            receiptSource,
-                          };
-
-                          recordRun({
-                            receiptId: receiptPageData.receiptId,
-                            caseInput: receiptSourceInput.caseInput || "",
-                            workflow: receiptSourceInput.workflow || "",
-                            scenarioLabel: receiptSourceInput.scenarioLabel || "",
-                            stageLabel: receiptSourceInput.stage || "",
-                            runLabel: receiptSourceInput.runId || "",
-                            receiptPageData,
-                            verificationPageData,
-                            routeDecision,
-                            receiptSource,
-                            runEntries,
-                            totalRunHits,
-                            primaryRunLabel,
-                            runSummaryText,
-                          });
-
-                          localStorage.setItem("receiptPageData", JSON.stringify(receiptPageData));
-                          localStorage.setItem("verificationPageData", JSON.stringify(verificationPageData));
-                          localStorage.setItem("receiptRouteDecision", JSON.stringify(routeDecision));
-                          localStorage.setItem("receiptSource", receiptSource);
-
-                          navigate(ROUTES.RECEIPT, {
-                            state: receiptState,
-                          });
-                        }}
-                        className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800"
-                      >
-                        Generate Final Receipt →
-                      </button>
-                    ) : (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        Weekly summary ready, but receipt is not available yet. Continue collecting structured pilot evidence.
+                  {weeklySummaryDue || isWeeklySummaryFlow ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="inline-flex rounded-xl px-3 py-2 text-sm font-medium bg-red-100 text-red-800 border border-red-200">
+                        {weeklyReceiptEligible
+                          ? "Weekly review complete enough for receipt evaluation"
+                          : "Weekly review is due, but materials are still incomplete"}
                       </div>
-                    )
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logEvent("pilot_weekly_summary_requested", {
-                          entries: enhancedSourceInput.pilotEntriesCount || 0,
-                          workflow: enhancedSourceInput.workflow,
-                        });
-                        setForceWeeklySummary(true);
-                        setWeeklySummaryExpanded(true);
-                      }}
-                      className="inline-flex items-center justify-center rounded-2xl bg-emerald-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-800"
-                    >
-                      Generate 7-Day Summary →
-                    </button>
-                  )}
+
+                      <div className="text-sm text-slate-600">
+                        The 7-day pilot window has reached its weekly review point.
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -791,55 +848,384 @@ const receiptSource = isWeeklySummaryFlow
 
           {/* 🚀 CTA */}
           <div className="pt-2 flex flex-wrap gap-3">
-            {isCaseReceiptFlow ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const receiptState = {
-                    receiptPageData,
-                    verificationPageData,
-                    routeDecision,
-                    receiptSource,
-                  };
+            {hasPilotEntries ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isCaseReceiptFlow) return;
 
-                  recordRun({
-                    receiptId: receiptPageData.receiptId,
-                    caseInput: receiptSourceInput.caseInput || "",
-                    workflow: receiptSourceInput.workflow || "",
-                    scenarioLabel: receiptSourceInput.scenarioLabel || "",
-                    stageLabel: receiptSourceInput.stage || "",
-                    runLabel: receiptSourceInput.runId || "",
-                    receiptPageData,
-                    verificationPageData,
-                    routeDecision,
-                    receiptSource,
-                    runEntries,
-                    totalRunHits,
-                    primaryRunLabel,
-                    runSummaryText,
-                  });
+                    const receiptState = {
+                      receiptPageData,
+                      verificationPageData,
+                      routeDecision,
+                      receiptSource,
+                    };
 
-                  localStorage.setItem("receiptPageData", JSON.stringify(receiptPageData));
-                  localStorage.setItem("verificationPageData", JSON.stringify(verificationPageData));
-                  localStorage.setItem("receiptRouteDecision", JSON.stringify(routeDecision));
-                  localStorage.setItem("receiptSource", receiptSource);
+                    recordRun({
+                      receiptId: receiptPageData.receiptId,
+                      caseInput: receiptSourceInput.caseInput || "",
+                      workflow: receiptSourceInput.workflow || "",
+                      scenarioLabel: receiptSourceInput.scenarioLabel || "",
+                      stageLabel: receiptSourceInput.stage || "",
+                      runLabel: receiptSourceInput.runId || "",
+                      receiptPageData,
+                      verificationPageData,
+                      routeDecision,
+                      receiptSource,
+                      runEntries,
+                      totalRunHits,
+                      primaryRunLabel,
+                      runSummaryText,
+                    });
 
-                  navigate(ROUTES.RECEIPT, {
-                    state: receiptState,
-                  });
-                }}
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800"
-              >
-                Generate Case Receipt →
-              </button>
-            ) : !canGenerateWeeklySummary ? (
+                    localStorage.setItem("receiptPageData", JSON.stringify(receiptPageData));
+                    localStorage.setItem("verificationPageData", JSON.stringify(verificationPageData));
+                    localStorage.setItem("receiptRouteDecision", JSON.stringify(routeDecision));
+                    localStorage.setItem("receiptSource", receiptSource);
+
+                    navigate(ROUTES.RECEIPT, {
+                      state: receiptState,
+                    });
+                  }}
+                  style={{
+                   display: "inline-flex",
+                    minWidth: "240px",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    padding: "12px 24px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    boxShadow: isCaseReceiptFlow
+                      ? "0 4px 12px rgba(15, 23, 42, 0.08)"
+                      : "none",
+                    backgroundColor: isCaseReceiptFlow ? "#0F172A" : "#FFFFFF",
+                    color: isCaseReceiptFlow ? "#FFFFFF" : "#dde2eb",
+                    border: isCaseReceiptFlow ? "none" : "1px solid #E2E8F0",
+                    cursor: isCaseReceiptFlow ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Generate Case Receipt →
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log("OPEN SUBSCRIPTION MODAL");
+                    setShowSubscriptionModal(true);
+                    setSelectedPlan("Modal opened");
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    minWidth: "240px",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    padding: "12px 24px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.06)",
+                    backgroundColor: "#fef6d2",
+                    color: "#D97706",
+                    border: "1px solid #ffeda3",
+                    cursor: "pointer",
+                  }}
+                >
+                  View Subscription Options →
+                </button>
+              </>
+            ) : (
               <div className="text-sm text-slate-500">
                 No pilot data yet. Complete at least one pilot entry first.
               </div>
-            ) : null}
+            )}
           </div>
 
         </section>
+        {showSubscriptionModal && (
+          <div
+            style={{
+              position: "fixed",
+             top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 99999,
+              backgroundColor: "rgba(15, 23, 42, 0.55)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "520px",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                backgroundColor: "#ffffff",
+               borderRadius: "24px",
+                boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
+                border: "1px solid #E2E8F0",
+                padding: "16px",
+              }}
+>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  alignItems: "center",
+                  columnGap: "12px",
+                  marginBottom: "16px",
+                  paddingLeft: "8px",
+                  paddingRight: "8px",
+                }}
+              >
+                <h2
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: 700,
+                    color: "#0F172A",
+                    margin: 0,
+                    flex: 1,
+                  }}
+                >
+                  Choose how to continue
+                </h2>
+        
+                <button
+                  type="button"
+                  onClick={() => setShowSubscriptionModal(false)}
+                  aria-label="Close"
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    flexShrink: 0,
+                    borderRadius: "999px",
+                    border: "1px solid #E2E8F0",
+                    backgroundColor: "#FFFFFF",
+                    color: "#64748B",
+                    fontSize: "20px",
+                    lineHeight: 1,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gap: "12px",
+                  justifyItems: "center",
+                  paddingLeft: "8px",
+                  paddingRight: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: "460px",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
+                    Formal Decision Review
+                  </h3>
+                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
+                    One formal decision for a specific case.
+                  </p>
+                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
+                    $149
+                  </p>
+
+                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
+                    $199 original
+                  </p>
+        
+                  <p
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#969aa4",
+                    }}
+                  >
+                    Pilot continuation rate available within 3 days
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlan("Formal Decision Review");
+                      setShowSubscriptionModal(false);
+                    }}
+                    style={{
+                      marginTop: "12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "auto",
+                      minWidth: "200px",
+                      padding: "10px 20px",
+                      borderRadius: "999px",
+                      backgroundColor: "#FEF2F2",
+                      color: "#DC2626",
+                      border: "1px solid #FECACA",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Choose Formal Review →
+                  </button>
+                </div>
+        
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: "460px",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
+                    Weekly Decision Support
+                  </h3>
+                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
+                    Handle multiple live decision events across 7 days.
+                  </p>
+                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
+                    $799 / week
+                  </p>
+
+                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
+                    $999 original
+                  </p>
+        
+                  <p
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#969aa4",
+                    }}
+                  >
+                    Pilot continuation rate available within 3 days
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlan("Weekly Decision Support");
+                      setShowSubscriptionModal(false);
+                    }}
+                    style={{
+                      marginTop: "12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "auto",
+                      minWidth: "200px",
+                      padding: "10px 20px",
+                      borderRadius: "999px",
+                      backgroundColor: "#FEF6D2",
+                      color: "#D97706",
+                      border: "1px solid #FFEDA3",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Choose Weekly Support →
+                  </button>
+                </div>
+        
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: "460px",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
+                    Monthly Judgment Support
+                  </h3>
+                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
+                    Ongoing support across recurring decision events.
+                  </p>
+                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
+                    From $2,399 / month
+                  </p>
+
+                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
+                    $3,000 original
+                  </p>
+        
+                  <p
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#969aa4",
+                    }}
+                  >
+                    Pilot continuation rate available within 3 days
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlan("Monthly Judgment Support");
+                      setShowSubscriptionModal(false);
+                    }}
+                    style={{
+                      marginTop: "16px",
+
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+
+                      width: "auto",
+                      minWidth: "220px",
+
+                      padding: "10px 20px",
+
+                      borderRadius: "999px",
+
+                      backgroundColor: "#ECFDF5",
+                      color: "#059669",
+                      border: "1px solid #A7F3D0",
+
+                      fontSize: "14px",
+                      fontWeight: 600,
+
+                      cursor: "pointer",
+                    }}
+                  >
+                    Request Monthly Support →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
