@@ -170,20 +170,31 @@ function LoadingState() {
   );
 }
 
-function PilotHero({ preview, sessionId, onStart }) {
+function PilotHero({
+  preview,
+  sessionId,
+  onStart,
+  pilotFocusKey = "",
+  firstGuidedAction = "",
+  firstStepLabel = "",
+  weakestDimension = "",
+}) {
+
   const pilotId = useMemo(() => createPilotId(sessionId), [sessionId]);
 
   const strongestSignal = preview?.top_signals?.[0] || null;
   const scenarioLabel = getEnglishScenarioLabel(preview);
 
-  const primarySignalKey =
+  const effectivePilotFocusKey =
+    pilotFocusKey ||
     strongestSignal?.key ||
     strongestSignal?.signalKey ||
     "";
 
-  const pilotFocus = getPilotFocusBySignal(primarySignalKey);
+  const pilotFocus = getPilotFocusBySignal(effectivePilotFocusKey);
 
   const focusText =
+    firstStepLabel ||
     pilotFocus?.title ||
     preview?.pilot_preview?.entry ||
     "Start with one workflow where structural friction is easiest to observe.";
@@ -216,12 +227,17 @@ function PilotHero({ preview, sessionId, onStart }) {
           You will take one real workflow and see whether your path actually works under real conditions.
         </p>
 
+        <p className="mt-3 text-sm leading-6 text-slate-700 italic">
+          This is not a simulation.  
+          You are testing whether your real workflow can survive structural pressure.
+        </p>
+
         <p className="mt-3 max-w-[820px] text-sm leading-6 text-emerald-700">
           One workflow. Seven days. Either it holds, or it breaks.
         </p>
 
         <div className="mt-8">
-          <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
+          <div className="grid gap-4 md:grid-cols-4 md:items-stretch">
             <div className="h-full w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                 Scenario
@@ -237,6 +253,18 @@ function PilotHero({ preview, sessionId, onStart }) {
               </div>
               <p className="mt-2 text-sm font-medium text-slate-900">
                 {strongestSignal?.label || "Structural Signal"}
+              </p>
+            </div>
+
+            <div className="h-full w-full rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                Weakest dimension
+              </div>
+              <p className="mt-2 text-sm font-medium text-amber-900">
+                {weakestDimension || "Not specified"}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-amber-800">
+                This dimension will shape the cost of your pilot path.
               </p>
             </div>
 
@@ -345,7 +373,75 @@ function WorkflowPicker({
   );
 }
 
-function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
+function getPilotTradeoffTags(weakestDimension = "") {
+  const normalized = String(weakestDimension || "").toLowerCase();
+
+  if (normalized === "evidence") {
+    return {
+      effort: "Moderate effort",
+      tradeoff: "Better proof quality",
+    };
+  }
+
+  if (normalized === "continuity") {
+    return {
+      effort: "Moderate effort",
+      tradeoff: "Faster flow recovery",
+    };
+  }
+
+  if (normalized === "authority") {
+    return {
+      effort: "Low to moderate effort",
+      tradeoff: "Slower decision speed",
+    };
+  }
+
+  if (normalized === "pressure") {
+    return {
+      effort: "Moderate effort",
+      tradeoff: "Lower distortion risk",
+    };
+  }
+
+  return {
+    effort: "Low effort",
+    tradeoff: "Partial structural gain",
+  };
+}
+
+function getPilotTradeoffCopy(weakestDimension = "") {
+  const normalized = String(weakestDimension || "").toLowerCase();
+
+  if (normalized === "evidence") {
+    return "Lower execution risk, but evidence repair usually takes extra collection effort. Faster than restarting everything, but may still leave upstream gaps if proof was never captured.";
+  }
+
+  if (normalized === "continuity") {
+    return "Moderate effort, but reveals where the workflow actually breaks across handoffs. Useful for restoring flow without immediately rebuilding the whole pilot.";
+  }
+
+  if (normalized === "authority") {
+    return "Lower external risk once clarified, but decision speed may slow down while ownership and approval boundaries are being reset.";
+  }
+
+  if (normalized === "pressure") {
+    return "Reduces distortion risk, but may delay momentum while the workflow is stabilized under real pressure conditions.";
+  }
+
+  return "This path is usually the fastest controlled test, but it may improve one weak point without fully repairing upstream structural issues.";
+}
+
+function PilotPlanCard({
+  preview,
+  selectedWorkflow,
+  customWorkflow,
+  pilotFocusKey = "",
+  firstGuidedAction = "",
+  firstStepLabel = "",
+  weakestDimension = "",
+}) {
+
   const [open, setOpen] = useState(false);
   const strongestSignal = preview?.top_signals?.[0] || null;
   const workflowName =
@@ -353,14 +449,16 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
       ? customWorkflow.trim() || "Custom workflow"
       : selectedWorkflow || "Selected workflow";
 
-  const primarySignalKey =
+  const effectivePilotFocusKey =
+    pilotFocusKey ||
     strongestSignal?.key ||
     strongestSignal?.signalKey ||
     "";
 
-  const pilotFocus = getPilotFocusBySignal(primarySignalKey);
+  const pilotFocus = getPilotFocusBySignal(effectivePilotFocusKey);
 
   const focus =
+    firstStepLabel ||
     pilotFocus?.title ||
     preview?.pilot_preview?.entry ||
     "Clarify one structural improvement in one workflow.";
@@ -371,10 +469,14 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
     "Reduction in friction, reconstruction effort, or repeated clarification.";
 
   const firstPilotStep =
+    firstGuidedAction ||
     pilotFocus?.bullets?.[0] ||
     strongestSignal?.pilotStep ||
     preview?.pilot_preview?.actions?.[0] ||
     "Apply one small structural change and observe whether it holds.";
+
+  const tradeoffDetail = getPilotTradeoffCopy(weakestDimension);
+  const tradeoffTags = getPilotTradeoffTags(weakestDimension);
 
   return (
     <Card className="p-6 md:p-7">
@@ -440,6 +542,25 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
             </div>
           </div>
 
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+              What this path costs
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                {tradeoffTags.effort}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                {tradeoffTags.tradeoff}
+              </span>
+            </div>
+
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              {tradeoffDetail}
+            </p>
+          </div>
+
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
               What success looks like
@@ -447,23 +568,33 @@ function PilotPlanCard({ preview, selectedWorkflow, customWorkflow }) {
             <p className="mt-2 text-sm leading-6 text-amber-900">
               The workflow becomes easier to execute, easier to explain, and easier to verify without extra coordination effort.
             </p>
-          </div>
+          </div>          
         </>
       )}
     </Card>
   );
 }
 
-function CarryOverSection({ preview }) {
+function CarryOverSection({
+  preview,
+  pilotFocusKey = "",
+  firstGuidedAction = "",
+  firstStepLabel = "",
+  weakestDimension = "",
+}) {
+
   const [open, setOpen] = useState(false);
   const strongestSignal = preview?.top_signals?.[0] || null;
 
-  const primarySignalKey =
+  const effectivePilotFocusKey =
+    pilotFocusKey ||
     strongestSignal?.key ||
     strongestSignal?.signalKey ||
     "";
 
-  const pilotFocus = getPilotFocusBySignal(primarySignalKey);
+  const pilotFocus = getPilotFocusBySignal(effectivePilotFocusKey);
+  const tradeoffDetail = getPilotTradeoffCopy(weakestDimension);
+  const tradeoffTags = getPilotTradeoffTags(weakestDimension);
 
   return (
     <Card className="p-6 md:p-7">
@@ -513,9 +644,39 @@ function CarryOverSection({ preview }) {
               Recommended focus
             </div>
             <p className="mt-2 text-sm text-emerald-900">
-              {pilotFocus?.title ||
+              {firstStepLabel ||
+                pilotFocus?.title ||
                 preview?.pilot_preview?.entry ||
                 "Clarify one structural improvement in one workflow."}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+              First guided action
+            </div>
+            <p className="mt-2 text-sm text-sky-900">
+              {firstGuidedAction ||
+                "Start with the first place where this workflow becomes harder to explain, verify, or sustain."}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+              What this path costs
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                {tradeoffTags.effort}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                {tradeoffTags.tradeoff}
+              </span>
+            </div>
+
+            <p className="mt-3 text-sm text-slate-700 leading-6">
+              {tradeoffDetail}
             </p>
           </div>
         </div>
@@ -572,6 +733,30 @@ export default function PilotPage() {
     (typeof window !== "undefined"
       ? localStorage.getItem(STORAGE_KEYS.SESSION_ID)
       : "") ||
+    "";
+
+  const weakestDimension =
+    location.state?.weakestDimension ||
+    location.state?.result?.weakestDimension ||
+    location.state?.preview?.weakestDimension ||
+    "";
+
+  const incomingPilotFocusKey =
+    location.state?.pilotFocusKey ||
+    location.state?.result?.pilotFocusKey ||
+    location.state?.preview?.pilotFocusKey ||
+    "";
+
+  const incomingFirstGuidedAction =
+    location.state?.firstGuidedAction ||
+    location.state?.result?.firstGuidedAction ||
+    location.state?.preview?.firstGuidedAction ||
+    "";
+
+  const incomingFirstStepLabel =
+    location.state?.firstStepLabel ||
+    location.state?.result?.firstStepLabel ||
+    location.state?.preview?.firstStepLabel ||
     "";
 
   const previewFromLocation =
@@ -633,10 +818,16 @@ export default function PilotPage() {
       totalRunHits: 0,
       primaryRunLabel: "",
       runSummaryText: "",
+
       pilot_setup: {
         workflow,
         created_from: "pilot_starter_page",
       },
+
+      weakestDimension,
+      pilotFocusKey: incomingPilotFocusKey,
+      firstGuidedAction: incomingFirstGuidedAction,
+      firstStepLabel: incomingFirstStepLabel,
     };
 
     navigate(
@@ -653,6 +844,10 @@ export default function PilotPage() {
     resolvedStage,
     selectedWorkflow,
     customWorkflow,
+    weakestDimension,
+    incomingPilotFocusKey,
+    incomingFirstGuidedAction,
+    incomingFirstStepLabel,
   ]);
 
   if (loading) {
@@ -671,6 +866,10 @@ export default function PilotPage() {
             preview={preview}
             sessionId={resolvedSessionId}
             onStart={handleStart}
+            pilotFocusKey={incomingPilotFocusKey}
+            firstGuidedAction={incomingFirstGuidedAction}
+            firstStepLabel={incomingFirstStepLabel}
+            weakestDimension={weakestDimension}
           />
 
           <WorkflowPicker
@@ -684,9 +883,19 @@ export default function PilotPage() {
             preview={preview}
             selectedWorkflow={selectedWorkflow}
             customWorkflow={customWorkflow}
+            pilotFocusKey={incomingPilotFocusKey}
+            firstGuidedAction={incomingFirstGuidedAction}
+            firstStepLabel={incomingFirstStepLabel}
+            weakestDimension={weakestDimension}
           />
 
-          <CarryOverSection preview={preview} />
+          <CarryOverSection
+            preview={preview}
+            pilotFocusKey={incomingPilotFocusKey}
+            firstGuidedAction={incomingFirstGuidedAction}
+            firstStepLabel={incomingFirstStepLabel}
+            weakestDimension={weakestDimension}
+          />
 
           <PilotActions onBack={handleBack} />
         </div>

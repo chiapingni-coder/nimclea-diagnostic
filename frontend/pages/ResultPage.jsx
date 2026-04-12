@@ -33,87 +33,179 @@ const RUN_TO_STAGE = {
 
 function getHeroTitle({ scenarioCode = "", stage = "", primarySignalLabel = "" }) {
   if (stage === "S1") {
-    return "Your structure looks usable, but the real risk may be hiding in paths that have never been tested.";
+    return "Your structure looks usable, but untested paths may still be carrying risk you cannot see yet.";
   }
 
   if (stage === "S4" || stage === "S5" || scenarioCode === "pre_audit_collapse") {
-    return "Your decision path is already showing where it will fail under pressure.";
+    return "Your decision path is already showing where it will break when pressure demands proof.";
   }
 
   if (scenarioCode === "boundary_blur") {
-    return "Your structure still works, but key boundaries are too soft to trust under pressure.";
+    return "Your workflow still works, but unclear boundaries are already weakening trust under pressure.";
   }
 
   if (scenarioCode === "barely_functional") {
-    return "Your workflow is still moving, but hidden coordination cost is already shaping the outcome.";
+    return "Your workflow is still moving, but decisions are already being shaped without a clear structure to trace or control them.";
   }
 
   if (scenarioCode === "fully_ready") {
-    return "Your decision path is clear enough to test before scale adds more noise.";
+    return "Your decision path is largely clear, but this is the cheapest moment to validate it before scale adds noise.";
   }
 
-  return "Your decision path is visible now. The next step is to test whether it actually holds.";
+  return "Your decision path is visible now. The next step is to test whether it actually holds in a real workflow.";
 }
 
-function getHeroSupportLine({ scenarioCode = "", pressureProfileCode = "" }) {
-  if (scenarioCode === "pre_audit_collapse") {
-    return "This result shows where retrieval, ownership, and explanation are most likely to break first when pressure arrives.";
+function getHeroSupportLine({
+  scenarioCode = "",
+  pressureProfileCode = "",
+  weakestDimension = "authority"
+}) {
+  let baseLine =
+    "This result shows where the current path becomes harder to execute, explain, or verify once real pressure appears.";
+
+  if (weakestDimension === "evidence") {
+    baseLine =
+      "The weakest part of this path is evidence support when proof is required.";
   }
 
-  if (scenarioCode === "boundary_blur" && pressureProfileCode === "pressure_sensitive") {
-    return "This result shows a path that still works in normal conditions, but already weakens when pressure exposes soft boundaries.";
+  if (weakestDimension === "coordination") {
+    baseLine =
+      "The weakest part of this path is coordination across real execution steps, handoffs, and follow-through.";
   }
 
-  if (scenarioCode === "boundary_blur") {
-    return "This result shows where unclear boundaries are already making execution harder to trust and harder to defend.";
+  if (weakestDimension === "boundary") {
+    baseLine =
+      "The weakest part of this path is boundary clarity across ownership, approval, and decision responsibility.";
   }
 
-  if (scenarioCode === "barely_functional") {
-    return "This result shows where manual coordination is still compensating for missing structure.";
+  if (weakestDimension === "authority") {
+    baseLine =
+      "The weakest part of this path is authority clarity in key steps, approvals, or decision ownership.";
   }
 
-  if (scenarioCode === "fully_ready") {
-    return "This result shows a path that is structured enough to validate now, before scale makes verification more expensive.";
-  }
-
-  return "This result shows where the current path becomes harder to execute, explain, or verify once real pressure appears.";
+  return baseLine;
 }
 
-function getPilotCtaLabel({ scenarioCode = "", stage = "" }) {
-  if (stage === "S4" || stage === "S5" || scenarioCode === "pre_audit_collapse") {
-    return "Test this decision in a 7-day pilot →";
+function getPilotCtaLabel({ scenarioCode = "", stage = "", weakestDimension = "authority" }) {
+
+  if (weakestDimension === "evidence") {
+    return "Test evidence flow in a 7-day pilot →";
   }
 
-  if (scenarioCode === "boundary_blur") {
-    return "Test this path in a 7-day pilot →";
+  if (weakestDimension === "coordination") {
+    return "Test coordination path in a 7-day pilot →";
   }
 
-  if (scenarioCode === "barely_functional") {
-    return "Run this workflow in a 7-day pilot →";
+  if (weakestDimension === "boundary") {
+    return "Test boundary clarity in a 7-day pilot →";
   }
 
-  if (scenarioCode === "fully_ready") {
-    return "Validate this path in a 7-day pilot →";
+  if (weakestDimension === "authority") {
+    return "Test decision authority in a 7-day pilot →";
   }
 
   return "Start this path in a 7-day pilot →";
 }
 
-function getPilotCtaMicrocopy({ scenarioCode = "", primarySignalLabel = "" }) {
+function inferWeakestDimension({
+  scenarioCode = "",
+  pressureProfileCode = "",
+  signals = [],
+}) {
+  const labels = (signals || []).map((s) =>
+    String(s?.label || "").toLowerCase()
+  );
+
+  const hasEvidence = labels.some((l) => l.includes("evidence") || l.includes("retrieval"));
+  const hasBoundary = labels.some((l) => l.includes("boundary") || l.includes("ownership"));
+  const hasDefinition = labels.some((l) => l.includes("definition") || l.includes("conflict"));
+  const hasHandoff = labels.some((l) => l.includes("handoff") || l.includes("coordination"));
+
   if (scenarioCode === "pre_audit_collapse") {
-    return "If this path is solid, it will show. If not, you will see exactly where it breaks.";
+    if (hasEvidence) return "evidence";
+    if (hasHandoff) return "coordination";
+    return "boundary";
   }
 
   if (scenarioCode === "boundary_blur") {
-    return "Use one real workflow to see whether this path truly holds under pressure.";
+    if (hasBoundary) return "boundary";
+    if (hasHandoff) return "coordination";
+    return "authority";
   }
 
   if (scenarioCode === "barely_functional") {
-    return "Use one real workflow to see where hidden coordination cost is still doing the work.";
+    if (hasHandoff) return "coordination";
+    if (hasDefinition) return "boundary";
+    return "authority";
   }
 
   if (scenarioCode === "fully_ready") {
-    return "Use one real workflow to validate this clarity before complexity grows.";
+    if (hasEvidence) return "evidence";
+    return "authority";
+  }
+
+  return "authority";
+}
+
+function getPilotRoutingByWeakestDimension(weakestDimension = "authority") {
+  if (weakestDimension === "evidence") {
+    return {
+      pilotFocusKey: "evidence_fragmentation",
+      firstGuidedAction: "Trace where evidence currently lives, and make one proof path visible end to end.",
+      firstStepLabel: "Start with evidence retrieval",
+    };
+  }
+
+  if (weakestDimension === "coordination") {
+    return {
+      pilotFocusKey: "handoff_integrity_risk",
+      firstGuidedAction: "Identify where the workflow breaks across handoffs, teams, or execution follow-through.",
+      firstStepLabel: "Start with coordination stability",
+    };
+  }
+
+  if (weakestDimension === "boundary") {
+    return {
+      pilotFocusKey: "boundary_clarity_weakness",
+      firstGuidedAction: "Clarify who owns the decision path, where ownership blurs, and where boundaries must be reset.",
+      firstStepLabel: "Start with boundary clarity",
+    };
+  }
+
+  return {
+    pilotFocusKey: "authority_gap",
+    firstGuidedAction: "Clarify who has the authority to decide, approve, or finalize the next structural step.",
+    firstStepLabel: "Start with authority clarity",
+  };
+}
+
+function getPilotCtaMicrocopy({ scenarioCode = "", primarySignalLabel = "", weakestDimension = "authority" }) {
+  if (scenarioCode === "pre_audit_collapse") {
+    return "If this path holds, it will prove itself. If not, this is exactly where future audit pressure turns into real cost.";
+  }
+
+  if (scenarioCode === "boundary_blur") {
+    if (weakestDimension === "boundary") {
+      return "Use one real workflow to see whether ownership, approval, and decision boundaries actually hold under pressure.";
+    }
+
+    if (weakestDimension === "coordination") {
+      return "Use one real workflow to see whether coordination across steps and handoffs actually holds under pressure.";
+    }
+
+    if (weakestDimension === "authority") {
+      return "Use one real workflow to see whether authority is clear enough to support real decisions under pressure.";
+    }
+
+    return "Use one real workflow to see whether this path truly holds once pressure tests ownership, decisions, and boundaries.";
+  }
+
+  if (scenarioCode === "barely_functional") {
+    return `Use one real workflow to see whether ${primarySignalLabel || "hidden coordination cost"} is still doing work that structure should be doing.`;
+  }
+
+  if (scenarioCode === "fully_ready") {
+    return "Use one real workflow to validate this clarity now, before complexity makes verification slower and noisier.";
   }
 
   return "Use one real workflow to test whether this path actually holds.";
@@ -1121,6 +1213,7 @@ function ReportHero({
   heroSupportLine,
   pilotCtaLabel,
   pilotCtaMicrocopy,
+  weakestDimension,
 }) {
 
   const reportId = useMemo(() => createReportId(sessionId), [sessionId]);
@@ -1178,12 +1271,16 @@ function ReportHero({
           {heroSupportLine}
         </p>
 
+        <p className="mt-2 text-xs text-slate-500">
+          This path is first interpreted through your weakest dimension: {weakestDimension}.
+        </p>
+
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
           {pressureLine}
         </p>
 
         <p className="mt-4 max-w-2xl text-sm text-slate-600">
-          Most teams stop at understanding the problem. The lowest-cost next step is to test this path now, before delay turns into repair work, explanation effort, or coordination cost.
+          {pilotCtaMicrocopy}
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -1469,11 +1566,13 @@ function SignalsSection({ signals, onStartPilot }) {
   );
 }
 
-function getPilotTriggerCopy(scenarioCode) {
+function getPilotTriggerCopy(scenarioCode, weakestDimension) {
   const copyMap = {
     pre_audit_collapse: {
       label: "Act Before Pressure Wins",
-      title: "This structure is already under pressure. The fastest way to reduce future coordination cost is to test it now.",
+      title: weakestDimension === "evidence"
+        ? "This path is already showing weak evidence support under pressure."
+        : "This structure is already under pressure and needs to be tested in reality.",
       body1:
         "You already have enough signal to know this is not random friction. The structure is showing where it breaks when retrieval, explanation, or proof are required.",
       body2:
@@ -1493,11 +1592,17 @@ function getPilotTriggerCopy(scenarioCode) {
 
     boundary_blur: {
       label: "Decision Point",
-      title: "Things still work, but unclear boundaries become more expensive the longer they stay untested.",
+      title: weakestDimension === "boundary"
+        ? "Things still work, but boundary clarity across ownership and decisions is already weakening under pressure."
+        : weakestDimension === "coordination"
+        ? "Things still work, but coordination across steps, handoffs, and execution is already starting to drift."
+        : weakestDimension === "authority"
+        ? "Things still work, but authority is not yet clear enough to keep the path stable under pressure."
+        : "Things still work, but unclear boundaries become more expensive the longer they stay untested.",
       body1:
         "You may find yourself re-explaining decisions, clarifying ownership, or double-checking what should already be clear.",
       body2:
-         "Run one real workflow through a 7-day pilot now, while the cost of clarifying ownership, data, and decisions is still low.",
+         "Run one real workflow through a 7-day pilot now, while the cost of clarifying ownership, authority, data, and decisions is still low.",
       footer: "Just one workflow. 7 days. No rollout.",
     },
 
@@ -1515,8 +1620,14 @@ function getPilotTriggerCopy(scenarioCode) {
   return copyMap[scenarioCode] || copyMap.boundary_blur;
 }
 
-function PilotTriggerCard({ onStartPilot, scenarioCode, ctaState, ctaLabel }) {
-  const copy = getPilotTriggerCopy(scenarioCode);
+function PilotTriggerCard({
+  onStartPilot,
+  scenarioCode,
+  ctaState,
+  ctaLabel,
+  weakestDimension
+}) {
+  const copy = getPilotTriggerCopy(scenarioCode, weakestDimension);
 
   return (
     <Card className="border-amber-200 bg-amber-50 p-6 md:p-7">
@@ -2188,7 +2299,86 @@ const enrichedResult = useMemo(() => {
     stage: resolvedPath?.stage || displayResult?.stage || "S1",
     chainId: resolvedPath?.chainId || "CHAIN-001",
   };
+  }, [displayResult, resolvedPath]);
+
+const runMeta = useMemo(() => {
+  const runCode =
+    resolvedPath?.runCode ||
+    resolvedPath?.run ||
+    displayResult?.runCode ||
+    displayResult?.run ||
+    "";
+
+  if (!runCode) return null;
+
+  return getRunRouteMeta(runCode) || null;
+}, [resolvedPath, displayResult]);
+
+const weakestDimension = useMemo(() => {
+  return inferWeakestDimension({
+    scenarioCode: displayResult?.scenario?.code || "",
+    pressureProfileCode: displayResult?.pressureProfile?.code || "",
+    signals: displayResult?.top_signals || [],
+  });
+}, [displayResult]);
+
+const pilotRouting = useMemo(() => {
+  return getPilotRoutingByWeakestDimension(weakestDimension);
+}, [weakestDimension]);
+
+const scenarioCode = enrichedResult?.scenario?.code || "";
+
+const pilotFocus = useMemo(() => {
+  const primarySignalKey =
+    displayResult?.top_signals?.[0]?.key ||
+    displayResult?.top_signals?.[0]?.signalKey ||
+    resolvedPath?.primarySignalKey ||
+    "";
+
+  const focusKey =
+    pilotRouting?.pilotFocusKey ||
+    primarySignalKey ||
+    "";
+
+  if (!focusKey) return null;
+
+  return getPilotFocusBySignal(focusKey) || null;
+}, [displayResult, resolvedPath, pilotRouting]);
+
+const stageCopy = useMemo(() => {
+  const currentStage = resolvedPath?.stage || "S1";
+  return resultStageCopy[currentStage] || resultStageCopy.S1;
+}, [resolvedPath]);
+
+const heroTitle = useMemo(() => {
+  return getHeroTitle({
+    scenarioCode: displayResult?.scenario?.code || "",
+    stage: resolvedPath?.stage || "",
+    primarySignalLabel: displayResult?.top_signals?.[0]?.label || "",
+  });
 }, [displayResult, resolvedPath]);
+
+const heroSupportLine = useMemo(() => {
+  return getHeroSupportLine({
+    scenarioCode: displayResult?.scenario?.code || "",
+    pressureProfileCode: displayResult?.pressureProfile?.code || "",
+    weakestDimension,
+  });
+}, [displayResult, weakestDimension]);
+
+const pilotCtaLabel = useMemo(() => {
+  return getPilotCtaLabel({
+    scenarioCode: displayResult?.scenario?.code || "",
+    stage: resolvedPath?.stage || "",
+  });
+}, [displayResult, resolvedPath]);
+
+const pilotCtaMicrocopy = useMemo(() => {
+  return getPilotCtaMicrocopy({
+    scenarioCode: displayResult?.scenario?.code || "",
+    primarySignalLabel: displayResult?.top_signals?.[0]?.label || "",
+  });
+}, [displayResult]);
 
 const handleStartPilot = useCallback(
   (signal = null) => {
@@ -2216,6 +2406,23 @@ const handleStartPilot = useCallback(
       enrichedResult?.top_signals?.[0]?.signalKey ||
       "";
 
+    const effectiveWeakestDimension = weakestDimension || "structure";
+
+    const effectivePilotFocusKey =
+      signal?.key ||
+      signal?.signalKey ||
+      pilotRouting?.pilotFocusKey ||
+      primarySignalKey ||
+      "";
+
+    const firstGuidedAction =
+      pilotRouting?.firstGuidedAction ||
+      "Start with the first place where this workflow becomes harder to explain, verify, or sustain.";
+
+    const firstStepLabel =
+      pilotRouting?.firstStepLabel ||
+      "Start with the weakest structural point";
+
     logEvent("pilot_started", {
       sessionId: resolvedSessionId || "",
       pattern: enrichedResult?.patternId || "",
@@ -2224,6 +2431,8 @@ const handleStartPilot = useCallback(
       run: enrichedResult?.runId || "",
       scenarioCode: enrichedResult?.scenario?.code || "",
       primarySignalKey,
+      weakestDimension: effectiveWeakestDimension,
+      pilotFocusKey: effectivePilotFocusKey,
     });
 
     if (typeof onStartPilotProp === "function") {
@@ -2232,6 +2441,10 @@ const handleStartPilot = useCallback(
         sourceInput: enrichedResult,
         scenarioCode: enrichedResult?.scenario?.code || "",
         primarySignalKey,
+        weakestDimension: effectiveWeakestDimension,
+        pilotFocusKey: effectivePilotFocusKey,
+        firstGuidedAction,
+        firstStepLabel,
       });
       return;
     }
@@ -2256,6 +2469,11 @@ const handleStartPilot = useCallback(
 
         scenarioCode: enrichedResult?.scenario?.code || "",
         primarySignalKey,
+
+        weakestDimension: effectiveWeakestDimension,
+        pilotFocusKey: effectivePilotFocusKey,
+        firstGuidedAction,
+        firstStepLabel,
       },
     });
   },
@@ -2264,67 +2482,10 @@ const handleStartPilot = useCallback(
     onStartPilotProp,
     enrichedResult,
     resolvedSessionId,
+    weakestDimension,
+    pilotRouting,
   ]
 );
-
-const runMeta = useMemo(() => {
-  const runCode =
-    resolvedPath?.runCode ||
-    resolvedPath?.run ||
-    displayResult?.runCode ||
-    displayResult?.run ||
-    "";
-
-  if (!runCode) return null;
-
-  return getRunRouteMeta(runCode) || null;
-}, [resolvedPath, displayResult]);
-
-const pilotFocus = useMemo(() => {
-  const primarySignalKey =
-    displayResult?.top_signals?.[0]?.key ||
-    displayResult?.top_signals?.[0]?.signalKey ||
-    resolvedPath?.primarySignalKey ||
-    "";
-
-  if (!primarySignalKey) return null;
-
-  return getPilotFocusBySignal(primarySignalKey) || null;
-}, [displayResult, resolvedPath]);
-
-const stageCopy = useMemo(() => {
-  const currentStage = resolvedPath?.stage || "S1";
-  return resultStageCopy[currentStage] || resultStageCopy.S1;
-}, [resolvedPath]);
-
-const heroTitle = useMemo(() => {
-  return getHeroTitle({
-    scenarioCode: displayResult?.scenario?.code || "",
-    stage: resolvedPath?.stage || "",
-    primarySignalLabel: displayResult?.top_signals?.[0]?.label || "",
-  });
-}, [displayResult, resolvedPath]);
-
-const heroSupportLine = useMemo(() => {
-  return getHeroSupportLine({
-    scenarioCode: displayResult?.scenario?.code || "",
-    pressureProfileCode: displayResult?.pressureProfile?.code || "",
-  });
-}, [displayResult]);
-
-const pilotCtaLabel = useMemo(() => {
-  return getPilotCtaLabel({
-    scenarioCode: displayResult?.scenario?.code || "",
-    stage: resolvedPath?.stage || "",
-  });
-}, [displayResult, resolvedPath]);
-
-const pilotCtaMicrocopy = useMemo(() => {
-  return getPilotCtaMicrocopy({
-    scenarioCode: displayResult?.scenario?.code || "",
-    primarySignalLabel: displayResult?.top_signals?.[0]?.label || "",
-  });
-}, [displayResult]);
 
 if (error && !result) {
   return (
@@ -2354,8 +2515,9 @@ if (!isValidPreview(result)) {
             onStartPilot={handleStartPilot}
             heroTitle={heroTitle}
             heroSupportLine={heroSupportLine}
-           pilotCtaLabel={pilotCtaLabel}
+            pilotCtaLabel={pilotCtaLabel}
             pilotCtaMicrocopy={pilotCtaMicrocopy}
+            weakestDimension={weakestDimension}
           />
 
           {runMeta?.microNote && (
@@ -2404,13 +2566,19 @@ if (!isValidPreview(result)) {
 
           <PilotTriggerCard
             onStartPilot={handleStartPilot}
-            scenarioCode={enrichedResult?.scenario?.code}
+            scenarioCode={enrichedResult?.scenario?.code || ""}
             ctaState={ctaState}
             ctaLabel={pilotCtaLabel}
+            weakestDimension={weakestDimension}
           />
 
           <PilotSection
-            pilotPreview={enrichedResult.pilot_preview}
+            pilotPreview={{
+              ...enrichedResult.pilot_preview,
+              firstGuidedAction: pilotRouting?.firstGuidedAction || "",
+              firstStepLabel: pilotRouting?.firstStepLabel || "",
+              weakestDimension,
+            }}
             pilotFocus={pilotFocus}
           />
         <div className="mt-10 text-center text-sm text-slate-500">

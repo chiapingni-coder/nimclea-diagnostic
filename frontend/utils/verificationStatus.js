@@ -27,32 +27,40 @@ function isStructuredEntry(entry = {}) {
     return false;
   }
 
-  const eventMeaningful = entry.eventType !== "other";
-  const pressureQualified =
-    entry.externalPressure === "medium" || entry.externalPressure === "high";
-  const boundaryQualified =
-    entry.authorityBoundary === "slightly unclear" ||
-    entry.authorityBoundary === "unclear";
-  const dependencyQualified =
-    entry.dependency === "medium" || entry.dependency === "high";
-
   const descriptionText = toText(entry.description).toLowerCase();
+  const descriptionLength = descriptionText.length;
+
   const isMeaninglessDescription =
     descriptionText.includes("nothing significant") ||
     descriptionText.includes("just checking") ||
     descriptionText.includes("test") ||
     descriptionText.includes("no real issue");
 
-  const structuralSignalCount = [
-    pressureQualified,
-    boundaryQualified,
-    dependencyQualified,
-  ].filter(Boolean).length;
+  const mentionsEvidenceGap =
+    descriptionText.includes("no written") ||
+    descriptionText.includes("no record") ||
+    descriptionText.includes("no documentation") ||
+    descriptionText.includes("no written confirmation") ||
+    descriptionText.includes("verbal") ||
+    descriptionText.includes("from memory");
+
+  const eventMeaningful = entry.eventType !== "other";
+  const boundaryStrong = entry.authorityBoundary === "clear";
+  const dependencyControlled =
+    entry.dependency === "low" || entry.dependency === "medium";
+  const pressureControlled =
+    entry.externalPressure === "low" || entry.externalPressure === "medium";
+
+  const descriptionQualified = descriptionLength >= 120;
 
   return (
     eventMeaningful &&
+    descriptionQualified &&
     !isMeaninglessDescription &&
-    structuralSignalCount >= 2
+    !mentionsEvidenceGap &&
+    boundaryStrong &&
+    dependencyControlled &&
+    pressureControlled
   );
 }
 
@@ -62,6 +70,41 @@ function countStructuredEntries(entries = []) {
 
 function hasSignalPayload(topSignals = []) {
   return Array.isArray(topSignals) && topSignals.length > 0;
+}
+
+function getBehaviorMetrics(input = {}) {
+  const executionSummary = input.executionSummary || {};
+  const structuredEventsCount = Number(
+    executionSummary.structuredEventsCount || 0
+  );
+
+  const behavioralGrounding =
+    structuredEventsCount >= 3
+      ? 1
+      : structuredEventsCount >= 1
+      ? 0.5
+      : 0;
+
+  const behavioralGroundingStatus =
+    behavioralGrounding === 1
+      ? "passed"
+      : behavioralGrounding > 0
+      ? "warning"
+      : "failed";
+
+  const behavioralGroundingDetail =
+    behavioralGrounding === 1
+      ? "The receipt is supported by multiple structured real-event records."
+      : behavioralGrounding > 0
+      ? "The receipt is partially grounded in real-event records, but the behavioral sample is still thin."
+      : "No strong behavioral grounding was detected behind this receipt.";
+
+  return {
+    structuredEventsCount,
+    behavioralGrounding,
+    behavioralGroundingStatus,
+    behavioralGroundingDetail,
+  };
 }
 
 function computePilotMetrics(input = {}) {
@@ -74,38 +117,49 @@ function computePilotMetrics(input = {}) {
   const latestEntryQualified = latestEntry ? isStructuredEntry(latestEntry) : false;
 
   const continuity =
-    qualifiedCount >= 3 ? 1 : qualifiedCount >= 1 ? 0.5 : 0;
+    qualifiedCount >= 3 ? 1 : qualifiedCount >= 2 ? 0.5 : 0;
 
   const consistency =
     qualifiedCount === 0
       ? 0
-      : qualifiedCount === totalEntries
+      : qualifiedCount === totalEntries && totalEntries >= 2
       ? 1
       : 0.5;
 
   const structureCompleteness =
-    qualifiedCount >= 3 ? 1 : qualifiedCount >= 1 ? 0.5 : 0;
+    latestEntryQualified
+      ? qualifiedCount >= 2
+        ? 1
+        : 0.5
+      : 0;
 
   const evidenceSupport =
-    qualifiedCount >= 3
+    qualifiedCount >= 2
       ? 1
-      : qualifiedCount >= 1
+      : qualifiedCount === 1
       ? 0.5
       : 0;
 
   const score =
     continuity + consistency + structureCompleteness + evidenceSupport;
 
-  const receiptEligible = latestEntryQualified;
-  const finalReceiptEligible = qualifiedCount >= 3;
+  const receiptEligible =
+    score >= 3.5 &&
+    evidenceSupport >= 1 &&
+    structureCompleteness >= 1;
+
+  const finalReceiptEligible =
+    score >= 3.5 &&
+    evidenceSupport >= 1 &&
+    structureCompleteness >= 1;
 
   let structureStatus = "not_set";
-  if (score >= 3.5) {
-    structureStatus = "pilot_complete";
-  } else if (score >= 2) {
-    structureStatus = "emerging";
+  if (score >= 3.5 && evidenceSupport >= 1 && structureCompleteness >= 1) {
+    structureStatus = "ready";
+  } else if (score >= 2.5) {
+    structureStatus = "building";
   } else if (score > 0) {
-    structureStatus = "insufficient";
+    structureStatus = "weak";
   }
 
   return {
@@ -169,33 +223,54 @@ export function evaluateCaseRecordStatus(input = {}) {
       ? 0.5
       : 0;
 
+  const hasRunEvidence = hasRunEntries;
+
   const evidenceSupport =
-    hasReceiptHash && hasSignals ? 1 : hasReceiptHash || hasSignals ? 0.5 : 0;
+    hasReceiptHash && (hasSignals || hasRunEvidence)
+      ? 1
+      : hasReceiptHash || hasSignals || hasRunEvidence
+      ? 0.5
+      : 0;
+
+  const {
+    structuredEventsCount,
+    behavioralGrounding,
+    behavioralGroundingStatus,
+    behavioralGroundingDetail,
+  } = getBehaviorMetrics(input);
 
   const score =
-    continuity + consistency + structureCompleteness + evidenceSupport;
+    continuity +
+    consistency +
+    structureCompleteness +
+    evidenceSupport +
+    behavioralGrounding;
 
   let structureStatus = "not_set";
   if (score >= 3.5) {
-    structureStatus = "pilot_complete";
-  } else if (score >= 2) {
-    structureStatus = "emerging";
+    structureStatus = "ready";
+  } else if (score >= 2.5) {
+    structureStatus = "building";
   } else if (score > 0) {
-    structureStatus = "insufficient";
+    structureStatus = "weak";
   }
 
   const hasCompleteStructure =
     hasCaseInput && hasScenario && hasStage && hasRunEntries;
 
-  const receiptEligible = score >= 2;
-  const receiptStatus = receiptEligible
-    ? "Ready for Verification"
-    : "Record Incomplete";
+  const receiptEligible = score >= 2.5;
+
+  const receiptStatus =
+    score >= 4.5
+      ? "Ready for Verification"
+      : score >= 2.5
+      ? "Review with Warning"
+      : "Record Incomplete";
 
   const verificationStatus =
-    hasCompleteStructure && hasReceiptHash
+    score >= 4.5 && behavioralGrounding === 1
       ? "Verification Ready"
-      : hasCompleteStructure || hasReceiptHash
+      : score >= 2.5
       ? "Verification Warning"
       : "Verification Failed";
 
@@ -239,10 +314,15 @@ export function evaluateCaseRecordStatus(input = {}) {
         evidenceSupport === 1 ? "passed" : evidenceSupport > 0 ? "warning" : "failed",
       detail:
         evidenceSupport === 1
-          ? "Receipt hash and supporting signals are both present."
+         ? "The record is supported by receipt proof and observable signals or RUN evidence."
           : evidenceSupport > 0
           ? "Part of the support layer is present, but the proof chain is not fully complete."
           : "The support layer is missing.",
+    },
+    {
+      label: "Behavioral grounding",
+      status: behavioralGroundingStatus,
+      detail: behavioralGroundingDetail,
     },
   ];
 
@@ -251,6 +331,8 @@ export function evaluateCaseRecordStatus(input = {}) {
     consistency,
     structureCompleteness,
     evidenceSupport,
+    behavioralGrounding,
+    structuredEventsCount,
     score,
     receiptEligible,
     structureStatus,

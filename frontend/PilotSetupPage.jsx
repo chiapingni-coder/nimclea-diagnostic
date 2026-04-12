@@ -83,6 +83,55 @@ function resolveEventRoute(eventType, preview) {
   };
 }
 
+function resolveByWeakestDimension(weakestDimension, eventType, preview) {
+  if (!weakestDimension) {
+    return resolveEventRoute(eventType, preview);
+  }
+
+  // 🧠 核心映射（你可以后面升级成 registry）
+  const DIMENSION_ROUTE_MAP = {
+    authority: {
+      pattern: "PAT-02",
+      runId: "RUN062",
+      patternLabel: "Authority Interaction Structure",
+      reason: "Weak authority structure drives interpretation of this event."
+    },
+    boundary: {
+      pattern: "PAT-04",
+      runId: "RUN050",
+      patternLabel: "Boundary Defense Structure",
+      reason: "Weak boundary turns this into a boundary defense issue."
+    },
+    evidence: {
+      pattern: "PAT-01",
+      runId: "RUN030",
+      patternLabel: "Evidence & Traceability Structure",
+      reason: "Weak evidence structure reframes this event as traceability risk."
+    },
+    coordination: {
+      pattern: "PAT-05",
+      runId: "RUN070",
+      patternLabel: "Coordination Structure",
+      reason: "Weak coordination causes execution ambiguity."
+    }
+  };
+
+  const mapped = DIMENSION_ROUTE_MAP[weakestDimension];
+
+  if (mapped) {
+    return {
+      runId: mapped.runId,
+      pattern: mapped.pattern,
+      patternLabel: mapped.patternLabel,
+      routeReason: mapped.reason,
+      source: "weakest_dimension"
+    };
+  }
+
+  // fallback
+  return resolveEventRoute(eventType, preview);
+}
+
 function getEnglishScenarioLabel(preview) {
   const scenarioCode =
     preview?.scenario?.code ||
@@ -191,9 +240,23 @@ function EmptyState({ onBack }) {
   );
 }
 
-function SetupHero({ preview, workflow, sessionId }) {
+function SetupHero({
+  preview,
+  workflow,
+  sessionId,
+  weakestDimension = "",
+  firstStepLabel = "",
+  firstGuidedAction = "",
+}) {
+
   const scenarioLabel = getEnglishScenarioLabel(preview);
   const strongestSignal = preview?.top_signals?.[0] || null;
+
+  const heroStepText =
+  firstStepLabel ||
+  preview?.pilot_preview?.entry ||
+  "Start with one structural improvement path.";
+
   const pilotId = useMemo(() => {
     if (!sessionId) return "NIM-PILOT";
     return `PILOT-${String(sessionId)
@@ -220,36 +283,36 @@ function SetupHero({ preview, workflow, sessionId }) {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
-          You are committing one real workflow to execution. No expansion. No fallback.
-          You are not rolling out the full system. You are testing one real
-          workflow in a controlled way.
+          This 7-day pilot lets you log real events as they happen, without forcing them
+          into a daily schedule. You can record unlimited event activity during the pilot
+          window, with up to 5 structured reviews generated from those inputs.
         </p>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Workflow
-            </div>
-            <p className="mt-2 text-sm font-medium text-slate-900">
-              {workflow}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Strongest signal
-            </div>
-            <p className="mt-2 text-sm font-medium text-slate-900">
-              {strongestSignal?.label || "Structural Signal"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="mt-5 flex flex-wrap gap-3">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-              Pilot target
+              Pilot coverage
             </div>
-            <p className="mt-2 text-sm font-medium text-emerald-900">
-              Make one real workflow easier to explain, verify, and stabilize.
+            <p className="mt-1 text-sm font-medium text-emerald-900">
+              Unlimited event logging
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+              Structured output
+            </div>
+            <p className="mt-1 text-sm font-medium text-sky-900">
+              Up to 5 structured reviews
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Timing logic
+            </div>
+            <p className="mt-1 text-sm font-medium text-slate-900">
+              Events are logged as they occur, not by fixed daily quotas.
             </p>
           </div>
         </div>
@@ -257,16 +320,66 @@ function SetupHero({ preview, workflow, sessionId }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-8 py-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         <span>Pilot ID: {pilotId}</span>
-        <span>Execution Setup</span>
+        <span>7-Day Event Window</span>
       </div>
     </Card>
   );
 }
 
-function DayPlanSection({ workflow, preview }) {
+const MAX_CONTEXT_LENGTH = 280;
+const MAX_SUMMARY_CONTEXT_LENGTH = 120;
+const CONTEXT_SUMMARY_CACHE_PREFIX = "nim_context_summary_";
+
+function buildContextSummary(raw = "") {
+  const cleaned = normalizeUserContext(raw);
+
+  if (!cleaned) return "";
+
+  const firstSentence =
+    cleaned.split(/(?<=[.!?。！？])\s+/).filter(Boolean)[0] || cleaned;
+
+  return firstSentence.slice(0, MAX_SUMMARY_CONTEXT_LENGTH).trim();
+}
+
+function buildContextCacheKey(raw = "") {
+  return `${CONTEXT_SUMMARY_CACHE_PREFIX}${raw}`;
+}
+
+function normalizeUserContext(raw = "") {
+  return String(raw)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n\s+/g, "\n")
+    .trim();
+}
+
+function buildContextForSubmission(raw = "") {
+  const cleaned = normalizeUserContext(raw);
+
+  if (!cleaned) return "";
+
+  const sentenceParts = cleaned
+    .split(/(?<=[.!?。！？])\s+/)
+    .filter(Boolean);
+
+  const shortened = sentenceParts.slice(0, 2).join(" ").trim();
+
+  return shortened.slice(0, MAX_CONTEXT_LENGTH);
+}
+
+function DayPlanSection({
+  workflow,
+  preview,
+  firstGuidedAction = "",
+  firstStepLabel = "",
+}) {
+  
   const [open, setOpen] = useState(false);
 
   const entry =
+    firstStepLabel ||
     preview?.pilot_preview?.entry ||
     "Start with one workflow where structural friction is easiest to observe.";
 
@@ -298,7 +411,10 @@ function DayPlanSection({ workflow, preview }) {
     {
       day: "Day 3",
       title: "Apply one structural change",
-      text: actions[0] || "Apply one small change to the workflow structure.",
+      text:
+        firstGuidedAction ||
+        actions[0] ||
+        "Apply one small change to the workflow structure.",
     },
     {
       day: "Day 4",
@@ -360,7 +476,14 @@ function DayPlanSection({ workflow, preview }) {
   );
 }
 
-function CarryOverSection({ preview, workflow }) {
+function CarryOverSection({
+  preview,
+  workflow,
+  weakestDimension = "",
+  firstGuidedAction = "",
+  firstStepLabel = "",
+}) {
+
   const strongestSignal = preview?.top_signals?.[0] || null;
 
   return (
@@ -401,12 +524,32 @@ function CarryOverSection({ preview, workflow }) {
           ) : null}
         </div>
 
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+            Weakest dimension
+          </div>
+          <p className="mt-2 text-sm text-amber-900">
+            {weakestDimension || "Not specified"}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+            First guided action
+          </div>
+          <p className="mt-2 text-sm text-sky-900">
+            {firstGuidedAction ||
+              "Start with the first place where this workflow becomes harder to explain, verify, or sustain."}
+          </p>
+        </div>
+
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
             Expected shift
           </div>
           <p className="mt-2 text-sm text-emerald-900">
-            {strongestSignal?.expectedShift ||
+            {firstStepLabel ||
+              strongestSignal?.expectedShift ||
               preview?.pilot_preview?.outcome ||
               "The workflow becomes easier to explain, verify, and defend."}
           </p>
@@ -419,6 +562,7 @@ function CarryOverSection({ preview, workflow }) {
 function PilotEventInputSection({
   eventType,
   setEventType,
+  showEventRequired,
   signalLevels,
   setSignalLevels,
   description,
@@ -462,21 +606,31 @@ function PilotEventInputSection({
                 className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
                   eventType === option.value
                     ? "border-slate-950 bg-slate-50"
+                    : showEventRequired
+                    ? "border-red-300 bg-red-50/40 hover:bg-red-50/60"
                     : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
+               }`}
               >
                 <input
                   type="radio"
                   name="eventType"
                   value={option.value}
                   checked={eventType === option.value}
-                  onChange={(e) => setEventType(e.target.value)}
+                  onChange={(e) => {
+                    setEventType(e.target.value);
+                  }}
                   className="mt-1 h-4 w-4"
                 />
                 <span className="text-sm text-slate-800">{option.label}</span>
               </label>
             ))}
           </div>
+
+          {showEventRequired && !eventType ? (
+            <div className="mt-3 text-sm font-medium text-red-600">
+              Please select what just happened before continuing.
+            </div>
+          ) : null}
         </div>
 
         <div>
@@ -563,11 +717,18 @@ function PilotEventInputSection({
 
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) =>
+              setDescription(e.target.value.slice(0, MAX_CONTEXT_LENGTH))
+            }
+            maxLength={MAX_CONTEXT_LENGTH}
             rows={4}
-            placeholder="Add one sentence of context if needed."
+            placeholder="Brief context (one sentence is enough)."
             className="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
+
+          <div className="mt-2 text-right text-xs text-slate-400">
+            {description.length} / {MAX_CONTEXT_LENGTH} characters
+          </div>
         </div>
       </div>
     </Card>
@@ -582,7 +743,7 @@ function ActionBar({ onBack, onConfirm }) {
         onClick={onConfirm}
         className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
-        Confirm Pilot Setup →
+        Start Logging Events →
       </button>
 
       <button
@@ -601,6 +762,7 @@ export default function PilotSetupPage() {
   const location = useLocation();
 
   const [eventType, setEventType] = useState("");
+  const [showEventRequired, setShowEventRequired] = useState(false);
   const [signalLevels, setSignalLevels] = useState({
     externalPressure: "medium",
     authorityBoundary: "slightly_unclear",
@@ -617,6 +779,18 @@ export default function PilotSetupPage() {
 
   const workflow =
     pilotSetup?.workflow || "Selected workflow";
+
+  const weakestDimension =
+    location.state?.weakestDimension || "";
+
+  const pilotFocusKey =
+    location.state?.pilotFocusKey || "";
+
+  const firstGuidedAction =
+    location.state?.firstGuidedAction || "";
+
+  const firstStepLabel =
+    location.state?.firstStepLabel || "";
 
   const hasRequiredContext =
     preview &&
@@ -638,19 +812,40 @@ export default function PilotSetupPage() {
             preview?.stage ||
             preview?.extraction?.stageCode ||
             "S1",
+          weakestDimension,
+            pilotFocusKey,
+            firstGuidedAction,
+            firstStepLabel,
         }
       }
     );
   };
 
 const handleConfirm = () => {
-  const trimmedDescription = description.trim();
+  const trimmedDescription = buildContextForSubmission(description);
+
+  let summarizedDescription = "";
+
+  if (trimmedDescription) {
+    const contextCacheKey = buildContextCacheKey(trimmedDescription);
+
+    try {
+      summarizedDescription =
+        localStorage.getItem(contextCacheKey) ||
+        buildContextSummary(trimmedDescription);
+
+      localStorage.setItem(contextCacheKey, summarizedDescription);
+    } catch {
+      summarizedDescription = buildContextSummary(trimmedDescription);
+    }
+  }
 
   if (!eventType) {
-    alert("Please select what just happened before confirming the pilot.");
+    setShowEventRequired(true);
     return;
   }
 
+  setShowEventRequired(false);
   logEvent("pilot_entry_clicked");
 
   const entryTimestamp = new Date().toISOString();
@@ -663,6 +858,7 @@ const handleConfirm = () => {
       dependency: signalLevels.dependency,
     },
     description: trimmedDescription,
+    summaryContext: summarizedDescription,
     timestamp: entryTimestamp,
   };
 
@@ -674,15 +870,25 @@ const handleConfirm = () => {
 
   const extraction = preview?.extraction || {};
   const resultSeed = preview?.resultSeed || preview?.extraction || {};
-  const resolvedRoute = resolveEventRoute(eventType, preview);
+
+  const resolvedRoute = resolveByWeakestDimension(
+    weakestDimension,
+    eventType,
+    preview
+  );
 
     const evidenceLevel =
-    trimmedDescription || eventType !== "other" ? "has_explanation" : "low_evidence";
+      summarizedDescription || eventType !== "other"
+        ? "has_explanation"
+        : "low_evidence";
 
   const pilotEntry = {
     id: `entry_${Date.now()}`,
     timestamp: entryTimestamp,
     workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+
+    judgmentFocus: weakestDimension || "event_based",
+
     eventType,
     externalPressure: signalLevels.externalPressure,
     authorityBoundary: signalLevels.authorityBoundary,
@@ -699,11 +905,14 @@ const handleConfirm = () => {
       "unknown_scenario",
     evidenceLevel,
     summaryMode: false,
+    summaryContext: summarizedDescription,
   };
 
   const allPilotEntries = appendPilotEntry(pilotEntry);
 
   const pilotResult = {
+    judgmentFocus: weakestDimension || "event_based",
+    resolvedBy: weakestDimension || "event_type",
     runId: resolvedRoute.runId,
     pattern: resolvedRoute.pattern,
     patternLabel: resolvedRoute.patternLabel,
@@ -739,9 +948,9 @@ const handleConfirm = () => {
       ...(trimmedDescription
         ? [
             {
-              label: "Description",
-              value: trimmedDescription,
-            },
+              label: "Context",
+              value: summarizedDescription || trimmedDescription,
+            }
           ]
         : []),
       {
@@ -772,6 +981,7 @@ const handleConfirm = () => {
       "Reduction in friction and clearer workflow structure.",
 
     summaryText:
+      summarizedDescription ||
       trimmedDescription ||
       preview?.summary?.[0] ||
       resultSeed?.summary ||
@@ -828,11 +1038,16 @@ const handleConfirm = () => {
       resolvedPatternLabel: resolvedRoute.patternLabel,
       routeReason: resolvedRoute.routeReason,
       routeSource: resolvedRoute.source,
+      resolvedBy: weakestDimension || "event_type",
     },
 
     pilot_entries: allPilotEntries,
     latest_pilot_entry: pilotEntry,
     pilot_result: pilotResult,
+    weakestDimension,
+    pilotFocusKey,
+    firstGuidedAction,
+    firstStepLabel,
   });
 
   navigate(
@@ -852,6 +1067,11 @@ const handleConfirm = () => {
         extraction,
         resultSeed,
 
+        weakestDimension,
+        pilotFocusKey,
+        firstGuidedAction,
+        firstStepLabel,
+
         pilot_setup: {
           ...navState.pilot_setup,
           workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
@@ -864,6 +1084,7 @@ const handleConfirm = () => {
           resolvedPatternLabel: resolvedRoute.patternLabel,
           routeReason: resolvedRoute.routeReason,
           routeSource: resolvedRoute.source,
+          resolvedBy: weakestDimension || "event_type",
         },
 
         pilot_entries: allPilotEntries,
@@ -892,11 +1113,23 @@ return (
           preview={preview}
           workflow={workflow}
           sessionId={sessionId}
+          weakestDimension={weakestDimension}
+          firstStepLabel={firstStepLabel}
+          firstGuidedAction={firstGuidedAction}
+        />
+
+        <CarryOverSection
+          preview={preview}
+          workflow={workflow}
+          weakestDimension={weakestDimension}
+          firstGuidedAction={firstGuidedAction}
+          firstStepLabel={firstStepLabel}
         />
 
         <PilotEventInputSection
           eventType={eventType}
           setEventType={setEventType}
+          showEventRequired={showEventRequired}
           signalLevels={signalLevels}
           setSignalLevels={setSignalLevels}
           description={description}

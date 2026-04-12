@@ -77,13 +77,21 @@ function createReceiptHash(input = {}) {
     Array.isArray(input.runEntries) ? input.runEntries : []
   );
 
+  const behaviorSignature = [
+    input.executionSummary?.totalEvents || 0,
+    input.executionSummary?.structuredEventsCount || 0,
+    input.executionSummary?.latestEventType || "",
+    input.executionSummary?.mainObservedShift || "",
+  ].join("|");
+
   const raw = [
     input.receiptId || "",
-    input.caseInput || "",
+    input.summaryContext || input.caseInput || "",
     input.scenarioLabel || "",
     input.stageLabel || "",
     runSummarySignature || input.runLabel || "",
     input.totalRunHits || "",
+    behaviorSignature,
     input.generatedAt || "",
   ].join("|");
 
@@ -115,11 +123,27 @@ function normalizeReceiptData(input = {}) {
     stageLabel: input.stageLabel || "S0",
     runLabel: input.runLabel || aggregation.primaryRunLabel || "RUN000",
     caseInput: input.caseInput || "",
+    summaryContext: input.summaryContext || "",
+    displayContext:
+      input.summaryContext ||
+      input.caseInput ||
+      "",
 
     runEntries: aggregation.runEntries,
     totalRunHits: aggregation.totalRunHits,
     primaryRunLabel: aggregation.primaryRunLabel,
     runSummaryText: aggregation.runSummaryText,
+
+    executionSummary: input.executionSummary || {
+      totalEvents: 0,
+      structuredEventsCount: 0,
+      latestEventType: "other",
+      latestEventLabel: "No recorded structural event",
+      latestEventDescription: "",
+      mainObservedShift: "No behavioral shift recorded yet.",
+      nextCalibrationAction: "Record one real workflow event to begin calibration.",
+      behaviorStatus: "behavior_weak",
+    },
 
     topSignals: Array.isArray(input.topSignals)
       ? input.topSignals
@@ -196,8 +220,42 @@ const evaluated = evaluateCaseRecordStatus(baseReceiptData);
 
 const data = {
   ...baseReceiptData,
+  summaryContext:
+    baseReceiptData.summaryContext || "",
+  displayContext:
+    baseReceiptData.summaryContext ||
+    baseReceiptData.caseInput ||
+    "",
   decisionStatus: isVerified ? "Verified" : evaluated.receiptStatus,
 };
+
+const finalEvidenceLock = {
+  ...(location.state?.evidenceLock || {}),
+  receiptId: data.receiptId,
+  receiptHash: data.receiptHash,
+  receiptSource,
+  receiptMode: receiptMode,
+};
+
+const evidenceLock = location.state?.evidenceLock || null;
+const isEvidenceLockedConsistent =
+  !evidenceLock ||
+  (
+    evidenceLock.receiptId === data.receiptId &&
+    (!evidenceLock.receiptHash || evidenceLock.receiptHash === data.receiptHash) &&
+    evidenceLock.receiptSource === receiptSource &&
+    evidenceLock.receiptMode === receiptMode
+  );
+
+const verificationBlockedReason = !isEvidenceLockedConsistent
+  ? "Verification is locked because this receipt no longer matches the issued evidence chain."
+  : "";
+
+const verificationReturnStatus =
+  location.state?.verificationPageData?.overallStatus || "";
+
+const returnedFromFailedVerification =
+  verificationReturnStatus === "Verification Failed";
 
 if (!canRenderReceipt) {
   return (
@@ -232,32 +290,11 @@ if (!canRenderReceipt) {
   console.log("ReceiptPage location.state:", location.state);
   console.log("ReceiptPage data:", data);
 
-  const verificationPayload = {
-    ...(location.state?.verificationPageData || {}),
-    receiptId: data.receiptId,
-    caseInput: data.caseInput,
-    scenarioLabel: data.scenarioLabel,
-    stageLabel: data.stageLabel,
-    runLabel: data.primaryRunLabel || data.runLabel,
-    runEntries: data.runEntries,
-    totalRunHits: data.totalRunHits,
-    primaryRunLabel: data.primaryRunLabel,
-    runSummaryText: data.runSummaryText,
-    topSignals: data.topSignals,
-    receiptHash: data.receiptHash,
-    verificationTitle: "Case Verification",
-    verifiedAt: data.verifiedAt,
-  };
-
   function handleProceedToVerification() {
     try {
       localStorage.setItem("receiptPageData", JSON.stringify(data));
-      localStorage.setItem(
-        "verificationPageData",
-        JSON.stringify(verificationPayload)
-      );
     } catch (error) {
-      console.error("Failed to persist verification payload:", error);
+      console.error("Failed to persist receipt payload:", error);
     }
   }
 
@@ -272,8 +309,8 @@ if (!canRenderReceipt) {
           </p>
           <h1 className="text-3xl font-bold mb-3">
             {receiptMode === "final_receipt"
-              ? "Final Pilot Receipt"
-              : "Case Receipt"}
+              ? "Final Structure Proof"
+              : "Case Structure Proof"}
           </h1>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
@@ -290,6 +327,21 @@ if (!canRenderReceipt) {
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Receipt Hash</p>
               <p className="font-semibold break-all">{data.receiptHash}</p>
+              <p className="text-xs text-slate-500 mt-2">
+                Deterministically generated from RUN structure and behavioral execution summary. Reproducible under the same inputs.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Evidence Lock</p>
+              <p className="font-semibold">
+                {isEvidenceLockedConsistent ? "Consistent" : "Broken"}
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                {isEvidenceLockedConsistent
+                  ? "Receipt matches the issued pilot evidence chain."
+                  : "This receipt no longer matches the issued pilot evidence chain."}
+              </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -302,17 +354,34 @@ if (!canRenderReceipt) {
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Status</p>
               <p className="font-semibold">{data.decisionStatus}</p>
+              <p className="text-xs text-slate-500 mt-2">
+                This status reflects structural consistency evaluation across RUN aggregation, hash integrity, and verification readiness.
+              </p>
             </div>
           </div>
         </header>
+
+        {returnedFromFailedVerification && (
+          <section className="bg-red-50 rounded-2xl border border-red-200 p-6">
+            <h2 className="text-lg font-semibold mb-2 text-red-800">
+              Returned from verification recovery
+            </h2>
+            <p className="text-red-700 leading-7">
+              This receipt has been reopened after verification was downgraded.
+            </p>
+            <p className="mt-3 text-red-700 leading-7">
+              Use this page as the current recovery layer before trying to re-enter verification.
+            </p>
+          </section>
+        )}
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-3">{data.summaryTitle}</h2>
 
           <p className="text-slate-700 leading-7">
             {receiptMode === "final_receipt"
-              ? "This receipt records the summarized outcome of the 7-day pilot window, including the dominant workflow, observed structure, and final decision path."
-              : "This receipt records the aggregated RUN structure identified from the current pilot window."}
+              ? "This structure proof certifies the summarized outcome of the 7-day pilot window, including the dominant workflow, observed structure, and final decision path."
+              : "This structure proof certifies the aggregated RUN patterns identified during the current pilot window."}
           </p>
 
           <p className="mt-3 text-slate-700 leading-7">
@@ -389,8 +458,54 @@ if (!canRenderReceipt) {
               {receiptMode === "final_receipt" ? "Pilot summary" : "Case tested"}
             </p>
             <p className="font-semibold leading-7">
-              {data.caseInput || "No case attached"}
+              {data.displayContext || "No case attached"}
             </p>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2 className="text-xl font-semibold mb-4">Execution Summary</h2>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-sm text-slate-500 mb-1">Recorded events</p>
+              <p className="font-semibold">{data.executionSummary.totalEvents}</p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-sm text-slate-500 mb-1">Structured events</p>
+              <p className="font-semibold">{data.executionSummary.structuredEventsCount}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-sm text-slate-500 mb-1">Latest event</p>
+              <p className="font-semibold">{data.executionSummary.latestEventLabel}</p>
+            </div>
+
+            {data.executionSummary.latestEventDescription ? (
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Latest description</p>
+                <p className="font-semibold leading-7">
+                  {data.executionSummary.latestEventDescription}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-sm text-slate-500 mb-1">Observed structural shift</p>
+              <p className="font-semibold leading-7">
+                {data.executionSummary.mainObservedShift}
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-sm text-slate-500 mb-1">Next calibration action</p>
+              <p className="font-semibold leading-7">
+                {data.executionSummary.nextCalibrationAction}
+              </p>
+            </div>
           </div>
         </section>
 
@@ -414,9 +529,13 @@ if (!canRenderReceipt) {
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-3">{data.nextStepTitle}</h2>
+          <h2 className="text-xl font-semibold mb-3">
+            {returnedFromFailedVerification ? "Recovery step" : data.nextStepTitle}
+          </h2>
           <p className="text-slate-700 leading-7">
-            {receiptMode === "final_receipt"
+            {returnedFromFailedVerification
+              ? "Verification previously failed on this chain. Reconfirm this receipt as the current source of truth before attempting any further verification or activation."
+              : receiptMode === "final_receipt"
               ? "Proceed to verification to confirm whether this final pilot summary, workflow, and decision path can be consistently checked across the final output, proof, and receipt."
               : "Proceed to verification to confirm whether this aggregated RUN structure can be consistently validated across the receipt, proof, and verification layers."}
           </p>
@@ -427,20 +546,51 @@ if (!canRenderReceipt) {
           <p className="text-slate-700 leading-7">{data.receiptNote}</p>
         </section>
 
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
+          <p>
+            This record can be shared, but not verified externally.
+          </p>
+          <p className="mt-1 font-medium">
+            Verification unlocks audit-ready proof.
+          </p>
+        </div>
+
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            to={ROUTES.VERIFICATION}
-            onClick={handleProceedToVerification}
-            state={{
-              receiptPageData: data,
-              verificationPageData: verificationPayload,
-              routeDecision,
-              receiptSource,
-            }}
-            className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-          >
-            {data.verificationCtaText || "Proceed to Verification"} →
-          </Link>
+          {isEvidenceLockedConsistent ? (
+            <Link
+              to={ROUTES.VERIFICATION}
+              onClick={handleProceedToVerification}
+              state={{
+                receiptPageData: data,
+                verificationPageData: location.state?.verificationPageData || null,
+                routeDecision,
+                receiptSource,
+                evidenceLock: finalEvidenceLock,
+              }}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {returnedFromFailedVerification
+                ? "Retry Verification from Recovered Receipt →"
+                : data.verificationCtaText || "Proceed to Verification"} 
+            </Link>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-300 px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm cursor-not-allowed"
+                title={verificationBlockedReason}
+              >
+                Verification Locked
+              </button>
+
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {returnedFromFailedVerification
+                  ? "Verification was previously downgraded on this chain, and the receipt still needs recovery before re-entry."
+                  : verificationBlockedReason}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

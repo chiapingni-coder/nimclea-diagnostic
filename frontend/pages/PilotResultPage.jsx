@@ -149,6 +149,126 @@ function hasSevenDayWindowElapsed(entries = [], locationState = {}) {
   return Date.now() - startTime >= sevenDaysMs;
 }
 
+function getCurrentEventType(entries = []) {
+  if (!Array.isArray(entries) || entries.length === 0) return "other";
+  return entries[entries.length - 1]?.eventType || "other";
+}
+
+function getEventLabel(eventType) {
+  const EVENT_LABEL_MAP = {
+    decision_suggested: "Someone suggested a decision for you",
+    decision_override_attempt: "Someone tried to decide on your behalf",
+    resource_control_request: "A resource / money / control request",
+    high_pressure_decision: "You were pushed toward a fast decision",
+    role_boundary_blur: "Roles or responsibilities became unclear",
+    other: "Other structural event",
+  };
+
+  return EVENT_LABEL_MAP[eventType] || "Other structural event";
+}
+
+function getWeakestDimensionExplanation(weakestDimension, eventType) {
+  const eventLabelMap = {
+    decision_suggested: "Someone suggested a decision for you.",
+    decision_override_attempt: "Someone tried to decide on your behalf.",
+    resource_control_request: "A resource, money, or control request appeared.",
+    high_pressure_decision: "You were pushed toward a fast decision.",
+    role_boundary_blur: "Roles or responsibilities became unclear.",
+    other: "A structurally unclear event occurred.",
+  };
+
+  const baseEvent = eventLabelMap[eventType] || "A real workflow event occurred.";
+
+  const explanationMap = {
+    authority: `${baseEvent} The main risk is not the event itself, but that authority is weak enough for the event to reshape your decision space.`,
+    boundary: `${baseEvent} The event became risky because structural boundaries were too weak to hold role clarity or responsibility.`,
+    evidence: `${baseEvent} The event became risky because the evidence path is too weak to make the situation traceable and defensible.`,
+    coordination: `${baseEvent} The event became risky because coordination is weak, so execution can drift or fragment.`,
+  };
+
+  return (
+    explanationMap[weakestDimension] ||
+    `${baseEvent} This is currently being interpreted at the event layer, not yet through a dominant structural weakness.`
+  );
+}
+
+function getNextStructuralMove(weakestDimension, firstGuidedAction) {
+  if (firstGuidedAction) return firstGuidedAction;
+
+  const moveMap = {
+    authority: "Clarify who has decision ownership before the next action moves forward.",
+    boundary: "Restore one boundary of role, responsibility, or approval before expanding the workflow.",
+    evidence: "Create one traceable record so the next decision can be reviewed and defended.",
+    coordination: "Reduce ambiguity by assigning one owner and one next operational step.",
+  };
+
+  return (
+    moveMap[weakestDimension] ||
+    "Take the next step that makes the workflow easier to explain, verify, and defend."
+  );
+}
+
+function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedAction = "") {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const totalEvents = safeEntries.length;
+
+  const structuredEvents = safeEntries.filter((entry) => {
+    const hasDescription = String(entry?.description || "").trim().length > 0;
+    const hasEventType = String(entry?.eventType || "").trim().length > 0;
+    const hasPressure = String(entry?.externalPressure || "").trim().length > 0;
+    const hasBoundary = String(entry?.authorityBoundary || "").trim().length > 0;
+    const hasDependency = String(entry?.dependency || "").trim().length > 0;
+
+    return (
+      hasDescription &&
+      hasEventType &&
+      hasPressure &&
+      hasBoundary &&
+      hasDependency
+    );
+  });
+
+  const latestEntry =
+    safeEntries.length > 0 ? safeEntries[safeEntries.length - 1] : null;
+
+  const latestEventLabelMap = {
+    decision_suggested: "Decision suggestion detected",
+    decision_override_attempt: "Decision override attempt detected",
+    resource_control_request: "Resource or control request detected",
+    high_pressure_decision: "High-pressure decision moment detected",
+    role_boundary_blur: "Boundary blur detected",
+    other: "Structural event recorded",
+  };
+
+  const mainObservedShiftMap = {
+    authority: "Authority is becoming the main structural stress point.",
+    boundary: "Boundary clarity is becoming the main structural stress point.",
+    evidence: "Evidence support is becoming the main structural stress point.",
+    coordination: "Coordination is becoming the main structural stress point.",
+  };
+
+  return {
+    totalEvents,
+    structuredEventsCount: structuredEvents.length,
+    latestEventType: latestEntry?.eventType || "other",
+    latestEventLabel:
+      latestEventLabelMap[latestEntry?.eventType] || "Structural event recorded",
+    latestEventDescription: latestEntry?.description || "",
+    mainObservedShift:
+      mainObservedShiftMap[weakestDimension] ||
+      "A structural weakness is becoming easier to observe through real events.",
+    nextCalibrationAction:
+      firstGuidedAction ||
+      "Use the next real event to confirm whether this structural weakness repeats.",
+    behaviorStatus:
+      structuredEvents.length >= 3
+        ? "behavior_confirmed"
+        : structuredEvents.length >= 1
+        ? "behavior_emerging"
+        : "behavior_weak",
+  };
+}
+
 function buildSourceInputFromState(locationState = {}) {
   const preview = locationState?.preview || null;
   const sourceInput = locationState?.sourceInput || null;
@@ -169,6 +289,33 @@ function buildSourceInputFromState(locationState = {}) {
     : null;
 
 return {
+  weakestDimension:
+    locationState?.weakestDimension ||
+    pilotResult?.judgmentFocus ||
+    locationState?.latest_pilot_entry?.judgmentFocus ||
+    "",
+
+  judgmentFocus:
+    pilotResult?.judgmentFocus ||
+    locationState?.latest_pilot_entry?.judgmentFocus ||
+    locationState?.weakestDimension ||
+    "event_based",
+
+  resolvedBy:
+    pilotResult?.resolvedBy ||
+    pilotSetup?.resolvedBy ||
+    (locationState?.weakestDimension ? "weakest_dimension" : "event_type"),
+
+  firstGuidedAction:
+    locationState?.firstGuidedAction ||
+    pilotResult?.firstGuidedAction ||
+    "",
+
+  firstStepLabel:
+    locationState?.firstStepLabel ||
+    pilotResult?.firstStepLabel ||
+    "",
+
   runId:
     pilotResult?.runId ||
     extraction?.runCode ||
@@ -196,8 +343,7 @@ return {
     null,
 
   summaryMode:
-    pilotResult?.summaryMode === true ||
-    locationState?.routeMeta?.structureStatus === "pilot_complete",
+    pilotResult?.summaryMode === true,
 
   stage:
     pilotResult?.stage ||
@@ -281,6 +427,7 @@ export default function PilotResultPage() {
 
   const sourceInput = buildSourceInputFromState(location.state || {});
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showPilotRulesModal, setShowPilotRulesModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("");
 
   const passedPilotEntries =
@@ -289,6 +436,9 @@ export default function PilotResultPage() {
 
   const [forceWeeklySummary, setForceWeeklySummary] = useState(false);
   const [weeklySummaryExpanded, setWeeklySummaryExpanded] = useState(false);
+  const [structuralTraceExpanded, setStructuralTraceExpanded] = useState(false);
+  const [receiptEligibilityExpanded, setReceiptEligibilityExpanded] = useState(false);
+  const [showJudgmentAngle, setShowJudgmentAngle] = useState(false);
 
   const pilotFlow = useMemo(() => {
     const entries = Array.isArray(passedPilotEntries) ? passedPilotEntries : [];
@@ -298,12 +448,8 @@ export default function PilotResultPage() {
       (item) => String(item.description || "").trim().length > 0
     );
 
-    const hasEvidenceReady = entries.some(
-      (item) =>
-        item.eventType &&
-        item.externalPressure &&
-        item.authorityBoundary &&
-        item.dependency
+    const hasEvidenceReady = entries.some((item) =>
+      evaluatePilotCombinationStatus({ entries: [item] }).evidenceSupport >= 1
     );
 
     if (forceWeeklySummary) {
@@ -344,6 +490,19 @@ export default function PilotResultPage() {
 
   const entries = Array.isArray(passedPilotEntries) ? passedPilotEntries : [];
 
+  const currentEventType = getCurrentEventType(entries);
+  const currentEventLabel = getEventLabel(currentEventType);
+
+  const weakestDimensionExplanation = getWeakestDimensionExplanation(
+    sourceInput.weakestDimension,
+    currentEventType
+  );
+
+  const nextStructuralMove = getNextStructuralMove(
+    sourceInput.weakestDimension,
+    sourceInput.firstGuidedAction
+  );
+
   const runEntries = useMemo(() => {
     return buildRunEntriesFromPilotEntries(entries, {
       runId: sourceInput.runId,
@@ -364,6 +523,14 @@ export default function PilotResultPage() {
     return buildRunSummaryText(runEntries);
   }, [runEntries]);
 
+const executionSummary = useMemo(() => {
+  return buildExecutionSummary(
+    entries,
+    sourceInput.weakestDimension,
+    sourceInput.firstGuidedAction
+  );
+}, [entries, sourceInput.weakestDimension, sourceInput.firstGuidedAction]);
+
 const combinationStatus = useMemo(() => {
   return evaluatePilotCombinationStatus({
     entries,
@@ -378,18 +545,28 @@ const hasPilotEntries = entries.length > 0;
 const canShowProgressSummary = hasPilotEntries;
 
 const weeklySummaryDue = hasSevenDayWindowElapsed(entries, location.state || {});
-const canGenerateWeeklySummary = weeklySummaryDue;
+  useEffect(() => {
+    if (weeklySummaryDue) {
+      setForceWeeklySummary(true);
+    }
+  }, [weeklySummaryDue]);
+
+const score = combinationStatus.score ?? 0;
+const caseReceiptEligible =
+  hasPilotEntries && combinationStatus.receiptEligible;
 
 const weeklyReceiptEligible =
   weeklySummaryDue && combinationStatus.finalReceiptEligible;
 
 const isWeeklySummaryFlow = forceWeeklySummary === true;
 const isCaseReceiptFlow =
-  !isWeeklySummaryFlow && combinationStatus.canGenerateCaseReceipt;
-
+  !isWeeklySummaryFlow && caseReceiptEligible;
+const receiptReviewEligible = isWeeklySummaryFlow
+  ? weeklyReceiptEligible
+  : caseReceiptEligible;
 const resolvedSummaryMode = isWeeklySummaryFlow;
-const resolvedStructureStatus = combinationStatus.structureStatus;
 
+const resolvedStructureStatus = combinationStatus.structureStatus;
   const resolvedCaseInput = sourceInput.caseInput || "";
 
   const resolvedSummaryText =
@@ -407,27 +584,28 @@ const enhancedSourceInput = {
   totalRunHits,
   primaryRunLabel,
   runSummaryText,
+  executionSummary,
 
   continuity: combinationStatus.continuity,
   consistency: combinationStatus.consistency,
   structureCompleteness: combinationStatus.structureCompleteness,
   evidenceSupport: combinationStatus.evidenceSupport,
   score: combinationStatus.score,
-  receiptEligible: combinationStatus.receiptEligible,
+  receiptEligible: receiptReviewEligible,
 };
 
-  const receiptSourceInput = isWeeklySummaryFlow
-    ? {
-        ...enhancedSourceInput,
-        summaryMode: true,
-        structureStatus: weeklyReceiptEligible ? "pilot_complete" : "insufficient",
-        caseInput: weeklySummaryText,
-        summaryText: weeklySummaryText,
-      }
-    : enhancedSourceInput;
+const receiptSourceInput = isWeeklySummaryFlow
+  ? {
+      ...enhancedSourceInput,
+      summaryMode: true,
+      structureStatus: weeklyReceiptEligible ? "ready" : "weak",
+      caseInput: weeklySummaryText,
+      summaryText: weeklySummaryText,
+    }
+  : enhancedSourceInput;
 
   const rawReceipt = buildReceiptPageData(receiptSourceInput);
-  const rawVerification = buildVerificationPageData(rawReceipt);
+  const verificationPageData = buildVerificationPageData(rawReceipt);
 
   const receiptPageData = {
     receiptTitle: "Decision Receipt",
@@ -443,6 +621,7 @@ const enhancedSourceInput = {
     totalRunHits,
     primaryRunLabel,
     runSummaryText,
+    executionSummary,
 
     topSignals: (enhancedSourceInput.signals || []).map(
       (signal) => `${signal.label}: ${signal.value}`
@@ -450,6 +629,7 @@ const enhancedSourceInput = {
 
     nextStepTitle: "Recommended Next Step",
     nextStepText:
+     nextStructuralMove ||
       enhancedSourceInput.decision ||
       "Move into verification and confirm the receipt structure is complete and traceable.",
 
@@ -461,75 +641,9 @@ const enhancedSourceInput = {
 
     confidenceLabel: "High",
     receiptNote:
-      "This receipt is a structured output for review and verification. It is not a legal determination.",
+      "This receipt is now grounded in both structural aggregation and recorded pilot behavior. It is not a legal determination.",
     verificationCtaText: "Go to Verification",
   };
-
-const verificationPageData = {
-  verificationTitle: "Verification",
-  overallStatus:
-    rawVerification.status === "verified" ? "Verification Ready" : "Verification Failed",
-  receiptId: rawReceipt.receipt_id,
-  verifiedAt: new Date().toLocaleString(),
-
-  runLabel: primaryRunLabel,
-  runEntries,
-  totalRunHits,
-  primaryRunLabel,
-  runSummaryText,
-  caseInput: receiptSourceInput.caseInput || "",
-  scenarioLabel: receiptSourceInput.scenarioLabel || receiptSourceInput.pattern,
-  stageLabel: receiptSourceInput.stage || rawReceipt.summary?.stage || "S0",
-  topSignals: (enhancedSourceInput.signals || []).map(
-    (signal) => `${signal.label}: ${signal.value}`
-  ),
-
-  introText:
-    "This page helps confirm whether the receipt output is internally consistent, structurally traceable, and ready for external review.",
-
-  checks: [
-    {
-      label: "Receipt structure loaded",
-      status: "passed",
-      detail: "The receipt fields were successfully loaded into the verification layer.",
-    },
-    {
-      label: "Scenario-stage alignment",
-      status: "passed",
-            detail: `Scenario ${enhancedSourceInput.scenarioLabel}, stage ${enhancedSourceInput.stage}, and next-step logic are aligned.`,
-    },
-    {
-      label: "Signal consistency",
-      status: enhancedSourceInput.signals?.length > 0 ? "passed" : "warning",
-      detail:
-        enhancedSourceInput.signals?.length > 0
-          ? "Top signal output is present and readable."
-          : "No strong signal payload was passed forward.",
-    },
-  ],
-
-  eventTimeline: [
-    {
-      time: "Step 1",
-      title: "Diagnostic completed",
-      detail: "User finished the diagnostic flow and received structured output.",
-    },
-    {
-      time: "Step 2",
-      title: "Receipt generated",
-            detail: `Receipt captured ${enhancedSourceInput.scenarioLabel} / ${enhancedSourceInput.stage} / ${enhancedSourceInput.runId}${enhancedSourceInput.caseInput ? ` / Case: ${enhancedSourceInput.caseInput}` : ""}.`,
-    },
-    {
-      time: "Step 3",
-      title: "Verification opened",
-      detail: "The user entered the verification layer to review traceability.",
-    },
-  ],
-
-  finalNote:
-    "Verification confirms structural completeness. It does not replace legal, compliance, or professional review.",
-  backToReceiptText: "Back to Receipt",
-};
 
 const routeDecision = {
   mode: isWeeklySummaryFlow ? "final_receipt" : "case_receipt",
@@ -542,6 +656,13 @@ const receiptSource = isWeeklySummaryFlow
   ? "pilot_weekly_summary"
   : "pilot_case_result";
 
+const evidenceLock = {
+  receiptId: receiptPageData.receiptId,
+  receiptHash: "",
+  receiptSource,
+  receiptMode: routeDecision.mode,
+};
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -549,85 +670,86 @@ const receiptSource = isWeeklySummaryFlow
           <p className="text-sm font-medium text-slate-500 mb-2">
             {isWeeklySummaryFlow
               ? "7-Day Summary"
-              : pilotFlow === "evidence_backed_result"
-              ? "Pilot Result"
-              : "Pilot Explanation"}
+              : "Structural Interpretation"}
           </p>
 
           <h1 className="text-3xl font-bold mb-3">
             {isWeeklySummaryFlow
               ? "7-Day Pilot Summary"
-              : pilotFlow === "evidence_backed_result"
-              ? "Pilot Result"
-              : "Pilot Explanation"}
+              : "Structural Pilot Interpretation"}
           </h1>
 
           <p className="text-slate-700 leading-7">
             {isWeeklySummaryFlow
               ? "This page summarizes the pilot window and prepares it for final receipt generation and verification."
-              : pilotFlow === "evidence_backed_result"
-              ? "This shows the result of one concrete pilot case and prepares it for receipt generation and verification."
-              : "This page explains the current pilot structure, but it is not yet ready for a final receipt."}
+              : sourceInput.weakestDimension
+              ? `This event is first interpreted through your weakest dimension: ${sourceInput.weakestDimension}.`
+              : "This page explains how the current event is being interpreted structurally."}
           </p>
         </header>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
 
-          {/* 🧩 Layer 1: Structure Identity */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-    
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Resolved RUN</p>
-              <p className="text-base font-semibold text-slate-900">
-                {enhancedSourceInput.runId}
+          {/* 🧠 Layer 1: First Judgment Angle */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "16px",
+            }}
+          >
+            <div className="rounded-xl bg-white border border-slate-200 p-4">
+              <p className="text-slate-500">Weakest dimension</p>
+              <p className="text-slate-900">
+                {sourceInput.weakestDimension || "Not specified"}
               </p>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Resolved Pattern</p>
-              <p className="text-base font-semibold text-slate-900">
-                {enhancedSourceInput.pattern}
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {enhancedSourceInput.patternLabel}
+            <div className="rounded-xl bg-white border border-slate-200 p-4">
+              <p className="text-slate-500">Current event</p>
+              <p className="text-slate-900">
+                {currentEventLabel}
               </p>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-             <p className="text-sm text-slate-500">Scenario</p>
-              <p className="text-base font-semibold text-slate-900">
-                {enhancedSourceInput.scenarioLabel}
+            <div className="rounded-xl bg-white border border-slate-200 p-4">
+              <p className="text-slate-500">Judgment angle</p>
+              <p className="text-slate-900">
+                {sourceInput.resolvedBy === "event_type"
+                  ? "Event-based interpretation"
+                  : `Interpreted through weakest dimension: ${sourceInput.weakestDimension}`}
               </p>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Workflow</p>
-              <p className="text-base font-semibold text-slate-900">
-                {enhancedSourceInput.workflow}
+            <div className="rounded-xl bg-white border border-slate-200 p-4">
+              <p className="text-slate-500">First guided action</p>
+              <p className="text-slate-900">
+                {sourceInput.firstGuidedAction ||
+                  sourceInput.firstStepLabel ||
+                  "Take the first structural corrective move."}
               </p>
             </div>
-
           </div>
 
           {/* 🧠 Layer 2: State & Conclusion */}
           <div className="space-y-6">
 
-            <div className="flex flex-wrap gap-4 mb-2">
+            <div className="flex gap-4 mb-2 items-start">
 
               <div
                 className="flex-1 rounded-xl p-4"
                 style={
-                  enhancedSourceInput.structureStatus === "pilot_complete"
+                  enhancedSourceInput.structureStatus === "ready"
                     ? {
                         backgroundColor: "#DCFCE7",
                         border: "1px solid #86EFAC",
                       }
-                    : enhancedSourceInput.structureStatus === "emerging"
-                      ? {
-                          backgroundColor: "#FEF9C3",
-                          border: "1px solid #FDE68A",
-                        }
-                    : enhancedSourceInput.structureStatus === "insufficient"
+                    : enhancedSourceInput.structureStatus === "building"
+                    ? {
+                        backgroundColor: "#FEF9C3",
+                        border: "1px solid #FDE68A",
+                      }
+                    : enhancedSourceInput.structureStatus === "weak"
                     ? {
                         backgroundColor: "#FEE2E2",
                         border: "1px solid #FCA5A5",
@@ -642,7 +764,7 @@ const receiptSource = isWeeklySummaryFlow
                 <p className="text-base font-semibold text-slate-900">
                   <span
                     style={
-                      enhancedSourceInput.structureStatus === "pilot_complete"
+                      enhancedSourceInput.structureStatus === "ready"
                         ? {
                             backgroundColor: "#DCFCE7",
                             color: "#15803D",
@@ -652,7 +774,7 @@ const receiptSource = isWeeklySummaryFlow
                             fontSize: "14px",
                             fontWeight: 600,
                           }
-                        : enhancedSourceInput.structureStatus === "emerging"
+                        : enhancedSourceInput.structureStatus === "building"
                         ? {
                             backgroundColor: "#FEF9C3",
                             color: "#A16207",
@@ -662,7 +784,7 @@ const receiptSource = isWeeklySummaryFlow
                             fontSize: "14px",
                             fontWeight: 600,
                           }
-                        : enhancedSourceInput.structureStatus === "insufficient"
+                        : enhancedSourceInput.structureStatus === "weak"
                         ? {
                             backgroundColor: "#FEE2E2",
                             color: "#B91C1C",
@@ -683,9 +805,13 @@ const receiptSource = isWeeklySummaryFlow
                           }
                     }
                   >
-                    {enhancedSourceInput.structureStatus === "pilot_complete"
-                      ? "Completed"
-                      : enhancedSourceInput.structureStatus || "not_set"}
+                    {enhancedSourceInput.structureStatus === "ready"
+                      ? "Ready"
+                      : enhancedSourceInput.structureStatus === "building"
+                      ? "Building"
+                      : enhancedSourceInput.structureStatus === "weak"
+                      ? "Weak"
+                      : "Not set"}
                   </span>
                 </p>
               </div>
@@ -693,49 +819,191 @@ const receiptSource = isWeeklySummaryFlow
               <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-4">
                 <p className="text-sm text-slate-500">Summary mode</p>
                 <p className="text-base font-semibold text-slate-900">
-                  {enhancedSourceInput.summaryMode ? "true" : "false"}
+                  {enhancedSourceInput.summaryMode
+                    ? "Weekly summary active"
+                    : "Case interpretation mode"}
                 </p>
               </div>
 
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                <p className="text-sm text-slate-500 mb-2">Combination judgment</p>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  width: "100%",
+                  maxWidth: "405px",
+                  backgroundColor: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "16px",
+                  padding: "16px",
+                }}
+              >
+                <div
+                 style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      margin: 0,
+                      fontSize: "14px",
+                      color: "#64748B",
+                    }}
+                  >
+                    Combination judgment
+                  </p>
 
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
-                    Continuity: {combinationStatus.continuity}
-                  </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
-                    Consistency: {combinationStatus.consistency}
-                  </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
-                    Structure: {combinationStatus.structureCompleteness}
-                  </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
-                    Evidence: {combinationStatus.evidenceSupport}
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#0F172A",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Score: {combinationStatus.score.toFixed(1)} / 4
                   </div>
                 </div>
 
-                <p className="mt-3 text-sm font-medium text-slate-700">
-                  Score: {combinationStatus.score.toFixed(1)} / 4
-                </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: "8px",
+                    fontSize: "14px",
+                  }}
+                >
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
+                    Continuity: {combinationStatus.continuity}
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
+                    Consistency: {combinationStatus.consistency}
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
+                    Structure: {combinationStatus.structureCompleteness}
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
+                    Evidence: {combinationStatus.evidenceSupport}
+                  </div>
+                </div>
               </div>
 
             </div>
 
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Case tested</p>
+              <p className="text-sm text-slate-500">Why this event matters structurally</p>
 
               <p className="text-base font-semibold text-slate-900">
-                {enhancedSourceInput.caseInput || "No case attached"}
+                {weakestDimensionExplanation}
               </p>
 
-              {enhancedSourceInput.summaryText ? (
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {enhancedSourceInput.summaryText}
-                </p>
-              ) : null}
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowJudgmentAngle((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left"
+                >
+                  <p className="text-sm text-slate-500">
+                    First judgment angle
+                  </p>
+
+                  <span className="text-sm text-slate-500">
+                    {showJudgmentAngle ? "Hide" : "View"}
+                  </span>
+                </button>
+
+                {showJudgmentAngle && (
+                  <div className="px-4 pb-4">
+                    <p className="text-sm leading-6 text-slate-700">
+                      {sourceInput.weakestDimension ? (
+                        <>
+                          {`This event is first interpreted through your weakest dimension: ${sourceInput.weakestDimension}.`}
+                          <br />
+                          <span className="font-medium text-slate-800">
+                            Which means: this situation is not just happening to you — your structure is allowing it.
+                          </span>
+                        </>
+                      ) : (
+                        "This event is currently being interpreted from the event layer."
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {(enhancedSourceInput.caseInput || enhancedSourceInput.summaryText) && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-500">Observed context</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">
+                    {enhancedSourceInput.caseInput ||
+                      enhancedSourceInput.summaryText ||
+                      "No case attached"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4">
+              <p className="text-sm text-emerald-700">Next structural move</p>
+              <p className="text-base font-semibold text-emerald-900">
+                {nextStructuralMove}
+              </p>
             </div>
           </div>
+
+          <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
+            <button
+              type="button"
+              onClick={() => setStructuralTraceExpanded((prev) => !prev)}
+              className="w-full flex items-center justify-between px-4 py-4 text-left"
+            >
+              <div>
+                <p className="text-sm font-medium text-slate-500">
+                  Structural trace
+                </p>
+                <p className="text-base font-semibold text-slate-900">
+                  {primaryRunLabel || sourceInput.runId || "RUN000"} · {sourceInput.pattern || "PAT-00"}
+                </p>
+              </div>
+
+              <span className="text-sm font-medium text-slate-500">
+                {structuralTraceExpanded ? "Hide" : "View"}
+              </span>
+            </button>
+
+            {structuralTraceExpanded && (
+              <div className="border-t border-slate-200 bg-slate-50">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: "0px",
+                  }}
+                >
+                  <div className="bg-white p-4 border-r border-slate-200">
+                    <p className="text-sm text-slate-500">Resolved RUN</p>
+                    <p className="text-lg font-semibold text-slate-900">
+                      {primaryRunLabel || sourceInput.runId || "RUN000"}
+                    </p>
+                  </div>
+
+                  <div className="bg-white p-4">
+                    <p className="text-sm text-slate-500">Resolved Pattern</p>
+                    <p className="text-lg font-semibold text-slate-900">
+                      {sourceInput.pattern || "PAT-00"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {sourceInput.patternLabel || "Unresolved Pattern"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {canShowProgressSummary && (
             <div
               className="rounded-2xl overflow-hidden"
@@ -846,22 +1114,88 @@ const receiptSource = isWeeklySummaryFlow
             </div>
           )}
 
+          {/* 🧾 Receipt eligibility (folded) */}
+          <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
+            <button
+              type="button"
+              onClick={() => setReceiptEligibilityExpanded((prev) => !prev)}
+              className="w-full flex items-center justify-between px-4 py-4 text-left"
+            >
+              <div>
+                <p className="text-sm font-medium text-slate-500">
+                  Receipt eligibility
+                </p>
+
+                <p className="text-base font-semibold text-slate-900">
+                  {receiptReviewEligible
+                    ? "Eligible for receipt review"
+                    : "Not yet eligible"}
+                </p>
+              </div>
+
+              <span className="text-sm font-medium text-slate-500">
+                {receiptEligibilityExpanded ? "Hide" : "View"}
+              </span>
+            </button>
+
+            {receiptEligibilityExpanded && (
+              <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-2">
+                <p className="text-sm text-slate-700">
+                  Structure {receiptReviewEligible ? "meets" : "does not meet"} the minimum threshold for receipt review.
+                </p>
+
+                <p className="text-sm text-slate-700">
+                  Score: {score.toFixed(1)} / 4 (≥ 3.5 required)
+                </p>
+
+                {!receiptReviewEligible && (
+                  <p className="text-sm text-amber-700">
+                    Improve structure completeness or evidence support to unlock receipt review.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* 🚀 CTA */}
-          <div className="pt-2 flex flex-wrap gap-3">
+          <div className="pt-2 grid grid-cols-1 gap-3 md:grid-cols-3">
             {hasPilotEntries ? (
               <>
                 <button
                   type="button"
+                  onClick={() => setShowPilotRulesModal(true)}
+                  style={{
+                    display: "inline-flex",
+                    width: "100%",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    padding: "12px 24px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    backgroundColor: "#FFFFFF",
+                    color: "#0F172A",
+                    border: "1px solid #E2E8F0",
+                    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
+                    cursor: "pointer",
+                  }}
+                >
+                  View Pilot Rules
+                </button>
+          
+                <button
+                  type="button"
                   onClick={() => {
-                    if (!isCaseReceiptFlow) return;
-
+                    if (!receiptReviewEligible) return;
+          
                     const receiptState = {
                       receiptPageData,
                       verificationPageData,
                       routeDecision,
                       receiptSource,
+                      evidenceLock,
                     };
-
+          
                     recordRun({
                       receiptId: receiptPageData.receiptId,
                       caseInput: receiptSourceInput.caseInput || "",
@@ -869,6 +1203,10 @@ const receiptSource = isWeeklySummaryFlow
                       scenarioLabel: receiptSourceInput.scenarioLabel || "",
                       stageLabel: receiptSourceInput.stage || "",
                       runLabel: receiptSourceInput.runId || "",
+                      totalEvents: executionSummary.totalEvents,
+                      structuredEventsCount: executionSummary.structuredEventsCount,
+                      latestEventType: executionSummary.latestEventType,
+                      behaviorStatus: executionSummary.behaviorStatus,
                       receiptPageData,
                       verificationPageData,
                       routeDecision,
@@ -877,38 +1215,40 @@ const receiptSource = isWeeklySummaryFlow
                       totalRunHits,
                       primaryRunLabel,
                       runSummaryText,
+                      evidenceLock,
                     });
-
+          
                     localStorage.setItem("receiptPageData", JSON.stringify(receiptPageData));
-                    localStorage.setItem("verificationPageData", JSON.stringify(verificationPageData));
                     localStorage.setItem("receiptRouteDecision", JSON.stringify(routeDecision));
                     localStorage.setItem("receiptSource", receiptSource);
-
+          
                     navigate(ROUTES.RECEIPT, {
                       state: receiptState,
                     });
                   }}
                   style={{
-                   display: "inline-flex",
-                    minWidth: "240px",
+                    display: "inline-flex",
+                    width: "100%",
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: "999px",
                     padding: "12px 24px",
                     fontSize: "14px",
                     fontWeight: 600,
-                    boxShadow: isCaseReceiptFlow
+                    boxShadow: receiptReviewEligible
                       ? "0 4px 12px rgba(15, 23, 42, 0.08)"
                       : "none",
-                    backgroundColor: isCaseReceiptFlow ? "#0F172A" : "#FFFFFF",
-                    color: isCaseReceiptFlow ? "#FFFFFF" : "#dde2eb",
-                    border: isCaseReceiptFlow ? "none" : "1px solid #E2E8F0",
-                    cursor: isCaseReceiptFlow ? "pointer" : "not-allowed",
+                    backgroundColor: receiptReviewEligible ? "#0F172A" : "#FFFFFF",
+                    color: receiptReviewEligible ? "#FFFFFF" : "#dde2eb",
+                    border: receiptReviewEligible ? "none" : "1px solid #E2E8F0",
+                    cursor: receiptReviewEligible ? "pointer" : "not-allowed",
                   }}
                 >
-                  Generate Case Receipt →
+                  {receiptReviewEligible
+                    ? "Continue to Receipt Review →"
+                    : "Not ready for receipt →"}
                 </button>
-
+          
                 <button
                   type="button"
                   onClick={() => {
@@ -918,7 +1258,7 @@ const receiptSource = isWeeklySummaryFlow
                   }}
                   style={{
                     display: "inline-flex",
-                    minWidth: "240px",
+                    width: "100%",
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: "999px",
@@ -943,6 +1283,186 @@ const receiptSource = isWeeklySummaryFlow
           </div>
 
         </section>
+
+        {showPilotRulesModal && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 99998,
+              backgroundColor: "rgba(15, 23, 42, 0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "560px",
+                backgroundColor: "#FFFFFF",
+                borderRadius: "24px",
+                boxShadow: "0 24px 80px rgba(15, 23, 42, 0.24)",
+                border: "1px solid #E2E8F0",
+                padding: "20px",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  alignItems: "center",
+                  columnGap: "12px",
+                  marginBottom: "16px",
+                }}
+              >
+                <h2
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: 700,
+                    color: "#0F172A",
+                    margin: 0,
+                  }}
+                >
+                  Pilot access rules
+                </h2>
+        
+                <button
+                  type="button"
+                  onClick={() => setShowPilotRulesModal(false)}
+                  aria-label="Close"
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "999px",
+                    border: "1px solid #E2E8F0",
+                    backgroundColor: "#FFFFFF",
+                    color: "#64748B",
+                    fontSize: "20px",
+                    lineHeight: 1,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+        
+              <div
+                style={{
+                  display: "grid",
+                  gap: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    border: "1px solid #A7F3D0",
+                    backgroundColor: "#ECFDF5",
+                    borderRadius: "16px",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#047857",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Event logging
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: 600,
+                      color: "#064E3B",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Unlimited during the 7-day pilot window
+                  </div>
+                </div>
+        
+                <div
+                  style={{
+                    border: "1px solid #BAE6FD",
+                    backgroundColor: "#F0F9FF",
+                    borderRadius: "16px",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#0369A1",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Structured reviews
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: 600,
+                      color: "#0C4A6E",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Up to 5 during this pilot
+                  </div>
+                </div>
+        
+                <div
+                  style={{
+                    border: "1px solid #FDE68A",
+                    backgroundColor: "#FFFBEB",
+                    borderRadius: "16px",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#B45309",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Receipt readiness
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      lineHeight: 1.6,
+                      color: "#92400E",
+                    }}
+                  >
+                    The diagnostic can be revisited during the pilot window, but receipt readiness is determined by structured pilot evidence, not by repeating the diagnostic alone.
+                  </div>
+                </div>
+                   
+              </div>
+            </div>
+          </div>
+        )} 
+
         {showSubscriptionModal && (
           <div
             style={{
@@ -1041,28 +1561,23 @@ const receiptSource = isWeeklySummaryFlow
                   }}
                 >
                   <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Formal Decision Review
+                    Formal Decision Output
                   </h3>
+
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    One formal decision for a specific case.
+                    One structured decision output for one specific case.
                   </p>
+
                   <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $149
+                    $29
                   </p>
 
                   <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $199 original
+                    $49 original
                   </p>
-        
-                  <p
-                    style={{
-                      marginTop: "4px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "#969aa4",
-                    }}
-                  >
-                    Pilot continuation rate available within 3 days
+
+                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
+                    Pilot continuation pricing available within 3 days
                   </p>
 
                   <button
@@ -1088,7 +1603,7 @@ const receiptSource = isWeeklySummaryFlow
                       cursor: "pointer",
                     }}
                   >
-                    Choose Formal Review →
+                    Activate Formal Verification →
                   </button>
                 </div>
         
@@ -1103,28 +1618,23 @@ const receiptSource = isWeeklySummaryFlow
                   }}
                 >
                   <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Weekly Decision Support
+                    Weekly Decision Access
                   </h3>
+
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Handle multiple live decision events across 7 days.
+                    Structured handling for multiple live decision events across one active week — not just one case.
                   </p>
+
                   <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $799 / week
+                    $149 / week
                   </p>
 
                   <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $999 original
+                    $199 original
                   </p>
-        
-                  <p
-                    style={{
-                      marginTop: "4px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "#969aa4",
-                    }}
-                  >
-                    Pilot continuation rate available within 3 days
+
+                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
+                    Pilot continuation pricing available within 3 days
                   </p>
 
                   <button
@@ -1144,13 +1654,13 @@ const receiptSource = isWeeklySummaryFlow
                       borderRadius: "999px",
                       backgroundColor: "#FEF6D2",
                       color: "#D97706",
-                      border: "1px solid #FFEDA3",
+                      border: "1px solid #ffe98f",
                       fontSize: "14px",
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
                   >
-                    Choose Weekly Support →
+                    Get Weekly Access →
                   </button>
                 </div>
         
@@ -1165,28 +1675,23 @@ const receiptSource = isWeeklySummaryFlow
                   }}
                 >
                   <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Monthly Judgment Support
+                    Monthly Judgment Access
                   </h3>
+
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Ongoing support across recurring decision events.
+                    Monthly access to process multiple cases across different scenarios using a structured decision approach.
                   </p>
+
                   <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    From $2,399 / month
+                    $499 / month
                   </p>
 
                   <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $3,000 original
+                    $699 original
                   </p>
-        
-                  <p
-                    style={{
-                      marginTop: "4px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "#969aa4",
-                    }}
-                  >
-                    Pilot continuation rate available within 3 days
+
+                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
+                    Pilot continuation pricing available within 3 days
                   </p>
 
                   <button
@@ -1219,7 +1724,7 @@ const receiptSource = isWeeklySummaryFlow
                       cursor: "pointer",
                     }}
                   >
-                    Request Monthly Support →
+                    Get Monthly Access →
                   </button>
                 </div>
               </div>
