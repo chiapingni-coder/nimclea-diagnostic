@@ -4,6 +4,14 @@ import ROUTES from "./routes";
 import { logEvent } from "./utils/eventLogger";
 import { buildPilotNavigationState } from "./utils/pilotRouting";
 import { appendPilotEntry } from "./utils/pilotEntries";
+import { normalizeCaseInput } from "./utils/caseSchema";
+
+import {
+  getCaseSummary,
+  getCaseContext,
+  getCaseScenarioCode,
+  getCaseStage,
+} from "./utils/caseAccessors";
 
 const SCENARIO_LABEL_MAP = {
   pre_audit_collapse: "Pre-Audit Collapse",
@@ -247,15 +255,10 @@ function SetupHero({
   weakestDimension = "",
   firstStepLabel = "",
   firstGuidedAction = "",
+  eventWindow = "",
 }) {
 
   const scenarioLabel = getEnglishScenarioLabel(preview);
-  const strongestSignal = preview?.top_signals?.[0] || null;
-
-  const heroStepText =
-  firstStepLabel ||
-  preview?.pilot_preview?.entry ||
-  "Start with one structural improvement path.";
 
   const pilotId = useMemo(() => {
     if (!sessionId) return "NIM-PILOT";
@@ -320,7 +323,7 @@ function SetupHero({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-8 py-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         <span>Pilot ID: {pilotId}</span>
-        <span>7-Day Event Window</span>
+        <span>{eventWindow || "7-Day Event Window"}</span>
       </div>
     </Card>
   );
@@ -493,8 +496,8 @@ function CarryOverSection({
         hint="These values are inherited from your previous pages so the pilot stays connected to the diagnostic."
       />
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-full flex flex-col justify-center">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
             Scenario
           </div>
@@ -503,55 +506,24 @@ function CarryOverSection({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-full flex flex-col justify-center">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Workflow
-          </div>
-          <p className="mt-2 text-sm text-slate-900">{workflow}</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Strongest signal
+            Progress
           </div>
           <p className="mt-2 text-sm text-slate-900">
-            {strongestSignal?.label || "Structural Signal"}
+            Pilot access opened
           </p>
-          {strongestSignal?.description ? (
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {strongestSignal.description}
-            </p>
-          ) : null}
         </div>
-
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+      
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 h-full flex flex-col justify-center">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
             Weakest dimension
           </div>
           <p className="mt-2 text-sm text-amber-900">
             {weakestDimension || "Not specified"}
           </p>
-        </div>
-
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
-            First guided action
-          </div>
-          <p className="mt-2 text-sm text-sky-900">
-            {firstGuidedAction ||
-              "Start with the first place where this workflow becomes harder to explain, verify, or sustain."}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-            Expected shift
-          </div>
-          <p className="mt-2 text-sm text-emerald-900">
-            {firstStepLabel ||
-              strongestSignal?.expectedShift ||
-              preview?.pilot_preview?.outcome ||
-              "The workflow becomes easier to explain, verify, and defend."}
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            This dimension will shape the cost of your pilot path.
           </p>
         </div>
       </div>
@@ -761,6 +733,11 @@ export default function PilotSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const incomingCaseSchema =
+    location.state?.caseSchema && typeof location.state.caseSchema === "object"
+      ? normalizeCaseInput(location.state.caseSchema)
+      : null;
+
   const [eventType, setEventType] = useState("");
   const [showEventRequired, setShowEventRequired] = useState(false);
   const [signalLevels, setSignalLevels] = useState({
@@ -771,7 +748,48 @@ export default function PilotSetupPage() {
   const [description, setDescription] = useState("");
 
   const pilotSetup = location.state?.pilot_setup || null;
-  const preview = location.state?.preview || null;
+
+  const preview =
+    location.state?.preview ||
+    (incomingCaseSchema
+      ? {
+          title: "Nimclea Pilot Setup Context",
+          scenario: {
+            code: incomingCaseSchema.scenarioCode || "",
+            label: incomingCaseSchema.scenarioCode || "No Dominant Scenario",
+          },
+          top_signals: [
+            {
+              key: incomingCaseSchema.patternId || "",
+              signalKey: incomingCaseSchema.patternId || "",
+              label:
+                incomingCaseSchema.patternId ||
+                incomingCaseSchema.weakestDimension ||
+                "Structural Signal",
+              description: getCaseSummary({
+                caseData: incomingCaseSchema,
+                summaryText: "",
+              }),
+            },
+          ],
+          pilot_preview: {
+            entry:
+              location.state?.firstStepLabel ||
+              "Start with one structural improvement path.",
+            actions: [
+              location.state?.firstGuidedAction ||
+                "Start with the first place where this workflow becomes harder to explain, verify, or sustain.",
+            ],
+            outcome:
+              incomingCaseSchema.routeDecision?.reason ||
+              "Observe whether the workflow becomes easier to execute and verify.",
+          },
+          weakestDimension: incomingCaseSchema.weakestDimension || "",
+          chainId: incomingCaseSchema.chainId || "",
+          stage: incomingCaseSchema.stage || "",
+        }
+      : null);
+
   const sessionId =
     location.state?.session_id ||
     location.state?.sessionId ||
@@ -781,20 +799,30 @@ export default function PilotSetupPage() {
     pilotSetup?.workflow || "Selected workflow";
 
   const weakestDimension =
-    location.state?.weakestDimension || "";
+    incomingCaseSchema?.weakestDimension ||
+    location.state?.weakestDimension ||
+    "";
 
   const pilotFocusKey =
-    location.state?.pilotFocusKey || "";
+    location.state?.pilotFocusKey ||
+    incomingCaseSchema?.patternId ||
+    "";
 
   const firstGuidedAction =
-    location.state?.firstGuidedAction || "";
+    location.state?.firstGuidedAction ||
+    incomingCaseSchema?.routeDecision?.reason ||
+    "";
 
   const firstStepLabel =
-    location.state?.firstStepLabel || "";
+    location.state?.firstStepLabel ||
+    getCaseSummary({
+      caseData: incomingCaseSchema,
+      summaryText: "",
+    }) ||
+    "";
 
   const hasRequiredContext =
-    preview &&
-    typeof preview === "object" &&
+    ((preview && typeof preview === "object") || incomingCaseSchema) &&
     pilotSetup &&
     typeof pilotSetup === "object";
 
@@ -804,18 +832,21 @@ export default function PilotSetupPage() {
       {
         state: {
           session_id: sessionId,
+          sessionId,
           preview,
           result: preview,
+          caseSchema: incomingCaseSchema,
           stage:
+            incomingCaseSchema?.stage ||
             location.state?.stage ||
             location.state?.result?.stage ||
             preview?.stage ||
             preview?.extraction?.stageCode ||
             "S1",
           weakestDimension,
-            pilotFocusKey,
-            firstGuidedAction,
-            firstStepLabel,
+          pilotFocusKey,
+          firstGuidedAction,
+          firstStepLabel,
         }
       }
     );
@@ -845,6 +876,30 @@ const handleConfirm = () => {
     return;
   }
 
+  const evidenceState =
+    summarizedDescription || trimmedDescription
+      ? "present"
+      : "missing";
+
+  const responseState =
+    eventType === "decision_override_attempt" ||
+    eventType === "high_pressure_decision"
+      ? "required"
+      : eventType === "decision_suggested" ||
+        eventType === "resource_control_request" ||
+        eventType === "role_boundary_blur"
+      ? "emerging"
+      : "unknown";
+
+  const boundaryState =
+    signalLevels.authorityBoundary === "unclear"
+      ? "weak"
+      : signalLevels.authorityBoundary === "slightly_unclear"
+      ? "partial"
+      : signalLevels.authorityBoundary === "clear"
+      ? "clear"
+      : "unknown";
+
   setShowEventRequired(false);
   logEvent("pilot_entry_clicked");
 
@@ -859,6 +914,10 @@ const handleConfirm = () => {
     },
     description: trimmedDescription,
     summaryContext: summarizedDescription,
+    evidenceText: summarizedDescription || trimmedDescription || "",
+    evidenceState,
+    responseState,
+    boundaryState,
     timestamp: entryTimestamp,
   };
 
@@ -877,38 +936,233 @@ const handleConfirm = () => {
     preview
   );
 
-    const evidenceLevel =
-      summarizedDescription || eventType !== "other"
-        ? "has_explanation"
-        : "low_evidence";
+  const evidenceLevel =
+    summarizedDescription || eventType !== "other"
+      ? "has_explanation"
+      : "low_evidence";
+
+  const entryCaseData = normalizeCaseInput(
+    {
+      ...(incomingCaseSchema || {}),
+      source: "pilot",
+      summary: summarizedDescription || trimmedDescription || "",
+      description: trimmedDescription || "",
+      eventType,
+      eventContext: trimmedDescription || "",
+      evidenceText: summarizedDescription || trimmedDescription || "",
+      evidenceState,
+      responseState,
+      boundaryState,
+      weakestDimension:
+        weakestDimension ||
+        incomingCaseSchema?.weakestDimension ||
+        "",
+      scenarioCode:
+        incomingCaseSchema?.scenarioCode ||
+        preview?.scenario?.code ||
+        "unknown_scenario",
+      patternId: resolvedRoute.pattern,
+      fallbackRunCode: resolvedRoute.runId,
+      stage:
+        incomingCaseSchema?.stage ||
+        extraction?.stageCode ||
+        resultSeed?.stageCode ||
+        preview?.stage ||
+        "S0",
+      chainId:
+        incomingCaseSchema?.chainId ||
+        location.state?.chainId ||
+        "CHAIN-001",
+    },
+    { source: "pilot" }
+  );
 
   const pilotEntry = {
     id: `entry_${Date.now()}`,
     timestamp: entryTimestamp,
+    eventType,
+
     workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
 
+    eventInput: {
+      description: trimmedDescription || "",
+      summaryContext: summarizedDescription || "",
+      externalPressure: signalLevels.externalPressure,
+      authorityBoundary: signalLevels.authorityBoundary,
+      dependency: signalLevels.dependency,
+      evidenceText: summarizedDescription || trimmedDescription || "",
+      evidenceState,
+      responseState,
+      boundaryState,
+      evidenceLevel,
+      workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+    },
+    reviewResult: {
+      runId: resolvedRoute.runId,
+      pattern: resolvedRoute.pattern,
+      patternLabel: resolvedRoute.patternLabel,
+      scenarioLabel: getEnglishScenarioLabel(preview),
+      scenarioCode:
+        getCaseScenarioCode({
+          caseData: entryCaseData,
+          scenarioCode:
+            extraction?.scenarioKey ||
+            resultSeed?.scenarioKey ||
+            preview?.scenario?.code ||
+            "unknown_scenario",
+        }) || "unknown_scenario",
+      stage:
+        getCaseStage({
+          caseData: entryCaseData,
+          stage:
+            incomingCaseSchema?.stage ||
+            extraction?.stageCode ||
+            resultSeed?.stageCode ||
+            preview?.stage ||
+            "S0",
+        }) || "S0",
+      summaryText:
+        getCaseSummary({
+          caseData: entryCaseData,
+          summaryText:
+            summarizedDescription ||
+            trimmedDescription ||
+            "No structured summary available.",
+        }) || "No structured summary available.",
+      caseInput: getCaseContext({
+        caseData: entryCaseData,
+        caseInput: trimmedDescription || "",
+      }),
+      caseData: entryCaseData,
+      signals: [
+        {
+          label: "Event Type",
+          value: eventType,
+        },
+        {
+          label: "External Pressure",
+          value: signalLevels.externalPressure,
+        },
+        {
+          label: "Authority Boundary",
+          value: signalLevels.authorityBoundary,
+        },
+        {
+          label: "Dependency",
+          value: signalLevels.dependency,
+        },
+        {
+          label: "Evidence State",
+          value: evidenceState,
+        },
+        {
+          label: "Response State",
+          value: responseState,
+        },
+        {
+          label: "Boundary State",
+          value: boundaryState,
+        },
+        ...(trimmedDescription
+          ? [
+              {
+                label: "Context",
+                value: summarizedDescription || trimmedDescription,
+              },
+            ]
+          : []),
+        {
+          label: "Resolved Pattern",
+          value: resolvedRoute.pattern,
+        },
+        {
+          label: "Resolved RUN",
+          value: resolvedRoute.runId,
+        },
+      ],
+      routeReason: resolvedRoute.routeReason,
+      routeSource: resolvedRoute.source,
+    },
+  
+    weakestDimensionSnapshot:
+      weakestDimension ||
+      entryCaseData?.weakestDimension ||
+      "",
+  
+    caseSchema: entryCaseData,
+    eventHistory: [structuredEvent],
+  
+    // legacy fallback，先留
     judgmentFocus: weakestDimension || "event_based",
-
-    eventType,
+    description: trimmedDescription,
+    summaryContext: summarizedDescription,
     externalPressure: signalLevels.externalPressure,
     authorityBoundary: signalLevels.authorityBoundary,
     dependency: signalLevels.dependency,
-    description: trimmedDescription,
     runId: resolvedRoute.runId,
     pattern: resolvedRoute.pattern,
     patternLabel: resolvedRoute.patternLabel,
     scenarioLabel: getEnglishScenarioLabel(preview),
     scenarioCode:
-      extraction?.scenarioKey ||
-      resultSeed?.scenarioKey ||
-      preview?.scenario?.code ||
-      "unknown_scenario",
+      getCaseScenarioCode({
+        caseData: entryCaseData,
+        scenarioCode:
+          extraction?.scenarioKey ||
+          resultSeed?.scenarioKey ||
+          preview?.scenario?.code ||
+          "unknown_scenario",
+      }) || "unknown_scenario",
+    evidenceText: summarizedDescription || trimmedDescription || "",
+    evidenceState,
+    responseState,
+    boundaryState,
     evidenceLevel,
     summaryMode: false,
-    summaryContext: summarizedDescription,
+    caseData: entryCaseData,
   };
-
+  
   const allPilotEntries = appendPilotEntry(pilotEntry);
+
+  const structuredEventCount = Array.isArray(allPilotEntries)
+    ? allPilotEntries.length
+    : 0;
+
+  const evidenceSupport = evidenceState === "present" ? 1 : 0;
+    const hasCoreSignals =
+    Boolean(eventType) &&
+    Boolean(signalLevels.externalPressure) &&
+    Boolean(signalLevels.authorityBoundary) &&
+    Boolean(signalLevels.dependency);
+
+  const hasStructuredNarrative =
+    Boolean(
+      String(summarizedDescription || trimmedDescription || "").trim()
+    ) || eventType !== "other";
+
+  const hasResolvedStructure =
+    Boolean(resolvedRoute?.runId) &&
+    Boolean(resolvedRoute?.pattern);
+
+  const structureCompleteness =
+    hasCoreSignals && hasStructuredNarrative && hasResolvedStructure
+      ? 1
+      : hasCoreSignals || hasStructuredNarrative
+      ? 0.5
+      : 0;
+
+  const currentReviewMode =
+    structuredEventCount >= 1 ? "event_review" : "pilot_setup";
+
+  const samplingWindowClosed =
+    location.state?.routeMeta?.samplingWindowClosed === true ||
+    location.state?.pilot_result?.samplingWindowClosed === true ||
+    location.state?.pilot_setup?.samplingWindowClosed === true ||
+    false;
+
+  const pilotComplete =
+    location.state?.routeMeta?.structureStatus === "pilot_complete" ||
+    location.state?.pilot_result?.structureStatus === "pilot_complete" ||
+    samplingWindowClosed === true;
 
   const pilotResult = {
     judgmentFocus: weakestDimension || "event_based",
@@ -945,6 +1199,18 @@ const handleConfirm = () => {
         label: "Dependency",
         value: signalLevels.dependency,
       },
+      {
+        label: "Evidence State",
+        value: evidenceState,
+      },
+      {
+        label: "Response State",
+        value: responseState,
+      },
+      {
+        label: "Boundary State",
+        value: boundaryState,
+      },
       ...(trimmedDescription
         ? [
             {
@@ -969,11 +1235,14 @@ const handleConfirm = () => {
     routeReason: resolvedRoute.routeReason,
     routeSource: resolvedRoute.source,
 
-    scenarioCode:
-      extraction?.scenarioKey ||
-      resultSeed?.scenarioKey ||
-      preview?.scenario?.code ||
-      "unknown_scenario",
+    scenarioCode: getCaseScenarioCode({
+      caseData: entryCaseData,
+      scenarioCode:
+        extraction?.scenarioKey ||
+        resultSeed?.scenarioKey ||
+        preview?.scenario?.code ||
+        "unknown_scenario",
+    }) || "unknown_scenario",
 
     successMetric:
       strongestSignal?.pilotMetric ||
@@ -994,12 +1263,58 @@ const handleConfirm = () => {
 
   const navState = buildPilotNavigationState({
     ...location.state,
+    caseSchema: entryCaseData,
 
     session_id: sessionId,
     sessionId,
 
     preview,
-    sourceInput: preview,
+    sourceInput: {
+      ...preview,
+      weakestDimension: weakestDimension || "",
+      firstGuidedAction,
+      firstStepLabel,
+      runId: resolvedRoute.runId,
+      pattern: resolvedRoute.pattern,
+      patternLabel: resolvedRoute.patternLabel,
+      scenarioLabel: getEnglishScenarioLabel(preview),
+      scenarioCode:
+        getCaseScenarioCode({
+          caseData: entryCaseData,
+          scenarioCode:
+            extraction?.scenarioKey ||
+            resultSeed?.scenarioKey ||
+            preview?.scenario?.code ||
+            "unknown_scenario",
+        }) || "unknown_scenario",
+      stage: getCaseStage({
+       caseData: entryCaseData,
+        stage:
+          extraction?.stageCode ||
+          resultSeed?.stageCode ||
+          preview?.stage ||
+          "S0",
+      }),
+      summaryText:
+        getCaseSummary({
+          caseData: entryCaseData,
+          summaryText:
+            summarizedDescription ||
+            trimmedDescription ||
+            "No structured summary available.",
+        }) || "No structured summary available.",
+      caseInput: getCaseContext({
+        caseData: entryCaseData,
+        caseInput: trimmedDescription || "",
+      }),
+      caseData: entryCaseData,
+      signals: pilotResult.signals,
+      reviewMode: currentReviewMode,
+      structuredEventCount,
+      evidenceSupport,
+      structureCompleteness,
+      samplingWindowClosed,
+    },
     extraction,
     resultSeed,
 
@@ -1021,9 +1336,12 @@ const handleConfirm = () => {
 
     signals: pilotResult.signals,
 
-    // 现在先把“确认 Pilot Setup 后”视为进入总结页模式
-    // 这样会走 pilot_complete -> /pilot-result
-    pilotComplete: true,
+    reviewMode: currentReviewMode,
+    structuredEventCount,
+    evidenceSupport,
+    structureCompleteness,
+    samplingWindowClosed,
+    pilotComplete,
     usePilotSummary: false,
     allowReceipt: false,
 
@@ -1043,12 +1361,34 @@ const handleConfirm = () => {
 
     pilot_entries: allPilotEntries,
     latest_pilot_entry: pilotEntry,
-    pilot_result: pilotResult,
+    pilot_result: {
+      ...pilotResult,
+      caseData: entryCaseData,
+      caseInput: getCaseContext({
+        caseData: entryCaseData,
+        caseInput: trimmedDescription || "",
+      }),
+      summaryText:
+        getCaseSummary({
+          caseData: entryCaseData,
+          summaryText:
+            summarizedDescription ||
+            trimmedDescription ||
+            "No structured summary available.",
+        }) || "No structured summary available.",
+      reviewMode: currentReviewMode,
+      structuredEventCount,
+      evidenceSupport,
+      structureCompleteness,
+      samplingWindowClosed,
+    },
     weakestDimension,
     pilotFocusKey,
     firstGuidedAction,
     firstStepLabel,
   });
+
+  console.log("🧾 final pilot_entries =", allPilotEntries);
 
   navigate(
     sessionId
@@ -1058,12 +1398,64 @@ const handleConfirm = () => {
       state: {
         ...location.state,
         ...navState,
+        caseSchema: entryCaseData,
 
         session_id: sessionId,
         sessionId,
 
         preview,
-        sourceInput: preview,
+        sourceInput: {
+          ...preview,
+          weakestDimension: weakestDimension || "",
+          firstGuidedAction,
+          firstStepLabel,
+          runId: resolvedRoute.runId,
+          pattern: resolvedRoute.pattern,
+          patternLabel: resolvedRoute.patternLabel,
+          scenarioLabel:
+            getCaseScenarioCode({
+              caseData: entryCaseData,
+              scenarioCode:
+                extraction?.scenarioKey ||
+                resultSeed?.scenarioKey ||
+                preview?.scenario?.code ||
+                "unknown_scenario",
+            })
+              ? getEnglishScenarioLabel(preview)
+              : "No Dominant Scenario",
+          scenarioCode: getCaseScenarioCode({
+            caseData: entryCaseData,
+            scenarioCode:
+              extraction?.scenarioKey ||
+              resultSeed?.scenarioKey ||
+              preview?.scenario?.code ||
+              "unknown_scenario",
+          }) || "unknown_scenario",
+          stage:
+            extraction?.stageCode ||
+            resultSeed?.stageCode ||
+            preview?.stage ||
+            "S0",
+          summaryText:
+            getCaseSummary({
+              caseData: entryCaseData,
+              summaryText:
+                summarizedDescription ||
+                trimmedDescription ||
+                "No structured summary available.",
+            }) || "No structured summary available.",
+          caseInput: getCaseContext({
+            caseData: entryCaseData,
+            caseInput: trimmedDescription || "",
+          }),
+          caseData: entryCaseData,
+          signals: pilotResult.signals,
+          reviewMode: currentReviewMode,
+          structuredEventCount,
+          evidenceSupport,
+          structureCompleteness,
+          samplingWindowClosed,
+        },
         extraction,
         resultSeed,
 
@@ -1092,9 +1484,39 @@ const handleConfirm = () => {
 
         pilot_result: {
           ...pilotResult,
+          ...navState.pilot_result,
+          caseData: entryCaseData,
+          caseInput: getCaseContext({
+            caseData: entryCaseData,
+            caseInput: trimmedDescription || "",
+          }),
+          summaryText:
+            getCaseSummary({
+              caseData: entryCaseData,
+              summaryText:
+                summarizedDescription ||
+                trimmedDescription ||
+                "No structured summary available.",
+            }) || "No structured summary available.",
           summaryMode: navState.pilot_result.summaryMode,
           structureStatus: navState.routeMeta.structureStatus,
           nextAction: navState.routeMeta.nextAction,
+          reviewMode: navState.routeMeta.reviewMode || navState.pilot_result.reviewMode || "event_review",
+          structuredEventCount:
+            navState.routeMeta.structuredEventCount ??
+            navState.pilot_result.structuredEventCount ??
+            allPilotEntries.length,
+          evidenceSupport:
+            navState.routeMeta.evidenceSupport ??
+            navState.pilot_result.evidenceSupport ??
+            (evidenceState === "present" ? 1 : 0),
+          structureCompleteness:
+            navState.routeMeta.structureCompleteness ??
+            navState.pilot_result.structureCompleteness ??
+            1,
+          samplingWindowClosed:
+            navState.routeMeta.samplingWindowClosed === true ||
+            navState.pilot_result.samplingWindowClosed === true,
         },
       },
     }
@@ -1116,6 +1538,7 @@ return (
           weakestDimension={weakestDimension}
           firstStepLabel={firstStepLabel}
           firstGuidedAction={firstGuidedAction}
+          eventWindow={location.state?.routeMeta?.eventWindow || ""}
         />
 
         <CarryOverSection

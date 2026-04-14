@@ -2,11 +2,29 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildReceiptPageData } from "../buildReceiptPageData";
 import { buildVerificationPageData } from "../buildVerificationPageData";
+import { createReceiptHash } from "./ReceiptPage";
+
+import {
+  buildReceiptContract,
+  flattenSharedReceiptVerificationContract,
+} from "../utils/sharedReceiptVerificationContract";
+
 import ROUTES from "../routes";
 import { logEvent } from "../utils/eventLogger";
 import { getPilotEntries } from "../utils/pilotEntries";
 import { evaluatePilotCombinationStatus } from "../utils/verificationStatus";
 import { recordRun } from "./runLedger";
+import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
+
+import {
+  getCaseSummary,
+  getCaseContext,
+  getCaseScenarioCode,
+  getCaseStage,
+  getCaseRunCode,
+  getCasePatternId,
+  getCaseWeakestDimension,
+} from "../utils/caseAccessors";
 
 const SCENARIO_LABEL_MAP = {
   pre_audit_collapse: "Pre-Audit Collapse",
@@ -27,31 +45,44 @@ function normalizeRunEntry(entry = {}) {
 }
 
 function deriveRunFromPilotEntry(entry = {}, fallback = {}) {
+  const reviewResult = getEntryReviewResult(entry) || {};
+  const caseData = getEntryCaseData(entry);
+
   return {
     runId:
+      reviewResult.runId ||
+      reviewResult.runLabel ||
       entry.runId ||
       entry.runLabel ||
       fallback.runId ||
       fallback.runLabel ||
       "RUN000",
     runLabel:
+      reviewResult.runLabel ||
+      reviewResult.runId ||
       entry.runLabel ||
       entry.runId ||
       fallback.runLabel ||
       fallback.runId ||
       "RUN000",
     stageLabel:
+      reviewResult.stage ||
+      reviewResult.stageLabel ||
+      caseData?.stage ||
       entry.stageLabel ||
       entry.stage ||
       fallback.stageLabel ||
       fallback.stage ||
       "",
     scenarioLabel:
+      reviewResult.scenarioLabel ||
+      caseData?.scenarioCode ||
       entry.scenarioLabel ||
       entry.scenario ||
       fallback.scenarioLabel ||
       "",
     confidenceLabel:
+      reviewResult.confidenceLabel ||
       entry.confidenceLabel ||
       fallback.confidenceLabel ||
       "High",
@@ -122,6 +153,32 @@ function getEntryTimestamp(entry = {}) {
   return Number.isNaN(time) ? null : time;
 }
 
+function getEntryEventInput(entry = {}) {
+  return entry.eventInput || entry.sourceInput || null;
+}
+
+function getEntryReviewResult(entry = {}) {
+  return entry.reviewResult || entry.result || null;
+}
+
+function getEntryWeakestDimension(entry = {}) {
+  return (
+    entry.weakestDimensionSnapshot ||
+    entry.weakestDimension ||
+    entry.caseData?.weakestDimension ||
+    ""
+  );
+}
+
+function getEntryCaseData(entry = {}) {
+  return (
+    entry.reviewResult?.caseData ||
+    entry.caseSchema ||
+    entry.caseData ||
+    null
+  );
+}
+
 function hasSevenDayWindowElapsed(entries = [], locationState = {}) {
   const explicitPilotStart =
     locationState?.pilot_setup?.startedAt ||
@@ -151,7 +208,14 @@ function hasSevenDayWindowElapsed(entries = [], locationState = {}) {
 
 function getCurrentEventType(entries = []) {
   if (!Array.isArray(entries) || entries.length === 0) return "other";
-  return entries[entries.length - 1]?.eventType || "other";
+
+  const latest = entries[entries.length - 1];
+
+  return (
+    latest?.eventType ||
+    getEntryReviewResult(latest)?.eventType ||
+    "other"
+  );
 }
 
 function getEventLabel(eventType) {
@@ -167,45 +231,112 @@ function getEventLabel(eventType) {
   return EVENT_LABEL_MAP[eventType] || "Other structural event";
 }
 
-function getWeakestDimensionExplanation(weakestDimension, eventType) {
-  const eventLabelMap = {
-    decision_suggested: "Someone suggested a decision for you.",
-    decision_override_attempt: "Someone tried to decide on your behalf.",
-    resource_control_request: "A resource, money, or control request appeared.",
-    high_pressure_decision: "You were pushed toward a fast decision.",
-    role_boundary_blur: "Roles or responsibilities became unclear.",
-    other: "A structurally unclear event occurred.",
-  };
+function getPrimaryRecommendation({
+  weakestDimension = "",
+  firstGuidedAction = "",
+  structureStatus = "",
+}) {
+  if (firstGuidedAction) {
+    return firstGuidedAction;
+  }
 
-  const baseEvent = eventLabelMap[eventType] || "A real workflow event occurred.";
+  const normalizedStatus = String(structureStatus || "").toLowerCase();
 
-  const explanationMap = {
-    authority: `${baseEvent} The main risk is not the event itself, but that authority is weak enough for the event to reshape your decision space.`,
-    boundary: `${baseEvent} The event became risky because structural boundaries were too weak to hold role clarity or responsibility.`,
-    evidence: `${baseEvent} The event became risky because the evidence path is too weak to make the situation traceable and defensible.`,
-    coordination: `${baseEvent} The event became risky because coordination is weak, so execution can drift or fragment.`,
+  const map = {
+    authority:
+      normalizedStatus === "ready"
+        ? "Move forward, but keep decision ownership explicit at the next approval point."
+        : "Stabilize decision ownership before taking the next visible action.",
+    boundary:
+      normalizedStatus === "ready"
+        ? "Move forward, but keep role and approval boundaries explicit."
+        : "Rebuild one clear role or approval boundary before expanding the workflow.",
+    evidence:
+      normalizedStatus === "ready"
+        ? "Move forward, but keep one traceable record attached to the next action."
+        : "Create one traceable record before the next decision becomes harder to defend.",
+    coordination:
+      normalizedStatus === "ready"
+        ? "Move forward, but keep one owner and one next step clearly assigned."
+        : "Reduce execution drift by locking one owner and one next operational step.",
   };
 
   return (
-    explanationMap[weakestDimension] ||
-    `${baseEvent} This is currently being interpreted at the event layer, not yet through a dominant structural weakness.`
+    map[weakestDimension] ||
+    "Take the next step that makes the workflow easier to explain, verify, and defend."
   );
 }
 
-function getNextStructuralMove(weakestDimension, firstGuidedAction) {
-  if (firstGuidedAction) return firstGuidedAction;
-
-  const moveMap = {
-    authority: "Clarify who has decision ownership before the next action moves forward.",
-    boundary: "Restore one boundary of role, responsibility, or approval before expanding the workflow.",
-    evidence: "Create one traceable record so the next decision can be reviewed and defended.",
-    coordination: "Reduce ambiguity by assigning one owner and one next operational step.",
+function getBackupRecommendation(weakestDimension = "") {
+  const map = {
+    authority:
+      "If ownership cannot be clarified yet, narrow the decision scope so fewer people can reshape it.",
+    boundary:
+      "If boundaries cannot be restored yet, add one temporary approval checkpoint before execution continues.",
+    evidence:
+      "If a full record is not possible yet, capture one minimal written justification before moving forward.",
+    coordination:
+      "If alignment is still weak, pause expansion and reduce the number of active actors in the workflow.",
   };
 
   return (
-    moveMap[weakestDimension] ||
-    "Take the next step that makes the workflow easier to explain, verify, and defend."
+    map[weakestDimension] ||
+    "Use a smaller temporary control so the workflow becomes easier to review and defend."
   );
+}
+
+function getCostAttachment(weakestDimension = "") {
+  const map = {
+    authority:
+      "Cost attached: this may slow decision speed slightly, but it prevents ownership drift from silently reshaping the outcome.",
+    boundary:
+      "Cost attached: this may add one friction point, but it prevents role blur from creating hidden responsibility gaps.",
+    evidence:
+      "Cost attached: this adds recording effort, but it prevents the next decision from becoming hard to explain or defend.",
+    coordination:
+      "Cost attached: this may reduce flexibility in the short term, but it prevents fragmented execution from compounding later.",
+  };
+
+  return (
+    map[weakestDimension] ||
+    "Cost attached: this adds short-term discipline, but it improves structural defensibility."
+  );
+}
+
+function getMainPathSummary({
+  structureStatus = "",
+  weakestDimension = "",
+  currentEventLabel = "",
+}) {
+  const status = String(structureStatus || "").toLowerCase();
+  const dimension = String(weakestDimension || "").trim();
+  const eventLabel = currentEventLabel || "Current structural event";
+
+  if (status === "ready") {
+    return {
+      title: "This case is structurally strong enough to move forward.",
+      body: `${eventLabel} is now being interpreted through ${dimension || "the current structure"}, and the record is strong enough to proceed to receipt review.`,
+    };
+  }
+
+  if (status === "building") {
+    return {
+      title: "This case is structurally forming, but not stable yet.",
+      body: `${eventLabel} reveals pressure around ${dimension || "the current structure"}, but the record still needs more support before it becomes review-ready.`,
+    };
+  }
+
+  if (status === "weak") {
+    return {
+      title: "This case is not structurally ready yet.",
+      body: `${eventLabel} is exposing weakness in ${dimension || "the current structure"}, and that weakness is still preventing reliable receipt review.`,
+    };
+  }
+
+  return {
+    title: "This case is being structurally interpreted.",
+    body: `${eventLabel} is currently being interpreted through ${dimension || "the current structure"}.`,
+  };
 }
 
 function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedAction = "") {
@@ -213,11 +344,32 @@ function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedA
   const totalEvents = safeEntries.length;
 
   const structuredEvents = safeEntries.filter((entry) => {
-    const hasDescription = String(entry?.description || "").trim().length > 0;
-    const hasEventType = String(entry?.eventType || "").trim().length > 0;
-    const hasPressure = String(entry?.externalPressure || "").trim().length > 0;
-    const hasBoundary = String(entry?.authorityBoundary || "").trim().length > 0;
-    const hasDependency = String(entry?.dependency || "").trim().length > 0;
+  const eventInput = getEntryEventInput(entry) || {};
+  const caseData = getEntryCaseData(entry);
+
+  const hasDescription =
+    String(
+      getCaseSummary({
+        caseData,
+        summaryText: eventInput.summaryContext || "",
+      }) || ""
+    ).trim().length > 0 ||
+    String(
+      getCaseContext({
+        caseData,
+        caseInput: eventInput.description || "",
+      }) || ""
+    ).trim().length > 0;
+
+  const hasEventType =
+    String(
+      entry?.eventType ||
+      getEntryReviewResult(entry)?.eventType ||
+      ""
+    ).trim().length > 0;
+  const hasPressure = String(eventInput?.externalPressure || "").trim().length > 0;
+  const hasBoundary = String(eventInput?.authorityBoundary || "").trim().length > 0;
+  const hasDependency = String(eventInput?.dependency || "").trim().length > 0;
 
     return (
       hasDescription &&
@@ -247,13 +399,34 @@ function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedA
     coordination: "Coordination is becoming the main structural stress point.",
   };
 
+  const resolvedEventType =
+    latestEntry?.eventType ||
+    getEntryReviewResult(latestEntry)?.eventType ||
+    "other";
+
   return {
     totalEvents,
     structuredEventsCount: structuredEvents.length,
-    latestEventType: latestEntry?.eventType || "other",
+    latestEventType: resolvedEventType,
     latestEventLabel:
-      latestEventLabelMap[latestEntry?.eventType] || "Structural event recorded",
-    latestEventDescription: latestEntry?.description || "",
+      latestEventLabelMap[resolvedEventType] || "Structural event recorded",
+    latestEventDescription: (() => {
+      const latestCaseData = getEntryCaseData(latestEntry);
+      const latestEventInput = getEntryEventInput(latestEntry) || {};
+
+      return (
+        getCaseSummary({
+          caseData: latestCaseData,
+          summaryText: latestEventInput.summaryContext || "",
+        }) ||
+        getCaseContext({
+          caseData: latestCaseData,
+          caseInput: latestEventInput.description || "",
+        }) ||
+        latestEventInput.description ||
+        ""
+      );
+    })(),
     mainObservedShift:
       mainObservedShiftMap[weakestDimension] ||
       "A structural weakness is becoming easier to observe through real events.",
@@ -269,11 +442,24 @@ function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedA
   };
 }
 
+function resolveCaseDataFromState(locationState = {}) {
+  const directCaseData = locationState?.caseData || null;
+  const pilotResultCaseData = locationState?.pilot_result?.caseData || null;
+  const latestEntryCaseData = locationState?.latest_pilot_entry?.caseData || null;
+
+  if (directCaseData) return directCaseData;
+  if (pilotResultCaseData) return pilotResultCaseData;
+  if (latestEntryCaseData) return latestEntryCaseData;
+
+  return null;
+}
+
 function buildSourceInputFromState(locationState = {}) {
   const preview = locationState?.preview || null;
   const sourceInput = locationState?.sourceInput || null;
   const pilotSetup = locationState?.pilot_setup || null;
   const pilotResult = locationState?.pilot_result || null;
+  const resolvedCaseData = resolveCaseDataFromState(locationState);
   const caseInput =
     locationState?.caseInput ||
     pilotSetup?.caseInput ||
@@ -284,27 +470,34 @@ function buildSourceInputFromState(locationState = {}) {
   const extraction = upstream?.extraction || {};
   const resultSeed = upstream?.resultSeed || upstream?.extraction || {};
 
-  const strongestSignal = Array.isArray(upstream?.top_signals)
-    ? upstream.top_signals[0]
-    : null;
-
 return {
-  weakestDimension:
-    locationState?.weakestDimension ||
-    pilotResult?.judgmentFocus ||
-    locationState?.latest_pilot_entry?.judgmentFocus ||
-    "",
+  weakestDimension: getCaseWeakestDimension({
+    caseData: resolvedCaseData,
+    weakestDimension:
+      locationState?.weakestDimension ||
+      pilotResult?.judgmentFocus ||
+      locationState?.latest_pilot_entry?.judgmentFocus ||
+      "",
+  }),
 
   judgmentFocus:
-    pilotResult?.judgmentFocus ||
-    locationState?.latest_pilot_entry?.judgmentFocus ||
-    locationState?.weakestDimension ||
-    "event_based",
+    getCaseWeakestDimension({
+      caseData: resolvedCaseData,
+      weakestDimension:
+        pilotResult?.judgmentFocus ||
+        locationState?.latest_pilot_entry?.judgmentFocus ||
+        locationState?.weakestDimension ||
+        "event_based",
+    }) || "event_based",
 
   resolvedBy:
     pilotResult?.resolvedBy ||
     pilotSetup?.resolvedBy ||
-    (locationState?.weakestDimension ? "weakest_dimension" : "event_type"),
+    (resolvedCaseData?.weakestDimension
+      ? "case_schema"
+      : locationState?.weakestDimension
+      ? "weakest_dimension"
+      : "event_type"),
 
   firstGuidedAction:
     locationState?.firstGuidedAction ||
@@ -317,20 +510,28 @@ return {
     "",
 
   runId:
-    pilotResult?.runId ||
-    extraction?.runCode ||
-    resultSeed?.runCode ||
-    upstream?.run_id ||
-    upstream?.anchor_run ||
-    "RUN000",
+    getCaseRunCode({
+      caseData: resolvedCaseData,
+      runId:
+        pilotResult?.runId ||
+        extraction?.runCode ||
+        resultSeed?.runCode ||
+        upstream?.run_id ||
+        upstream?.anchor_run ||
+        "RUN000",
+    }) || "RUN000",
 
   pattern:
-    pilotResult?.pattern ||
-    extraction?.patternCode ||
-    resultSeed?.patternCode ||
-    upstream?.pattern ||
-    upstream?.pattern_id ||
-    "PAT-00",
+    getCasePatternId({
+      caseData: resolvedCaseData,
+      pattern:
+        pilotResult?.pattern ||
+        extraction?.patternCode ||
+        resultSeed?.patternCode ||
+        upstream?.pattern ||
+        upstream?.pattern_id ||
+        "PAT-00",
+    }) || "PAT-00",
 
   patternLabel:
     pilotResult?.patternLabel ||
@@ -338,6 +539,7 @@ return {
     "Unresolved Pattern",
 
   structureStatus:
+    resolvedCaseData?.structureStatus ||
     locationState?.routeMeta?.structureStatus ||
     pilotResult?.structureStatus ||
     null,
@@ -346,11 +548,15 @@ return {
     pilotResult?.summaryMode === true,
 
   stage:
-    pilotResult?.stage ||
-    extraction?.stageCode ||
-    resultSeed?.stageCode ||
-    upstream?.stage ||
-    "S0",
+    getCaseStage({
+      caseData: resolvedCaseData,
+      stage:
+        pilotResult?.stage ||
+        extraction?.stageCode ||
+        resultSeed?.stageCode ||
+        upstream?.stage ||
+        "S0",
+    }) || "S0",
 
   decision:
     pilotResult?.decision ||
@@ -384,35 +590,188 @@ return {
     upstream?.workflow ||
     "Unknown workflow",
 
-  scenarioLabel:
-    pilotResult?.scenarioLabel ||
-    (preview?.scenario?.label &&
-    preview?.scenario?.label !== "No Dominant Scenario"
-      ? preview.scenario.label
-      : null) ||
-    SCENARIO_LABEL_MAP[extraction?.scenarioKey] ||
-    SCENARIO_LABEL_MAP[resultSeed?.scenarioKey] ||
-    "No Dominant Scenario",
+    scenarioLabel:
+      SCENARIO_LABEL_MAP[
+        getCaseScenarioCode({
+          caseData: resolvedCaseData,
+          scenarioCode:
+            pilotResult?.scenarioCode ||
+            extraction?.scenarioKey ||
+            resultSeed?.scenarioKey ||
+            upstream?.scenario?.code ||
+            "unknown_scenario",
+        })
+      ] ||
+      pilotResult?.scenarioLabel ||
+      (preview?.scenario?.label &&
+      preview?.scenario?.label !== "No Dominant Scenario"
+        ? preview.scenario.label
+        : null) ||
+      "No Dominant Scenario",
 
   scenarioCode:
-    pilotResult?.scenarioCode ||
-    extraction?.scenarioKey ||
-    resultSeed?.scenarioKey ||
-    upstream?.scenario?.code ||
-    "unknown_scenario",
+    getCaseScenarioCode({
+      caseData: resolvedCaseData,
+      scenarioCode:
+        pilotResult?.scenarioCode ||
+        extraction?.scenarioKey ||
+        resultSeed?.scenarioKey ||
+        upstream?.scenario?.code ||
+        "unknown_scenario",
+    }) || "unknown_scenario",
 
   summaryText:
-    pilotResult?.summaryText ||
-    upstream?.summary?.[0] ||
-    resultSeed?.summary ||
-    "No structured summary available.",
+    getCaseSummary({
+      caseData: resolvedCaseData,
+      summaryText:
+        pilotResult?.summaryText ||
+        upstream?.summary?.[0] ||
+        resultSeed?.summary ||
+        "No structured summary available.",
+    }) || "No structured summary available.",
 
-  caseInput:
-    caseInput ||
-    pilotSetup?.description ||
-    pilotResult?.summaryText ||
-    "",
+  caseInput: getCaseContext({
+    caseData: resolvedCaseData,
+    caseInput:
+      caseInput ||
+      pilotSetup?.description ||
+      pilotResult?.summaryText ||
+      "",
+  }),
+
+  eventWindow:
+    locationState?.routeMeta?.eventWindow || null,
+
+  progressLabel:
+    locationState?.routeMeta?.progressLabel || null,
+
+  nextAction:
+    locationState?.routeMeta?.nextAction || null,
+
+  caseData: resolvedCaseData,
 };
+}
+
+// ===== runtime helpers =====
+function normalizePilotStructureStatus(status = "") {
+  const normalized = String(status || "").trim().toLowerCase();
+
+  if (
+    normalized === "receipt_ready" ||
+    normalized === "resolved" ||
+    normalized === "ready"
+  ) {
+    return "ready";
+  }
+
+  if (
+    normalized === "pilot_complete" ||
+    normalized === "emerging" ||
+    normalized === "building"
+  ) {
+    return "building";
+  }
+
+  if (
+    normalized === "insufficient" ||
+    normalized === "weak"
+  ) {
+    return "weak";
+  }
+
+  return "weak";
+}
+
+function resolvePilotRuntimeState(locationState = {}, combinationStatus = {}, hasPilotEntries = false) {
+  const routeMeta = locationState?.routeMeta || {};
+  const pilotResult = locationState?.pilot_result || {};
+
+  const upstreamStructureStatus =
+    routeMeta.structureStatus ||
+    pilotResult.structureStatus ||
+    null;
+
+  const upstreamSummaryMode =
+    pilotResult.summaryMode === true ||
+    routeMeta.structureStatus === "pilot_complete";
+
+  const upstreamReviewMode =
+    routeMeta.reviewMode ||
+    pilotResult.reviewMode ||
+    null;
+
+  const upstreamStructuredEventCount =
+    routeMeta.structuredEventCount ??
+    pilotResult.structuredEventCount ??
+    null;
+
+  const upstreamEvidenceSupport =
+    routeMeta.evidenceSupport ??
+    pilotResult.evidenceSupport ??
+    null;
+
+  const upstreamStructureCompleteness =
+    routeMeta.structureCompleteness ??
+    pilotResult.structureCompleteness ??
+    null;
+
+  const upstreamSamplingWindowClosed =
+    routeMeta.samplingWindowClosed === true ||
+    pilotResult.samplingWindowClosed === true;
+
+  const fallbackStructureStatus = combinationStatus.structureStatus || "weak";
+  const fallbackScore = combinationStatus.score ?? 0;
+
+  const resolvedStructureStatus = normalizePilotStructureStatus(
+    upstreamStructureStatus || fallbackStructureStatus
+  );
+
+  const resolvedSummaryMode = upstreamSummaryMode === true;
+  const resolvedReviewMode = upstreamReviewMode || "event_review";
+
+  const resolvedStructuredEventCount =
+    upstreamStructuredEventCount ??
+    (hasPilotEntries ? 1 : 0);
+
+  const resolvedEvidenceSupport =
+    upstreamEvidenceSupport ??
+    combinationStatus.evidenceSupport ??
+    0;
+
+  const resolvedStructureCompleteness =
+    upstreamStructureCompleteness ??
+    combinationStatus.structureCompleteness ??
+    0;
+
+  const resolvedSamplingWindowClosed = upstreamSamplingWindowClosed;
+
+  const resolvedScore =
+    upstreamEvidenceSupport !== null &&
+    upstreamStructureCompleteness !== null
+      ? Number(upstreamEvidenceSupport || 0) +
+        Number(upstreamStructureCompleteness || 0)
+      : fallbackScore;
+
+  // ✅ descriptive-only（彻底去功能）
+const resolvedReceiptEligible = null;
+
+  return {
+    routeMeta,
+    pilotResult,
+    resolvedStructureStatus,
+    resolvedSummaryMode,
+    resolvedReviewMode,
+    resolvedStructuredEventCount,
+    resolvedEvidenceSupport,
+    resolvedStructureCompleteness,
+    resolvedSamplingWindowClosed,
+    resolvedScore,
+    resolvedReceiptEligible,
+    resolvedNextAction:
+      routeMeta.nextAction ||
+      pilotResult.nextAction ||
+      null,
+  };
 }
 
 export default function PilotResultPage() {
@@ -428,27 +787,48 @@ export default function PilotResultPage() {
   const sourceInput = buildSourceInputFromState(location.state || {});
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showPilotRulesModal, setShowPilotRulesModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState("");
 
-  const passedPilotEntries =
+  const rawPilotEntries =
+    location.state?.eventHistory ||
     location.state?.pilot_entries ||
+    location.state?.pilot_result?.eventHistory ||
     getPilotEntries();
+
+  const eventHistory = useMemo(() => {
+    return Array.isArray(rawPilotEntries) ? rawPilotEntries : [];
+  }, [rawPilotEntries]);
 
   const [forceWeeklySummary, setForceWeeklySummary] = useState(false);
   const [weeklySummaryExpanded, setWeeklySummaryExpanded] = useState(false);
   const [structuralTraceExpanded, setStructuralTraceExpanded] = useState(false);
   const [receiptEligibilityExpanded, setReceiptEligibilityExpanded] = useState(false);
-  const [showJudgmentAngle, setShowJudgmentAngle] = useState(false);
+  const [backupPathExpanded, setBackupPathExpanded] = useState(false);
 
   const pilotFlow = useMemo(() => {
-    const entries = Array.isArray(passedPilotEntries) ? passedPilotEntries : [];
-    const entryCount = entries.length;
+    const entryCount = eventHistory.length;
 
-    const hasExplanation = entries.some(
-      (item) => String(item.description || "").trim().length > 0
-    );
+    const hasExplanation = eventHistory.some((item) => {
+      const eventInput = getEntryEventInput(item) || {};
+      const caseData = getEntryCaseData(item);
 
-    const hasEvidenceReady = entries.some((item) =>
+      return (
+        String(
+          getCaseSummary({
+            caseData,
+            summaryText: eventInput.summaryContext || "",
+          }) || ""
+        ).trim().length > 0 ||
+        String(
+          getCaseContext({
+            caseData,
+           caseInput: eventInput.description || "",
+          }) || ""
+        ).trim().length > 0 ||
+        String(eventInput.description || "").trim().length > 0
+      );
+    });
+
+    const hasEvidenceReady = eventHistory.some((item) =>
       evaluatePilotCombinationStatus({ entries: [item] }).evidenceSupport >= 1
     );
 
@@ -465,43 +845,201 @@ export default function PilotResultPage() {
     }
 
     return "empty";
-  }, [passedPilotEntries, forceWeeklySummary]);
+  }, [eventHistory, forceWeeklySummary]);
 
   const weeklySummaryText = useMemo(() => {
-    const entries = Array.isArray(passedPilotEntries) ? passedPilotEntries : [];
-
-    if (!entries.length) {
+    if (!eventHistory.length) {
       return "No pilot entries were recorded during this window.";
     }
 
+    const latestEvent = eventHistory[eventHistory.length - 1] || {};
+    const latestEventInput = getEntryEventInput(latestEvent) || {};
+    const latestCaseData = getEntryCaseData(latestEvent);
+
     const workflow =
-      entries[0]?.workflow || sourceInput.workflow || "Selected workflow";
+      latestEvent?.workflow ||
+      latestEventInput?.workflow ||
+      eventHistory[0]?.workflow ||
+      sourceInput.workflow ||
+      "Selected workflow";
 
     const dominantEvent =
-      entries[entries.length - 1]?.eventType || "other";
-
+      latestEvent?.eventType ||
+      getEntryReviewResult(latestEvent)?.eventType ||
+      latestCaseData?.eventType ||
+      "other";
+  
     const lastDescription =
-      entries[entries.length - 1]?.description ||
+      getCaseSummary({
+        caseData: latestCaseData,
+        summaryText: latestEventInput.summaryContext || "",
+      }) ||
+      getCaseContext({
+        caseData: latestCaseData,
+        caseInput: latestEventInput.description || "",
+      }) ||
+      latestEventInput.description ||
       sourceInput.summaryText ||
       "No detailed description recorded.";
+  
+    return `7-day summary for ${workflow}. ${eventHistory.length} pilot entr${eventHistory.length > 1 ? "ies were" : "y was"} recorded. Dominant event: ${dominantEvent}. Latest observed context: ${lastDescription}`;
+  }, [eventHistory, sourceInput.workflow, sourceInput.summaryText]);
 
-    return `7-day summary for ${workflow}. ${entries.length} pilot entr${entries.length > 1 ? "ies were" : "y was"} recorded. Dominant event: ${dominantEvent}. Latest observed context: ${lastDescription}`;
-  }, [passedPilotEntries, sourceInput.workflow, sourceInput.summaryText]);
+  const entries = useMemo(() => {
+    const rawEntries = eventHistory;
 
-  const entries = Array.isArray(passedPilotEntries) ? passedPilotEntries : [];
+    return rawEntries.map((entry) => {
+      const existingCaseData = getEntryCaseData(entry);
+      if (existingCaseData) {
+        return {
+          ...entry,
+          caseData: existingCaseData,
+        };
+      }
 
-  const currentEventType = getCurrentEventType(entries);
+      const eventInput = getEntryEventInput(entry) || {};
+      const reviewResult = getEntryReviewResult(entry) || {};
+      const weakestDimension =
+        getEntryWeakestDimension(entry) ||
+        sourceInput?.weakestDimension ||
+        "";
+
+      const normalizedEntryCase = normalizeCaseInput(
+        {
+          source: "pilot",
+          summary: getCaseSummary({
+            caseData: existingCaseData || null,
+            summaryText:
+              reviewResult.summaryText ||
+              eventInput.summaryContext ||
+              "",
+            caseInput: eventInput.description || "",
+          }),
+          description: getCaseContext({
+            caseData: existingCaseData || null,
+            caseInput: eventInput.description || "",
+          }),
+          eventType:
+            entry?.eventType ||
+            reviewResult?.eventType ||
+            "other",
+          eventContext: getCaseContext({
+            caseData: existingCaseData || null,
+            caseInput: eventInput.description || "",
+          }),
+          weakestDimension: getCaseWeakestDimension({
+            caseData: existingCaseData || null,
+            weakestDimension,
+          }),
+          scenarioCode:
+            getCaseScenarioCode({
+              caseData: existingCaseData || null,
+              scenarioCode:
+                reviewResult?.scenarioCode ||
+                entry?.scenarioCode ||
+                sourceInput?.scenarioCode ||
+                "unknown_scenario",
+            }) || "unknown_scenario",
+          patternId: getCasePatternId({
+            caseData: existingCaseData || null,
+            pattern:
+              reviewResult?.pattern ||
+              entry?.pattern ||
+              sourceInput?.pattern ||
+              "",
+          }),
+          fallbackRunCode: getCaseRunCode({
+            caseData: existingCaseData || null,
+            runId:
+              reviewResult?.runId ||
+              entry?.runId ||
+              sourceInput?.runId ||
+              "",
+          }),
+          stage:
+            getCaseStage({
+              caseData: existingCaseData || null,
+              stage:
+                reviewResult?.stage ||
+                entry?.stage ||
+                sourceInput?.stage ||
+                "S0",
+            }) || "S0",
+          dimensions: {
+            evidence: weakestDimension === "evidence" ? 1 : 2,
+            authority: weakestDimension === "authority" ? 1 : 2,
+            coordination: weakestDimension === "coordination" ? 1 : 2,
+            timing: 2,
+          },
+        },
+        {
+          source: "pilot",
+        }
+      );
+  
+      return {
+        ...entry,
+        caseData: normalizedEntryCase,
+      };
+    });
+  }, [eventHistory, sourceInput]);
+
+  const latestEvent = entries[entries.length - 1] || null;
+  const currentEventType = latestEvent?.eventType || getCurrentEventType(entries);
   const currentEventLabel = getEventLabel(currentEventType);
 
-  const weakestDimensionExplanation = getWeakestDimensionExplanation(
-    sourceInput.weakestDimension,
-    currentEventType
+  const resolvedWeakestDimension =
+    getEntryWeakestDimension(latestEvent) ||
+    sourceInput.weakestDimension ||
+    "";
+
+  const executionSummary = useMemo(() => {
+    return buildExecutionSummary(
+      entries,
+      resolvedWeakestDimension,
+      sourceInput.firstGuidedAction
+    );
+  }, [entries, resolvedWeakestDimension, sourceInput.firstGuidedAction]);
+
+  const combinationStatus = useMemo(() => {
+    return evaluatePilotCombinationStatus({
+      entries,
+      summaryMode: forceWeeklySummary,
+      topSignals: (sourceInput.signals || []).map(
+        (signal) => `${signal.label}: ${signal.value}`
+      ),
+    });
+  }, [entries, forceWeeklySummary, sourceInput.signals]);
+
+  const hasPilotEntries = entries.length > 0;
+
+  const runtimeState = useMemo(() => {
+    return resolvePilotRuntimeState(
+      location.state || {},
+      combinationStatus,
+      hasPilotEntries
+    );
+  }, [location.state, combinationStatus, hasPilotEntries]);
+
+  const resolvedStructureStatus = runtimeState.resolvedStructureStatus;  // ✅ 仅展示
+
+  const mainPathSummary = getMainPathSummary({
+    structureStatus: resolvedStructureStatus,
+    weakestDimension: resolvedWeakestDimension,
+    currentEventLabel,
+  });
+
+  const primaryRecommendation = getPrimaryRecommendation({
+    weakestDimension: resolvedWeakestDimension,
+    firstGuidedAction: sourceInput.firstGuidedAction,
+    structureStatus: resolvedStructureStatus,
+  });
+
+  const backupRecommendation = getBackupRecommendation(
+    resolvedWeakestDimension
   );
 
-  const nextStructuralMove = getNextStructuralMove(
-    sourceInput.weakestDimension,
-    sourceInput.firstGuidedAction
-  );
+  const costAttachment = getCostAttachment(resolvedWeakestDimension);
 
   const runEntries = useMemo(() => {
     return buildRunEntriesFromPilotEntries(entries, {
@@ -523,57 +1061,78 @@ export default function PilotResultPage() {
     return buildRunSummaryText(runEntries);
   }, [runEntries]);
 
-const executionSummary = useMemo(() => {
-  return buildExecutionSummary(
-    entries,
-    sourceInput.weakestDimension,
-    sourceInput.firstGuidedAction
-  );
-}, [entries, sourceInput.weakestDimension, sourceInput.firstGuidedAction]);
-
-const combinationStatus = useMemo(() => {
-  return evaluatePilotCombinationStatus({
-    entries,
-    summaryMode: forceWeeklySummary,
-    topSignals: (sourceInput.signals || []).map(
-      (signal) => `${signal.label}: ${signal.value}`
-    ),
-  });
-}, [entries, forceWeeklySummary, sourceInput.signals]);
-
-const hasPilotEntries = entries.length > 0;
 const canShowProgressSummary = hasPilotEntries;
 
-const weeklySummaryDue = hasSevenDayWindowElapsed(entries, location.state || {});
-  useEffect(() => {
-    if (weeklySummaryDue) {
-      setForceWeeklySummary(true);
-    }
-  }, [weeklySummaryDue]);
+const weeklySummaryDue =
+  runtimeState.resolvedSamplingWindowClosed ||
+  hasSevenDayWindowElapsed(entries, location.state || {});
 
-const score = combinationStatus.score ?? 0;
-const caseReceiptEligible =
-  hasPilotEntries && combinationStatus.receiptEligible;
+useEffect(() => {
+  if (weeklySummaryDue) {
+    setForceWeeklySummary(true);
+  }
+}, [weeklySummaryDue]);
 
-const weeklyReceiptEligible =
-  weeklySummaryDue && combinationStatus.finalReceiptEligible;
+const isWeeklySummaryFlow =
+  forceWeeklySummary === true || runtimeState.resolvedSummaryMode === true;
 
-const isWeeklySummaryFlow = forceWeeklySummary === true;
-const isCaseReceiptFlow =
-  !isWeeklySummaryFlow && caseReceiptEligible;
-const receiptReviewEligible = isWeeklySummaryFlow
-  ? weeklyReceiptEligible
-  : caseReceiptEligible;
 const resolvedSummaryMode = isWeeklySummaryFlow;
 
-const resolvedStructureStatus = combinationStatus.structureStatus;
-  const resolvedCaseInput = sourceInput.caseInput || "";
+const evidenceSupportScore = runtimeState.resolvedEvidenceSupport ?? 0;
+const structureCompletenessScore = runtimeState.resolvedStructureCompleteness ?? 0;
 
-  const resolvedSummaryText =
-    sourceInput.summaryText || "No structured summary available.";
+const consistencySignal = combinationStatus.consistency ?? 0;
+const continuitySignal = combinationStatus.continuity ?? 0;
+
+const consistencyScore = consistencySignal > 0 ? 1 : 0;
+const continuityScore = continuitySignal > 0 ? 1 : 0;
+
+const normalizedEvidenceScore = Math.max(
+  0,
+  Math.min(1, evidenceSupportScore / 2)
+);
+
+const normalizedStructureScore = Math.max(
+  0,
+  Math.min(1, structureCompletenessScore / 2)
+);
+
+const normalizedConsistencyScore = Math.max(
+  0,
+  Math.min(1, consistencyScore)
+);
+
+const normalizedContinuityScore = Math.max(
+  0,
+  Math.min(1, continuityScore)
+);
+
+// ✅ 唯一来源：shared contract / scoring
+const receiptReviewEligible =
+  location.state?.sharedReceiptVerificationContract?.scoring?.receiptEligible ??
+  false;
+
+const resolvedCaseInput = getCaseContext(sourceInput);
+
+const resolvedSummaryText =
+  getCaseSummary(sourceInput) ||
+  "No structured summary available.";
 
 const enhancedSourceInput = {
   ...sourceInput,
+  caseData: sourceInput.caseData || null,
+  eventHistory: entries,
+  latestEvent: entries[entries.length - 1] || null,
+  schemaVersion: sourceInput.caseData?.schemaVersion || null,
+  structureScoreFromCase: sourceInput.caseData?.structureScore ?? null,
+  routeDecisionFromCase: sourceInput.caseData?.routeDecision || null,
+
+  reviewMode: runtimeState.resolvedReviewMode,
+  structuredEventCount: runtimeState.resolvedStructuredEventCount,
+  evidenceSupport: runtimeState.resolvedEvidenceSupport,
+  structureCompleteness: runtimeState.resolvedStructureCompleteness,
+  samplingWindowClosed: runtimeState.resolvedSamplingWindowClosed,
+
   summaryMode: resolvedSummaryMode,
   structureStatus: resolvedStructureStatus,
   caseInput: resolvedCaseInput,
@@ -588,80 +1147,113 @@ const enhancedSourceInput = {
 
   continuity: combinationStatus.continuity,
   consistency: combinationStatus.consistency,
-  structureCompleteness: combinationStatus.structureCompleteness,
-  evidenceSupport: combinationStatus.evidenceSupport,
-  score: combinationStatus.score,
+  score:
+    location.state?.sharedReceiptVerificationContract?.scoring?.totalScore ?? 0,
   receiptEligible: receiptReviewEligible,
 };
 
 const receiptSourceInput = isWeeklySummaryFlow
   ? {
       ...enhancedSourceInput,
+      eventHistory: entries,
+      latestEvent: entries[entries.length - 1] || null,
       summaryMode: true,
-      structureStatus: weeklyReceiptEligible ? "ready" : "weak",
+      structureStatus: resolvedStructureStatus,
       caseInput: weeklySummaryText,
       summaryText: weeklySummaryText,
+      caseData: enhancedSourceInput.caseData
+        ? {
+            ...enhancedSourceInput.caseData,
+            summary: weeklySummaryText,
+            description: weeklySummaryText,
+            eventContext: weeklySummaryText,
+          }
+        : normalizeCaseInput({
+            source: "pilot",
+            summary: weeklySummaryText,
+            description: weeklySummaryText,
+            eventContext: weeklySummaryText,
+            scenarioCode: sourceInput.scenarioCode || "unknown_scenario",
+            stage: sourceInput.stage || "S0",
+            fallbackRunCode: sourceInput.runId || "RUN000",
+            patternId: sourceInput.pattern || "PAT-00",
+            weakestDimension: resolvedWeakestDimension || "",
+          }),
     }
   : enhancedSourceInput;
 
-  const rawReceipt = buildReceiptPageData(receiptSourceInput);
-  const verificationPageData = buildVerificationPageData(rawReceipt);
+const scoring = {
+  scoringVersion: "v1",
+  evidenceScore: normalizedEvidenceScore,
+  structureScore: normalizedStructureScore,
+  consistencyScore: normalizedConsistencyScore,
+  continuityScore: normalizedContinuityScore,
+  totalScore:
+    location.state?.sharedReceiptVerificationContract?.scoring?.totalScore ?? 0,
 
-  const receiptPageData = {
-    receiptTitle: "Decision Receipt",
-    receiptId: rawReceipt.receipt_id,
-    generatedAt: new Date(rawReceipt.timestamp).toLocaleString(),
-    caseInput: receiptSourceInput.caseInput || "",
-    summaryTitle: receiptSourceInput.summaryMode ? "Pilot Final Summary" : "Decision Summary",
-    summaryText: receiptSourceInput.summaryText || rawReceipt.decision,
-    scenarioLabel: receiptSourceInput.scenarioLabel || receiptSourceInput.pattern,
-    stageLabel: receiptSourceInput.stage || rawReceipt.summary?.stage || "S0",
-    runLabel: primaryRunLabel,
-    runEntries,
-    totalRunHits,
-    primaryRunLabel,
-    runSummaryText,
-    executionSummary,
-
-    topSignals: (enhancedSourceInput.signals || []).map(
-      (signal) => `${signal.label}: ${signal.value}`
-    ),
-
-    nextStepTitle: "Recommended Next Step",
-    nextStepText:
-     nextStructuralMove ||
-      enhancedSourceInput.decision ||
-      "Move into verification and confirm the receipt structure is complete and traceable.",
-
-    decisionStatus: isWeeklySummaryFlow
-      ? weeklyReceiptEligible
-        ? "Final Receipt Ready"
-        : "Summary Generated (Receipt Pending)"
-      : "Ready for Verification",
-
-    confidenceLabel: "High",
-    receiptNote:
-      "This receipt is now grounded in both structural aggregation and recorded pilot behavior. It is not a legal determination.",
-    verificationCtaText: "Go to Verification",
-  };
-
-const routeDecision = {
-  mode: isWeeklySummaryFlow ? "final_receipt" : "case_receipt",
-  reason: isWeeklySummaryFlow
-    ? "weekly_summary_confirmed"
-    : "single_case_confirmed",
+  receiptThreshold:
+    location.state?.sharedReceiptVerificationContract?.scoring?.receiptThreshold ?? 3.0,
+  receiptEligible: receiptReviewEligible,
 };
 
-const receiptSource = isWeeklySummaryFlow
-  ? "pilot_weekly_summary"
-  : "pilot_case_result";
+const pressureComplexity =
+  String(
+    entries[entries.length - 1]?.eventInput?.externalPressure ||
+    entries[entries.length - 1]?.sourceInput?.externalPressure ||
+    ""
+  ).trim().length > 0
+    ? 1
+    : 0;
 
-const evidenceLock = {
-  receiptId: receiptPageData.receiptId,
-  receiptHash: "",
-  receiptSource,
-  receiptMode: routeDecision.mode,
+const boundaryComplexity =
+  String(
+    entries[entries.length - 1]?.eventInput?.authorityBoundary ||
+    entries[entries.length - 1]?.sourceInput?.authorityBoundary ||
+    ""
+  ).trim().length > 0
+    ? 1
+    : 0;
+
+const dependencyComplexity =
+  String(
+    entries[entries.length - 1]?.eventInput?.dependency ||
+    entries[entries.length - 1]?.sourceInput?.dependency ||
+    ""
+  ).trim().length > 0
+    ? 1
+    : 0;
+
+const eventComplexityMap = {
+  other: 0.25,
+  decision_suggested: 0.5,
+  resource_control_request: 0.75,
+  role_boundary_blur: 0.75,
+  high_pressure_decision: 1,
+  decision_override_attempt: 1,
 };
+
+const eventComplexity =
+  eventComplexityMap[currentEventType] ?? 0.25;
+
+const complexityScore =
+  (pressureComplexity +
+    boundaryComplexity +
+    dependencyComplexity +
+    eventComplexity) / 4;
+
+const complexityLabel =
+  complexityScore >= 0.75
+    ? "High"
+    : complexityScore >= 0.4
+    ? "Medium"
+    : "Low";
+
+const complexityNote =
+  complexityLabel === "High"
+    ? "This score was reached under high structural complexity."
+    : complexityLabel === "Medium"
+    ? "This score was reached under moderate structural complexity."
+    : "This score was reached under relatively low structural complexity.";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
@@ -682,277 +1274,131 @@ const evidenceLock = {
           <p className="text-slate-700 leading-7">
             {isWeeklySummaryFlow
               ? "This page summarizes the pilot window and prepares it for final receipt generation and verification."
-              : sourceInput.weakestDimension
-              ? `This event is first interpreted through your weakest dimension: ${sourceInput.weakestDimension}.`
+              : resolvedWeakestDimension
+              ? `This event is first interpreted through your weakest dimension: ${resolvedWeakestDimension}.`
               : "This page explains how the current event is being interpreted structurally."}
           </p>
         </header>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
 
-          {/* 🧠 Layer 1: First Judgment Angle */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "16px",
-            }}
-          >
-            <div className="rounded-xl bg-white border border-slate-200 p-4">
-              <p className="text-slate-500">Weakest dimension</p>
-              <p className="text-slate-900">
-                {sourceInput.weakestDimension || "Not specified"}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-white border border-slate-200 p-4">
-              <p className="text-slate-500">Current event</p>
-              <p className="text-slate-900">
-                {currentEventLabel}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-white border border-slate-200 p-4">
-              <p className="text-slate-500">Judgment angle</p>
-              <p className="text-slate-900">
-                {sourceInput.resolvedBy === "event_type"
-                  ? "Event-based interpretation"
-                  : `Interpreted through weakest dimension: ${sourceInput.weakestDimension}`}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-white border border-slate-200 p-4">
-              <p className="text-slate-500">First guided action</p>
-              <p className="text-slate-900">
-                {sourceInput.firstGuidedAction ||
-                  sourceInput.firstStepLabel ||
-                  "Take the first structural corrective move."}
-              </p>
-            </div>
-          </div>
-
-          {/* 🧠 Layer 2: State & Conclusion */}
-          <div className="space-y-6">
-
-            <div className="flex gap-4 mb-2 items-start">
-
-              <div
-                className="flex-1 rounded-xl p-4"
-                style={
-                  enhancedSourceInput.structureStatus === "ready"
-                    ? {
-                        backgroundColor: "#DCFCE7",
-                        border: "1px solid #86EFAC",
-                      }
-                    : enhancedSourceInput.structureStatus === "building"
-                    ? {
-                        backgroundColor: "#FEF9C3",
-                        border: "1px solid #FDE68A",
-                      }
-                    : enhancedSourceInput.structureStatus === "weak"
-                    ? {
-                        backgroundColor: "#FEE2E2",
-                        border: "1px solid #FCA5A5",
-                      }
-                    : {
-                        backgroundColor: "#F8FAFC",
-                        border: "1px solid #E2E8F0",
-                      }
-                }
-              >
-                <p className="text-sm text-slate-500">Structure status</p>
-                <p className="text-base font-semibold text-slate-900">
-                  <span
-                    style={
-                      enhancedSourceInput.structureStatus === "ready"
-                        ? {
-                            backgroundColor: "#DCFCE7",
-                            color: "#15803D",
-                            borderRadius: "8px",
-                            padding: "4px 10px",
-                            display: "inline-block",
-                            fontSize: "14px",
-                            fontWeight: 600,
-                          }
-                        : enhancedSourceInput.structureStatus === "building"
-                        ? {
-                            backgroundColor: "#FEF9C3",
-                            color: "#A16207",
-                            borderRadius: "8px",
-                            padding: "4px 10px",
-                            display: "inline-block",
-                            fontSize: "14px",
-                            fontWeight: 600,
-                          }
-                        : enhancedSourceInput.structureStatus === "weak"
-                        ? {
-                            backgroundColor: "#FEE2E2",
-                            color: "#B91C1C",
-                            borderRadius: "8px",
-                            padding: "4px 10px",
-                            display: "inline-block",
-                            fontSize: "14px",
-                            fontWeight: 600,
-                          }
-                        : {
-                            backgroundColor: "#F1F5F9",
-                            color: "#475569",
-                            borderRadius: "8px",
-                            padding: "4px 10px",
-                            display: "inline-block",
-                            fontSize: "14px",
-                            fontWeight: 600,
-                          }
-                    }
-                  >
-                    {enhancedSourceInput.structureStatus === "ready"
-                      ? "Ready"
-                      : enhancedSourceInput.structureStatus === "building"
-                      ? "Building"
-                      : enhancedSourceInput.structureStatus === "weak"
-                      ? "Weak"
-                      : "Not set"}
-                  </span>
-                </p>
-              </div>
-
-              <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-4">
-                <p className="text-sm text-slate-500">Summary mode</p>
-                <p className="text-base font-semibold text-slate-900">
-                  {enhancedSourceInput.summaryMode
-                    ? "Weekly summary active"
-                    : "Case interpretation mode"}
-                </p>
-              </div>
-
-              <div
-                style={{
-                  marginLeft: "auto",
-                  width: "100%",
-                  maxWidth: "405px",
-                  backgroundColor: "#F8FAFC",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: "16px",
-                  padding: "16px",
-                }}
-              >
-                <div
-                 style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: 0,
-                      margin: 0,
-                      fontSize: "14px",
-                      color: "#64748B",
-                    }}
-                  >
-                    Combination judgment
-                  </p>
-
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: "#0F172A",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Score: {combinationStatus.score.toFixed(1)} / 4
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: "8px",
-                    fontSize: "14px",
-                  }}
-                >
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
-                    Continuity: {combinationStatus.continuity}
-                  </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
-                    Consistency: {combinationStatus.consistency}
-                  </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
-                    Structure: {combinationStatus.structureCompleteness}
-                  </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-3">
-                    Evidence: {combinationStatus.evidenceSupport}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Why this event matters structurally</p>
-
-              <p className="text-base font-semibold text-slate-900">
-                {weakestDimensionExplanation}
-              </p>
-
-              <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowJudgmentAngle((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left"
-                >
-                  <p className="text-sm text-slate-500">
-                    First judgment angle
-                  </p>
-
-                  <span className="text-sm text-slate-500">
-                    {showJudgmentAngle ? "Hide" : "View"}
-                  </span>
-                </button>
-
-                {showJudgmentAngle && (
-                  <div className="px-4 pb-4">
-                    <p className="text-sm leading-6 text-slate-700">
-                      {sourceInput.weakestDimension ? (
-                        <>
-                          {`This event is first interpreted through your weakest dimension: ${sourceInput.weakestDimension}.`}
-                          <br />
-                          <span className="font-medium text-slate-800">
-                            Which means: this situation is not just happening to you — your structure is allowing it.
-                          </span>
-                        </>
-                      ) : (
-                        "This event is currently being interpreted from the event layer."
-                      )}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-xl bg-white shadow-sm">
+              <div className="h-4" />
+              <div className="px-5 pt-2 pb-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-500">
+                      Main judgment path
                     </p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-950">
+                      {mainPathSummary.title}
+                    </h2>
                   </div>
-                )}
+            
+                  <div>
+                    <span
+                      className="inline-flex rounded-full px-3 py-1 text-sm font-semibold"
+                      style={
+                        resolvedStructureStatus === "ready"
+                          ? {
+                              backgroundColor: "#DCFCE7",
+                              color: "#15803D",
+                            }
+                          : resolvedStructureStatus === "building"
+                          ? {
+                              backgroundColor: "#FEF9C3",
+                              color: "#A16207",
+                            }
+                          : resolvedStructureStatus === "weak"
+                          ? {
+                              backgroundColor: "#FEE2E2",
+                              color: "#B91C1C",
+                            }
+                          : {
+                              backgroundColor: "#F1F5F9",
+                              color: "#475569",
+                            }
+                      }
+                    >
+                      {resolvedStructureStatus === "ready"
+                        ? "Ready"
+                        : resolvedStructureStatus === "building"
+                        ? "Building"
+                        : resolvedStructureStatus === "weak"
+                        ? "Weak"
+                        : "Not set"}
+                    </span>
+                  </div>
+                </div>
+            
+                <p className="mt-4 text-sm leading-7 text-slate-700">
+                  {mainPathSummary.body}
+                </p>
               </div>
-
-              {(enhancedSourceInput.caseInput || enhancedSourceInput.summaryText) && (
-                <div className="mt-4">
-                  <p className="text-sm text-slate-500">Observed context</p>
+          
+              {(enhancedSourceInput.caseInput ||
+                enhancedSourceInput.summaryText ||
+                enhancedSourceInput.latestEvent) && (
+                <div className="mx-5 mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-500">
+                    Observed context
+                  </p>
                   <p className="mt-1 text-sm leading-6 text-slate-700">
-                    {enhancedSourceInput.caseInput ||
-                      enhancedSourceInput.summaryText ||
+                    {getCaseSummary(enhancedSourceInput.latestEvent) ||
+                      getCaseContext(enhancedSourceInput.latestEvent) ||
+                      getCaseSummary(enhancedSourceInput) ||
+                      getCaseContext(enhancedSourceInput) ||
                       "No case attached"}
                   </p>
                 </div>
               )}
-            </div>
+          
+              <div className="mx-5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-medium text-emerald-700">
+                  Primary recommendation
+                </p>
+                <p className="mt-1 text-base font-semibold text-emerald-900">
+                  {primaryRecommendation}
+                </p>
 
-            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4">
-              <p className="text-sm text-emerald-700">Next structural move</p>
-              <p className="text-base font-semibold text-emerald-900">
-                {nextStructuralMove}
-              </p>
+                <p className="mt-3 text-sm leading-6 text-emerald-800">
+                  {costAttachment}
+                </p>
+              </div>
+
+              <div className="mx-5 mb-6 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setBackupPathExpanded((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-500">
+                      Backup path
+                    </p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      Collapsed alternative
+                    </p>
+                  </div>
+
+                  <span className="text-sm font-medium text-slate-500">
+                    {backupPathExpanded ? "Hide" : "View"}
+                  </span>
+                </button>
+
+                {backupPathExpanded && (
+                  <div className="border-t border-slate-200 bg-white px-4 py-4">
+                    <p className="text-sm leading-6 text-slate-700">
+                      {backupRecommendation}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        </div>
 
           <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
             <button
@@ -1128,8 +1574,8 @@ const evidenceLock = {
 
                 <p className="text-base font-semibold text-slate-900">
                   {receiptReviewEligible
-                    ? "Eligible for receipt review"
-                    : "Not yet eligible"}
+                    ? "Weekly review complete enough for receipt evaluation"
+                    : "Weekly review is due, but materials are still incomplete"}
                 </p>
               </div>
 
@@ -1139,20 +1585,59 @@ const evidenceLock = {
             </button>
 
             {receiptEligibilityExpanded && (
-              <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-2">
+              <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
                 <p className="text-sm text-slate-700">
                   Structure {receiptReviewEligible ? "meets" : "does not meet"} the minimum threshold for receipt review.
+                  Receipt stays locked until the score reaches {scoring.receiptThreshold.toFixed(1)} / 4.
                 </p>
 
-                <p className="text-sm text-slate-700">
-                  Score: {score.toFixed(1)} / 4 (≥ 3.5 required)
-                </p>
+                <div className="px-3 py-2 space-y-1 text-sm text-slate-800">
+                  <div className="flex justify-between">
+                    <span>Evidence</span>
+                    <span>{scoring.evidenceScore.toFixed(1)} / 1</span>
+                  </div>
 
-                {!receiptReviewEligible && (
-                  <p className="text-sm text-amber-700">
-                    Improve structure completeness or evidence support to unlock receipt review.
+                  <div className="flex justify-between">
+                    <span>Structure</span>
+                    <span>{scoring.structureScore.toFixed(1)} / 1</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span>Consistency</span>
+                    <span>{scoring.consistencyScore.toFixed(1)} / 1</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span>Continuity</span>
+                    <span>{scoring.continuityScore.toFixed(1)} / 1</span>
+                  </div>
+
+                  <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-medium text-slate-900">
+                    <span>Total score</span>
+                    <span>{scoring.totalScore.toFixed(1)} / 4</span>
+                  </div>
+
+                  <div className="flex justify-between text-sm text-slate-700">
+                    <span>Complexity</span>
+                    <span>{complexityLabel}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm text-slate-600">
+                    {complexityNote}
                   </p>
-                )}
+
+                  {receiptReviewEligible ? (
+                    <p className="text-sm text-emerald-700">
+                      Receipt eligibility is based on four checks: Evidence, Structure, Consistency, and Continuity.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-amber-700">
+                      Receipt eligibility is based on four checks: Evidence, Structure, Consistency, and Continuity.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1188,16 +1673,150 @@ const evidenceLock = {
                   onClick={() => {
                     if (!receiptReviewEligible) return;
           
-                    const receiptState = {
-                      receiptPageData,
-                      verificationPageData,
+                    const routeDecision = {
+                      mode: resolvedSummaryMode
+                        ? "final_receipt"
+                        : runtimeState.resolvedReviewMode === "case_receipt"
+                        ? "case_receipt"
+                        : "case_receipt",
+                      reason: resolvedSummaryMode
+                        ? "weekly_summary_confirmed"
+                        : runtimeState.resolvedNextAction ||
+                          "single_case_confirmed",
+                    };
+
+                    const receiptSource = isWeeklySummaryFlow
+                      ? "pilot_weekly_summary"
+                      : "pilot_case_result";
+
+                    const receiptPageData = buildReceiptPageData(receiptSourceInput);
+
+                    const verificationPageData = buildVerificationPageData({
+                      ...receiptSourceInput,
+                      eventHistory: entries,
                       routeDecision,
                       receiptSource,
-                      evidenceLock,
+                    });
+
+                    const finalReceiptHash = createReceiptHash({
+                      ...receiptSourceInput,
+                      ...receiptPageData,
+                      runEntries,
+                      totalRunHits,
+                      executionSummary,
+                      generatedAt: receiptPageData.generatedAt,
+                    });
+
+                    const receiptPageDataWithHash = {
+                      ...receiptPageData,
+                      receiptHash: finalReceiptHash,
+                    };
+
+                    const finalEvidenceLock = {
+                      receiptId: receiptPageDataWithHash.receiptId || "RCPT-DEMO-001",
+                      receiptHash: finalReceiptHash,
+                      receiptSource: isWeeklySummaryFlow
+                        ? "pilot_weekly_summary"
+                        : "pilot_case_result",
+                      receiptMode: isWeeklySummaryFlow
+                        ? "final_receipt"
+                        : "case_receipt",
+                    };
+
+                    const sharedReceiptVerificationContract = buildReceiptContract({
+                      ...receiptPageDataWithHash,
+
+                      receiptSource,
+                      receiptHash: finalReceiptHash,
+
+                      caseData: receiptSourceInput.caseData || enhancedSourceInput.caseData || null,
+                      schemaVersion:
+                        receiptSourceInput.caseData?.schemaVersion ||
+                        enhancedSourceInput.caseData?.schemaVersion ||
+                        null,
+
+                      structureScoreFromCase:
+                        receiptSourceInput.caseData?.structureScore ??
+                        enhancedSourceInput.caseData?.structureScore ??
+                        null,
+
+                      // 🔽 Descriptive-only (NOT used for eligibility gating)
+                      structureMeta: {
+                        structureStatusFromCase:
+                          receiptSourceInput.caseData?.structureStatus ||
+                          enhancedSourceInput.caseData?.structureStatus ||
+                          resolvedStructureStatus ||
+                          null,
+                      },
+
+                      routeDecisionFromCase:
+                        receiptSourceInput.caseData?.routeDecision ||
+                        enhancedSourceInput.caseData?.routeDecision ||
+                        null,
+
+                      weakestDimension:
+                        resolvedWeakestDimension ||
+                        receiptSourceInput.caseData?.weakestDimension ||
+                        enhancedSourceInput.caseData?.weakestDimension ||
+                        "",
+
+                      behavioralGroundingSummary:
+                        verificationPageData?.behavioralGroundingSummary || {
+                          groundingStatus: "",
+                          groundingLabel: "",
+                          groundingNote: "",
+                          groundingScore: null,
+                        },
+
+                      verificationTitle:
+                        verificationPageData?.verificationTitle || "Structure Proof Verification",
+                      introText:
+                        verificationPageData?.introText ||
+                        "This page shows whether the receipt, supporting structure, and final output can be checked consistently.",
+                      finalNote:
+                        verificationPageData?.finalNote ||
+                        "Verification confirms whether the current receipt and supporting output are consistent and reviewable.",
+                      backToReceiptText:
+                        verificationPageData?.backToReceiptText || "Back to Decision Receipt",
+                      checks: verificationPageData?.checks || [],
+                      eventTimeline: verificationPageData?.eventTimeline || [],
+                      overallStatus:
+                        verificationPageData?.overallStatus || "Ready for Review",
+                      scoringVersion: scoring.scoringVersion,
+                        evidenceScore: scoring.evidenceScore,
+                        structureScore: scoring.structureScore,
+                        consistencyScore: scoring.consistencyScore,
+                        continuityScore: scoring.continuityScore,
+                        totalScore: scoring.totalScore,
+                        receiptThreshold: scoring.receiptThreshold,
+                        receiptEligible: scoring.receiptEligible,
+                        complexityScore,
+                        complexityLabel,
+                        complexityNote,
+                    });
+
+                    const flattenedSharedReceiptVerificationContract =
+                      flattenSharedReceiptVerificationContract(
+                        sharedReceiptVerificationContract
+                      );
+
+                    const receiptState = {
+                      receiptPageData: receiptPageDataWithHash,
+                      verificationPageData,
+
+                      sharedReceiptVerificationContract,
+                      flattenedSharedReceiptVerificationContract,
+
+                      routeDecision,
+                      receiptSource,
+                      evidenceLock: finalEvidenceLock,
+
+                      caseData: receiptSourceInput.caseData || enhancedSourceInput.caseData || null,
+                      eventHistory: entries,
                     };
           
                     recordRun({
-                      receiptId: receiptPageData.receiptId,
+                      receiptId: receiptPageDataWithHash.receiptId,
                       caseInput: receiptSourceInput.caseInput || "",
                       workflow: receiptSourceInput.workflow || "",
                       scenarioLabel: receiptSourceInput.scenarioLabel || "",
@@ -1207,7 +1826,7 @@ const evidenceLock = {
                       structuredEventsCount: executionSummary.structuredEventsCount,
                       latestEventType: executionSummary.latestEventType,
                       behaviorStatus: executionSummary.behaviorStatus,
-                      receiptPageData,
+                      receiptPageData: receiptPageDataWithHash,
                       verificationPageData,
                       routeDecision,
                       receiptSource,
@@ -1215,15 +1834,39 @@ const evidenceLock = {
                       totalRunHits,
                       primaryRunLabel,
                       runSummaryText,
-                      evidenceLock,
+                      evidenceLock: finalEvidenceLock,
+                      caseData: receiptSourceInput.caseData || enhancedSourceInput.caseData || null,
+                      eventHistory: entries,
                     });
           
-                    localStorage.setItem("receiptPageData", JSON.stringify(receiptPageData));
+                    localStorage.setItem(
+                      "receiptPageData",
+                      JSON.stringify(receiptPageDataWithHash)
+                    );
                     localStorage.setItem("receiptRouteDecision", JSON.stringify(routeDecision));
                     localStorage.setItem("receiptSource", receiptSource);
+
+                    localStorage.setItem(
+                      "sharedReceiptVerificationContract",
+                      JSON.stringify(sharedReceiptVerificationContract)
+                    );
+
+                    localStorage.setItem(
+                      "flattenedSharedReceiptVerificationContract",
+                      JSON.stringify(flattenedSharedReceiptVerificationContract)
+                    );
           
                     navigate(ROUTES.RECEIPT, {
-                      state: receiptState,
+                      state: {
+                        receiptPageData: receiptPageDataWithHash,
+                        routeDecision: {
+                          mode: isWeeklySummaryFlow ? "final_receipt" : "case_receipt",
+                        },
+                        receiptSource: isWeeklySummaryFlow
+                          ? "pilot_weekly_summary"
+                          : "pilot_case_result",
+                        evidenceLock: finalEvidenceLock,
+                      },
                     });
                   }}
                   style={{
@@ -1246,7 +1889,7 @@ const evidenceLock = {
                 >
                   {receiptReviewEligible
                     ? "Continue to Receipt Review →"
-                    : "Not ready for receipt →"}
+                    : "Receipt locked"}
                 </button>
           
                 <button
@@ -1254,7 +1897,6 @@ const evidenceLock = {
                   onClick={() => {
                     console.log("OPEN SUBSCRIPTION MODAL");
                     setShowSubscriptionModal(true);
-                    setSelectedPlan("Modal opened");
                   }}
                   style={{
                     display: "inline-flex",
@@ -1583,7 +2225,6 @@ const evidenceLock = {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPlan("Formal Decision Review");
                       setShowSubscriptionModal(false);
                     }}
                     style={{
@@ -1640,7 +2281,6 @@ const evidenceLock = {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPlan("Weekly Decision Support");
                       setShowSubscriptionModal(false);
                     }}
                     style={{
@@ -1697,7 +2337,6 @@ const evidenceLock = {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPlan("Monthly Judgment Support");
                       setShowSubscriptionModal(false);
                     }}
                     style={{

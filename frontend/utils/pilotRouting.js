@@ -44,6 +44,100 @@ function isPositiveNumber(value) {
   return typeof value === "number" && !Number.isNaN(value) && value > 0;
 }
 
+function isNonNegativeNumber(value) {
+  return typeof value === "number" && !Number.isNaN(value) && value >= 0;
+}
+
+function toNumber(value) {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+export function getReviewMode(source = {}) {
+  return (
+    source?.reviewMode ||
+    source?.routeMeta?.reviewMode ||
+    source?.pilot_result?.reviewMode ||
+    source?.pilot_setup?.reviewMode ||
+    source?.caseData?.reviewMode ||
+    null
+  );
+}
+
+export function getStructuredEventCount(source = {}) {
+  const candidates = [
+    source?.structuredEventCount,
+    source?.structured_event_count,
+    source?.eventReviewCount,
+    source?.reviewedEventCount,
+    source?.runEntries?.length,
+    source?.pilotEntries?.length,
+    source?.eventHistory?.length,
+    source?.pilot_result?.structuredEventCount,
+    source?.pilot_result?.eventReviewCount,
+    source?.pilot_setup?.structuredEventCount,
+    source?.pilot_setup?.eventReviewCount,
+    source?.routeMeta?.structuredEventCount,
+  ];
+
+  for (const candidate of candidates) {
+    const value = toNumber(candidate);
+    if (isNonNegativeNumber(value)) return value;
+  }
+
+  return 0;
+}
+
+export function getEvidenceSupportScore(source = {}) {
+  const candidates = [
+    source?.evidenceSupport,
+    source?.evidenceSupportScore,
+    source?.evidence_support,
+    source?.evidence_score,
+    source?.caseData?.evidenceSupport,
+    source?.caseData?.evidenceSupportScore,
+    source?.pilot_result?.evidenceSupport,
+    source?.pilot_result?.evidenceSupportScore,
+    source?.pilot_setup?.evidenceSupport,
+    source?.pilot_setup?.evidenceSupportScore,
+    source?.routeMeta?.evidenceSupport,
+  ];
+
+  for (const candidate of candidates) {
+    const value = toNumber(candidate);
+    if (value !== null) return value;
+  }
+
+  return null;
+}
+
+export function getStructureCompletenessScore(source = {}) {
+  const candidates = [
+    source?.structureCompleteness,
+    source?.structureCompletenessScore,
+    source?.structure_completeness,
+    source?.structure_score,
+    source?.caseData?.structureCompleteness,
+    source?.caseData?.structureCompletenessScore,
+    source?.pilot_result?.structureCompleteness,
+    source?.pilot_result?.structureCompletenessScore,
+    source?.pilot_setup?.structureCompleteness,
+    source?.pilot_setup?.structureCompletenessScore,
+    source?.routeMeta?.structureCompleteness,
+  ];
+
+  for (const candidate of candidates) {
+    const value = toNumber(candidate);
+    if (value !== null) return value;
+  }
+
+  return null;
+}
+
 /* ------------------------- 字段提取器 ------------------------- */
 
 /**
@@ -51,11 +145,14 @@ function isPositiveNumber(value) {
  */
 export function getResolvedRunId(source = {}) {
   return (
+    source?.caseData?.fallbackRunCode ||
     source?.resolvedRunId ||
     source?.runId ||
     source?.resolved_run_id ||
+    source?.pilot_result?.caseData?.fallbackRunCode ||
     source?.pilot_result?.runId ||
     source?.pilot_result?.resolvedRunId ||
+    source?.pilot_setup?.caseData?.fallbackRunCode ||
     source?.pilot_setup?.resolvedRunId ||
     source?.pilot_setup?.runId ||
     source?.routeMeta?.resolvedRunId ||
@@ -68,11 +165,14 @@ export function getResolvedRunId(source = {}) {
  */
 export function getResolvedPattern(source = {}) {
   return (
+    source?.caseData?.patternId ||
     source?.pattern ||
     source?.patternId ||
     source?.resolvedPattern ||
+    source?.pilot_result?.caseData?.patternId ||
     source?.pilot_result?.pattern ||
     source?.pilot_result?.patternId ||
+    source?.pilot_setup?.caseData?.patternId ||
     source?.pilot_setup?.pattern ||
     source?.pilot_setup?.patternId ||
     source?.routeMeta?.pattern ||
@@ -113,9 +213,12 @@ export function getResolvedChainId(source = {}) {
  */
 export function getResolvedStage(source = {}) {
   return (
+    source?.caseData?.stage ||
     source?.stage ||
     source?.resolvedStage ||
+    source?.pilot_result?.caseData?.stage ||
     source?.pilot_result?.stage ||
+    source?.pilot_setup?.caseData?.stage ||
     source?.pilot_setup?.stage ||
     source?.routeMeta?.stage ||
     null
@@ -127,12 +230,66 @@ export function getResolvedStage(source = {}) {
  */
 export function getResolvedCaseId(source = {}) {
   return (
+    source?.caseData?.caseId ||
     source?.caseId ||
     source?.case_id ||
+    source?.pilot_result?.caseData?.caseId ||
     source?.pilot_result?.caseId ||
+    source?.pilot_setup?.caseData?.caseId ||
     source?.pilot_setup?.caseId ||
     source?.routeMeta?.caseId ||
     null
+  );
+}
+
+/**
+ * 提取 eventWindow
+ */
+export function getResolvedEventWindow(source = {}) {
+  return (
+    source?.eventWindow ||
+    source?.routeMeta?.eventWindow ||
+    source?.pilot_result?.eventWindow ||
+    source?.pilot_setup?.eventWindow ||
+    source?.preview?.eventWindow ||
+    source?.preview?.pilot_preview?.eventWindow ||
+    "7-day pilot window"
+  );
+}
+
+/**
+ * 提取 progressLabel
+ */
+export function getResolvedProgressLabel(source = {}) {
+  return (
+    source?.progressLabel ||
+    source?.routeMeta?.progressLabel ||
+    source?.pilot_result?.progressLabel ||
+    source?.pilot_setup?.progressLabel ||
+    source?.preview?.progressLabel ||
+    source?.preview?.pilot_preview?.progressLabel ||
+    "Pilot access opened"
+  );
+}
+
+/**
+ * 提取 nextAction
+ *
+ * 注意：
+ * - resolvedNextAction 是“页面展示 / 导航提示语义”
+ * - legacyNextActionCode 是旧 routing 决策码
+ * 两者不要再混成一个字段
+ */
+export function getResolvedNextAction(source = {}) {
+  return (
+    source?.nextAction ||
+    source?.routeMeta?.nextAction ||
+    source?.pilot_result?.nextAction ||
+    source?.pilot_setup?.nextAction ||
+    source?.preview?.nextAction ||
+    source?.preview?.pilot_preview?.nextAction ||
+    source?.preview?.pilot_preview?.entry ||
+    ""
   );
 }
 
@@ -143,10 +300,18 @@ export function getResolvedCaseId(source = {}) {
  * v1:
  * - runId / pattern 任一存在即可视为已有结构结论
  */
+/**
+ * Structural resolution must come from resolved identifiers (runId / pattern),
+ * not from routeDecision flags.
+ */
 export function hasStructuralResolution(source = {}) {
   const runId = getResolvedRunId(source);
   const pattern = getResolvedPattern(source);
-  return hasValue(runId) || hasValue(pattern);
+
+  return (
+    hasValue(runId) ||
+    hasValue(pattern)
+  );
 }
 
 /**
@@ -174,6 +339,18 @@ export function hasEmergingSignals(source = {}) {
  * 只是说明 Pilot 进入总结阶段
  */
 export function isPilotComplete(source = {}) {
+  return (
+    source?.pilotComplete === true ||
+    source?.isPilotComplete === true ||
+    source?.samplingWindowClosed === true ||
+    source?.windowClosed === true ||
+    source?.pilot_result?.pilotComplete === true ||
+    source?.pilot_result?.samplingWindowClosed === true ||
+    source?.pilot_setup?.pilotComplete === true
+  );
+}
+
+export function isSamplingWindowClosed(source = {}) {
   const dayCount =
     source?.dayCount ??
     source?.day_count ??
@@ -185,13 +362,10 @@ export function isPilotComplete(source = {}) {
     source?.pilot_setup?.currentDay;
 
   return (
-    source?.pilotComplete === true ||
-    source?.isPilotComplete === true ||
     source?.samplingWindowClosed === true ||
     source?.windowClosed === true ||
-    source?.pilot_result?.pilotComplete === true ||
     source?.pilot_result?.samplingWindowClosed === true ||
-    source?.pilot_setup?.pilotComplete === true ||
+    source?.pilot_setup?.samplingWindowClosed === true ||
     (typeof dayCount === "number" && dayCount >= 7)
   );
 }
@@ -222,7 +396,14 @@ export function shouldUsePilotSummary(source = {}) {
  * - resolved 也不等于 receipt_ready
  */
 export function isReceiptReady(source = {}) {
-  const hasResolution = hasStructuralResolution(source);
+  const hasResolution =
+    hasStructuralResolution(source) ||
+    isReviewModeResolved(source) ||
+    (
+      hasEnoughStructuredEvents(source, 1) &&
+      hasEvidenceSupport(source, 1) &&
+      hasStructureCompleteness(source, 1)
+    );
 
   const explicitReady =
     source?.allowReceipt === true ||
@@ -236,6 +417,32 @@ export function isReceiptReady(source = {}) {
 }
 
 /* ------------------------- 状态解析 ------------------------- */
+
+export function isReviewModeResolved(source = {}) {
+  const reviewMode = getReviewMode(source);
+
+  return (
+    reviewMode === "case_receipt" ||
+    reviewMode === "final_receipt" ||
+    reviewMode === "resolved" ||
+    reviewMode === "verification_ready" ||
+    reviewMode === "summary"
+  );
+}
+
+export function hasEnoughStructuredEvents(source = {}, minimum = 1) {
+  return getStructuredEventCount(source) >= minimum;
+}
+
+export function hasEvidenceSupport(source = {}, minimum = 1) {
+  const score = getEvidenceSupportScore(source);
+  return score !== null && score >= minimum;
+}
+
+export function hasStructureCompleteness(source = {}, minimum = 1) {
+  const score = getStructureCompletenessScore(source);
+  return score !== null && score >= minimum;
+}
 
 /**
  * 根据当前 source 推断结构状态
@@ -256,16 +463,33 @@ export function resolveStructureStatus(source = {}) {
     return PILOT_STRUCTURE_STATUS.RECEIPT_READY;
   }
 
-  if (isPilotComplete(source)) {
-    return PILOT_STRUCTURE_STATUS.PILOT_COMPLETE;
-  }
+  const reviewModeResolved = isReviewModeResolved(source);
+  const enoughStructuredEvents = hasEnoughStructuredEvents(source, 1);
+  const enoughEvidenceSupport = hasEvidenceSupport(source, 1);
+  const enoughStructureCompleteness = hasStructureCompleteness(source, 1);
+  const samplingWindowClosed = isSamplingWindowClosed(source);
 
-  if (hasStructuralResolution(source)) {
+  if (
+    reviewModeResolved ||
+    hasStructuralResolution(source) ||
+    (enoughStructuredEvents && enoughEvidenceSupport && enoughStructureCompleteness)
+  ) {
     return PILOT_STRUCTURE_STATUS.RESOLVED;
   }
 
-  if (hasEmergingSignals(source)) {
-    return PILOT_STRUCTURE_STATUS.EMERGING;
+  if (
+    enoughStructuredEvents ||
+    enoughEvidenceSupport ||
+    enoughStructureCompleteness ||
+    hasEmergingSignals(source)
+  ) {
+    return samplingWindowClosed
+      ? PILOT_STRUCTURE_STATUS.PILOT_COMPLETE
+      : PILOT_STRUCTURE_STATUS.EMERGING;
+  }
+
+  if (samplingWindowClosed || isPilotComplete(source)) {
+    return PILOT_STRUCTURE_STATUS.PILOT_COMPLETE;
   }
 
   return PILOT_STRUCTURE_STATUS.INSUFFICIENT;
@@ -292,6 +516,7 @@ export function resolveStructureStatus(source = {}) {
  *   usePilotSummary
  * }
  */
+
 export function resolvePilotRoute(source = {}) {
   const structureStatus = resolveStructureStatus(source);
 
@@ -301,6 +526,10 @@ export function resolvePilotRoute(source = {}) {
   const chainId = getResolvedChainId(source);
   const stage = getResolvedStage(source);
   const caseId = getResolvedCaseId(source);
+
+  const resolvedEventWindow = getResolvedEventWindow(source);
+  const resolvedProgressLabel = getResolvedProgressLabel(source);
+  const resolvedNextAction = getResolvedNextAction(source);
 
   const allowReceipt = isReceiptReady(source);
   const usePilotSummary = shouldUsePilotSummary(source);
@@ -317,7 +546,10 @@ export function resolvePilotRoute(source = {}) {
       stage,
       caseId,
       reason: "structure_confirmed_for_receipt",
-      nextAction: "generate_receipt",
+      nextAction: resolvedNextAction || "Generate receipt review",
+      legacyNextActionCode: "generate_receipt",
+      eventWindow: resolvedEventWindow,
+      progressLabel: resolvedProgressLabel,
       allowReceipt: true,
       usePilotSummary,
     };
@@ -338,7 +570,16 @@ export function resolvePilotRoute(source = {}) {
       stage,
       caseId,
       reason: "pilot_window_closed_summary_required",
-      nextAction: usePilotSummary ? "open_pilot_summary" : "open_pilot_result_summary_mode",
+      nextAction:
+        resolvedNextAction ||
+        (usePilotSummary
+          ? "Open pilot summary"
+          : "Open pilot result summary mode"),
+      legacyNextActionCode: usePilotSummary
+        ? "open_pilot_summary"
+        : "open_pilot_result_summary_mode",
+      eventWindow: resolvedEventWindow,
+      progressLabel: resolvedProgressLabel,
       allowReceipt: false,
       usePilotSummary,
     };
@@ -356,7 +597,10 @@ export function resolvePilotRoute(source = {}) {
       stage,
       caseId,
       reason: "structure_resolved_but_not_receipt_ready",
-      nextAction: "review_resolved_structure",
+      nextAction: resolvedNextAction || "Review resolved structure",
+      legacyNextActionCode: "review_resolved_structure",
+      eventWindow: resolvedEventWindow,
+      progressLabel: resolvedProgressLabel,
       allowReceipt: false,
       usePilotSummary,
     };
@@ -374,7 +618,10 @@ export function resolvePilotRoute(source = {}) {
       stage,
       caseId,
       reason: "signals_emerging_continue_sampling",
-      nextAction: "continue_sampling",
+      nextAction: resolvedNextAction || "Continue sampling",
+      legacyNextActionCode: "continue_sampling",
+      eventWindow: resolvedEventWindow,
+      progressLabel: resolvedProgressLabel,
       allowReceipt: false,
       usePilotSummary,
     };
@@ -391,7 +638,10 @@ export function resolvePilotRoute(source = {}) {
     stage,
     caseId,
     reason: "insufficient_structure_return_to_result",
-    nextAction: "return_to_result",
+    nextAction: resolvedNextAction || "Return to result",
+    legacyNextActionCode: "return_to_result",
+    eventWindow: resolvedEventWindow,
+    progressLabel: resolvedProgressLabel,
     allowReceipt: false,
     usePilotSummary,
   };
@@ -439,6 +689,14 @@ export function buildPilotRouteMeta(source = {}) {
   return {
     ...decision,
     pathname: getPilotRoutePath(decision.target),
+    reviewMode: getReviewMode(source),
+    structuredEventCount: getStructuredEventCount(source),
+    evidenceSupport: getEvidenceSupportScore(source),
+    structureCompleteness: getStructureCompletenessScore(source),
+    samplingWindowClosed: isSamplingWindowClosed(source),
+    eventWindow: decision.eventWindow || getResolvedEventWindow(source),
+    progressLabel: decision.progressLabel || getResolvedProgressLabel(source),
+    nextAction: decision.nextAction || getResolvedNextAction(source),
   };
 }
 
@@ -464,6 +722,14 @@ export function buildPilotNavigationState(source = {}) {
       structureStatus: routeMeta.structureStatus || null,
       allowReceipt: routeMeta.allowReceipt === true,
       usePilotSummary: routeMeta.usePilotSummary === true,
+      reviewMode: routeMeta.reviewMode || null,
+      structuredEventCount: routeMeta.structuredEventCount || 0,
+      evidenceSupport: routeMeta.evidenceSupport ?? null,
+      structureCompleteness: routeMeta.structureCompleteness ?? null,
+      samplingWindowClosed: routeMeta.samplingWindowClosed === true,
+      eventWindow: routeMeta.eventWindow || null,
+      progressLabel: routeMeta.progressLabel || null,
+      nextAction: routeMeta.nextAction || null,
     },
 
     pilot_result: {
@@ -474,8 +740,15 @@ export function buildPilotNavigationState(source = {}) {
       stage: routeMeta.stage || null,
       caseId: routeMeta.caseId || null,
       structureStatus: routeMeta.structureStatus || null,
+      eventWindow: routeMeta.eventWindow || null,
+      progressLabel: routeMeta.progressLabel || null,
       nextAction: routeMeta.nextAction || null,
       summaryMode: routeMeta.structureStatus === PILOT_STRUCTURE_STATUS.PILOT_COMPLETE,
+      reviewMode: routeMeta.reviewMode || null,
+      structuredEventCount: routeMeta.structuredEventCount || 0,
+      evidenceSupport: routeMeta.evidenceSupport ?? null,
+      structureCompleteness: routeMeta.structureCompleteness ?? null,
+      samplingWindowClosed: routeMeta.samplingWindowClosed === true,
     },
   };
 }

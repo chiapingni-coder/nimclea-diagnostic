@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { logEvent } from "../utils/eventLogger";
+import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
@@ -178,6 +179,9 @@ function PilotHero({
   firstGuidedAction = "",
   firstStepLabel = "",
   weakestDimension = "",
+  eventWindow = "",
+  progressLabel = "",
+  nextAction = "",
 }) {
 
   const pilotId = useMemo(() => createPilotId(sessionId), [sessionId]);
@@ -198,6 +202,15 @@ function PilotHero({
     pilotFocus?.title ||
     preview?.pilot_preview?.entry ||
     "Start with one workflow where structural friction is easiest to observe.";
+
+  const resolvedEventWindow =
+    eventWindow || "7-day pilot window";
+
+  const resolvedProgressLabel =
+    progressLabel || "Pilot access opened";
+
+  const resolvedNextAction =
+    nextAction || focusText;
 
   return (
     <Card className="overflow-hidden">
@@ -237,7 +250,7 @@ function PilotHero({
         </p>
 
         <div className="mt-8">
-          <div className="grid gap-4 md:grid-cols-4 md:items-stretch">
+          <div className="grid grid-cols-3 gap-4 items-stretch">
             <div className="h-full w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                 Scenario
@@ -249,10 +262,10 @@ function PilotHero({
 
             <div className="h-full w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Strongest signal
+                Progress
               </div>
               <p className="mt-2 text-sm font-medium text-slate-900">
-                {strongestSignal?.label || "Structural Signal"}
+                {resolvedProgressLabel}
               </p>
             </div>
 
@@ -267,34 +280,14 @@ function PilotHero({
                 This dimension will shape the cost of your pilot path.
               </p>
             </div>
-
-            <div className="h-full w-full flex items-center justify-center">
-              <button
-                type="button"
-                onClick={onStart}
-                style={{
-                  backgroundColor: "#047857",
-                  color: "#FFFFFF",
-                  border: "none",
-                  borderRadius: "9999px",
-                  padding: "24px 28px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  lineHeight: 1,
-                  cursor: "pointer",
-                }}
-                className="inline-flex items-center justify-center"
-              >
-                Start My 7-Day Pilot →
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-8 py-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         <span>Pilot ID: {pilotId}</span>
-        <span>Built from your diagnostic result</span>
+        <span>{resolvedEventWindow}</span>
+        <span>{resolvedNextAction}</span>
       </div>
     </Card>
   );
@@ -303,8 +296,7 @@ function PilotHero({
 function WorkflowPicker({
   selectedWorkflow,
   onSelect,
-  customWorkflow,
-  onCustomChange,
+  onStart,
 }) {
   const workflowOptions = [
     "Audit preparation",
@@ -312,63 +304,100 @@ function WorkflowPicker({
     "Incident reconstruction",
     "Cross-team handoff",
     "Evidence retrieval",
+    "Policy exception review",
+    "Escalation handling",
+    "Vendor or partner coordination",
+    "Customer complaint resolution",
+    "Decision trace reconstruction",
+    "Compliance documentation check",
+    "Ownership clarification",
+    "Post-incident follow-up",
     "Other",
   ];
 
   return (
     <Card className="p-6 md:p-7">
       <SectionTitle
-        title="Choose one workflow to test"
-        hint="Use one real workflow for this pilot. Keep the scope narrow so the result is easier to observe and verify."
+        title="Choose a workflow. Your pilot is ready to start."
       />
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
-        {workflowOptions.map((option) => {
-          const isSelected = selectedWorkflow === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onSelect(option)}
-              className={`rounded-2xl border px-4 py-4 text-left transition ${
-                isSelected
-                  ? "text-slate-900 shadow-md"
-                  : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-              }`}
-              style={
-                isSelected
-                  ? {
-                      backgroundColor: "#FEE2E2",
-                      borderColor: "#FCA5A5",
-                    }
-                  : undefined
-              }
-            >
-              <div
-                className="text-sm font-semibold"
-                style={isSelected ? { color: "#991B1B" } : undefined}
-              >
+      <div
+        className="mt-5"
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "16px",
+          width: "100%",
+        }}
+      >
+        <div
+          className="relative"
+          style={{
+            width: "58%",
+            minWidth: "420px",
+            maxWidth: "560px",
+          }}
+        >
+          <select
+            id="workflow-select"
+            value={selectedWorkflow}
+            onChange={(e) => onSelect(e.target.value)}
+           className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-5 pr-14 py-4 text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+          >
+            {workflowOptions.map((option) => (
+              <option key={option} value={option}>
                 {option}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </option>
+            ))}
+          </select>
 
-      {selectedWorkflow === "Other" ? (
-        <div className="mt-4">
-          <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Custom workflow
-          </label>
-          <input
-            type="text"
-            value={customWorkflow}
-            onChange={(e) => onCustomChange(e.target.value)}
-            placeholder="Name the workflow you want to test"
-            className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:border-slate-500"
-          />
-        </div>
-      ) : null}
+          <div className="pointer-events-none absolute inset-y-0 right-6 flex items-center text-slate-400">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+      </svg>
+    </div>
+  </div>
+
+  <div
+  style={{
+    width: "280px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    flexShrink: 0,
+  }}
+>
+  <button
+    type="button"
+    onClick={onStart}
+    style={{
+      backgroundColor: "#047857",
+      color: "#FFFFFF",
+      border: "none",
+      borderRadius: "9999px",
+      padding: "18px 32px",
+      fontSize: "16px",
+      fontWeight: 600,
+      lineHeight: 1,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+    }}
+    className="inline-flex items-center justify-center"
+  >
+    Start My 7-Day Pilot →
+  </button>
+</div>
+</div>
     </Card>
   );
 }
@@ -435,7 +464,6 @@ function getPilotTradeoffCopy(weakestDimension = "") {
 function PilotPlanCard({
   preview,
   selectedWorkflow,
-  customWorkflow,
   pilotFocusKey = "",
   firstGuidedAction = "",
   firstStepLabel = "",
@@ -444,10 +472,7 @@ function PilotPlanCard({
 
   const [open, setOpen] = useState(false);
   const strongestSignal = preview?.top_signals?.[0] || null;
-  const workflowName =
-    selectedWorkflow === "Other"
-      ? customWorkflow.trim() || "Custom workflow"
-      : selectedWorkflow || "Selected workflow";
+  const workflowName = selectedWorkflow || "Selected workflow";
 
   const effectivePilotFocusKey =
     pilotFocusKey ||
@@ -707,9 +732,15 @@ export default function PilotPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const incomingCaseSchema =
+    location.state?.caseSchema && typeof location.state.caseSchema === "object"
+      ? normalizeCaseInput(location.state.caseSchema)
+      : null;
+
   console.log("🧠 location.state:", location.state);
 
   const resolvedChainId =
+    incomingCaseSchema?.chainId ||
     location.state?.chainId ||
     location.state?.result?.chainId ||
     location.state?.preview?.chainId ||
@@ -717,6 +748,7 @@ export default function PilotPage() {
     "CHAIN-001";
 
   const rawStage =
+    incomingCaseSchema?.stage ||
     location.state?.stage ||
     location.state?.resolvedStage ||
     location.state?.result?.stage ||
@@ -736,6 +768,7 @@ export default function PilotPage() {
     "";
 
   const weakestDimension =
+    incomingCaseSchema?.weakestDimension ||
     location.state?.weakestDimension ||
     location.state?.result?.weakestDimension ||
     location.state?.preview?.weakestDimension ||
@@ -759,19 +792,93 @@ export default function PilotPage() {
     location.state?.preview?.firstStepLabel ||
     "";
 
+  const incomingEventWindow =
+    location.state?.routeMeta?.eventWindow || "";
+
+  const incomingProgressLabel =
+    location.state?.routeMeta?.progressLabel || "";
+
+  const incomingNextAction =
+    location.state?.routeMeta?.nextAction || "";
+
   const previewFromLocation =
     location.state?.preview && typeof location.state.preview === "object"
       ? location.state.preview
       : null;
 
+  const previewFromCaseSchema = incomingCaseSchema
+    ? {
+        title: "Nimclea Pilot Context",
+        scenario: {
+          code: incomingCaseSchema.scenarioCode || "",
+          label: incomingCaseSchema.scenarioCode || "No Dominant Scenario",
+        },
+        top_signals: [
+          {
+            key: incomingCaseSchema.pilotFocusKey || "",
+            signalKey: incomingCaseSchema.pilotFocusKey || "",
+            label:
+              incomingCaseSchema.pilotFocusKey ||
+              incomingCaseSchema.weakestDimension ||
+              "Structural Signal",
+            description: getSafeCaseSummary(incomingCaseSchema),
+            pilotStep: incomingCaseSchema.routeDecision?.reason || "",
+            pilotMetric: incomingCaseSchema.structureStatus || "",
+          },
+        ],
+        pilot_preview: {
+          entry:
+            location.state?.firstStepLabel ||
+            "Start with one workflow where structural friction is easiest to observe.",
+          actions: [
+            location.state?.firstGuidedAction ||
+              "Start with the first place where this workflow becomes harder to explain, verify, or sustain.",
+          ],
+          outcome:
+            incomingCaseSchema.routeDecision?.reason ||
+            "Observe whether the workflow becomes easier to execute and verify.",
+          eventWindow:
+            location.state?.eventWindow ||
+            location.state?.routeMeta?.eventWindow ||
+            "7-day pilot window",
+          progressLabel:
+            location.state?.progressLabel ||
+            location.state?.routeMeta?.progressLabel ||
+            "Pilot access opened",
+          nextAction:
+            location.state?.nextAction ||
+            location.state?.routeMeta?.nextAction ||
+            location.state?.firstStepLabel ||
+            "Start with one workflow where structural friction is easiest to observe.",
+        },
+        eventWindow:
+          location.state?.eventWindow ||
+          location.state?.routeMeta?.eventWindow ||
+          "7-day pilot window",
+        progressLabel:
+          location.state?.progressLabel ||
+          location.state?.routeMeta?.progressLabel ||
+          "Pilot access opened",
+        nextAction:
+          location.state?.nextAction ||
+          location.state?.routeMeta?.nextAction ||
+          location.state?.firstStepLabel ||
+          "Start with one workflow where structural friction is easiest to observe.",
+        weakestDimension: incomingCaseSchema.weakestDimension || "",
+        chainId: incomingCaseSchema.chainId || "",
+        stage: incomingCaseSchema.stage || "",
+        summary: [getSafeCaseSummary(incomingCaseSchema)],
+      }
+    : null;
+
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
-  const [customWorkflow, setCustomWorkflow] = useState("");
 
   useEffect(() => {
     const source =
       previewFromLocation ||
+      previewFromCaseSchema ||
       getStoredPreview(resolvedSessionId) ||
       null;
 
@@ -783,7 +890,7 @@ export default function PilotPage() {
 
     setPreview(null);
     setLoading(false);
-  }, [previewFromLocation, resolvedSessionId]);
+    }, [previewFromLocation, previewFromCaseSchema, resolvedSessionId]);
 
   const handleBack = useCallback(() => {
     navigate(
@@ -800,10 +907,11 @@ export default function PilotPage() {
   }, [navigate, preview, resolvedSessionId]);
 
   const handleStart = useCallback(() => {
-    const workflow =
-      selectedWorkflow === "Other"
-        ? customWorkflow.trim() || "Custom workflow"
-        : selectedWorkflow;
+    const workflow = selectedWorkflow || "Audit preparation";
+
+    const resolvedEventWindowForStart = incomingEventWindow;
+    const resolvedProgressLabelForStart = incomingProgressLabel;
+    const resolvedNextActionForStart = incomingNextAction;
 
     const pilotState = {
       session_id: resolvedSessionId,
@@ -811,6 +919,28 @@ export default function PilotPage() {
       preview,
       result: preview,
       sourceInput: preview,
+      caseSchema:
+        incomingCaseSchema ||
+        normalizeCaseInput({
+          summary:
+            Array.isArray(preview?.summary) && preview.summary.length > 0
+              ? preview.summary.join(" ")
+              : "",
+          scenarioCode:
+            preview?.scenario?.code ||
+            preview?.scenarioCode ||
+            "",
+          weakestDimension,
+          chainId: resolvedChainId,
+          stage: resolvedStage,
+          patternId: incomingPilotFocusKey || "",
+          routeDecision: {
+            mode: "summary_only",
+            eligibleForReceipt: false,
+            eligibleForVerification: false,
+            reason: "Pilot starter page fallback schema.",
+          },
+        }),
       stage: resolvedStage,
       resolvedStage,
       chainId: resolvedChainId,
@@ -828,8 +958,10 @@ export default function PilotPage() {
       pilotFocusKey: incomingPilotFocusKey,
       firstGuidedAction: incomingFirstGuidedAction,
       firstStepLabel: incomingFirstStepLabel,
+      eventWindow: resolvedEventWindowForStart,
+      progressLabel: resolvedProgressLabelForStart,
+      nextAction: resolvedNextActionForStart,
     };
-
     navigate(
       resolvedSessionId
         ? `/pilot/setup?session_id=${resolvedSessionId}`
@@ -843,11 +975,14 @@ export default function PilotPage() {
     resolvedChainId,
     resolvedStage,
     selectedWorkflow,
-    customWorkflow,
     weakestDimension,
     incomingPilotFocusKey,
     incomingFirstGuidedAction,
     incomingFirstStepLabel,
+    incomingEventWindow,
+    incomingProgressLabel,
+    incomingNextAction,
+    incomingCaseSchema,
   ]);
 
   if (loading) {
@@ -870,19 +1005,20 @@ export default function PilotPage() {
             firstGuidedAction={incomingFirstGuidedAction}
             firstStepLabel={incomingFirstStepLabel}
             weakestDimension={weakestDimension}
+            eventWindow={incomingEventWindow}
+            progressLabel={incomingProgressLabel}
+            nextAction={incomingNextAction}
           />
 
           <WorkflowPicker
             selectedWorkflow={selectedWorkflow}
             onSelect={setSelectedWorkflow}
-            customWorkflow={customWorkflow}
-            onCustomChange={setCustomWorkflow}
+            onStart={handleStart}
           />
 
           <PilotPlanCard
             preview={preview}
             selectedWorkflow={selectedWorkflow}
-            customWorkflow={customWorkflow}
             pilotFocusKey={incomingPilotFocusKey}
             firstGuidedAction={incomingFirstGuidedAction}
             firstStepLabel={incomingFirstStepLabel}

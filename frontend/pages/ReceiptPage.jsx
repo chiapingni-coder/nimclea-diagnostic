@@ -2,6 +2,18 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
+import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
+import {
+  getCaseSummary,
+  getCaseContext,
+  getCaseScenarioCode,
+  getCaseStage,
+  getCaseRunCode,
+} from "../utils/caseAccessors";
+import {
+  buildReceiptContract,
+  flattenSharedReceiptVerificationContract,
+} from "../utils/sharedReceiptVerificationContract";
 
 function getStoredReceiptData() {
   try {
@@ -72,7 +84,7 @@ function createRunSummarySignature(runEntries = []) {
     .join("|");
 }
 
-function createReceiptHash(input = {}) {
+export function createReceiptHash(input = {}) {
   const runSummarySignature = createRunSummarySignature(
     Array.isArray(input.runEntries) ? input.runEntries : []
   );
@@ -86,10 +98,10 @@ function createReceiptHash(input = {}) {
 
   const raw = [
     input.receiptId || "",
-    input.summaryContext || input.caseInput || "",
-    input.scenarioLabel || "",
-    input.stageLabel || "",
-    runSummarySignature || input.runLabel || "",
+    getCaseSummary(input) || getCaseContext(input),
+    getCaseScenarioCode(input),
+    getCaseStage(input),
+    runSummarySignature || getCaseRunCode(input),
     input.totalRunHits || "",
     behaviorSignature,
     input.generatedAt || "",
@@ -104,8 +116,177 @@ function createReceiptHash(input = {}) {
   return `H-${Math.abs(hash).toString(16).toUpperCase()}`;
 }
 
+function getFirstNonEmpty(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    return value;
+  }
+  return null;
+}
+
+function resolveReceiptPayload(locationState = {}, routeData = null, storedData = null) {
+  const directCaseData =
+    locationState?.caseData ||
+    locationState?.caseSchemaSnapshot ||
+    locationState?.caseSchema ||
+    null;
+
+  const routeCaseData =
+    routeData?.caseData ||
+    routeData?.caseSchemaSnapshot ||
+    routeData?.caseSchema ||
+    null;
+
+  const storedCaseData =
+    storedData?.caseData ||
+    storedData?.caseSchemaSnapshot ||
+    storedData?.caseSchema ||
+    null;
+
+  const caseData = directCaseData || routeCaseData || storedCaseData || null;
+
+  const eventHistorySummary =
+    locationState?.eventHistorySummary ||
+    locationState?.eventSummary ||
+    routeData?.eventHistorySummary ||
+    routeData?.eventSummary ||
+    routeData?.executionSummary ||
+    routeData?.eventExecutionSummary ||
+    storedData?.eventHistorySummary ||
+    storedData?.eventSummary ||
+    storedData?.executionSummary ||
+    storedData?.eventExecutionSummary ||
+    null;
+
+  const reviewResultSummary =
+    locationState?.reviewResultSummary ||
+    locationState?.reviewSummary ||
+    locationState?.pilotResultSummary ||
+    routeData?.reviewResultSummary ||
+    routeData?.reviewSummary ||
+    routeData?.pilotResultSummary ||
+    storedData?.reviewResultSummary ||
+    storedData?.reviewSummary ||
+    storedData?.pilotResultSummary ||
+    null;
+
+  return {
+    caseData,
+    eventHistorySummary,
+    reviewResultSummary,
+
+    receiptTitle: getFirstNonEmpty(
+      locationState?.receiptTitle,
+      routeData?.receiptTitle,
+      storedData?.receiptTitle
+    ),
+    receiptId: getFirstNonEmpty(
+      locationState?.receiptId,
+      routeData?.receiptId,
+      storedData?.receiptId
+    ),
+    generatedAt: getFirstNonEmpty(
+      locationState?.generatedAt,
+      routeData?.generatedAt,
+      storedData?.generatedAt
+    ),
+    verifiedAt: getFirstNonEmpty(
+      locationState?.verifiedAt,
+      routeData?.verifiedAt,
+      storedData?.verifiedAt
+    ),
+    receiptHash: getFirstNonEmpty(
+      locationState?.receiptHash,
+      routeData?.receiptHash,
+      storedData?.receiptHash
+    ),
+
+    runEntries:
+      locationState?.runEntries ||
+      reviewResultSummary?.runEntries ||
+      routeData?.runEntries ||
+      storedData?.runEntries ||
+      [],
+
+    runSummaryText: getFirstNonEmpty(
+      locationState?.runSummaryText,
+      reviewResultSummary?.runSummaryText,
+      routeData?.runSummaryText,
+      storedData?.runSummaryText
+    ),
+
+    topSignals:
+      locationState?.topSignals ||
+      reviewResultSummary?.topSignals ||
+      routeData?.topSignals ||
+      storedData?.topSignals ||
+      [],
+
+    nextStepTitle: getFirstNonEmpty(
+      locationState?.nextStepTitle,
+      reviewResultSummary?.nextStepTitle,
+      routeData?.nextStepTitle,
+      storedData?.nextStepTitle
+    ),
+
+    nextStepText: getFirstNonEmpty(
+      locationState?.nextStepText,
+      reviewResultSummary?.nextStepText,
+      routeData?.nextStepText,
+      storedData?.nextStepText
+    ),
+
+    confidenceLabel: getFirstNonEmpty(
+      locationState?.confidenceLabel,
+      reviewResultSummary?.confidenceLabel,
+      routeData?.confidenceLabel,
+      storedData?.confidenceLabel
+    ),
+
+    receiptNote: getFirstNonEmpty(
+      locationState?.receiptNote,
+      reviewResultSummary?.receiptNote,
+      routeData?.receiptNote,
+      storedData?.receiptNote
+    ),
+
+    verificationCtaText: getFirstNonEmpty(
+      locationState?.verificationCtaText,
+      reviewResultSummary?.verificationCtaText,
+      routeData?.verificationCtaText,
+      storedData?.verificationCtaText
+    ),
+
+    decisionStatus: getFirstNonEmpty(
+      locationState?.decisionStatus,
+      reviewResultSummary?.decisionStatus,
+      routeData?.decisionStatus,
+      storedData?.decisionStatus
+    ),
+  };
+}
+
 function normalizeReceiptData(input = {}) {
-  const aggregation = buildRunAggregation(input);
+  const aggregation = buildRunAggregation({
+    ...input,
+    runEntries:
+      input.runEntries ||
+      input.reviewResultSummary?.runEntries ||
+      [],
+  });
+
+  const normalizedCaseData = input.caseData
+    ? normalizeCaseInput(input.caseData, { source: "receipt" })
+    : null;
+
+  const resolvedExecutionSummary =
+    input.eventHistorySummary ||
+    input.executionSummary ||
+    input.eventExecutionSummary ||
+    {};
+
+  const resolvedReviewSummary = input.reviewResultSummary || {};
 
   return {
     receiptTitle: input.receiptTitle || "Decision Receipt",
@@ -114,57 +295,127 @@ function normalizeReceiptData(input = {}) {
     verifiedAt: input.verifiedAt || "",
     receiptHash: input.receiptHash || "",
 
-    summaryTitle: input.summaryTitle || "Recorded Decision Structure",
+    summaryTitle:
+      input.summaryTitle ||
+      resolvedReviewSummary.summaryTitle ||
+      "Recorded Decision Structure",
+
     summaryText:
-      input.summaryText ||
+      getCaseSummary({
+        ...input,
+        caseData: normalizedCaseData,
+      }) ||
+      resolvedReviewSummary.summaryText ||
       "This receipt records the structured RUN patterns identified during the current pilot window.",
 
-    scenarioLabel: input.scenarioLabel || "No Dominant Scenario",
-    stageLabel: input.stageLabel || "S0",
-    runLabel: input.runLabel || aggregation.primaryRunLabel || "RUN000",
-    caseInput: input.caseInput || "",
-    summaryContext: input.summaryContext || "",
+    scenarioLabel:
+      getCaseScenarioCode({
+        ...input,
+        caseData: normalizedCaseData,
+      }) || "No Dominant Scenario",
+
+    stageLabel:
+      getCaseStage({
+        ...input,
+        caseData: normalizedCaseData,
+      }) || "S0",
+
+    runLabel:
+      getCaseRunCode({
+       ...input,
+        caseData: normalizedCaseData,
+      }) ||
+      aggregation.primaryRunLabel ||
+      "RUN000",
+
+    caseInput: getCaseContext({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
+
+    summaryContext: getCaseSummary({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
+
     displayContext:
-      input.summaryContext ||
-      input.caseInput ||
-      "",
+      getCaseSummary({
+        ...input,
+        caseData: normalizedCaseData,
+      }) ||
+      getCaseContext({
+        ...input,
+        caseData: normalizedCaseData,
+      }),
 
     runEntries: aggregation.runEntries,
     totalRunHits: aggregation.totalRunHits,
     primaryRunLabel: aggregation.primaryRunLabel,
     runSummaryText: aggregation.runSummaryText,
 
-    executionSummary: input.executionSummary || {
-      totalEvents: 0,
-      structuredEventsCount: 0,
-      latestEventType: "other",
-      latestEventLabel: "No recorded structural event",
-      latestEventDescription: "",
-      mainObservedShift: "No behavioral shift recorded yet.",
-      nextCalibrationAction: "Record one real workflow event to begin calibration.",
-      behaviorStatus: "behavior_weak",
+    executionSummary: {
+      totalEvents: resolvedExecutionSummary.totalEvents ?? 0,
+      structuredEventsCount: resolvedExecutionSummary.structuredEventsCount ?? 0,
+      latestEventType: resolvedExecutionSummary.latestEventType || "other",
+      latestEventLabel:
+        resolvedExecutionSummary.latestEventLabel || "No recorded structural event",
+      latestEventDescription:
+        resolvedExecutionSummary.latestEventDescription || "",
+      mainObservedShift:
+        resolvedExecutionSummary.mainObservedShift ||
+        "No behavioral shift recorded yet.",
+      nextCalibrationAction:
+        resolvedExecutionSummary.nextCalibrationAction ||
+        "Record one real workflow event to begin calibration.",
+      behaviorStatus:
+        resolvedExecutionSummary.behaviorStatus || "behavior_weak",
     },
 
-    topSignals: Array.isArray(input.topSignals)
+    topSignals: Array.isArray(input.topSignals) && input.topSignals.length > 0
       ? input.topSignals
+      : Array.isArray(resolvedReviewSummary.topSignals) && resolvedReviewSummary.topSignals.length > 0
+      ? resolvedReviewSummary.topSignals
       : [
           "dominant_failure_mode",
           "external_pressure",
           "pressure_revealed_weak_point",
         ],
 
-    nextStepTitle: input.nextStepTitle || "Recommended Next Step",
+    nextStepTitle:
+      input.nextStepTitle ||
+      resolvedReviewSummary.nextStepTitle ||
+      "Recommended Next Step",
+
     nextStepText:
       input.nextStepText ||
+      resolvedReviewSummary.nextStepText ||
       "Proceed to verification to confirm whether this aggregated RUN record can be checked consistently across the final output, proof, and receipt.",
 
-    decisionStatus: input.decisionStatus || "Ready for Verification",
-    confidenceLabel: input.confidenceLabel || "High",
+    decisionStatus:
+      input.decisionStatus ||
+      resolvedReviewSummary.decisionStatus ||
+      "Ready for Verification",
+
+    confidenceLabel:
+      input.confidenceLabel ||
+      resolvedReviewSummary.confidenceLabel ||
+      "High",
+
     receiptNote:
       input.receiptNote ||
+      resolvedReviewSummary.receiptNote ||
       "This receipt is a structured record of aggregated RUN patterns for review and verification. It does not certify individual events, but validates the structural patterns observed across the pilot window.",
 
-    verificationCtaText: input.verificationCtaText || "Proceed to Verification",
+    verificationCtaText:
+      input.verificationCtaText ||
+      resolvedReviewSummary.verificationCtaText ||
+      "Proceed to Verification",
+
+    caseData: normalizedCaseData,
+    schemaVersion: normalizedCaseData?.schemaVersion || null,
+    structureScoreFromCase: normalizedCaseData?.structureScore ?? null,
+    structureStatusFromCase: normalizedCaseData?.structureStatus || null,
+    routeDecisionFromCase: normalizedCaseData?.routeDecision || null,
   };
 }
 
@@ -172,10 +423,18 @@ export default function ReceiptPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const routeDecision = location.state?.routeDecision || null;
-  const receiptSource = location.state?.receiptSource || "";
+  const routeEnvelope = location.state || null;
+  const routeDecision = routeEnvelope?.routeDecision || null;
+  const receiptSource = routeEnvelope?.receiptSource || "";
 
-  const receiptMode = routeDecision?.mode || "case_receipt";
+  const rawReceiptMode = routeDecision?.mode || "";
+
+  const receiptMode =
+    rawReceiptMode === "case_receipt" || rawReceiptMode === "final_receipt"
+      ? rawReceiptMode
+      : receiptSource === "pilot_weekly_summary"
+      ? "final_receipt"
+      : "case_receipt";
 
   const canRenderReceipt =
     (receiptMode === "case_receipt" &&
@@ -188,18 +447,23 @@ export default function ReceiptPage() {
     : null;
 
   const storedData = canRenderReceipt ? getStoredReceiptData() : null;
-  const normalized = normalizeReceiptData(routeData || storedData || {});
+
+  const resolvedPayload = resolveReceiptPayload(
+    location.state || {},
+    routeData,
+    storedData
+  );
+
+  const normalized = normalizeReceiptData(resolvedPayload);
   const isVerified =
     normalized.verifiedAt ||
     location.state?.verificationPageData?.verifiedAt;
 
-  const {
-    decisionStatus: _ignoredDecisionStatus,
-    ...normalizedWithoutDecisionStatus
-  } = normalized;
+  const normalizedWithoutDecisionStatus = normalized;
 
   const baseReceiptData = {
     ...normalizedWithoutDecisionStatus,
+      caseData: normalized.caseData || resolvedPayload.caseData || null,
     generatedAt: normalized.generatedAt || new Date().toLocaleString(),
 
     verifiedAt:
@@ -218,16 +482,50 @@ export default function ReceiptPage() {
 
 const evaluated = evaluateCaseRecordStatus(baseReceiptData);
 
-const data = {
+const rawData = {
   ...baseReceiptData,
-  summaryContext:
-    baseReceiptData.summaryContext || "",
+  caseData: baseReceiptData.caseData || null,
+  summaryContext: getCaseSummary(baseReceiptData),
   displayContext:
-    baseReceiptData.summaryContext ||
-    baseReceiptData.caseInput ||
-    "",
-  decisionStatus: isVerified ? "Verified" : evaluated.receiptStatus,
+    getCaseSummary(baseReceiptData) ||
+    getCaseContext(baseReceiptData),
 };
+
+const sharedContract = buildReceiptContract({
+  ...rawData,
+  receiptSource,
+});
+
+const sharedFlat = flattenSharedReceiptVerificationContract(sharedContract);
+
+const data = {
+  ...rawData,
+  ...sharedFlat,
+  confidenceLabel:
+    sharedFlat.confidenceLabel ||
+    rawData.confidenceLabel ||
+    normalized.confidenceLabel ||
+    "High",
+  nextStepTitle:
+    sharedFlat.nextStepTitle ||
+    rawData.nextStepTitle ||
+    normalized.nextStepTitle ||
+    "Recommended Next Step",
+  nextStepText:
+    sharedFlat.nextStepText ||
+    rawData.nextStepText ||
+    normalized.nextStepText ||
+    "Proceed to verification to confirm whether this aggregated RUN record can be checked consistently across the final output, proof, and receipt.",
+  verificationCtaText:
+    sharedFlat.verificationCtaText ||
+    rawData.verificationCtaText ||
+    normalized.verificationCtaText ||
+    "Proceed to Verification",
+  decisionStatus:
+    isVerified
+      ? "Verified"
+      : sharedFlat.decisionStatus || "Ready for Verification",
+  };
 
 const finalEvidenceLock = {
   ...(location.state?.evidenceLock || {}),
@@ -247,7 +545,27 @@ const isEvidenceLockedConsistent =
     evidenceLock.receiptMode === receiptMode
   );
 
-const verificationBlockedReason = !isEvidenceLockedConsistent
+console.log("incoming evidenceLock =", evidenceLock);
+console.log("current receiptId =", data.receiptId);
+console.log("current receiptHash =", data.receiptHash);
+console.log("current receiptSource / mode =", receiptSource, receiptMode);
+console.log("lock checks =", {
+  idMatch: evidenceLock?.receiptId === data.receiptId,
+  hashMatch: !evidenceLock?.receiptHash || evidenceLock?.receiptHash === data.receiptHash,
+  sourceMatch: evidenceLock?.receiptSource === receiptSource,
+  modeMatch: evidenceLock?.receiptMode === receiptMode,
+});
+
+const receiptAllowsVerification =
+  data.decisionStatus === "Ready for Verification" ||
+  data.decisionStatus === "Verified";
+
+const canEnterVerification =
+  receiptAllowsVerification && isEvidenceLockedConsistent;
+
+const verificationBlockedReason = !receiptAllowsVerification
+  ? "Verification is unavailable because this receipt has not been issued for verification yet."
+  : !isEvidenceLockedConsistent
   ? "Verification is locked because this receipt no longer matches the issued evidence chain."
   : "";
 
@@ -256,6 +574,22 @@ const verificationReturnStatus =
 
 const returnedFromFailedVerification =
   verificationReturnStatus === "Verification Failed";
+
+React.useEffect(() => {
+  try {
+    localStorage.setItem("receiptPageData", JSON.stringify(data));
+    localStorage.setItem(
+      "sharedReceiptVerificationContract",
+      JSON.stringify(sharedContract)
+    );
+
+    if (data.caseData) {
+      localStorage.setItem("receiptCaseData", JSON.stringify(data.caseData));
+    }
+  } catch (error) {
+    console.error("Failed to persist receipt payload:", error);
+  }
+}, [data, sharedContract]);
 
 if (!canRenderReceipt) {
   return (
@@ -286,17 +620,6 @@ if (!canRenderReceipt) {
     </div>
   );
 }
-
-  console.log("ReceiptPage location.state:", location.state);
-  console.log("ReceiptPage data:", data);
-
-  function handleProceedToVerification() {
-    try {
-      localStorage.setItem("receiptPageData", JSON.stringify(data));
-    } catch (error) {
-      console.error("Failed to persist receipt payload:", error);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
@@ -358,6 +681,25 @@ if (!canRenderReceipt) {
                 This status reflects structural consistency evaluation across RUN aggregation, hash integrity, and verification readiness.
               </p>
             </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Case Schema</p>
+              <p className="font-semibold">
+                {data.schemaVersion || "Not attached"}
+              </p>
+
+              {typeof data.structureScoreFromCase === "number" ? (
+                <p className="text-xs text-slate-500 mt-2">
+                  Structure score: {data.structureScoreFromCase.toFixed(2)}
+                </p>
+              ) : null}
+
+              {data.structureStatusFromCase ? (
+                <p className="text-xs text-slate-500 mt-1">
+                  Structure status: {data.structureStatusFromCase}
+                </p>
+              ) : null}
+            </div>
           </div>
         </header>
 
@@ -379,16 +721,19 @@ if (!canRenderReceipt) {
           <h2 className="text-xl font-semibold mb-3">{data.summaryTitle}</h2>
 
           <p className="text-slate-700 leading-7">
-            {receiptMode === "final_receipt"
-              ? "This structure proof certifies the summarized outcome of the 7-day pilot window, including the dominant workflow, observed structure, and final decision path."
-              : "This structure proof certifies the aggregated RUN patterns identified during the current pilot window."}
+            {data.summaryText ||
+              (receiptMode === "final_receipt"
+                ? "This structure proof certifies the summarized outcome of the 7-day pilot window, including the dominant workflow, observed structure, and final decision path."
+                : "This structure proof certifies the aggregated RUN patterns identified during the current pilot window.")}
           </p>
 
-          <p className="mt-3 text-slate-700 leading-7">
-            {receiptMode === "final_receipt"
-              ? "It does not represent a generic recommendation. It formalizes the final pilot summary that was eligible for receipt generation."
-              : "It does not represent a generic recommendation. It formalizes the structural patterns (RUNs) observed across the current pilot execution."}
-          </p>
+          {!data.summaryText && (
+            <p className="mt-3 text-slate-700 leading-7">
+              {receiptMode === "final_receipt"
+                ? "It does not represent a generic recommendation. It formalizes the final pilot summary that was eligible for receipt generation."
+                : "It does not represent a generic recommendation. It formalizes the structural patterns (RUNs) observed across the current pilot execution."}
+            </p>
+          )}
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
@@ -397,12 +742,16 @@ if (!canRenderReceipt) {
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-sm text-slate-500 mb-1">Scenario</p>
-              <p className="font-semibold">{data.scenarioLabel}</p>
+              <p className="font-semibold">
+                {data.scenarioLabel || data.caseData?.scenarioCode || "No Dominant Scenario"}
+              </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-sm text-slate-500 mb-1">Stage</p>
-              <p className="font-semibold">{data.stageLabel}</p>
+              <p className="font-semibold">
+                {data.stageLabel || data.caseData?.stage || "S0"}
+              </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -414,7 +763,7 @@ if (!canRenderReceipt) {
           <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
             <p className="text-sm text-slate-500 mb-1">Primary RUN</p>
             <p className="font-semibold leading-7">
-              {data.primaryRunLabel || data.runLabel}
+              {data.primaryRunLabel || data.runLabel || data.caseData?.fallbackRunCode || "RUN000"}
             </p>
           </div>
 
@@ -458,10 +807,53 @@ if (!canRenderReceipt) {
               {receiptMode === "final_receipt" ? "Pilot summary" : "Case tested"}
             </p>
             <p className="font-semibold leading-7">
-              {data.displayContext || "No case attached"}
+              {getSafeCaseSummary(data.caseData || {}) ||
+                data.displayContext ||
+                "No case attached"}
             </p>
           </div>
         </section>
+
+              {data.caseData ? (
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-xl font-semibold mb-4">Case Schema Snapshot</h2>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Weakest dimension</p>
+                <p className="font-semibold">
+                  {data.caseData.weakestDimension || "Not specified"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Pattern</p>
+                <p className="font-semibold">
+                  {data.caseData.patternId || "PAT-00"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">RUN fallback</p>
+                <p className="font-semibold">
+                  {data.caseData.fallbackRunCode || "RUN000"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Route decision</p>
+                <p className="font-semibold">
+                  {data.caseData.routeDecision?.mode || "summary_only"}
+                </p>
+                {data.caseData.routeDecision?.reason ? (
+                  <p className="text-xs text-slate-500 mt-2">
+                    {data.caseData.routeDecision.reason}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-4">Execution Summary</h2>
@@ -556,12 +948,13 @@ if (!canRenderReceipt) {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          {isEvidenceLockedConsistent ? (
+          {canEnterVerification ? (
             <Link
               to={ROUTES.VERIFICATION}
-              onClick={handleProceedToVerification}
               state={{
                 receiptPageData: data,
+                sharedReceiptVerificationContract: sharedContract,
+                caseData: data.caseData || null,
                 verificationPageData: location.state?.verificationPageData || null,
                 routeDecision,
                 receiptSource,
@@ -571,21 +964,31 @@ if (!canRenderReceipt) {
             >
               {returnedFromFailedVerification
                 ? "Retry Verification from Recovered Receipt →"
-                : data.verificationCtaText || "Proceed to Verification"} 
+                : data.verificationCtaText || "Proceed to Verification"}
             </Link>
           ) : (
             <div className="flex flex-col gap-3">
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-300 px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm cursor-not-allowed"
+                className={`inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-sm cursor-not-allowed ${
+                  !receiptAllowsVerification
+                    ? "bg-red-700 text-white"
+                    : "bg-slate-300 text-slate-600"
+                }`}
                 title={verificationBlockedReason}
               >
-                Verification Locked
+                {!receiptAllowsVerification ? "Verification Unavailable" : "Verification Locked"}
               </button>
 
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {returnedFromFailedVerification
+              <div
+                className={`rounded-xl px-4 py-3 text-sm ${
+                  !receiptAllowsVerification
+                   ? "border border-red-200 bg-red-50 text-red-700"
+                    : "border border-red-200 bg-red-50 text-red-700"
+                }`}
+              >
+               {returnedFromFailedVerification
                   ? "Verification was previously downgraded on this chain, and the receipt still needs recovery before re-entry."
                   : verificationBlockedReason}
               </div>

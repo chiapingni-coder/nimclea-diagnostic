@@ -12,6 +12,7 @@ import { chainRegistry } from "../data/chainRegistry";
 import { getRun } from "../data/stageRunMap";
 import { resultStageCopy } from "../data/resultStageCopy";
 import { logEvent } from "../utils/eventLogger";
+import { mapResultToCaseSchema } from "../utils/schemaMapper";
 
 const STORAGE_KEYS = {
   RESULT: "nimclea_result",
@@ -2423,6 +2424,40 @@ const handleStartPilot = useCallback(
       pilotRouting?.firstStepLabel ||
       "Start with the weakest structural point";
 
+    const caseSchema = mapResultToCaseSchema({
+      ...enrichedResult,
+      weakestDimension: effectiveWeakestDimension,
+      pilotFocusKey: effectivePilotFocusKey,
+      firstGuidedAction,
+      firstStepLabel,
+      stage:
+        enrichedResult?.stage ||
+        resolvedPath?.stage ||
+        "S1",
+      chainId:
+        enrichedResult?.chainId ||
+        resolvedPath?.chainId ||
+        "CHAIN-001",
+      fallbackRunCode:
+        enrichedResult?.fallbackRunCode ||
+        resolvedPath?.runCode ||
+        "",
+      patternId:
+        enrichedResult?.patternId ||
+        resolvedPath?.patternId ||
+        "",
+      scenarioCode:
+        enrichedResult?.scenario?.code || "",
+      eventContext:
+        Array.isArray(enrichedResult?.summary)
+          ? enrichedResult.summary.join(" ")
+          : "",
+      meta: {
+        ...(enrichedResult?.meta || {}),
+        source: "result_page_start_pilot",
+      },
+    });
+
     logEvent("pilot_started", {
       sessionId: resolvedSessionId || "",
       pattern: enrichedResult?.patternId || "",
@@ -2439,12 +2474,17 @@ const handleStartPilot = useCallback(
       onStartPilotProp({
         sessionId: resolvedSessionId,
         sourceInput: enrichedResult,
+        preview: enrichedResult,
+        result: enrichedResult,
+        caseSchema,
         scenarioCode: enrichedResult?.scenario?.code || "",
         primarySignalKey,
         weakestDimension: effectiveWeakestDimension,
         pilotFocusKey: effectivePilotFocusKey,
         firstGuidedAction,
         firstStepLabel,
+        stage: enrichedResult?.stage || resolvedPath?.stage || "S1",
+        chainId: enrichedResult?.chainId || resolvedPath?.chainId || "CHAIN-001",
       });
       return;
     }
@@ -2457,9 +2497,16 @@ const handleStartPilot = useCallback(
         sourceInput: enrichedResult,
         preview: enrichedResult,
         result: enrichedResult,
+        caseSchema,
 
-        stage: enrichedResult?.stage || "S1",
-        chainId: enrichedResult?.chainId || "CHAIN-001",
+        stage:
+          enrichedResult?.stage ||
+          resolvedPath?.stage ||
+          "S1",
+        chainId:
+          enrichedResult?.chainId ||
+          resolvedPath?.chainId ||
+          "CHAIN-001",
 
         extraction: enrichedResult?.extraction || {},
         resultSeed:
@@ -2484,6 +2531,7 @@ const handleStartPilot = useCallback(
     resolvedSessionId,
     weakestDimension,
     pilotRouting,
+    resolvedPath,
   ]
 );
 

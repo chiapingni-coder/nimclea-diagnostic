@@ -2,6 +2,19 @@ import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ROUTES from "../routes";
 import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
+import { normalizeCaseInput } from "../utils/caseSchema";
+import {
+  getCaseSummary,
+  getCaseContext,
+  getCaseScenarioCode,
+  getCaseStage,
+  getCaseRunCode,
+  getCaseWeakestDimension,
+} from "../utils/caseAccessors";
+import {
+  buildVerificationContract,
+  flattenSharedReceiptVerificationContract,
+} from "../utils/sharedReceiptVerificationContract";
 
 function getStoredVerificationData() {
   try {
@@ -13,37 +26,304 @@ function getStoredVerificationData() {
   }
 }
 
+function getStoredReceiptCaseData() {
+  try {
+    const raw = localStorage.getItem("receiptCaseData");
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error("Failed to read receiptCaseData from localStorage:", error);
+    return null;
+  }
+}
+
+function getStoredSharedReceiptVerificationContract() {
+  try {
+    const raw = localStorage.getItem("sharedReceiptVerificationContract");
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error("Failed to read sharedReceiptVerificationContract from localStorage:", error);
+    return null;
+  }
+}
+
+function getFirstNonEmpty(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    return value;
+  }
+  return null;
+}
+
+function resolveVerificationPayload(
+  routeEnvelope = {},
+  receiptContext = null,
+  routeData = null,
+  storedData = null,
+  sharedContract = null
+) {
+  const storedReceiptCaseData = getStoredReceiptCaseData();
+  const sharedFlat = sharedContract
+    ? flattenSharedReceiptVerificationContract(sharedContract)
+    : null;
+
+  const schema =
+    sharedFlat?.caseData ||
+    routeEnvelope?.caseData ||
+    routeEnvelope?.caseSchemaSnapshot ||
+    routeEnvelope?.caseSchema ||
+    receiptContext?.caseData ||
+    receiptContext?.caseSchemaSnapshot ||
+    receiptContext?.caseSchema ||
+    routeData?.caseData ||
+    routeData?.caseSchemaSnapshot ||
+    routeData?.caseSchema ||
+    storedData?.caseData ||
+    storedData?.caseSchemaSnapshot ||
+    storedData?.caseSchema ||
+    storedReceiptCaseData ||
+    null;
+
+  const eventSummary =
+    sharedFlat?.executionSummary ||
+    routeEnvelope?.eventHistorySummary ||
+    routeEnvelope?.eventSummary ||
+    routeData?.eventHistorySummary ||
+    routeData?.eventSummary ||
+    routeData?.executionSummary ||
+    routeData?.eventExecutionSummary ||
+    receiptContext?.eventHistorySummary ||
+    receiptContext?.eventSummary ||
+    receiptContext?.executionSummary ||
+    receiptContext?.eventExecutionSummary ||
+    storedData?.eventHistorySummary ||
+    storedData?.eventSummary ||
+    storedData?.executionSummary ||
+    storedData?.eventExecutionSummary ||
+    null;
+
+  const behavioralGroundingSummary =
+    sharedFlat?.behavioralGroundingSummary ||
+    routeEnvelope?.behavioralGroundingSummary ||
+    routeEnvelope?.groundingSummary ||
+    routeData?.behavioralGroundingSummary ||
+    routeData?.groundingSummary ||
+    receiptContext?.behavioralGroundingSummary ||
+    receiptContext?.groundingSummary ||
+    storedData?.behavioralGroundingSummary ||
+    storedData?.groundingSummary ||
+    null;
+
+  const receiptHash = getFirstNonEmpty(
+    sharedFlat?.receiptHash,
+    routeEnvelope?.receiptHash,
+    routeData?.receiptHash,
+    receiptContext?.receiptHash,
+    storedData?.receiptHash
+  );
+
+  return {
+    schema,
+    eventSummary,
+    behavioralGroundingSummary,
+    receiptHash,
+
+    verificationTitle: getFirstNonEmpty(
+      routeEnvelope?.verificationTitle,
+      routeData?.verificationTitle,
+      storedData?.verificationTitle
+    ),
+
+    overallStatus: getFirstNonEmpty(
+      routeEnvelope?.overallStatus,
+      routeData?.overallStatus,
+      storedData?.overallStatus
+    ),
+
+    receiptId: getFirstNonEmpty(
+      sharedFlat?.receiptId,
+      routeEnvelope?.receiptId,
+      routeData?.receiptId,
+      receiptContext?.receiptId,
+      storedData?.receiptId
+    ),
+
+    verifiedAt: getFirstNonEmpty(
+      sharedFlat?.verifiedAt,
+      routeEnvelope?.verifiedAt,
+      routeData?.verifiedAt,
+      receiptContext?.verifiedAt,
+      storedData?.verifiedAt
+    ),
+
+    introText: getFirstNonEmpty(
+      sharedFlat?.introText,
+      routeEnvelope?.introText,
+      routeData?.introText,
+      storedData?.introText
+    ),
+
+    checks:
+      routeEnvelope?.checks ||
+      routeData?.checks ||
+      storedData?.checks ||
+      null,
+
+    eventTimeline:
+      routeEnvelope?.eventTimeline ||
+      routeData?.eventTimeline ||
+      storedData?.eventTimeline ||
+      null,
+
+    finalNote: getFirstNonEmpty(
+      sharedFlat?.finalNote,
+      routeEnvelope?.finalNote,
+      routeData?.finalNote,
+      storedData?.finalNote
+    ),
+
+    backToReceiptText: getFirstNonEmpty(
+      sharedFlat?.backToReceiptText,
+      routeEnvelope?.backToReceiptText,
+      routeData?.backToReceiptText,
+      storedData?.backToReceiptText
+    ),
+
+    runEntries:
+      sharedFlat?.runEntries ||
+      routeEnvelope?.runEntries ||
+      routeData?.runEntries ||
+      receiptContext?.runEntries ||
+      storedData?.runEntries ||
+      [],
+
+    totalRunHits: getFirstNonEmpty(
+      sharedFlat?.totalRunHits,
+      routeEnvelope?.totalRunHits,
+      routeData?.totalRunHits,
+      receiptContext?.totalRunHits,
+      storedData?.totalRunHits
+    ),
+
+    primaryRunLabel: getFirstNonEmpty(
+      sharedFlat?.primaryRunLabel,
+      routeEnvelope?.primaryRunLabel,
+      routeData?.primaryRunLabel,
+      receiptContext?.primaryRunLabel,
+      storedData?.primaryRunLabel
+    ),
+
+    runSummaryText: getFirstNonEmpty(
+      sharedFlat?.runSummaryText,
+      routeEnvelope?.runSummaryText,
+      routeData?.runSummaryText,
+      receiptContext?.runSummaryText,
+      storedData?.runSummaryText
+    ),
+
+    topSignals:
+      sharedFlat?.topSignals ||
+      routeEnvelope?.topSignals ||
+      routeData?.topSignals ||
+      receiptContext?.topSignals ||
+      storedData?.topSignals ||
+      [],
+  };
+}
+
 function normalizeVerificationData(input = {}) {
+  const normalizedCaseData = input.schema
+    ? normalizeCaseInput(input.schema, { source: "verification" })
+    : null;
+
+  const resolvedEventSummary =
+    input.eventSummary ||
+    input.executionSummary ||
+    input.eventExecutionSummary ||
+    {};
+
+  const resolvedBehavioralGroundingSummary =
+    input.behavioralGroundingSummary || {};
+
   return {
     verificationTitle: input.verificationTitle || "Structure Proof Verification",
     overallStatus: input.overallStatus || "Ready for Review",
     receiptId: input.receiptId || "RCPT-DEMO-001",
     verifiedAt: input.verifiedAt || "",
-    caseInput: input.caseInput || "",
-    summaryContext: input.summaryContext || "",
-    displayContext:
-      input.summaryContext ||
-      input.caseInput ||
-      "",
+    caseInput: getCaseContext({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
 
-    scenarioLabel: input.scenarioLabel || "",
-    stageLabel: input.stageLabel || "",
-    runLabel: input.runLabel || "",
-    weakestDimension: input.weakestDimension || "",
+    summaryContext: getCaseSummary({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
+
+    displayContext:
+      getCaseSummary({
+        ...input,
+        caseData: normalizedCaseData,
+      }) ||
+      getCaseContext({
+        ...input,
+        caseData: normalizedCaseData,
+      }),
+
+    scenarioLabel: getCaseScenarioCode({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
+
+    stageLabel: getCaseStage({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
+
+    runLabel: getCaseRunCode({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
+
+    weakestDimension: getCaseWeakestDimension({
+      ...input,
+      caseData: normalizedCaseData,
+    }),
     runEntries: Array.isArray(input.runEntries) ? input.runEntries : [],
     totalRunHits: Number.isFinite(input.totalRunHits) ? input.totalRunHits : 0,
     primaryRunLabel: input.primaryRunLabel || input.runLabel || "",
     runSummaryText: input.runSummaryText || "",
-    executionSummary: input.executionSummary || {
-      totalEvents: 0,
-      structuredEventsCount: 0,
-      latestEventType: "other",
-      latestEventLabel: "No recorded structural event",
-      latestEventDescription: "",
-      mainObservedShift: "No behavioral shift recorded yet.",
-      nextCalibrationAction: "Record one real workflow event to begin calibration.",
-      behaviorStatus: "behavior_weak",
+    executionSummary: {
+      totalEvents: resolvedEventSummary.totalEvents ?? 0,
+      structuredEventsCount: resolvedEventSummary.structuredEventsCount ?? 0,
+      latestEventType: resolvedEventSummary.latestEventType || "other",
+      latestEventLabel:
+        resolvedEventSummary.latestEventLabel || "No recorded structural event",
+      latestEventDescription:
+        resolvedEventSummary.latestEventDescription || "",
+      mainObservedShift:
+        resolvedEventSummary.mainObservedShift ||
+        "No behavioral shift recorded yet.",
+      nextCalibrationAction:
+        resolvedEventSummary.nextCalibrationAction ||
+        "Record one real workflow event to begin calibration.",
+      behaviorStatus:
+        resolvedEventSummary.behaviorStatus || "behavior_weak",
     },
+
+    behavioralGroundingSummary: {
+      groundingStatus:
+        resolvedBehavioralGroundingSummary.groundingStatus || "",
+      groundingLabel:
+        resolvedBehavioralGroundingSummary.groundingLabel || "",
+      groundingNote:
+        resolvedBehavioralGroundingSummary.groundingNote || "",
+      groundingScore:
+        typeof resolvedBehavioralGroundingSummary.groundingScore === "number"
+          ? resolvedBehavioralGroundingSummary.groundingScore
+          : null,
+    },
+
     topSignals: Array.isArray(input.topSignals) ? input.topSignals : [],
     receiptHash: input.receiptHash || "",
 
@@ -100,6 +380,12 @@ function normalizeVerificationData(input = {}) {
       "Verification confirms whether the current receipt and supporting output are consistent and reviewable. It does not replace legal, compliance, or professional review.",
     
     backToReceiptText: input.backToReceiptText || "Back to Decision Receipt",
+
+    caseData: normalizedCaseData,
+    schemaVersion: normalizedCaseData?.schemaVersion || null,
+    structureScoreFromCase: normalizedCaseData?.structureScore ?? null,
+    structureStatusFromCase: normalizedCaseData?.structureStatus || null,
+    routeDecisionFromCase: normalizedCaseData?.routeDecision || null,
   };
 }
 
@@ -492,28 +778,97 @@ function CalibrationCard({ guidance }) {
 export default function VerificationPage() {
   const location = useLocation();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState("");
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
   const receiptSource = routeEnvelope?.receiptSource || "";
+  const rawReceiptMode = routeDecision?.mode || "";
+
+  const receiptMode =
+    rawReceiptMode === "case_receipt" || rawReceiptMode === "final_receipt"
+      ? rawReceiptMode
+      : receiptSource === "pilot_weekly_summary"
+      ? "final_receipt"
+      : "case_receipt";
 
   const routeData = routeEnvelope?.verificationPageData || null;
   const storedData = getStoredVerificationData();
   const receiptContext = routeEnvelope?.receiptPageData || null;
+  const sharedContract =
+    routeEnvelope?.sharedReceiptVerificationContract ||
+    getStoredSharedReceiptVerificationContract() ||
+    null;
   const evidenceLock = routeEnvelope?.evidenceLock || null;
-  const baseData = normalizeVerificationData({
-    ...(receiptContext || {}),
-    ...(routeData || storedData || {}),
+
+  const receiptDecisionStatus = receiptContext?.decisionStatus || "";
+
+  const receiptAllowsVerification =
+    receiptDecisionStatus === "Ready for Verification" ||
+    receiptDecisionStatus === "Verified";
+
+  const cameFromIssuedReceipt =
+    !!receiptContext &&
+    (
+      (receiptMode === "case_receipt" && receiptSource === "pilot_case_result") ||
+      (receiptMode === "final_receipt" && receiptSource === "pilot_weekly_summary")
+    );
+  if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <p className="text-sm font-medium text-slate-500 mb-2">
+            Verification not available
+          </p>
+          <h1 className="text-2xl font-bold mb-3">
+            This receipt has not been issued for verification
+          </h1>
+          <p className="text-slate-700 leading-7">
+            Verification can only be opened from an issued receipt that is ready for verification.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              to={ROUTES.RECEIPT}
+              state={routeEnvelope || {}}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              Back to Receipt
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+  const resolvedPayload = resolveVerificationPayload(
+    routeEnvelope || {},
+    receiptContext,
+    routeData,
+    storedData,
+    sharedContract
+  );
+  const baseData = normalizeVerificationData(resolvedPayload);
+
+  const verificationContract = buildVerificationContract({
+    ...baseData,
+    receiptSource,
   });
 
-  const evaluated = evaluateCaseRecordStatus(baseData);
+  const verificationFlat =
+    flattenSharedReceiptVerificationContract(verificationContract);
+
+  const evaluated = evaluateCaseRecordStatus({
+    ...baseData,
+    ...verificationFlat,
+  });
 
   const hasVerificationPayload =
     !!(
-      (receiptContext && Object.keys(receiptContext).length > 0) ||
-      (routeData && Object.keys(routeData).length > 0) ||
-      (storedData && Object.keys(storedData).length > 0)
+      (verificationFlat?.receiptId || baseData?.receiptId) &&
+      (verificationFlat?.receiptHash || baseData?.receiptHash) &&
+      (verificationFlat?.caseData || baseData?.caseData || resolvedPayload?.schema)
     );
    
   const behavioralGroundingCheck = hasVerificationPayload
@@ -522,12 +877,14 @@ export default function VerificationPage() {
 
   const data = {
     ...baseData,
-    weakestDimension: baseData.weakestDimension || "",
-    summaryContext: baseData.summaryContext || "",
+    ...verificationFlat,
+    caseData: verificationFlat.caseData || baseData.caseData || resolvedPayload.schema || null,
+    weakestDimension: verificationFlat.weakestDimension || baseData.weakestDimension || "",
     displayContext:
-      baseData.summaryContext ||
-      baseData.caseInput ||
-      "",
+      getCaseSummary(verificationFlat) ||
+      getCaseContext(verificationFlat) ||
+      getCaseSummary(baseData) ||
+      getCaseContext(baseData),
     overallStatus: hasVerificationPayload
       ? evaluated.verificationStatus
       : "Verification Warning",
@@ -582,18 +939,32 @@ export default function VerificationPage() {
   };
 
 const isEvidenceLockedConsistent =
-  !evidenceLock ||
-  (
-    evidenceLock.receiptId === data.receiptId &&
-    evidenceLock.receiptHash === data.receiptHash &&
-    evidenceLock.receiptSource === receiptSource &&
-    evidenceLock.receiptMode === routeDecision?.mode
-  );
+  !evidenceLock
+    ? true
+    : (
+        evidenceLock.receiptId &&
+        data.receiptId &&
+        evidenceLock.receiptHash &&
+        data.receiptHash &&
+        evidenceLock.receiptId === data.receiptId &&
+        evidenceLock.receiptHash === data.receiptHash &&
+        evidenceLock.receiptSource === receiptSource &&
+        evidenceLock.receiptMode === receiptMode
+      );
 
 const finalOverallStatus =
   !isEvidenceLockedConsistent
     ? "Verification Failed"
     : data.overallStatus;
+
+  const finalEvidenceLock =
+    evidenceLock ||
+    {
+      receiptId: data.receiptId,
+      receiptHash: data.receiptHash,
+      receiptSource,
+      receiptMode: receiptMode,
+    };
 
   const guidance = !isEvidenceLockedConsistent
     ? {
@@ -648,7 +1019,7 @@ const finalOverallStatus =
 
   const verdictLine = getVerificationVerdictLine({
     overallStatus: finalOverallStatus,
-    weakestDimension: data.weakestDimension,
+    weakestDimension: data.weakestDimension || data.caseData?.weakestDimension || "",
   });
 
   const auditReady =
@@ -656,12 +1027,25 @@ const finalOverallStatus =
     isEvidenceLockedConsistent &&
     finalOverallStatus === "Verification Ready";
 
-  const canActivateFormalVerification = isEvidenceLockedConsistent;
+  const canActivateFormalVerification =
+    isEvidenceLockedConsistent &&
+    finalOverallStatus !== "Verification Failed";
   
-  console.log("VerificationPage location.state:", location.state);
-  console.log("VerificationPage receiptContext:", receiptContext);
-  console.log("VerificationPage routeData:", routeData);
-  console.log("VerificationPage data:", data);
+  React.useEffect(() => {
+    try {
+      localStorage.setItem("verificationPageData", JSON.stringify(data));
+      localStorage.setItem(
+        "sharedReceiptVerificationContract",
+        JSON.stringify(verificationContract)
+      );
+
+      if (data.caseData) {
+        localStorage.setItem("receiptCaseData", JSON.stringify(data.caseData));
+      }
+    } catch (error) {
+      console.error("Failed to persist verification payload:", error);
+    }
+  }, [data, verificationContract]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
@@ -670,16 +1054,19 @@ const finalOverallStatus =
           <p className="text-sm font-medium text-slate-500 mb-2">Structure Proof Verification</p>
           <h1 className="text-3xl font-bold mb-3">{data.verificationTitle}</h1>
           <p className="text-slate-700 leading-7 mb-5">
-            This verifies whether the issued case record remains consistent, traceable, behaviorally grounded, and ready for review.
+            {data.introText ||
+              "This verifies whether the issued case record remains consistent, traceable, behaviorally grounded, and ready for review."}
           </p>
 
           <p className="text-sm text-slate-500 leading-6">
             {data.weakestDimension
               ? `This proof is first interpreted through your weakest dimension: ${data.weakestDimension}.`
+              : data.caseData
+              ? "This proof is being interpreted through the current case schema, but no dominant weakest dimension is available."
               : "This proof is interpreted through the structural weak point currently exposed in the record."}
           </p>
 
-          <div className="grid md:grid-cols-2 gap-4 text-sm">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Verification Status</p>
               <p
@@ -713,28 +1100,51 @@ const finalOverallStatus =
                 {data.displayContext || "No case attached"}
               </p>
             </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Case Schema</p>
+              <p className="font-semibold">
+                {data.schemaVersion || "Not attached"}
+              </p>
+
+              {typeof data.structureScoreFromCase === "number" ? (
+                <p className="text-xs text-slate-500 mt-2">
+                  Structure score: {data.structureScoreFromCase.toFixed(2)}
+                </p>
+              ) : null}
+
+              {data.structureStatusFromCase ? (
+                <p className="text-xs text-slate-500 mt-1">
+                  Structure status: {data.structureStatusFromCase}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
             <p className="text-slate-500 mb-1">Behavioral grounding</p>
             <p className="font-semibold">
-              {!hasVerificationPayload || !behavioralGroundingCheck
+              {data.behavioralGroundingSummary?.groundingLabel
+                ? data.behavioralGroundingSummary.groundingLabel
+                : !hasVerificationPayload || !behavioralGroundingCheck
                 ? "Unavailable"
-                : behavioralGroundingCheck.status === "passed"
+                : behavioralGroundingCheck?.status === "passed"
                 ? "Strong"
                 : behavioralGroundingCheck.status === "warning"
                 ? "Partial"
                 : "Weak"}
             </p>
             <p className="text-xs text-slate-500 mt-2">
-              {!hasVerificationPayload || !behavioralGroundingCheck
+              {data.behavioralGroundingSummary?.groundingNote
+                ? data.behavioralGroundingSummary.groundingNote
+                : !hasVerificationPayload || !behavioralGroundingCheck
                 ? "Behavioral grounding cannot be confirmed until a live receipt payload is loaded."
                 : behavioralGroundingCheck.detail}
             </p>
           </div>
         </header>
         <div
-          className="rounded-2xl px-10 py-8 shadow-md"
+          className="rounded-2xl px-12 py-6 shadow-md"
           style={{
             backgroundColor:
               finalOverallStatus === "Verification Failed"
@@ -750,28 +1160,30 @@ const finalOverallStatus =
               alignItems: "center",
               justifyContent: "space-between",
               color: "#ffffff",
-              fontSize: "18px",
+              fontSize: "17px",
+              lineHeight: "1.3",
               fontWeight: 600,
               gap: "16px",
               flexWrap: "wrap",
+              paddingLeft: "8px",
             }}
           >
-            <div style={{ flex: 1.8, opacity: 0.98, textAlign: "left" }}>
+            <div style={{ flex: 1.8, opacity: 0.98, textAlign: "left", paddingLeft: "12px" }}>
               {verdictLine}
             </div>
-
+        
             <div style={{ flex: 1 }}>
               {hasReceiptHash ? "✓ Receipt Hash verified" : "• Receipt Hash unavailable"}
             </div>
-
+        
             <div style={{ flex: 1 }}>
               {hasCompleteStructure ? "✓ Structure consistent" : "• Structure incomplete"}
             </div>
-
+        
             <div style={{ flex: 1 }}>
               {auditReady ? "✓ Ready for review" : "• Review pending"}
             </div>
-
+        
             <div style={{ flex: 1 }}>
               {isEvidenceLockedConsistent ? "✓ Evidence lock consistent" : "• Evidence lock broken"}
             </div>
@@ -830,6 +1242,61 @@ const finalOverallStatus =
           </div>
         </section>
 
+        {data.caseData ? (
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-xl font-semibold mb-4">Case Schema Snapshot</h2>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Weakest dimension</p>
+                <p className="font-semibold">
+                  {data.caseData.weakestDimension || "Not specified"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Scenario code</p>
+                <p className="font-semibold">
+                  {data.caseData.scenarioCode || "unknown_scenario"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Pattern</p>
+                <p className="font-semibold">
+                  {data.caseData.patternId || "PAT-00"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">RUN fallback</p>
+                <p className="font-semibold">
+                  {data.caseData.fallbackRunCode || "RUN000"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Stage</p>
+                <p className="font-semibold">
+                  {data.caseData.stage || "S0"}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Route decision</p>
+                <p className="font-semibold">
+                  {data.caseData.routeDecision?.mode || "summary_only"}
+                </p>
+                {data.caseData.routeDecision?.reason ? (
+                  <p className="text-xs text-slate-500 mt-2">
+                    {data.caseData.routeDecision.reason}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}  
+
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-4">What was checked</h2>
 
@@ -883,7 +1350,7 @@ const finalOverallStatus =
             This receipt is supported by a backend verification record for traceability and audit readiness.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-4 text-sm">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Anchor status</p>
               <p
@@ -923,8 +1390,8 @@ const finalOverallStatus =
         <section className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
           <h2 className="text-lg font-semibold mb-2">Verification note</h2>
           <p className="text-slate-700 leading-7">
-            Verification improves trust, portability, and review readiness by checking whether the issued case record remains internally consistent and traceable.
-            It does not replace professional or legal review.
+            {data.finalNote ||
+              "Verification improves trust, portability, and review readiness by checking whether the issued case record remains internally consistent and traceable. It does not replace professional or legal review."}
           </p>
         </section>
 
@@ -937,39 +1404,55 @@ const finalOverallStatus =
         >
           <h2 className="text-lg font-semibold mb-2">
             {canActivateFormalVerification
-              ? "Trial verification preview"
+              ? "Formal verification preview"
               : "Formal activation unavailable"}
           </h2>
 
           <p className="text-slate-700 leading-7">
             {canActivateFormalVerification
-              ? "You can review how your workflow is interpreted and verified in this trial preview."
-              : "This verification view is currently locked because the evidence chain no longer matches the issued receipt."}
+               ? "You can already review the verification logic here. Activate the formal version when you need a result that can be exported, shared, and used externally."
+              : !isEvidenceLockedConsistent
+              ? "This verification view is currently locked because the evidence chain no longer matches the issued receipt."
+              : "This verification result is not ready for formal activation because the current proof has not yet passed verification."}
           </p>
 
           <p className="mt-3 text-slate-700 leading-7">
             {canActivateFormalVerification
-              ? "However, this version is not issued for formal external use. It cannot be exported, cited, or used as an official proof."
-              : "Formal activation is disabled until you return to the receipt layer and recover the current source of truth."}
+              ? "This version is for preview only. Activate the formal version when you need a result that can be used externally."
+              : !isEvidenceLockedConsistent
+              ? "Formal activation is disabled until you return to the receipt layer and recover the current source of truth."
+              : "Formal activation remains disabled until the verification result moves out of failed status."}
           </p>
 
-          <p
-            className={`mt-3 text-sm font-medium ${
-              canActivateFormalVerification ? "text-amber-900" : "text-red-800"
-            }`}
-          >
+          <p className={`mt-3 text-sm font-medium ${
+            canActivateFormalVerification ? "text-amber-900" : "text-red-800"
+          }`}>
             {canActivateFormalVerification
               ? "Activate the formal version to use this verification in real workflows."
-              : "Return to the receipt before trying to activate any formal verification product."}
+              : !isEvidenceLockedConsistent
+              ? "Return to the receipt before trying to activate any formal verification product."
+              : "Strengthen the proof before trying to activate any formal verification product."}
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
+
+            {canActivateFormalVerification && (
+              <>
+                <p className="text-xs text-slate-500 w-full">
+                  This is the version that can be exported, shared, and used externally.
+                </p>
+
+                <p className="text-xs text-amber-700 font-medium w-full">
+                  If this decision needs to leave your system, this is the version you activate.
+                </p>
+              </>
+            )}
+
             {canActivateFormalVerification ? (
               <button
                 type="button"
                 onClick={() => {
                   setShowSubscriptionModal(true);
-                  setSelectedPlan("Formal Verification");
                 }}
                 className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
@@ -986,7 +1469,9 @@ const finalOverallStatus =
                   },
                   routeDecision,
                   receiptSource,
-                  evidenceLock,
+                  evidenceLock: finalEvidenceLock,
+                  caseData: data.caseData || null,
+                  sharedReceiptVerificationContract: verificationContract,
                 }}
                 className="inline-flex items-center justify-center rounded-2xl bg-red-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800"
               >
@@ -1007,7 +1492,9 @@ const finalOverallStatus =
               },
               routeDecision,
               receiptSource,
-              evidenceLock,
+              evidenceLock: finalEvidenceLock,
+              caseData: data.caseData || null,
+              sharedReceiptVerificationContract: verificationContract,
             }}
             className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
           >
@@ -1119,7 +1606,7 @@ const finalOverallStatus =
                   </h3>
 
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    One formal verification proof for one specific case.
+                    One formal verification proof for one specific case, ready to export, share, and use externally.
                   </p>
 
                   <p style={{ fontSize: "20px", fontWeight: 700 }}>
@@ -1131,13 +1618,12 @@ const finalOverallStatus =
                   </p>
 
                   <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing available within 3 days
+                    Pilot continuation pricing is reserved for 3 days after your trial ends.
                   </p>
 
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPlan("Formal Verification");
                       setShowSubscriptionModal(false);
                     }}
                     style={{
@@ -1188,13 +1674,12 @@ const finalOverallStatus =
                   </p>
 
                   <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing available within 3 days
+                    Pilot continuation pricing is reserved for 3 days after your trial ends.
                   </p>
 
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPlan("Weekly Decision Support");
                       setShowSubscriptionModal(false);
                     }}
                     style={{
@@ -1245,13 +1730,12 @@ const finalOverallStatus =
                   </p>
 
                   <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing available within 3 days
+                    Pilot continuation pricing is reserved for 3 days after your trial ends.
                   </p>
 
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPlan("Monthly Judgment Support");
                       setShowSubscriptionModal(false);
                     }}
                     style={{
