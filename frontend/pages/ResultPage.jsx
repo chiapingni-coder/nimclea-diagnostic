@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { enrichSignals } from "../signalContentMap.js";
 import { getSignalAction } from "../signalActionMap.js";
@@ -11,8 +11,14 @@ import { patternRegistry } from "../data/patternRegistry";
 import { chainRegistry } from "../data/chainRegistry";
 import { getRun } from "../data/stageRunMap";
 import { resultStageCopy } from "../data/resultStageCopy";
-import { logEvent } from "../utils/eventLogger";
 import { mapResultToCaseSchema } from "../utils/schemaMapper";
+
+import {
+  registerTrialUser,
+  saveCaseSnapshot,
+  logTrialEvent,
+} from "../lib/trialApi";
+import { getTrialSession, setTrialSession } from "../lib/trialSession";
 
 const STORAGE_KEYS = {
   RESULT: "nimclea_result",
@@ -1215,6 +1221,7 @@ function ReportHero({
   pilotCtaLabel,
   pilotCtaMicrocopy,
   weakestDimension,
+  pcMeta,
 }) {
 
   const reportId = useMemo(() => createReportId(sessionId), [sessionId]);
@@ -1256,7 +1263,15 @@ function ReportHero({
       <div className="p-8 md:p-10">
         <div className="flex flex-wrap items-center gap-2">
           <Pill success>Nimclea Diagnostic Preview</Pill>
+
+          {pcMeta?.pc_id || pcMeta?.pc_name ? (
+            <Pill>
+              {[pcMeta?.pc_id, pcMeta?.pc_name].filter(Boolean).join(" · ")}
+            </Pill>
+          ) : null}
+
           {result.scenario?.label ? <Pill>{result.scenario.label}</Pill> : null}
+
           {result.pressureProfile?.label ? (
             <Pill dark>{result.pressureProfile.label}</Pill>
           ) : result.intensity?.label ? (
@@ -1934,14 +1949,20 @@ export default function ResultPage({
   sessionId: sessionIdProp = "",
   onRestart: onRestartProp,
   onStartPilot: onStartPilotProp,
+  pcMeta,
 }) {
-  useEffect(() => {
-    logEvent("result_viewed");
-  }, []);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
   const [ctaState, setCtaState] = useState("default"); // default | warm | ready
+
+  const resolvedPcMeta =
+    pcMeta ||
+    location.state?.pcMeta ||
+    resultProp?.pcMeta ||
+    location.state?.result?.pcMeta ||
+    location.state?.preview?.pcMeta ||
+    null;
 
   const isLikelyResultPayload = (value) =>
     !!(
@@ -2024,7 +2045,9 @@ export default function ResultPage({
     const [result, setResult] = useState(() =>
       initialPreview && isValidPreview(initialPreview) ? initialPreview : null
     );
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const resultViewedLoggedRef = useRef(false);
 
     const resultSeed = useMemo(() => {
       if (!result) return null;
@@ -2032,17 +2055,22 @@ export default function ResultPage({
     }, [result]);
 
   const displayResult = useMemo(() => {
-  if (!result && !resultSeed) return null;
+    if (!result && !resultSeed) return null;
 
-  const safeResult = result || {};
-  const safeSeed =
-    safeResult?.resultSeed ||
-    safeResult?.extraction ||
-    resultSeed ||
-    {};
+    const safeResult = result || {};
+    const safeSeed =
+      safeResult?.resultSeed ||
+      safeResult?.extraction ||
+      resultSeed ||
+      {};
 
-  return {
-    ...safeResult,
+    return {
+      ...safeResult,
+      pcMeta:
+        safeResult?.pcMeta ||
+        safeResult?.preview?.pcMeta ||
+        resolvedPcMeta ||
+        null,
 
     title:
       safeResult.title ||
@@ -2124,7 +2152,7 @@ export default function ResultPage({
 
     extraction: safeResult.extraction || safeSeed,
   };
-}, [result, resultSeed]);
+}, [result, resultSeed, resolvedPcMeta]);
 
   useEffect(() => {
   // 20秒后 → warm
@@ -2221,6 +2249,44 @@ useEffect(() => {
 const handleRetry = useCallback(async () => {
   await fetchPreview();
 }, [fetchPreview]);
+
+useEffect(() => {
+  if (resultViewedLoggedRef.current) return;
+  if (loading) return;
+  if (error) return;
+  if (!result || !isValidPreview(result)) return;
+
+  const caseId = resolvedSessionId || "case_result_view";
+  const userId = getTrialSession()?.userId || "anonymous";
+  const weakestDimension =
+    result?.extraction?.weakestDimension ||
+    inferWeakestDimension({
+      scenarioCode: result?.scenario?.code || "",
+      pressureProfileCode: result?.pressureProfile?.code || "",
+      signals: result?.top_signals || [],
+    });
+
+  const scenarioCode = result?.scenario?.code || "";
+
+  resultViewedLoggedRef.current = true;
+
+  Promise.resolve(
+    logTrialEvent({
+      eventType: "result_viewed",
+      page: "ResultPage",
+      caseId,
+      userId,
+      meta: {
+        weakestDimension,
+        scenario: scenarioCode,
+        sessionId: resolvedSessionId || "",
+      },
+    })
+  ).catch((err) => {
+    console.error("result_viewed log failed:", err);
+    resultViewedLoggedRef.current = false;
+  });
+}, [result, loading, error, resolvedSessionId]);
 
 const SCENARIO_TO_PATTERN_ID = {
   barely_functional: "PATTERN-001",
@@ -2388,17 +2454,43 @@ const handleStartPilot = useCallback(
       return;
     }
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.PREVIEW, JSON.stringify(enrichedResult));
+const previewLite = {
+  title: enrichedResult?.title,
+  scenario: enrichedResult?.scenario,
+  intensity: enrichedResult?.intensity,
+  pressureProfile: enrichedResult?.pressureProfile,
+  summary: enrichedResult?.summary,
+  top_signals: enrichedResult?.top_signals,
+  pilot_preview: enrichedResult?.pilot_preview,
+  extraction: enrichedResult?.extraction,
+  pattern: enrichedResult?.pattern,
+  chainId: enrichedResult?.chainId,
+  stage: enrichedResult?.stage,
+  weakestDimension: enrichedResult?.weakestDimension,
+  pcMeta: enrichedResult?.pcMeta,
+};
 
-      if (resolvedSessionId) {
-        localStorage.setItem(STORAGE_KEYS.SESSION_ID, resolvedSessionId);
-        localStorage.setItem(
-          `nimclea_preview_result_${resolvedSessionId}`,
-          JSON.stringify(enrichedResult)
-        );
-      }
+if (typeof window !== "undefined") {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.PREVIEW,
+      JSON.stringify(previewLite)
+    );
+  } catch (e) {
+    console.error("Preview storage failed:", e);
+  }
+
+  if (resolvedSessionId) {
+    try {
+      localStorage.setItem(
+        `nimclea_preview_result_${resolvedSessionId}`,
+        JSON.stringify(previewLite)
+      );
+    } catch (e) {
+      console.error("Session preview storage failed:", e);
     }
+  }
+}
 
     const primarySignalKey =
       signal?.key ||
@@ -2458,16 +2550,26 @@ const handleStartPilot = useCallback(
       },
     });
 
-    logEvent("pilot_started", {
-      sessionId: resolvedSessionId || "",
-      pattern: enrichedResult?.patternId || "",
-      chain: enrichedResult?.chainId || "",
-      stage: enrichedResult?.stage || "",
-      run: enrichedResult?.runId || "",
-      scenarioCode: enrichedResult?.scenario?.code || "",
-      primarySignalKey,
-      weakestDimension: effectiveWeakestDimension,
-      pilotFocusKey: effectivePilotFocusKey,
+    Promise.resolve(
+      logTrialEvent({
+        eventType: "pilot_started",
+        page: "ResultPage",
+        caseId: resolvedSessionId || "case_result_entry",
+        userId: getTrialSession()?.userId || "anonymous",
+        meta: {
+          sessionId: resolvedSessionId || "",
+          pattern: enrichedResult?.patternId || "",
+          chain: enrichedResult?.chainId || "",
+          stage: enrichedResult?.stage || "",
+          run: enrichedResult?.runId || "",
+          scenarioCode: enrichedResult?.scenario?.code || "",
+          primarySignalKey,
+          weakestDimension: effectiveWeakestDimension,
+          pilotFocusKey: effectivePilotFocusKey,
+        },
+      })
+    ).catch((err) => {
+      console.error("pilot_started log failed:", err);
     });
 
     if (typeof onStartPilotProp === "function") {
@@ -2498,6 +2600,7 @@ const handleStartPilot = useCallback(
         preview: enrichedResult,
         result: enrichedResult,
         caseSchema,
+        trialSession: getTrialSession() || null,
 
         stage:
           enrichedResult?.stage ||
@@ -2566,6 +2669,7 @@ if (!isValidPreview(result)) {
             pilotCtaLabel={pilotCtaLabel}
             pilotCtaMicrocopy={pilotCtaMicrocopy}
             weakestDimension={weakestDimension}
+            pcMeta={enrichedResult?.pcMeta || resolvedPcMeta}
           />
 
           {runMeta?.microNote && (

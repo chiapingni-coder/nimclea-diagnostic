@@ -303,6 +303,346 @@ function getCostAttachment(weakestDimension = "") {
   );
 }
 
+function getScoreTag(score, type) {
+  if (type === "evidence") {
+    if (score >= 3) return "strong";
+    if (score >= 1.5) return "partial";
+    return "light";
+  }
+
+  if (type === "structure") {
+    if (score >= 3) return "solid";
+    if (score >= 1.5) return "forming";
+    return "weak";
+  }
+
+  if (type === "consistency") {
+    if (score >= 3) return "aligned";
+    if (score >= 1.5) return "mixed";
+    return "unstable";
+  }
+
+  if (type === "continuity") {
+    if (score >= 3) return "repeated";
+    if (score >= 1.5) return "emerging";
+    return "thin";
+  }
+
+  return "";
+}
+
+function getScoreSourceTag({
+  type,
+  score = 0,
+  entries = [],
+}) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const entryCount = safeEntries.length;
+
+  const latestThree = safeEntries.slice(-3);
+
+  if (type === "evidence") {
+    if (score >= 3) return "traceable support";
+    if (score >= 1.5) return "partial support";
+    return "light support";
+  }
+
+  if (type === "structure") {
+    if (score >= 3) return "well-formed record";
+    if (score >= 1.5) return "partial structure";
+    return "thin structure";
+  }
+
+  if (type === "consistency") {
+    const scenarioSet = new Set(
+      latestThree
+        .map((entry) => entry?.caseData?.scenarioCode || entry?.reviewResult?.scenarioCode || "")
+        .filter(Boolean)
+    );
+
+    const weakestSet = new Set(
+      latestThree
+        .map(
+          (entry) =>
+            entry?.weakestDimensionSnapshot ||
+            entry?.weakestDimension ||
+            entry?.caseData?.weakestDimension ||
+            ""
+        )
+        .filter(Boolean)
+    );
+
+    if (score >= 3 && scenarioSet.size <= 1 && weakestSet.size <= 1) {
+      return "stable direction";
+    }
+
+    if (score >= 1.5) {
+      return "partial alignment";
+    }
+
+    return "mixed direction";
+  }
+
+  if (type === "continuity") {
+    if (entryCount >= 5) return `across ${entryCount} entries`;
+    if (entryCount >= 3) return `across ${entryCount} events`;
+    if (entryCount >= 2) return `across ${entryCount} logs`;
+    return "single event only";
+  }
+
+  return "";
+}
+
+function getScoreTriggerTag({
+  type,
+  score = 0,
+  entries = [],
+}) {
+  const safeEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const latestThree = safeEntries.slice(-3);
+
+  if (type === "evidence") {
+    const evidenceItemCount = latestThree.reduce((sum, entry) => {
+      const items = Array.isArray(entry?.caseData?.evidenceItems)
+        ? entry.caseData.evidenceItems
+        : [];
+      return sum + items.length;
+    }, 0);
+
+    const narrativeLength = latestThree.reduce((sum, entry) => {
+      const eventInput = entry?.eventInput || entry?.sourceInput || {};
+      const text =
+        eventInput?.summaryContext ||
+        eventInput?.description ||
+        entry?.summaryText ||
+        "";
+      return sum + String(text).trim().length;
+    }, 0);
+
+    if (evidenceItemCount >= 2) return `${evidenceItemCount} evidence items`;
+    if (narrativeLength >= 120) return "long narrative support";
+    if (score >= 1.5) return "partial support signals";
+    return "no strong proof signal";
+  }
+
+  if (type === "structure") {
+    const coverageCounts = latestThree.map((entry) => {
+      const eventInput = entry?.eventInput || entry?.sourceInput || {};
+      const caseData = entry?.caseData || entry?.reviewResult?.caseData || {};
+      let count = 0;
+
+      if (String(entry?.eventType || entry?.reviewResult?.eventType || "").trim()) count += 1;
+      if (String(eventInput?.externalPressure || "").trim()) count += 1;
+      if (String(eventInput?.authorityBoundary || "").trim()) count += 1;
+      if (String(eventInput?.dependency || "").trim()) count += 1;
+      if (String(caseData?.scenarioCode || "").trim()) count += 1;
+      if (String(caseData?.stage || "").trim()) count += 1;
+
+      return count;
+    });
+
+    const bestCoverage = coverageCounts.length ? Math.max(...coverageCounts) : 0;
+
+    if (bestCoverage >= 5) return "strong field coverage";
+    if (bestCoverage >= 3) return "partial field coverage";
+    return "thin field coverage";
+  }
+
+  if (type === "consistency") {
+    const scenarioSet = new Set(
+      latestThree
+        .map((entry) => entry?.caseData?.scenarioCode || entry?.reviewResult?.scenarioCode || "")
+        .filter(Boolean)
+    );
+
+    const weakestSet = new Set(
+      latestThree
+        .map(
+          (entry) =>
+            entry?.weakestDimensionSnapshot ||
+            entry?.weakestDimension ||
+            entry?.caseData?.weakestDimension ||
+            ""
+        )
+        .filter(Boolean)
+    );
+
+    if (scenarioSet.size <= 1 && weakestSet.size <= 1 && latestThree.length >= 2) {
+      return "same scenario + same weakest dimension";
+    }
+
+    if (score >= 1.5) {
+      return "partially aligned direction";
+    }
+
+    return "direction still mixed";
+  }
+
+  if (type === "continuity") {
+    const count = safeEntries.length;
+
+    if (count >= 5) return `${count} logged entries`;
+    if (count >= 3) return `${count} repeated events`;
+    if (count >= 2) return `${count} linked logs`;
+    return "single logged event";
+  }
+
+  return "";
+}
+
+function getTriggerEvidenceItems({ type, entries = [] }) {
+  const safeEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const latestThree = safeEntries.slice(-3);
+
+  if (type === "evidence") {
+    return latestThree.map((entry, index) => {
+      const eventInput = entry?.eventInput || entry?.sourceInput || {};
+      const caseData = entry?.caseData || entry?.reviewResult?.caseData || {};
+      const evidenceCount = Array.isArray(caseData?.evidenceItems)
+        ? caseData.evidenceItems.length
+        : 0;
+
+      const narrative =
+        eventInput?.summaryContext ||
+        eventInput?.description ||
+        entry?.summaryText ||
+        "No supporting narrative";
+
+      return {
+        id: `evidence-${index}`,
+        title: `Entry ${safeEntries.length - latestThree.length + index + 1}`,
+        detail:
+          evidenceCount > 0
+            ? `${evidenceCount} evidence item(s) attached`
+            : String(narrative).trim().slice(0, 100) || "No strong proof signal",
+      };
+    });
+  }
+
+  if (type === "structure") {
+    return latestThree.map((entry, index) => {
+      const eventInput = entry?.eventInput || entry?.sourceInput || {};
+      const caseData = entry?.caseData || entry?.reviewResult?.caseData || {};
+      const filled = [
+        entry?.eventType || entry?.reviewResult?.eventType,
+        eventInput?.externalPressure,
+        eventInput?.authorityBoundary,
+        eventInput?.dependency,
+        caseData?.scenarioCode,
+        caseData?.stage,
+      ].filter((v) => String(v || "").trim().length > 0).length;
+
+      return {
+        id: `structure-${index}`,
+        title: `Entry ${safeEntries.length - latestThree.length + index + 1}`,
+        detail: `${filled}/6 structural fields present`,
+      };
+    });
+  }
+
+  if (type === "consistency") {
+    return latestThree.map((entry, index) => {
+      const caseData = entry?.caseData || entry?.reviewResult?.caseData || {};
+      const weakest =
+        entry?.weakestDimensionSnapshot ||
+        entry?.weakestDimension ||
+        caseData?.weakestDimension ||
+        "unknown";
+      const scenario =
+        caseData?.scenarioCode ||
+        entry?.reviewResult?.scenarioCode ||
+        "unknown_scenario";
+
+      return {
+        id: `consistency-${index}`,
+        title: `Entry ${safeEntries.length - latestThree.length + index + 1}`,
+        detail: `scenario=${scenario}, weakest=${weakest}`,
+      };
+    });
+  }
+
+  if (type === "continuity") {
+    return safeEntries.slice(-5).map((entry, index) => {
+      const eventType =
+        entry?.eventType ||
+        entry?.reviewResult?.eventType ||
+        "other";
+
+      const ts =
+        entry?.timestamp ||
+        entry?.createdAt ||
+        entry?.recordedAt ||
+        "no timestamp";
+
+      return {
+        id: `continuity-${index}`,
+        title: `Log ${safeEntries.length - Math.min(5, safeEntries.length) + index + 1}`,
+        detail: `${eventType} · ${ts}`,
+      };
+    });
+  }
+
+  return [];
+}
+
+function getScoreExplanationLines({
+  evidenceScore = 0,
+  structureScore = 0,
+  consistencyScore = 0,
+  continuityScore = 0,
+}) {
+  const explainBand = (score, type) => {
+    if (type === "evidence") {
+      if (score >= 3) {
+        return "Evidence support is strong because the case includes traceable support or closure-like signals.";
+      }
+      if (score >= 1.5) {
+        return "Evidence support is forming, but the record is still only partially traceable.";
+      }
+      return "Evidence support is still light, so the case relies more on structure than on direct proof.";
+    }
+
+    if (type === "structure") {
+      if (score >= 3) {
+        return "Structure is strong because the event record contains enough fields and closure signals to hold shape.";
+      }
+      if (score >= 1.5) {
+        return "Structure is visible, but some parts of the case are still incomplete or thinly formed.";
+      }
+      return "Structure is still weak, so the case is not yet stable enough to defend confidently.";
+    }
+
+    if (type === "consistency") {
+      if (score >= 3) {
+        return "Consistency is high because the recent entries point in the same structural direction.";
+      }
+      if (score >= 1.5) {
+        return "Consistency is moderate because parts of the record align, but not yet tightly.";
+      }
+      return "Consistency is still weak because the record has not formed a stable pattern yet.";
+    }
+
+    if (type === "continuity") {
+      if (score >= 3) {
+        return "Continuity is high because the pattern is supported by repeated event logging over time.";
+      }
+      if (score >= 1.5) {
+        return "Continuity is emerging because the pattern appears more than once, but is not yet deeply reinforced.";
+      }
+      return "Continuity is still light because too few events have been logged to confirm repetition.";
+    }
+
+    return "";
+  };
+
+  return {
+    evidence: explainBand(evidenceScore, "evidence"),
+    structure: explainBand(structureScore, "structure"),
+    consistency: explainBand(consistencyScore, "consistency"),
+    continuity: explainBand(continuityScore, "continuity"),
+  };
+}
+
 function getMainPathSummary({
   structureStatus = "",
   weakestDimension = "",
@@ -778,6 +1118,24 @@ export default function PilotResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const pcMeta = location.state?.pcMeta || {
+    pc_id: "PC-001",
+    pc_name: "Decision Risk Diagnostic",
+  };
+  const handleBack = () => {
+    navigate(
+      location.state?.session_id
+        ? `${ROUTES.PILOT_SETUP}?session_id=${location.state.session_id}`
+        : ROUTES.PILOT_SETUP,
+      {
+        state: {
+         ...location.state,
+          pcMeta,
+        },
+      }
+    );
+  };
+
   console.log("🧠 PilotResult location.state =", location.state);
 
   useEffect(() => {
@@ -789,10 +1147,19 @@ export default function PilotResultPage() {
   const [showPilotRulesModal, setShowPilotRulesModal] = useState(false);
 
   const rawPilotEntries =
-    location.state?.eventHistory ||
     location.state?.pilot_entries ||
+    location.state?.latest_pilot_entry?.eventHistory ||
     location.state?.pilot_result?.eventHistory ||
+    location.state?.eventHistory ||
     getPilotEntries();
+
+  console.log("USING PILOT ENTRIES SOURCE =",
+    Array.isArray(location.state?.pilot_entries) ? "state.pilot_entries" :
+    Array.isArray(location.state?.latest_pilot_entry?.eventHistory) ? "latest_pilot_entry.eventHistory" :
+    Array.isArray(location.state?.pilot_result?.eventHistory) ? "pilot_result.eventHistory" :
+    Array.isArray(location.state?.eventHistory) ? "eventHistory" :
+    "getPilotEntries()"
+  );
 
   const eventHistory = useMemo(() => {
     return Array.isArray(rawPilotEntries) ? rawPilotEntries : [];
@@ -803,6 +1170,7 @@ export default function PilotResultPage() {
   const [structuralTraceExpanded, setStructuralTraceExpanded] = useState(false);
   const [receiptEligibilityExpanded, setReceiptEligibilityExpanded] = useState(false);
   const [backupPathExpanded, setBackupPathExpanded] = useState(false);
+  const [expandedTriggerKey, setExpandedTriggerKey] = useState(null);
 
   const pilotFlow = useMemo(() => {
     const entryCount = eventHistory.length;
@@ -988,6 +1356,10 @@ export default function PilotResultPage() {
   const currentEventType = latestEvent?.eventType || getCurrentEventType(entries);
   const currentEventLabel = getEventLabel(currentEventType);
 
+  const scoringEntries = useMemo(() => {
+    return entries.slice(-5);
+  }, [entries]);
+
   const resolvedWeakestDimension =
     getEntryWeakestDimension(latestEvent) ||
     sourceInput.weakestDimension ||
@@ -1002,14 +1374,117 @@ export default function PilotResultPage() {
   }, [entries, resolvedWeakestDimension, sourceInput.firstGuidedAction]);
 
   const combinationStatus = useMemo(() => {
-    return evaluatePilotCombinationStatus({
-      entries,
-      summaryMode: forceWeeklySummary,
-      topSignals: (sourceInput.signals || []).map(
-        (signal) => `${signal.label}: ${signal.value}`
-      ),
+    const entries = Array.isArray(scoringEntries) ? scoringEntries : [];
+
+    if (entries.length === 0) {
+      return {
+        score: 0,
+        evidenceSupport: 0,
+        structureCompleteness: 0,
+        consistency: 0,
+        continuity: 0,
+        structureStatus: "weak",
+        receiptEligible: false,
+      };
+    }
+
+    let evidence = 0;
+    let structure = 0;
+    let consistency = 0;
+
+    entries.forEach((e) => {
+      const eventInput = e.eventInput || e.sourceInput || {};
+      const caseData = e.caseData || e.reviewResult?.caseData || {};
+
+      // Evidence
+      const hasNarrative =
+        String(eventInput.summaryContext || eventInput.description || "").trim().length > 30;
+
+      const evidenceItems = Array.isArray(caseData.evidenceItems)
+        ? caseData.evidenceItems.length
+        : 0;
+
+      if (evidenceItems >= 2) evidence += 1;
+      else if (evidenceItems === 1) evidence += 0.75;
+      else if (hasNarrative) evidence += 0.5;
+      else if (String(eventInput.description || "").trim().length > 0) evidence += 0.25;
+
+      // Structure
+      let structureCount = 0;
+
+      if (e.eventType || e.reviewResult?.eventType) structureCount++;
+      if (eventInput.externalPressure) structureCount++;
+      if (eventInput.authorityBoundary) structureCount++;
+      if (eventInput.dependency) structureCount++;
+      if (caseData.scenarioCode) structureCount++;
+      if (caseData.stage) structureCount++;
+
+      if (structureCount >= 5) structure += 1;
+      else if (structureCount >= 3) structure += 0.5;
     });
-  }, [entries, forceWeeklySummary, sourceInput.signals]);
+
+    // 🧠 Consistency（只算一次！）
+    const latest3 = entries.slice(-3);
+
+    const scenarioSet = new Set(
+      latest3.map(x => x.caseData?.scenarioCode).filter(Boolean)
+    );
+
+    const weakestSet = new Set(
+      latest3.map(x =>
+        x.weakestDimensionSnapshot ||
+        x.weakestDimension ||
+        x.caseData?.weakestDimension
+      ).filter(Boolean)
+    );
+
+    let consistencyScoreRaw = 0;
+
+    if (scenarioSet.size === 1 && weakestSet.size === 1 && latest3.length >= 2) {
+      consistencyScoreRaw = 1;
+    } else if (latest3.length >= 2) {
+      consistencyScoreRaw = 0.5;
+    }
+
+    const n = entries.length;
+
+    const evidenceScore = evidence / n;
+    const structureScore = structure / n;
+    const consistencyScore = consistencyScoreRaw;
+
+    const continuityScore =
+      n >= 5 ? 1 :
+      n >= 3 ? 0.7 :
+      n >= 1 ? 0.4 :
+      0;
+
+    const total =
+      evidenceScore +
+      structureScore +
+      consistencyScore +
+      continuityScore;
+
+    return {
+      score: Number(total.toFixed(2)),
+      evidenceSupport: evidenceScore,
+      structureCompleteness: structureScore,
+      consistency: consistencyScore,
+      continuity: continuityScore,
+      structureStatus:
+        total >= 3 ? "ready" :
+        total >= 2 ? "building" :
+        "weak",
+      receiptEligible: total >= 3,
+    };
+  }, [scoringEntries]);
+
+  console.log("CASE DEBUG combinationStatus =", combinationStatus);
+  console.log("CASE DEBUG all entries =", entries);
+  console.log("CASE DEBUG scoringEntries =", scoringEntries);
+  console.log(
+    "CASE DEBUG latest scoring entry =",
+    scoringEntries[scoringEntries.length - 1]
+  );
 
   const hasPilotEntries = entries.length > 0;
 
@@ -1078,123 +1553,8 @@ const isWeeklySummaryFlow =
 
 const resolvedSummaryMode = isWeeklySummaryFlow;
 
-const evidenceSupportScore = runtimeState.resolvedEvidenceSupport ?? 0;
-const structureCompletenessScore = runtimeState.resolvedStructureCompleteness ?? 0;
-
-const consistencySignal = combinationStatus.consistency ?? 0;
-const continuitySignal = combinationStatus.continuity ?? 0;
-
-const consistencyScore = consistencySignal > 0 ? 1 : 0;
-const continuityScore = continuitySignal > 0 ? 1 : 0;
-
-const normalizedEvidenceScore = Math.max(
-  0,
-  Math.min(1, evidenceSupportScore / 2)
-);
-
-const normalizedStructureScore = Math.max(
-  0,
-  Math.min(1, structureCompletenessScore / 2)
-);
-
-const normalizedConsistencyScore = Math.max(
-  0,
-  Math.min(1, consistencyScore)
-);
-
-const normalizedContinuityScore = Math.max(
-  0,
-  Math.min(1, continuityScore)
-);
-
-// ✅ 唯一来源：shared contract / scoring
-const receiptReviewEligible =
-  location.state?.sharedReceiptVerificationContract?.scoring?.receiptEligible ??
-  false;
-
-const resolvedCaseInput = getCaseContext(sourceInput);
-
-const resolvedSummaryText =
-  getCaseSummary(sourceInput) ||
-  "No structured summary available.";
-
-const enhancedSourceInput = {
-  ...sourceInput,
-  caseData: sourceInput.caseData || null,
-  eventHistory: entries,
-  latestEvent: entries[entries.length - 1] || null,
-  schemaVersion: sourceInput.caseData?.schemaVersion || null,
-  structureScoreFromCase: sourceInput.caseData?.structureScore ?? null,
-  routeDecisionFromCase: sourceInput.caseData?.routeDecision || null,
-
-  reviewMode: runtimeState.resolvedReviewMode,
-  structuredEventCount: runtimeState.resolvedStructuredEventCount,
-  evidenceSupport: runtimeState.resolvedEvidenceSupport,
-  structureCompleteness: runtimeState.resolvedStructureCompleteness,
-  samplingWindowClosed: runtimeState.resolvedSamplingWindowClosed,
-
-  summaryMode: resolvedSummaryMode,
-  structureStatus: resolvedStructureStatus,
-  caseInput: resolvedCaseInput,
-  summaryText: resolvedSummaryText,
-  pilotEntriesCount: entries.length,
-  pilotFlow,
-  runEntries,
-  totalRunHits,
-  primaryRunLabel,
-  runSummaryText,
-  executionSummary,
-
-  continuity: combinationStatus.continuity,
-  consistency: combinationStatus.consistency,
-  score:
-    location.state?.sharedReceiptVerificationContract?.scoring?.totalScore ?? 0,
-  receiptEligible: receiptReviewEligible,
-};
-
-const receiptSourceInput = isWeeklySummaryFlow
-  ? {
-      ...enhancedSourceInput,
-      eventHistory: entries,
-      latestEvent: entries[entries.length - 1] || null,
-      summaryMode: true,
-      structureStatus: resolvedStructureStatus,
-      caseInput: weeklySummaryText,
-      summaryText: weeklySummaryText,
-      caseData: enhancedSourceInput.caseData
-        ? {
-            ...enhancedSourceInput.caseData,
-            summary: weeklySummaryText,
-            description: weeklySummaryText,
-            eventContext: weeklySummaryText,
-          }
-        : normalizeCaseInput({
-            source: "pilot",
-            summary: weeklySummaryText,
-            description: weeklySummaryText,
-            eventContext: weeklySummaryText,
-            scenarioCode: sourceInput.scenarioCode || "unknown_scenario",
-            stage: sourceInput.stage || "S0",
-            fallbackRunCode: sourceInput.runId || "RUN000",
-            patternId: sourceInput.pattern || "PAT-00",
-            weakestDimension: resolvedWeakestDimension || "",
-          }),
-    }
-  : enhancedSourceInput;
-
-const scoring = {
-  scoringVersion: "v1",
-  evidenceScore: normalizedEvidenceScore,
-  structureScore: normalizedStructureScore,
-  consistencyScore: normalizedConsistencyScore,
-  continuityScore: normalizedContinuityScore,
-  totalScore:
-    location.state?.sharedReceiptVerificationContract?.scoring?.totalScore ?? 0,
-
-  receiptThreshold:
-    location.state?.sharedReceiptVerificationContract?.scoring?.receiptThreshold ?? 3.0,
-  receiptEligible: receiptReviewEligible,
-};
+const incomingSharedScoring =
+  location.state?.sharedReceiptVerificationContract?.scoring || null;
 
 const pressureComplexity =
   String(
@@ -1248,6 +1608,13 @@ const complexityLabel =
     ? "Medium"
     : "Low";
 
+const complexityBoost =
+  complexityLabel === "High"
+    ? 0.35
+    : complexityLabel === "Medium"
+    ? 0.15
+    : 0;
+
 const complexityNote =
   complexityLabel === "High"
     ? "This score was reached under high structural complexity."
@@ -1255,9 +1622,125 @@ const complexityNote =
     ? "This score was reached under moderate structural complexity."
     : "This score was reached under relatively low structural complexity.";
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-      <div className="max-w-3xl mx-auto space-y-6">
+const finalTotalScore = Math.min(
+  4,
+  Number((Number(combinationStatus.score || 0) + complexityBoost).toFixed(2))
+);
+
+const scoring = {
+  scoringVersion: "v1",
+  evidenceScore: Number(combinationStatus.evidenceSupport || 0),
+  structureScore: Number(combinationStatus.structureCompleteness || 0),
+  consistencyScore: Number(combinationStatus.consistency || 0),
+  continuityScore: Number(combinationStatus.continuity || 0),
+  totalScore: finalTotalScore,
+  receiptThreshold: 3.0,
+  receiptEligible:
+    finalTotalScore >= 3.0 ||
+    combinationStatus.receiptEligible === true,
+};
+
+const receiptReviewEligible = scoring.receiptEligible;
+const weeklyReceiptEligible = receiptReviewEligible;
+
+const totalBase =
+  scoring.evidenceScore +
+  scoring.structureScore +
+  scoring.consistencyScore +
+  scoring.continuityScore ||
+  1;
+
+const ratio = scoring.totalScore / totalBase;
+
+const scoringDisplay = {
+  evidenceScore: Number(scoring.evidenceScore.toFixed(2)),
+  structureScore: Number(scoring.structureScore.toFixed(2)),
+  consistencyScore: Number(scoring.consistencyScore.toFixed(2)),
+  continuityScore: Number(scoring.continuityScore.toFixed(2)),
+
+  evidenceWeighted: Number((scoring.evidenceScore * ratio).toFixed(2)),
+  structureWeighted: Number((scoring.structureScore * ratio).toFixed(2)),
+  consistencyWeighted: Number((scoring.consistencyScore * ratio).toFixed(2)),
+  continuityWeighted: Number((scoring.continuityScore * ratio).toFixed(2)),
+
+  totalScore: Number(scoring.totalScore.toFixed(2)),
+  rawTotal: Number(scoring.totalScore.toFixed(2)),
+  receiptThreshold: Number(scoring.receiptThreshold.toFixed(1)),
+};
+
+const scoreTriggerTags = {
+  evidence: getScoreTriggerTag({
+    type: "evidence",
+    score: scoring.evidenceScore,
+    entries,
+  }),
+  structure: getScoreTriggerTag({
+    type: "structure",
+    score: scoring.structureScore,
+    entries,
+  }),
+  consistency: getScoreTriggerTag({
+    type: "consistency",
+    score: scoring.consistencyScore,
+    entries,
+  }),
+  continuity: getScoreTriggerTag({
+    type: "continuity",
+    score: scoring.continuityScore,
+    entries,
+  }),
+};
+
+const triggerEvidenceMap = {
+  evidence: getTriggerEvidenceItems({ type: "evidence", entries }),
+  structure: getTriggerEvidenceItems({ type: "structure", entries }),
+  consistency: getTriggerEvidenceItems({ type: "consistency", entries }),
+  continuity: getTriggerEvidenceItems({ type: "continuity", entries }),
+};
+
+const resolvedCaseInput = getCaseContext(sourceInput);
+
+const resolvedSummaryText =
+  getCaseSummary(sourceInput) ||
+  "No structured summary available.";
+
+const enhancedSourceInput = {
+  ...sourceInput,
+  caseData: sourceInput.caseData || null,
+  eventHistory: entries,
+  latestEvent: entries[entries.length - 1] || null,
+  schemaVersion: sourceInput.caseData?.schemaVersion || null,
+  structureScoreFromCase: sourceInput.caseData?.structureScore ?? null,
+  routeDecisionFromCase: sourceInput.caseData?.routeDecision || null,
+
+  reviewMode: runtimeState.resolvedReviewMode,
+  structuredEventCount: runtimeState.resolvedStructuredEventCount,
+  evidenceSupport: runtimeState.resolvedEvidenceSupport,
+  structureCompleteness: runtimeState.resolvedStructureCompleteness,
+  samplingWindowClosed: runtimeState.resolvedSamplingWindowClosed,
+
+  summaryMode: resolvedSummaryMode,
+  structureStatus: resolvedStructureStatus,
+  caseInput: resolvedCaseInput,
+  summaryText: resolvedSummaryText,
+  pilotEntriesCount: entries.length,
+  pilotFlow,
+  runEntries,
+  totalRunHits,
+  primaryRunLabel,
+  runSummaryText,
+  executionSummary,
+
+  continuity: combinationStatus.continuity,
+  consistency: combinationStatus.consistency,
+  score: scoring.totalScore,
+  receiptEligible: receiptReviewEligible,
+};
+
+return (
+  <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+    <div className="max-w-5xl mx-auto">
+      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <p className="text-sm font-medium text-slate-500 mb-2">
             {isWeeklySummaryFlow
@@ -1281,124 +1764,123 @@ const complexityNote =
         </header>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-xl bg-white shadow-sm">
+                <div className="h-4" />
+                <div className="px-5 pt-2 pb-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">
+                        Main judgment path
+                      </p>
+                      <h2 className="mt-1 text-xl font-semibold text-slate-950">
+                        {mainPathSummary.title}
+                      </h2>
+                    </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="rounded-xl bg-white shadow-sm">
-              <div className="h-4" />
-              <div className="px-5 pt-2 pb-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      Main judgment path
-                    </p>
-                    <h2 className="mt-1 text-xl font-semibold text-slate-950">
-                      {mainPathSummary.title}
-                    </h2>
-                  </div>
-            
-                  <div>
-                    <span
-                      className="inline-flex rounded-full px-3 py-1 text-sm font-semibold"
-                      style={
-                        resolvedStructureStatus === "ready"
-                          ? {
-                              backgroundColor: "#DCFCE7",
-                              color: "#15803D",
-                            }
+                    <div>
+                      <span
+                        className="inline-flex rounded-full px-3 py-1 text-sm font-semibold"
+                        style={
+                          resolvedStructureStatus === "ready"
+                            ? {
+                                backgroundColor: "#DCFCE7",
+                                color: "#15803D",
+                              }
+                            : resolvedStructureStatus === "building"
+                            ? {
+                                backgroundColor: "#FEF9C3",
+                                color: "#A16207",
+                              }
+                            : resolvedStructureStatus === "weak"
+                            ? {
+                                backgroundColor: "#FEE2E2",
+                                color: "#B91C1C",
+                              }
+                            : {
+                                backgroundColor: "#F1F5F9",
+                                color: "#475569",
+                              }
+                        }
+                      >
+                        {resolvedStructureStatus === "ready"
+                          ? "Ready"
                           : resolvedStructureStatus === "building"
-                          ? {
-                              backgroundColor: "#FEF9C3",
-                              color: "#A16207",
-                            }
+                          ? "Building"
                           : resolvedStructureStatus === "weak"
-                          ? {
-                              backgroundColor: "#FEE2E2",
-                              color: "#B91C1C",
-                            }
-                          : {
-                              backgroundColor: "#F1F5F9",
-                              color: "#475569",
-                            }
-                      }
-                    >
-                      {resolvedStructureStatus === "ready"
-                        ? "Ready"
-                        : resolvedStructureStatus === "building"
-                        ? "Building"
-                        : resolvedStructureStatus === "weak"
-                        ? "Weak"
-                        : "Not set"}
-                    </span>
+                          ? "Weak"
+                          : "Not set"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-            
-                <p className="mt-4 text-sm leading-7 text-slate-700">
-                  {mainPathSummary.body}
-                </p>
-              </div>
-          
-              {(enhancedSourceInput.caseInput ||
-                enhancedSourceInput.summaryText ||
-                enhancedSourceInput.latestEvent) && (
-                <div className="mx-5 mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">
-                    Observed context
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">
-                    {getCaseSummary(enhancedSourceInput.latestEvent) ||
-                      getCaseContext(enhancedSourceInput.latestEvent) ||
-                      getCaseSummary(enhancedSourceInput) ||
-                      getCaseContext(enhancedSourceInput) ||
-                      "No case attached"}
+
+                  <p className="mt-4 text-sm leading-7 text-slate-700">
+                    {mainPathSummary.body}
                   </p>
                 </div>
-              )}
-          
-              <div className="mx-5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-medium text-emerald-700">
-                  Primary recommendation
-                </p>
-                <p className="mt-1 text-base font-semibold text-emerald-900">
-                  {primaryRecommendation}
-                </p>
 
-                <p className="mt-3 text-sm leading-6 text-emerald-800">
-                  {costAttachment}
-                </p>
-              </div>
-
-              <div className="mx-5 mb-6 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setBackupPathExpanded((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left"
-                >
-                  <div>
+                {(enhancedSourceInput.caseInput ||
+                  enhancedSourceInput.summaryText ||
+                  enhancedSourceInput.latestEvent) && (
+                  <div className="mx-5 mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm font-medium text-slate-500">
-                      Backup path
+                      Observed context
                     </p>
-                    <p className="text-sm font-semibold text-slate-900">
-                      Collapsed alternative
-                    </p>
-                  </div>
-
-                  <span className="text-sm font-medium text-slate-500">
-                    {backupPathExpanded ? "Hide" : "View"}
-                  </span>
-                </button>
-
-                {backupPathExpanded && (
-                  <div className="border-t border-slate-200 bg-white px-4 py-4">
-                    <p className="text-sm leading-6 text-slate-700">
-                      {backupRecommendation}
+                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                      {getCaseSummary(enhancedSourceInput.latestEvent) ||
+                        getCaseContext(enhancedSourceInput.latestEvent) ||
+                        getCaseSummary(enhancedSourceInput) ||
+                        getCaseContext(enhancedSourceInput) ||
+                        "No case attached"}
                     </p>
                   </div>
                 )}
+
+                <div className="mx-5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-medium text-emerald-700">
+                    Primary recommendation
+                  </p>
+                  <p className="mt-1 text-base font-semibold text-emerald-900">
+                    {primaryRecommendation}
+                  </p>
+
+                  <p className="mt-3 text-sm leading-6 text-emerald-800">
+                    {costAttachment}
+                  </p>
+                </div>
+
+                <div className="mx-5 mb-6 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setBackupPathExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">
+                        Backup path
+                      </p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Collapsed alternative
+                      </p>
+                    </div>
+
+                    <span className="text-sm font-medium text-slate-500">
+                      {backupPathExpanded ? "Hide" : "View"}
+                    </span>
+                  </button>
+
+                  {backupPathExpanded && (
+                    <div className="border-t border-slate-200 bg-white px-4 py-4">
+                      <p className="text-sm leading-6 text-slate-700">
+                        {backupRecommendation}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
           <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
             <button
@@ -1411,7 +1893,8 @@ const complexityNote =
                   Structural trace
                 </p>
                 <p className="text-base font-semibold text-slate-900">
-                  {primaryRunLabel || sourceInput.runId || "RUN000"} · {sourceInput.pattern || "PAT-00"}
+                  {primaryRunLabel || sourceInput.runId || "RUN000"} ·{" "}
+                  {sourceInput.pattern || "PAT-00"}
                 </p>
               </div>
 
@@ -1473,13 +1956,15 @@ const complexityNote =
                 <div>
                   <p
                     className="text-sm font-medium"
-                   style={
+                    style={
                       weeklySummaryDue || isWeeklySummaryFlow
                         ? { color: "#B91C1C" }
                         : { color: "#64748B" }
                     }
                   >
-                    {weeklySummaryDue || isWeeklySummaryFlow ? "Weekly Summary" : "Progress Summary"}
+                    {weeklySummaryDue || isWeeklySummaryFlow
+                      ? "Weekly Summary"
+                      : "Progress Summary"}
                   </p>
 
                   <p
@@ -1515,7 +2000,7 @@ const complexityNote =
                   className="border-t px-4 py-4 space-y-4"
                   style={
                     weeklySummaryDue || isWeeklySummaryFlow
-                     ? {
+                      ? {
                           borderColor: "#FECACA",
                           backgroundColor: "#FFF7F7",
                         }
@@ -1560,7 +2045,6 @@ const complexityNote =
             </div>
           )}
 
-          {/* 🧾 Receipt eligibility (folded) */}
           <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
             <button
               type="button"
@@ -1587,36 +2071,154 @@ const complexityNote =
             {receiptEligibilityExpanded && (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
                 <p className="text-sm text-slate-700">
-                  Structure {receiptReviewEligible ? "meets" : "does not meet"} the minimum threshold for receipt review.
-                  Receipt stays locked until the score reaches {scoring.receiptThreshold.toFixed(1)} / 4.
+                  Structure {receiptReviewEligible ? "meets" : "does not meet"}{" "}
+                  the minimum threshold for receipt review. Receipt stays locked
+                  until the score reaches{" "}
+                  {scoringDisplay.receiptThreshold.toFixed(1)} / 4.
                 </p>
 
-                <div className="px-3 py-2 space-y-1 text-sm text-slate-800">
-                  <div className="flex justify-between">
+                <div className="px-3 py-2 space-y-2 text-sm text-slate-800">
+                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
                     <span>Evidence</span>
-                    <span>{scoring.evidenceScore.toFixed(1)} / 1</span>
-                  </div>
 
-                  <div className="flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedTriggerKey((prev) =>
+                          prev === "evidence" ? null : "evidence"
+                        )
+                      }
+                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
+                    >
+                      <span>{scoreTriggerTags.evidence}</span>
+                      <span className="text-[11px]">
+                        {expandedTriggerKey === "evidence" ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+                
+                    <span className="text-right">
+                      {scoringDisplay.evidenceWeighted.toFixed(2)}
+                    </span>
+                  </div>
+                
+                  {expandedTriggerKey === "evidence" && (
+                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                      {triggerEvidenceMap.evidence.map((item) => (
+                        <div key={item.id} className="text-xs text-slate-600">
+                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
+                          {item.detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                
+                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
                     <span>Structure</span>
-                    <span>{scoring.structureScore.toFixed(1)} / 1</span>
+                
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedTriggerKey((prev) =>
+                          prev === "structure" ? null : "structure"
+                        )
+                      }
+                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
+                    >
+                      <span>{scoreTriggerTags.structure}</span>
+                      <span className="text-[11px]">
+                        {expandedTriggerKey === "structure" ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+                
+                    <span className="text-right">
+                      {scoringDisplay.structureWeighted.toFixed(2)}
+                    </span>
                   </div>
-
-                  <div className="flex justify-between">
+                
+                  {expandedTriggerKey === "structure" && (
+                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                      {triggerEvidenceMap.structure.map((item) => (
+                        <div key={item.id} className="text-xs text-slate-600">
+                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
+                          {item.detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                
+                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
                     <span>Consistency</span>
-                    <span>{scoring.consistencyScore.toFixed(1)} / 1</span>
+                
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedTriggerKey((prev) =>
+                          prev === "consistency" ? null : "consistency"
+                        )
+                      }
+                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
+                    >
+                      <span>{scoreTriggerTags.consistency}</span>
+                      <span className="text-[11px]">
+                        {expandedTriggerKey === "consistency" ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+                
+                    <span className="text-right">
+                      {scoringDisplay.consistencyWeighted.toFixed(2)}
+                    </span>
                   </div>
-
-                  <div className="flex justify-between">
+                
+                  {expandedTriggerKey === "consistency" && (
+                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                      {triggerEvidenceMap.consistency.map((item) => (
+                        <div key={item.id} className="text-xs text-slate-600">
+                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
+                          {item.detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                
+                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
                     <span>Continuity</span>
-                    <span>{scoring.continuityScore.toFixed(1)} / 1</span>
+                
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedTriggerKey((prev) =>
+                          prev === "continuity" ? null : "continuity"
+                        )
+                      }
+                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
+                    >
+                      <span>{scoreTriggerTags.continuity}</span>
+                      <span className="text-[11px]">
+                        {expandedTriggerKey === "continuity" ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+                
+                    <span className="text-right">
+                      {scoringDisplay.continuityWeighted.toFixed(2)}
+                    </span>
                   </div>
-
+                
+                  {expandedTriggerKey === "continuity" && (
+                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                      {triggerEvidenceMap.continuity.map((item) => (
+                        <div key={item.id} className="text-xs text-slate-600">
+                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
+                          {item.detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                
                   <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-medium text-slate-900">
                     <span>Total score</span>
-                    <span>{scoring.totalScore.toFixed(1)} / 4</span>
+                    <span>{scoringDisplay.totalScore.toFixed(2)} / 4</span>
                   </div>
-
+                
                   <div className="flex justify-between text-sm text-slate-700">
                     <span>Complexity</span>
                     <span>{complexityLabel}</span>
@@ -1624,17 +2226,17 @@ const complexityNote =
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-sm text-slate-600">
-                    {complexityNote}
-                  </p>
+                  <p className="text-sm text-slate-600">{complexityNote}</p>
 
                   {receiptReviewEligible ? (
                     <p className="text-sm text-emerald-700">
-                      Receipt eligibility is based on four checks: Evidence, Structure, Consistency, and Continuity.
+                      Receipt eligibility is based on four checks: Evidence,
+                      Structure, Consistency, and Continuity.
                     </p>
                   ) : (
                     <p className="text-sm text-amber-700">
-                      Receipt eligibility is based on four checks: Evidence, Structure, Consistency, and Continuity.
+                      Receipt eligibility is based on four checks: Evidence,
+                      Structure, Consistency, and Continuity.
                     </p>
                   )}
                 </div>
@@ -1642,147 +2244,148 @@ const complexityNote =
             )}
           </div>
 
-          {/* 🚀 CTA */}
-          <div className="pt-2 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="pt-2">
             {hasPilotEntries ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowPilotRulesModal(true)}
+              <div
+                style={{
+                  width: "100%",
+                  paddingLeft: "8px",
+                  paddingRight: "8px",
+                }}
+              >
+                <div
                   style={{
-                    display: "inline-flex",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: "12px",
+                    alignItems: "stretch",
                     width: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "999px",
-                    padding: "12px 24px",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    backgroundColor: "#FFFFFF",
-                    color: "#0F172A",
-                    border: "1px solid #E2E8F0",
-                    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
-                    cursor: "pointer",
+                    maxWidth: "920px",
+                    margin: "0 auto",
                   }}
                 >
-                  View Pilot Rules
-                </button>
-          
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!receiptReviewEligible) return;
-          
-                    const routeDecision = {
-                      mode: resolvedSummaryMode
-                        ? "final_receipt"
-                        : runtimeState.resolvedReviewMode === "case_receipt"
-                        ? "case_receipt"
-                        : "case_receipt",
-                      reason: resolvedSummaryMode
-                        ? "weekly_summary_confirmed"
-                        : runtimeState.resolvedNextAction ||
-                          "single_case_confirmed",
-                    };
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!receiptReviewEligible) return;
 
-                    const receiptSource = isWeeklySummaryFlow
-                      ? "pilot_weekly_summary"
-                      : "pilot_case_result";
-
-                    const receiptPageData = buildReceiptPageData(receiptSourceInput);
-
-                    const verificationPageData = buildVerificationPageData({
-                      ...receiptSourceInput,
-                      eventHistory: entries,
-                      routeDecision,
-                      receiptSource,
-                    });
-
-                    const finalReceiptHash = createReceiptHash({
-                      ...receiptSourceInput,
-                      ...receiptPageData,
-                      runEntries,
-                      totalRunHits,
-                      executionSummary,
-                      generatedAt: receiptPageData.generatedAt,
-                    });
-
-                    const receiptPageDataWithHash = {
-                      ...receiptPageData,
-                      receiptHash: finalReceiptHash,
-                    };
-
-                    const finalEvidenceLock = {
-                      receiptId: receiptPageDataWithHash.receiptId || "RCPT-DEMO-001",
-                      receiptHash: finalReceiptHash,
-                      receiptSource: isWeeklySummaryFlow
+                      const routeDecision = {
+                        mode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
+                        reason: resolvedSummaryMode
+                          ? "weekly_summary_confirmed"
+                          : runtimeState.resolvedNextAction || "single_case_confirmed",
+                      };
+                    
+                      const receiptSource = isWeeklySummaryFlow
                         ? "pilot_weekly_summary"
-                        : "pilot_case_result",
-                      receiptMode: isWeeklySummaryFlow
-                        ? "final_receipt"
-                        : "case_receipt",
+                        : "pilot_case_result";
+                    
+                      const receiptSourceInput = {
+                        ...enhancedSourceInput,
+                        eventHistory: entries,
+                        latestEvent: entries[entries.length - 1] || null,
+                        executionSummary,
+                        runEntries,
+                        totalRunHits,
+                        primaryRunLabel,
+                        runSummaryText,
+                        summaryMode: resolvedSummaryMode,
+                        structureStatus: resolvedStructureStatus,
+                        receiptEligible: receiptReviewEligible,
+                        score: scoring.totalScore,
+                      };
+                    
+                      const receiptPageData = buildReceiptPageData(receiptSourceInput);
+
+                      const verificationPageData = buildVerificationPageData({
+                        ...receiptSourceInput,
+                        eventHistory: entries,
+                        routeDecision,
+                        receiptSource,
+                      });
+                    
+                      const finalReceiptHash = createReceiptHash({
+                        ...receiptSourceInput,
+                        ...receiptPageData,
+                        runEntries,
+                        totalRunHits,
+                        executionSummary,
+                        generatedAt: receiptPageData.generatedAt,
+                      });
+                    
+                      const receiptPageDataWithHash = {
+                        ...receiptPageData,
+                        receiptHash: finalReceiptHash,
+                      };
+                    
+                      const finalEvidenceLock = {
+                        receiptId: receiptPageDataWithHash.receiptId || "RCPT-DEMO-001",
+                        receiptHash: finalReceiptHash,
+                        receiptSource,
+                        receiptMode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
                     };
-
-                    const sharedReceiptVerificationContract = buildReceiptContract({
-                      ...receiptPageDataWithHash,
-
-                      receiptSource,
-                      receiptHash: finalReceiptHash,
-
-                      caseData: receiptSourceInput.caseData || enhancedSourceInput.caseData || null,
-                      schemaVersion:
-                        receiptSourceInput.caseData?.schemaVersion ||
-                        enhancedSourceInput.caseData?.schemaVersion ||
-                        null,
-
-                      structureScoreFromCase:
-                        receiptSourceInput.caseData?.structureScore ??
-                        enhancedSourceInput.caseData?.structureScore ??
-                        null,
-
-                      // 🔽 Descriptive-only (NOT used for eligibility gating)
-                      structureMeta: {
+                    
+                      const sharedReceiptVerificationContract = buildReceiptContract({
+                        ...receiptPageDataWithHash,
+                        receiptSource,
+                        receiptHash: finalReceiptHash,
+                    
+                        caseData:
+                          receiptSourceInput.caseData ||
+                          enhancedSourceInput.caseData ||
+                          null,
+                        schemaVersion:
+                          receiptSourceInput.caseData?.schemaVersion ||
+                          enhancedSourceInput.caseData?.schemaVersion ||
+                          null,
+                    
+                        structureScoreFromCase:
+                          receiptSourceInput.caseData?.structureScore ??
+                          enhancedSourceInput.caseData?.structureScore ??
+                          null,
+                    
                         structureStatusFromCase:
                           receiptSourceInput.caseData?.structureStatus ||
                           enhancedSourceInput.caseData?.structureStatus ||
                           resolvedStructureStatus ||
                           null,
-                      },
-
-                      routeDecisionFromCase:
-                        receiptSourceInput.caseData?.routeDecision ||
-                        enhancedSourceInput.caseData?.routeDecision ||
-                        null,
-
-                      weakestDimension:
-                        resolvedWeakestDimension ||
-                        receiptSourceInput.caseData?.weakestDimension ||
-                        enhancedSourceInput.caseData?.weakestDimension ||
-                        "",
-
-                      behavioralGroundingSummary:
-                        verificationPageData?.behavioralGroundingSummary || {
-                          groundingStatus: "",
-                          groundingLabel: "",
-                          groundingNote: "",
-                          groundingScore: null,
-                        },
-
-                      verificationTitle:
-                        verificationPageData?.verificationTitle || "Structure Proof Verification",
-                      introText:
-                        verificationPageData?.introText ||
-                        "This page shows whether the receipt, supporting structure, and final output can be checked consistently.",
-                      finalNote:
+                    
+                        routeDecisionFromCase:
+                          receiptSourceInput.caseData?.routeDecision ||
+                          enhancedSourceInput.caseData?.routeDecision ||
+                          null,
+                    
+                        weakestDimension:
+                          resolvedWeakestDimension ||
+                          receiptSourceInput.caseData?.weakestDimension ||
+                          enhancedSourceInput.caseData?.weakestDimension ||
+                          "",
+                    
+                        behavioralGroundingSummary:
+                          verificationPageData?.behavioralGroundingSummary || {
+                            groundingStatus: "",
+                            groundingLabel: "",
+                            groundingNote: "",
+                            groundingScore: null,
+                          },
+                    
+                        verificationTitle:
+                          verificationPageData?.verificationTitle ||
+                          "Structure Proof Verification",
+                        introText:
+                          verificationPageData?.introText ||
+                          "This page shows whether the receipt, supporting structure, and final output can be checked consistently.",
+                        finalNote:
                         verificationPageData?.finalNote ||
                         "Verification confirms whether the current receipt and supporting output are consistent and reviewable.",
-                      backToReceiptText:
-                        verificationPageData?.backToReceiptText || "Back to Decision Receipt",
-                      checks: verificationPageData?.checks || [],
-                      eventTimeline: verificationPageData?.eventTimeline || [],
-                      overallStatus:
-                        verificationPageData?.overallStatus || "Ready for Review",
-                      scoringVersion: scoring.scoringVersion,
+                        backToReceiptText:
+                          verificationPageData?.backToReceiptText ||
+                          "Back to Decision Receipt",
+                        checks: verificationPageData?.checks || [],
+                        eventTimeline: verificationPageData?.eventTimeline || [],
+                        overallStatus:
+                          verificationPageData?.overallStatus || "Ready for Review",
+                        scoringVersion: scoring.scoringVersion,
                         evidenceScore: scoring.evidenceScore,
                         structureScore: scoring.structureScore,
                         consistencyScore: scoring.consistencyScore,
@@ -1793,584 +2396,732 @@ const complexityNote =
                         complexityScore,
                         complexityLabel,
                         complexityNote,
-                    });
+                      });
+                    
+                      const flattenedSharedReceiptVerificationContract =
+                        flattenSharedReceiptVerificationContract(
+                          sharedReceiptVerificationContract
+                        );
+                    
+                      try {
+                        recordRun({
+                          receiptId: receiptPageDataWithHash.receiptId,
+                          workflow: receiptSourceInput.workflow || "",
+                          scenarioLabel: receiptSourceInput.scenarioLabel || "",
+                          stageLabel: receiptSourceInput.stage || "",
+                          runLabel: receiptSourceInput.runId || "",
+                          totalEvents: executionSummary.totalEvents,
+                          structuredEventsCount: executionSummary.structuredEventsCount,
+                          latestEventType: executionSummary.latestEventType,
+                          behaviorStatus: executionSummary.behaviorStatus,
+                          receiptSource,
+                          totalRunHits,
+                          primaryRunLabel,
+                        });
+                      } catch (error) {
+                        console.error("Failed to write run ledger:", error);
+                      }
 
-                    const flattenedSharedReceiptVerificationContract =
-                      flattenSharedReceiptVerificationContract(
-                        sharedReceiptVerificationContract
-                      );
+                      try {
+                        localStorage.setItem(
+                          "receiptPageData",
+                          JSON.stringify({
+                            receiptId: receiptPageDataWithHash.receiptId,
+                            generatedAt: receiptPageDataWithHash.generatedAt,
+                            receiptHash: receiptPageDataWithHash.receiptHash,
+                            decisionStatus: receiptPageDataWithHash.decisionStatus,
+                          })
+                        );
 
-                    const receiptState = {
-                      receiptPageData: receiptPageDataWithHash,
-                      verificationPageData,
-
-                      sharedReceiptVerificationContract,
-                      flattenedSharedReceiptVerificationContract,
-
-                      routeDecision,
-                      receiptSource,
-                      evidenceLock: finalEvidenceLock,
-
-                      caseData: receiptSourceInput.caseData || enhancedSourceInput.caseData || null,
-                      eventHistory: entries,
-                    };
-          
-                    recordRun({
-                      receiptId: receiptPageDataWithHash.receiptId,
-                      caseInput: receiptSourceInput.caseInput || "",
-                      workflow: receiptSourceInput.workflow || "",
-                      scenarioLabel: receiptSourceInput.scenarioLabel || "",
-                      stageLabel: receiptSourceInput.stage || "",
-                      runLabel: receiptSourceInput.runId || "",
-                      totalEvents: executionSummary.totalEvents,
-                      structuredEventsCount: executionSummary.structuredEventsCount,
-                      latestEventType: executionSummary.latestEventType,
-                      behaviorStatus: executionSummary.behaviorStatus,
-                      receiptPageData: receiptPageDataWithHash,
-                      verificationPageData,
-                      routeDecision,
-                      receiptSource,
-                      runEntries,
-                      totalRunHits,
-                      primaryRunLabel,
-                      runSummaryText,
-                      evidenceLock: finalEvidenceLock,
-                      caseData: receiptSourceInput.caseData || enhancedSourceInput.caseData || null,
-                      eventHistory: entries,
-                    });
-          
-                    localStorage.setItem(
-                      "receiptPageData",
-                      JSON.stringify(receiptPageDataWithHash)
-                    );
-                    localStorage.setItem("receiptRouteDecision", JSON.stringify(routeDecision));
-                    localStorage.setItem("receiptSource", receiptSource);
-
-                    localStorage.setItem(
-                      "sharedReceiptVerificationContract",
-                      JSON.stringify(sharedReceiptVerificationContract)
-                    );
-
-                    localStorage.setItem(
-                      "flattenedSharedReceiptVerificationContract",
-                      JSON.stringify(flattenedSharedReceiptVerificationContract)
-                    );
-          
-                    navigate(ROUTES.RECEIPT, {
-                      state: {
-                        receiptPageData: receiptPageDataWithHash,
-                        routeDecision: {
-                          mode: isWeeklySummaryFlow ? "final_receipt" : "case_receipt",
+                        localStorage.setItem(
+                          "receiptRouteDecision",
+                          JSON.stringify(routeDecision)
+                        );
+                      
+                        localStorage.setItem("receiptSource", receiptSource);
+                      
+                        localStorage.setItem(
+                          "sharedReceiptVerificationContract",
+                         JSON.stringify({
+                            receiptId:
+                              flattenedSharedReceiptVerificationContract?.receiptId ||
+                              receiptPageDataWithHash.receiptId,
+                            receiptHash:
+                              flattenedSharedReceiptVerificationContract?.receiptHash ||
+                              finalReceiptHash,
+                            weakestDimension:
+                              flattenedSharedReceiptVerificationContract?.weakestDimension ||
+                              resolvedWeakestDimension ||
+                              "",
+                            overallStatus:
+                              flattenedSharedReceiptVerificationContract?.overallStatus ||
+                              verificationPageData?.overallStatus ||
+                              "Ready for Review",
+                              scoring: {
+                                scoringVersion: scoring.scoringVersion,
+                                evidenceScore: scoring.evidenceScore,
+                                structureScore: scoring.structureScore,
+                                consistencyScore: scoring.consistencyScore,
+                                continuityScore: scoring.continuityScore,
+                                totalScore: scoring.totalScore,
+                                receiptThreshold: scoring.receiptThreshold,
+                                receiptEligible: scoring.receiptEligible,
+                              },
+                            })
+                          );
+                        } catch (error) {
+                          console.error("Failed to persist receipt payload:", error);
+                        }
+                    
+                      navigate(ROUTES.RECEIPT, {
+                        state: {
+                          pcMeta,
+                          receiptPageData: receiptPageDataWithHash,
+                          verificationPageData,
+                          routeDecision,
+                          receiptSource,
+                          evidenceLock: finalEvidenceLock,
+                          sharedReceiptVerificationContract,
+                          flattenedSharedReceiptVerificationContract,
+                          caseData:
+                            receiptSourceInput.caseData ||
+                            enhancedSourceInput.caseData ||
+                            null,
+                          eventHistory: entries,
                         },
-                        receiptSource: isWeeklySummaryFlow
-                          ? "pilot_weekly_summary"
-                          : "pilot_case_result",
-                        evidenceLock: finalEvidenceLock,
-                      },
-                    });
-                  }}
-                  style={{
-                    display: "inline-flex",
-                    width: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "999px",
-                    padding: "12px 24px",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    boxShadow: receiptReviewEligible
-                      ? "0 4px 12px rgba(15, 23, 42, 0.08)"
-                      : "none",
-                    backgroundColor: receiptReviewEligible ? "#0F172A" : "#FFFFFF",
-                    color: receiptReviewEligible ? "#FFFFFF" : "#dde2eb",
-                    border: receiptReviewEligible ? "none" : "1px solid #E2E8F0",
-                    cursor: receiptReviewEligible ? "pointer" : "not-allowed",
-                  }}
-                >
-                  {receiptReviewEligible
-                    ? "Continue to Receipt Review →"
-                    : "Receipt locked"}
-                </button>
-          
-                <button
-                  type="button"
-                  onClick={() => {
-                    console.log("OPEN SUBSCRIPTION MODAL");
-                    setShowSubscriptionModal(true);
-                  }}
-                  style={{
-                    display: "inline-flex",
-                    width: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "999px",
-                    padding: "12px 24px",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.06)",
-                    backgroundColor: "#fef6d2",
-                    color: "#D97706",
-                    border: "1px solid #ffeda3",
-                    cursor: "pointer",
-                  }}
-                >
-                  View Subscription Options →
-                </button>
-              </>
+                      });
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      width: "100%",
+                      minHeight: "62px",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      padding: "12px 20px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      boxShadow: receiptReviewEligible
+                        ? "0 2px 8px rgba(15, 23, 42, 0.12)"
+                        : "none",
+                      backgroundColor: receiptReviewEligible
+                        ? "#0F172A"
+                        : "#FFFFFF",
+                      color: receiptReviewEligible ? "#FFFFFF" : "#cbd5e1",
+                      border: receiptReviewEligible
+                        ? "1px solid #0F172A"
+                        : "1px solid #E2E8F0",
+                      cursor: receiptReviewEligible ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {receiptReviewEligible
+                      ? "Continue to Receipt Review →"
+                      : "Receipt locked"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    style={{
+                      display: "inline-flex",
+                      width: "100%",
+                      minHeight: "62px",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      padding: "12px 20px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      backgroundColor: "#FFFFFF",
+                      color: "#0F172A",
+                      border: "1px solid #E2E8F0",
+                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Back to Pilot
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPilotRulesModal(true)}
+                    style={{
+                      display: "inline-flex",
+                      width: "100%",
+                      minHeight: "62px",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      padding: "12px 20px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      backgroundColor: "#fffae6",
+                      color: "#dd8a2c",
+                      border: "1px solid #ffeda3",
+                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    View Pilot Rules
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log("OPEN SUBSCRIPTION MODAL");
+                      setShowSubscriptionModal(true);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      width: "100%",
+                      minHeight: "62px",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      padding: "12px 20px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.06)",
+                      backgroundColor: "#FEF6D2",
+                      color: "#D97706",
+                      border: "1px solid #ffeda3",
+                      cursor: "pointer",
+                    }}
+                  >
+                    View Subscription Options
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="text-sm text-slate-500">
                 No pilot data yet. Complete at least one pilot entry first.
               </div>
             )}
           </div>
-
         </section>
+      </div>
 
-        {showPilotRulesModal && (
+      {showPilotRulesModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 99998,
+            backgroundColor: "rgba(15, 23, 42, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
           <div
             style={{
-              position: "fixed",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              zIndex: 99998,
-              backgroundColor: "rgba(15, 23, 42, 0.45)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "16px",
+              width: "100%",
+              maxWidth: "560px",
+              backgroundColor: "#FFFFFF",
+              borderRadius: "24px",
+              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.24)",
+              border: "1px solid #E2E8F0",
+              padding: "20px",
             }}
           >
             <div
               style={{
-                width: "100%",
-                maxWidth: "560px",
-                backgroundColor: "#FFFFFF",
-                borderRadius: "24px",
-                boxShadow: "0 24px 80px rgba(15, 23, 42, 0.24)",
-                border: "1px solid #E2E8F0",
-                padding: "20px",
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                alignItems: "center",
+                columnGap: "12px",
+                marginBottom: "16px",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  margin: 0,
+                }}
+              >
+                Pilot access rules
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setShowPilotRulesModal(false)}
+                aria-label="Close"
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "999px",
+                  border: "1px solid #E2E8F0",
+                  backgroundColor: "#FFFFFF",
+                  color: "#64748B",
+                  fontSize: "20px",
+                  lineHeight: 1,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "12px",
               }}
             >
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  alignItems: "center",
-                  columnGap: "12px",
-                  marginBottom: "16px",
+                  border: "1px solid #A7F3D0",
+                  backgroundColor: "#ECFDF5",
+                  borderRadius: "16px",
+                  padding: "14px 16px",
                 }}
               >
-                <h2
+                <div
                   style={{
-                    fontSize: "22px",
+                    fontSize: "12px",
                     fontWeight: 700,
-                    color: "#0F172A",
-                    margin: 0,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "#047857",
+                    marginBottom: "6px",
                   }}
                 >
-                  Pilot access rules
-                </h2>
-        
-                <button
-                  type="button"
-                  onClick={() => setShowPilotRulesModal(false)}
-                  aria-label="Close"
+                  Event logging
+                </div>
+                <div
                   style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "999px",
-                    border: "1px solid #E2E8F0",
-                    backgroundColor: "#FFFFFF",
-                    color: "#64748B",
-                    fontSize: "20px",
-                    lineHeight: 1,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 0,
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#064E3B",
+                    lineHeight: 1.5,
                   }}
                 >
-                  ×
-                </button>
+                  Unlimited during the 7-day pilot window
+                </div>
               </div>
-        
+
               <div
                 style={{
-                  display: "grid",
-                  gap: "12px",
+                  border: "1px solid #BAE6FD",
+                  backgroundColor: "#F0F9FF",
+                  borderRadius: "16px",
+                  padding: "14px 16px",
                 }}
               >
                 <div
                   style={{
-                    border: "1px solid #A7F3D0",
-                    backgroundColor: "#ECFDF5",
-                    borderRadius: "16px",
-                    padding: "14px 16px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "#0369A1",
+                    marginBottom: "6px",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "#047857",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Event logging
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "16px",
-                      fontWeight: 600,
-                      color: "#064E3B",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    Unlimited during the 7-day pilot window
-                  </div>
+                  Structured reviews
                 </div>
-        
                 <div
                   style={{
-                    border: "1px solid #BAE6FD",
-                    backgroundColor: "#F0F9FF",
-                    borderRadius: "16px",
-                    padding: "14px 16px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#0C4A6E",
+                    lineHeight: 1.5,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "#0369A1",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Structured reviews
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "16px",
-                      fontWeight: 600,
-                      color: "#0C4A6E",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    Up to 5 during this pilot
-                  </div>
+                  Up to 5 during this pilot
                 </div>
-        
-                <div
-                  style={{
-                    border: "1px solid #FDE68A",
-                    backgroundColor: "#FFFBEB",
-                    borderRadius: "16px",
-                    padding: "14px 16px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "#B45309",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Receipt readiness
-                  </div>
+              </div>
 
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      lineHeight: 1.6,
-                      color: "#92400E",
-                    }}
-                  >
-                    The diagnostic can be revisited during the pilot window, but receipt readiness is determined by structured pilot evidence, not by repeating the diagnostic alone.
-                  </div>
+              <div
+                style={{
+                  border: "1px solid #FDE68A",
+                  backgroundColor: "#FFFBEB",
+                  borderRadius: "16px",
+                  padding: "14px 16px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "#B45309",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Receipt readiness
                 </div>
-                   
+
+                <div
+                  style={{
+                    fontSize: "14px",
+                    lineHeight: 1.6,
+                    color: "#92400E",
+                  }}
+                >
+                  The diagnostic can be revisited during the pilot window, but
+                  receipt readiness is determined by structured pilot evidence,
+                  not by repeating the diagnostic alone.
+                </div>
               </div>
             </div>
           </div>
-        )} 
+        </div>
+      )}
 
-        {showSubscriptionModal && (
+      {showSubscriptionModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 99999,
+            backgroundColor: "rgba(15, 23, 42, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
           <div
             style={{
-              position: "fixed",
-             top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              zIndex: 99999,
-              backgroundColor: "rgba(15, 23, 42, 0.55)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              width: "100%",
+              maxWidth: "520px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              backgroundColor: "#ffffff",
+              borderRadius: "24px",
+              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
+              border: "1px solid #E2E8F0",
               padding: "16px",
             }}
           >
             <div
               style={{
-                width: "100%",
-                maxWidth: "520px",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                backgroundColor: "#ffffff",
-               borderRadius: "24px",
-                boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
-                border: "1px solid #E2E8F0",
-                padding: "16px",
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                alignItems: "center",
+                columnGap: "12px",
+                marginBottom: "16px",
+                paddingLeft: "8px",
+                paddingRight: "8px",
               }}
->
-              <div
+            >
+              <h2
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  alignItems: "center",
-                  columnGap: "12px",
-                  marginBottom: "16px",
-                  paddingLeft: "8px",
-                  paddingRight: "8px",
+                  fontSize: "22px",
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  margin: 0,
+                  flex: 1,
                 }}
               >
-                <h2
+                Choose how to continue
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setShowSubscriptionModal(false)}
+                aria-label="Close"
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  flexShrink: 0,
+                  borderRadius: "999px",
+                  border: "1px solid #E2E8F0",
+                  backgroundColor: "#FFFFFF",
+                  color: "#64748B",
+                  fontSize: "20px",
+                  lineHeight: 1,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "12px",
+                justifyItems: "center",
+                paddingLeft: "8px",
+                paddingRight: "8px",
+              }}
+            >
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "460px",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "16px",
+                  padding: "16px",
+                  backgroundColor: "#FFFFFF",
+                }}
+              >
+                <h3
                   style={{
-                    fontSize: "22px",
+                    margin: 0,
+                    fontSize: "20px",
                     fontWeight: 700,
                     color: "#0F172A",
-                    margin: 0,
-                    flex: 1,
                   }}
                 >
-                  Choose how to continue
-                </h2>
-        
+                  Structured Review
+                </h3>
+            
+                <p
+                  style={{
+                    margin: "8px 0 0 0",
+                    fontSize: "14px",
+                    lineHeight: 1.6,
+                    color: "#475569",
+                  }}
+                >
+                  One structured review for a single case, with clear next-step guidance and decision framing.
+                </p>
+            
+                <p style={{ fontSize: "20px", fontWeight: 700 }}>
+                  $29
+                </p>
+            
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#94A3B8",
+                    textDecoration: "line-through",
+                  }}
+                >
+                  $49 original
+                </p>
+            
+                <p
+                  style={{
+                    marginTop: "4px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#969aa4",
+                  }}
+                >
+                  Pilot continuation pricing available within 3 days
+                </p>
+            
                 <button
                   type="button"
-                  onClick={() => setShowSubscriptionModal(false)}
-                  aria-label="Close"
+                  onClick={() => {
+                    setShowSubscriptionModal(false);
+                  }}
                   style={{
-                    width: "32px",
-                    height: "32px",
-                    flexShrink: 0,
-                    borderRadius: "999px",
-                    border: "1px solid #E2E8F0",
-                    backgroundColor: "#FFFFFF",
-                    color: "#64748B",
-                    fontSize: "20px",
-                    lineHeight: 1,
-                    fontWeight: 500,
-                    cursor: "pointer",
+                    marginTop: "12px",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    padding: 0,
+                    width: "auto",
+                    minWidth: "200px",
+                    padding: "10px 20px",
+                    borderRadius: "999px",
+                    backgroundColor: "#FEF2F2",
+                    color: "#DC2626",
+                    border: "1px solid #FECACA",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
                   }}
                 >
-                  ×
+                  Activate Formal Verification →
                 </button>
               </div>
 
               <div
                 style={{
-                  display: "grid",
-                  gap: "12px",
-                  justifyItems: "center",
-                  paddingLeft: "8px",
-                  paddingRight: "8px",
+                  width: "100%",
+                  maxWidth: "460px",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "16px",
+                  padding: "16px",
+                  backgroundColor: "#FFFFFF",
                 }}
               >
-                <div
+                <h3
                   style={{
-                    width: "100%",
-                    maxWidth: "460px",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    backgroundColor: "#FFFFFF",
+                    margin: 0,
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "#0F172A",
                   }}
                 >
-                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Formal Decision Output
-                  </h3>
-
-                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    One structured decision output for one specific case.
-                  </p>
-
-                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $29
-                  </p>
-
-                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $49 original
-                  </p>
-
-                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing available within 3 days
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSubscriptionModal(false);
-                    }}
-                    style={{
-                      marginTop: "12px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "auto",
-                      minWidth: "200px",
-                      padding: "10px 20px",
-                      borderRadius: "999px",
-                      backgroundColor: "#FEF2F2",
-                      color: "#DC2626",
-                      border: "1px solid #FECACA",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Activate Formal Verification →
-                  </button>
-                </div>
-        
-                <div
+                  Weekly Decision Access
+                </h3>
+            
+                <p
                   style={{
-                    width: "100%",
-                    maxWidth: "460px",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    backgroundColor: "#FFFFFF",
+                    margin: "8px 0 0 0",
+                    fontSize: "14px",
+                    lineHeight: 1.6,
+                    color: "#475569",
+                  }}
+            >
+                  Structured handling for multiple live decision events across one active week — not just one case.
+                </p>
+            
+                <p style={{ fontSize: "20px", fontWeight: 700 }}>
+                  $149 / week
+                </p>
+            
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#94A3B8",
+                    textDecoration: "line-through",
                   }}
                 >
-                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Weekly Decision Access
-                  </h3>
-
-                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Structured handling for multiple live decision events across one active week — not just one case.
-                  </p>
-
-                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $149 / week
-                  </p>
-
-                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $199 original
-                  </p>
-
-                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing available within 3 days
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSubscriptionModal(false);
-                    }}
-                    style={{
-                      marginTop: "12px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "auto",
-                      minWidth: "200px",
-                      padding: "10px 20px",
-                      borderRadius: "999px",
-                      backgroundColor: "#FEF6D2",
-                      color: "#D97706",
-                      border: "1px solid #ffe98f",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Get Weekly Access →
-                  </button>
-                </div>
-        
-                <div
+                  $199 original
+                </p>
+            
+                <p
                   style={{
-                    width: "100%",
-                    maxWidth: "460px",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    backgroundColor: "#FFFFFF",
+                    marginTop: "4px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#969aa4",
                   }}
                 >
-                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Monthly Judgment Access
-                  </h3>
-
-                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Monthly access to process multiple cases across different scenarios using a structured decision approach.
-                  </p>
-
-                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $499 / month
-                  </p>
-
-                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $699 original
-                  </p>
-
-                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing available within 3 days
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSubscriptionModal(false);
-                    }}
-                    style={{
-                      marginTop: "16px",
-
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-
-                      width: "auto",
-                      minWidth: "220px",
-
-                      padding: "10px 20px",
-
-                      borderRadius: "999px",
-
-                      backgroundColor: "#ECFDF5",
-                      color: "#059669",
-                      border: "1px solid #A7F3D0",
-
-                      fontSize: "14px",
-                      fontWeight: 600,
-
-                      cursor: "pointer",
-                    }}
-                  >
-                    Get Monthly Access →
-                  </button>
-                </div>
+                  Pilot continuation pricing available within 3 days
+                </p>
+            
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSubscriptionModal(false);
+                  }}
+                  style={{
+                    marginTop: "12px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "auto",
+                    minWidth: "200px",
+                    padding: "10px 20px",
+                    borderRadius: "999px",
+                    backgroundColor: "#FEF6D2",
+                    color: "#D97706",
+                    border: "1px solid #ffe98f",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Get Weekly Access →
+                </button>
+              </div>
+            
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "460px",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "16px",
+                  padding: "16px",
+                  backgroundColor: "#FFFFFF",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "#0F172A",
+                  }}
+                >
+                  Monthly Judgment Access
+                </h3>
+            
+                <p
+                  style={{
+                    margin: "8px 0 0 0",
+                    fontSize: "14px",
+                    lineHeight: 1.6,
+                    color: "#475569",
+                  }}
+                >
+                  Monthly access to process multiple cases across different scenarios using a structured decision approach.
+            </p>
+            
+                <p style={{ fontSize: "20px", fontWeight: 700 }}>
+                  $499 / month
+                </p>
+            
+                <p
+            style={{
+                    fontSize: "13px",
+                    color: "#94A3B8",
+                    textDecoration: "line-through",
+                  }}
+                >
+                  $699 original
+                </p>
+            
+                <p
+                  style={{
+                    marginTop: "4px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#969aa4",
+                  }}
+                >
+                  Pilot continuation pricing available within 3 days
+                </p>
+            
+            <button
+                  type="button"
+                  onClick={() => {
+                    setShowSubscriptionModal(false);
+                  }}
+                  style={{
+                    marginTop: "16px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "auto",
+                    minWidth: "220px",
+                    padding: "10px 20px",
+                    borderRadius: "999px",
+                    backgroundColor: "#ECFDF5",
+                    color: "#059669",
+                    border: "1px solid #A7F3D0",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+            }}
+                >
+                  Get Monthly Access →
+                </button>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
-  );
+  </div>
+);
 }

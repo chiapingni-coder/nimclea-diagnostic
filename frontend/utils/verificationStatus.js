@@ -362,10 +362,38 @@ function evaluateContinuity(entries = []) {
   const safeEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
   if (!safeEntries.length) return 0;
 
-  if (safeEntries.length >= 3) return 4;
-  if (safeEntries.length >= 2) return 3;
-  if (safeEntries.length >= 1) return 2;
-  return 0;
+  const count = safeEntries.length;
+  const latestThree = safeEntries.slice(-3);
+
+  const uniqueEventTypes = new Set(
+    latestThree
+      .map((entry) =>
+        toSafeString(
+          entry?.eventType ||
+            entry?.reviewResult?.eventType ||
+            entry?.caseData?.eventType
+        )
+      )
+      .filter(Boolean)
+  ).size;
+
+  const withNarrative = latestThree.filter((entry) => {
+    const text = getEntryNarrativeSignals(entry);
+    return text.length >= 20;
+  }).length;
+
+  let score = 0;
+
+  if (count >= 1) score += 1.2;
+  if (count >= 2) score += 1.0;
+  if (count >= 3) score += 0.8;
+  if (count >= 4) score += 0.4;
+
+  if (withNarrative >= 1) score += 0.2;
+  if (withNarrative >= 2) score += 0.2;
+  if (uniqueEventTypes >= 2) score += 0.2;
+
+  return Math.min(4, Number(score.toFixed(2)));
 }
 
 function evaluateConsistency(entries = [], fallbackCaseSchema = null) {
@@ -376,27 +404,47 @@ function evaluateConsistency(entries = [], fallbackCaseSchema = null) {
     getEntryCaseData(item, fallbackCaseSchema)
   );
 
-  const weakestSet = new Set(
-    caseEntries
-      .map((item) => toSafeString(item?.weakestDimension))
-      .filter(Boolean)
-  );
+  const weakestValues = caseEntries
+    .map((item) => toSafeString(item?.weakestDimension))
+    .filter(Boolean);
 
-  const scenarioSet = new Set(
-    caseEntries
-      .map((item) => toSafeString(item?.scenarioCode))
-      .filter(Boolean)
-  );
+  const scenarioValues = caseEntries
+    .map((item) => toSafeString(item?.scenarioCode))
+    .filter(Boolean);
 
-  if (caseEntries.length === 1) return 2;
+  const stageValues = caseEntries
+    .map((item) => toSafeString(item?.stage))
+    .filter(Boolean);
 
-  let score = 1;
+  const weakestSet = new Set(weakestValues);
+  const scenarioSet = new Set(scenarioValues);
+  const stageSet = new Set(stageValues);
 
-  if (weakestSet.size === 1) score += 1.5;
-  if (scenarioSet.size <= 2) score += 1.0;
-  if (safeEntries.length >= 3) score += 0.5;
+  const totalSamples = caseEntries.length;
 
-  return Math.min(4, Number(score.toFixed(1)));
+  const weakestConsistency =
+    weakestValues.length > 0 ? 1 / weakestSet.size : 0;
+
+  const scenarioConsistency =
+    scenarioValues.length > 0 ? 1 / scenarioSet.size : 0;
+
+  const stageConsistency =
+    stageValues.length > 0 ? 1 / stageSet.size : 0;
+
+  const samplingBonus =
+    totalSamples >= 4 ? 0.35 : totalSamples >= 3 ? 0.2 : totalSamples >= 2 ? 0.1 : 0;
+
+  let score =
+    weakestConsistency * 1.6 +
+    scenarioConsistency * 1.3 +
+    stageConsistency * 0.8 +
+    samplingBonus;
+
+  if (totalSamples === 1) {
+    score = Math.max(score, 1.2);
+  }
+
+  return Math.min(4, Number(score.toFixed(2)));
 }
 
 function evaluateStructureCompleteness(entries = [], fallbackCaseSchema = null) {
@@ -414,33 +462,85 @@ function evaluateStructureCompleteness(entries = [], fallbackCaseSchema = null) 
           ? item.structureScore
           : calculateStructureScore(item);
       return Number(structureScore) || 0;
-    })
+    }),
+    0
   );
 
-  if (bestStructureScore >= 4.0) return 4;
-  if (bestStructureScore >= 3.5) return 3.5;
-  if (bestStructureScore >= 2.5) return 3;
-  if (bestStructureScore >= 1.5) return 2;
-  if (bestStructureScore > 0) return 1;
-  return 0;
-}
+  const coverageRatios = safeEntries.map((entry) => {
+    const eventInput = entry?.eventInput || entry?.sourceInput || {};
+    const reviewResult = entry?.reviewResult || {};
+    const caseData = getEntryCaseData(entry, fallbackCaseSchema) || {};
 
-function evaluateEvidenceSupport(entries = [], fallbackCaseSchema = null) {
+    let coverage = 0;
+    const maxCoverage = 7;
+
+    if (String(entry?.eventType || reviewResult?.eventType || "").trim()) coverage += 1;
+    if (String(eventInput?.externalPressure || "").trim()) coverage += 1;
+    if (String(eventInput?.authorityBoundary || "").trim()) coverage += 1;
+    if (String(eventInput?.dependency || "").trim()) coverage += 1;
+    if (String(caseData?.scenarioCode || reviewResult?.scenarioCode || "").trim()) coverage += 1;
+    if (String(caseData?.stage || reviewResult?.stage || "").trim()) coverage += 1;
+
+    const narrativeLength = getEntryNarrativeSignals(entry, fallbackCaseSchema).length;
+    if (narrativeLength >= 30) coverage += 1;
+
+    return coverage / maxCoverage;
+  });
+
+  const bestCoverageRatio = Math.max(...coverageRatios, 0);
+
+  const closureScores = safeEntries.map((entry) =>
+    getClosureSignalScore(entry, fallbackCaseSchema)
+  );
+
+  const bestClosureScore = Math.max(...closureScores, 0);
+  const avgClosureScore =
+    closureScores.length > 0
+      ? closureScores.reduce((sum, value) => sum + value, 0) / closureScores.length
+      : 0;
+
+  let score =
+    bestStructureScore * 0.4 +
+    bestCoverageRatio * 2.0 +
+    bestClosureScore * 0.25 +
+    avgClosureScore * 0.15;
+
+  return Math.min(4, Number(score.toFixed(2)));
+}function evaluateEvidenceSupport(entries = [], fallbackCaseSchema = null) {
   const safeEntries = Array.isArray(entries) ? entries : [];
   if (!safeEntries.length) return 0;
 
-  const caseEntries = safeEntries.map((item) =>
-    getEntryCaseData(item, fallbackCaseSchema)
-  );
+  const evidenceScores = safeEntries.map((entry) => {
+    const caseData = getEntryCaseData(entry, fallbackCaseSchema) || {};
+    const explicitEvidenceCount = toArray(caseData?.evidenceItems).length;
+    const closureSignalScore = getClosureSignalScore(entry, fallbackCaseSchema);
+    const narrativeLength = getEntryNarrativeSignals(entry, fallbackCaseSchema).length;
 
-  const bestEvidenceCount = Math.max(
-    ...caseEntries.map((item) => toArray(item?.evidenceItems).length)
-  );
+    let score = 0;
 
-  if (bestEvidenceCount >= 3) return 4;
-  if (bestEvidenceCount >= 2) return 3;
-  if (bestEvidenceCount >= 1) return 2;
-  return 0;
+    score += Math.min(explicitEvidenceCount, 4) * 0.75;
+    score += closureSignalScore * 0.45;
+
+    if (narrativeLength >= 40) score += 0.3;
+    if (narrativeLength >= 80) score += 0.2;
+
+    return Math.min(4, score);
+  });
+
+  const bestScore = Math.max(...evidenceScores, 0);
+  const avgScore =
+    evidenceScores.length > 0
+      ? evidenceScores.reduce((sum, value) => sum + value, 0) / evidenceScores.length
+      : 0;
+
+  const strongEvidenceEvents = evidenceScores.filter((score) => score >= 3).length;
+
+  let score = bestScore * 0.7 + avgScore * 0.3;
+
+  if (strongEvidenceEvents >= 2) score += 0.2;
+  if (strongEvidenceEvents >= 3) score += 0.1;
+
+  return Math.min(4, Number(score.toFixed(2)));
 }
 
 function resolveEligibilityGate({
@@ -489,7 +589,7 @@ function resolveEligibilityGate({
     "empty";
 
   const receiptEligible =
-    score >= 3.5 ||
+    score >= 3.0 ||
     bestCaseStructureScore >= 3.5;
 
   const finalReceiptEligible =
@@ -547,9 +647,37 @@ export function evaluatePilotCombinationStatus({
     };
   }
 
-  const caseEntries = resolvedEntries.map((item) =>
+const caseEntries = resolvedEntries.map((item) =>
     getEntryCaseData(item, caseSchema)
   );
+
+  // 🧠 ComplexityScore（新加）
+const complexityScore = (() => {
+  const uniqueScenario = new Set(
+    caseEntries.map(e => e?.scenarioCode).filter(Boolean)
+  ).size;
+
+  const uniqueStages = new Set(
+    caseEntries.map(e => e?.stage).filter(Boolean)
+  ).size;
+
+  const hasCrossDimension =
+    new Set(
+      caseEntries.map(e => e?.weakestDimension).filter(Boolean)
+    ).size >= 2;
+
+  let score = 0;
+
+  if (caseEntries.length >= 3) score += 1.2;
+  if (caseEntries.length >= 5) score += 0.8;
+
+  if (uniqueScenario >= 2) score += 0.8;
+  if (uniqueStages >= 2) score += 0.6;
+
+  if (hasCrossDimension) score += 0.6;
+
+  return Math.min(4, Number(score.toFixed(2)));
+})();
 
   const continuity = evaluateContinuity(resolvedEntries);
   const consistency = evaluateConsistency(resolvedEntries, caseSchema);
@@ -559,13 +687,32 @@ export function evaluatePilotCombinationStatus({
   );
   const evidenceSupport = evaluateEvidenceSupport(resolvedEntries, caseSchema);
 
-  const rawScore =
-    continuity * 0.25 +
-    consistency * 0.20 +
-    structureCompleteness * 0.30 +
-    evidenceSupport * 0.25;
+// 🧠 判断是否是“非证据路径”
+const isNonEvidencePath =
+  evidenceSupport < 1.0 &&
+  structureCompleteness >= 2.5 &&
+  consistency >= 2.5;
 
-  const score = Number(rawScore.toFixed(1));
+// 🧠 动态权重
+const evidenceWeight = isNonEvidencePath ? 0.15 : 0.30;
+const structureWeight = isNonEvidencePath ? 0.35 : 0.30;
+
+// 🧠 主评分
+let rawScore =
+  continuity * 0.20 +
+  consistency * 0.20 +
+  structureCompleteness * structureWeight +
+  evidenceSupport * evidenceWeight;
+
+// 🧠 Complexity 补偿（核心）
+const complexityBonus =
+  isNonEvidencePath
+    ? complexityScore * 0.25
+    : complexityScore * 0.15;
+
+rawScore += complexityBonus;
+
+  const score = Math.min(4, Number(rawScore.toFixed(2)));
 
   const gate = resolveEligibilityGate({
     caseEntries,
@@ -579,10 +726,10 @@ export function evaluatePilotCombinationStatus({
   });
 
   return {
-    continuity: Number(continuity.toFixed(1)),
-    consistency: Number(consistency.toFixed(1)),
-    structureCompleteness: Number(structureCompleteness.toFixed(1)),
-    evidenceSupport: Number(evidenceSupport.toFixed(1)),
+    continuity: Number(continuity.toFixed(2)),
+    consistency: Number(consistency.toFixed(2)),
+    structureCompleteness: Number(structureCompleteness.toFixed(2)),
+    evidenceSupport: Number(evidenceSupport.toFixed(2)),
     score,
     structureStatus: gate.structureStatus,
     receiptEligible: gate.receiptEligible,
@@ -607,6 +754,60 @@ function toArray(value) {
   return [value];
 }
 
+function getEntryNarrativeSignals(entry = {}, fallbackCaseSchema = null) {
+  const caseData = getEntryCaseData(entry, fallbackCaseSchema) || {};
+  const reviewResult = entry?.reviewResult || {};
+  const eventInput = entry?.eventInput || entry?.sourceInput || {};
+
+  const parts = [
+    caseData?.summary,
+    caseData?.description,
+    caseData?.eventContext,
+    reviewResult?.summaryText,
+    reviewResult?.decision,
+    eventInput?.summaryContext,
+    eventInput?.description,
+    entry?.description,
+  ];
+
+  return parts
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getClosureSignalScore(entry = {}, fallbackCaseSchema = null) {
+  const text = getEntryNarrativeSignals(entry, fallbackCaseSchema);
+
+  const evidenceLike =
+    /photo|image|screenshot|proof|evidence|document|record|batch|trace|attached|attachment|data|details|supporting data|supporting information/i.test(
+      text
+    );
+
+  const actionLike =
+    /acknowledged|requested|reviewed|verified|checked|escalated|replacement|replaced|communicated|responded|offered|clarified|confirmed|submitted|initiated|provided/i.test(
+      text
+    );
+
+  const closureLike =
+    /resolved|issue was resolved|confirmed.*received|received the replacement|case closed|problem solved|outcome was communicated and confirmed|outcome confirmed|decision made|ownership confirmed|issue closed|completed/i.test(
+      text
+    );
+
+  const strongClosureLike =
+    /confirmed.*received|received the replacement|case closed|issue was resolved|problem solved|outcome was communicated and confirmed|ownership confirmed|issue closed|completed and confirmed/i.test(
+      text
+    );
+
+  if (evidenceLike && actionLike && strongClosureLike) return 4;
+  if (evidenceLike && actionLike && closureLike) return 3.5;
+  if (actionLike && closureLike) return 3;
+  if (actionLike) return 2;
+  if (evidenceLike) return 1;
+  return 0;
+}
+
 function toClampedNumber(value, min = 0, max = 4) {
   const num = Number(value);
   if (!Number.isFinite(num)) return 0;
@@ -615,20 +816,139 @@ function toClampedNumber(value, min = 0, max = 4) {
 
 function getEntryCaseData(entry = {}, fallbackCaseSchema = null) {
   const directCaseData =
-    (entry?.caseData && typeof entry.caseData === "object" && entry.caseData) ||
-    (entry?.reviewResult?.caseData &&
-      typeof entry.reviewResult.caseData === "object" &&
-      entry.reviewResult.caseData) ||
-    (fallbackCaseSchema &&
-      typeof fallbackCaseSchema === "object" &&
-      fallbackCaseSchema) ||
-    null;
+  (entry?.caseData && typeof entry.caseData === "object" && entry.caseData) ||
+  (entry?.reviewResult?.caseData &&
+    typeof entry.reviewResult.caseData === "object" &&
+    entry.reviewResult.caseData) ||
+  (fallbackCaseSchema &&
+    typeof fallbackCaseSchema === "object" &&
+    fallbackCaseSchema) ||
+  null;
 
-  if (directCaseData) {
-    return normalizeCaseInput(directCaseData, {
+const inferredClosed = /resolved|completed|confirmed|closed|ownership/i.test(
+  entry?.description ||
+    entry?.eventContext ||
+    entry?.summaryText ||
+    entry?.summaryContext ||
+    entry?.reviewResult?.summary ||
+    ""
+);
+
+if (directCaseData) {
+  return normalizeCaseInput(
+    {
+      ...directCaseData,
+
+      summary:
+        directCaseData?.summary ||
+        entry?.summaryText ||
+        entry?.summaryContext ||
+        entry?.description ||
+        entry?.reviewResult?.summary ||
+        "",
+
+      description:
+        directCaseData?.description ||
+        entry?.description ||
+        entry?.reviewResult?.description ||
+        "",
+
+      eventContext:
+        directCaseData?.eventContext ||
+        entry?.eventContext ||
+        entry?.description ||
+        entry?.reviewResult?.eventContext ||
+        "",
+
+      eventType:
+        inferredClosed
+          ? "decision_completed"
+          : directCaseData?.eventType ||
+            entry?.eventType ||
+            entry?.type ||
+            entry?.reviewResult?.eventType ||
+            "other",
+
+      weakestDimension:
+        directCaseData?.weakestDimension ||
+        entry?.judgmentFocus ||
+        entry?.weakestDimension ||
+        entry?.reviewResult?.weakestDimension ||
+        "",
+
+      scenarioCode:
+        directCaseData?.scenarioCode ||
+        entry?.scenarioCode ||
+        entry?.reviewResult?.scenarioCode ||
+        "unknown_scenario",
+
+      stage:
+        directCaseData?.stage ||
+        entry?.stage ||
+        entry?.reviewResult?.stage ||
+        "S0",
+
+      evidenceItems: toArray(
+        directCaseData?.evidenceItems ||
+          entry?.evidenceItems ||
+          entry?.reviewResult?.evidenceItems
+      ),
+
+      signals: {
+        ...(directCaseData?.signals || {}),
+        externalPressure:
+          entry?.eventInput?.externalPressure ||
+          entry?.sourceInput?.externalPressure ||
+          entry?.externalPressure ||
+          entry?.reviewResult?.externalPressure ||
+          directCaseData?.signals?.externalPressure ||
+          "",
+        authorityBoundary:
+          entry?.eventInput?.authorityBoundary ||
+          entry?.sourceInput?.authorityBoundary ||
+          entry?.authorityBoundary ||
+          directCaseData?.signals?.authorityBoundary ||
+          "",
+        dependency:
+          entry?.eventInput?.dependency ||
+          entry?.sourceInput?.dependency ||
+          entry?.dependency ||
+          directCaseData?.signals?.dependency ||
+          "",
+      },
+
+      dimensions: {
+        ...(directCaseData?.dimensions || {}),
+        timing:
+          entry?.eventInput?.dependency ||
+          entry?.sourceInput?.dependency
+            ? 3
+            : directCaseData?.dimensions?.timing || 2,
+      },
+
+      routeDecision:
+        directCaseData?.routeDecision ||
+        entry?.routeDecision ||
+        entry?.reviewResult?.routeDecision ||
+        undefined,
+
+      structureScore:
+        directCaseData?.structureScore ??
+        entry?.structureScore ??
+        entry?.reviewResult?.structureScore ??
+        undefined,
+
+      structureStatus:
+        directCaseData?.structureStatus ||
+        entry?.structureStatus ||
+        entry?.reviewResult?.structureStatus ||
+        undefined,
+    },
+    {
       source: entry?.source || "resolved_input",
-    });
-  }
+    }
+  );
+}
 
   return normalizeCaseInput(
     {
@@ -644,10 +964,12 @@ function getEntryCaseData(entry = {}, fallbackCaseSchema = null) {
         entry?.reviewResult?.description ||
         "",
       eventType:
-        entry?.eventType ||
-        entry?.type ||
-        entry?.reviewResult?.eventType ||
-        "other",
+        inferredClosed
+          ? "decision_completed"
+          : entry?.eventType ||
+            entry?.type ||
+            entry?.reviewResult?.eventType ||
+            "other",
       eventContext:
         entry?.eventContext ||
         entry?.description ||
@@ -679,17 +1001,40 @@ function getEntryCaseData(entry = {}, fallbackCaseSchema = null) {
         entry?.evidenceItems || entry?.reviewResult?.evidenceItems
       ),
       parties: toArray(entry?.parties || entry?.reviewResult?.parties),
+  
       dimensions: {
-        evidence: entry?.judgmentFocus === "evidence" ? 1 : 2,
-        authority: entry?.judgmentFocus === "authority" ? 1 : 2,
-        coordination: entry?.judgmentFocus === "coordination" ? 1 : 2,
-        timing: 2,
+        evidence:
+          entry?.judgmentFocus === "evidence" ? 1 : 2,
+        authority:
+          entry?.judgmentFocus === "authority" ? 1 : 2,
+        coordination:
+          entry?.judgmentFocus === "coordination" ? 1 : 2,
+        timing:
+          entry?.eventInput?.dependency ||
+          entry?.sourceInput?.dependency
+            ? 3
+            : 2,
       },
+  
       signals: {
-        externalPressure: Boolean(
-          entry?.externalPressure || entry?.reviewResult?.externalPressure
-        ),
+        externalPressure:
+          entry?.eventInput?.externalPressure ||
+          entry?.sourceInput?.externalPressure ||
+          entry?.externalPressure ||
+          entry?.reviewResult?.externalPressure ||
+          "",
+        authorityBoundary:
+          entry?.eventInput?.authorityBoundary ||
+          entry?.sourceInput?.authorityBoundary ||
+          entry?.authorityBoundary ||
+          "",
+        dependency:
+          entry?.eventInput?.dependency ||
+          entry?.sourceInput?.dependency ||
+          entry?.dependency ||
+          "",
       },
+  
       routeDecision:
         entry?.routeDecision ||
         entry?.reviewResult?.routeDecision ||
@@ -814,13 +1159,6 @@ export function evaluateCaseRecordStatus(input = {}) {
     behavioralGroundingDetail,
   } = getBehaviorMetrics(input);
 
-  const score =
-    continuity +
-    consistency +
-    structureCompleteness +
-    evidenceSupport +
-    behavioralGrounding;
-
   const gate = resolveEligibilityGate({
     caseEntries,
     continuity: continuityRaw,
@@ -837,6 +1175,7 @@ export function evaluateCaseRecordStatus(input = {}) {
   });
 
   const structureStatus = gate.structureStatus;
+  const receiptEligible = gate.receiptEligible;
 
   const hasCompleteStructure =
     hasCaseInput &&
@@ -845,19 +1184,16 @@ export function evaluateCaseRecordStatus(input = {}) {
     (hasResolvedEntries || hasRunEntries) &&
     structureCompletenessRaw >= 3;
 
-  const receiptEligible = gate.receiptEligible;
-
-  const receiptStatus =
-    gate.verificationEligible
-      ? "Ready for Verification"
-      : gate.receiptEligible
-      ? "Review with Warning"
-      : "Record Incomplete";
+  const hardFail =
+    !hasReceiptHash ||
+    (!hasResolvedEntries && !hasRunEntries) ||
+    (!hasCaseInput && !hasScenario && !hasStage);
 
   const checks = [
     {
       label: "Continuity",
-      status: continuity === 1 ? "passed" : continuity > 0 ? "warning" : "failed",
+      status:
+        continuity === 1 ? "passed" : continuity > 0 ? "warning" : "failed",
       detail:
         continuity === 1
           ? "The record keeps a continuous path between case input and RUN aggregation."
@@ -867,7 +1203,8 @@ export function evaluateCaseRecordStatus(input = {}) {
     },
     {
       label: "Consistency",
-      status: consistency === 1 ? "passed" : consistency > 0 ? "warning" : "failed",
+      status:
+        consistency === 1 ? "passed" : consistency > 0 ? "warning" : "failed",
       detail:
         consistency === 1
           ? "Scenario, stage, and RUN structure are aligned."
@@ -886,7 +1223,9 @@ export function evaluateCaseRecordStatus(input = {}) {
       detail:
         structureCompleteness === 1
           ? "The minimum structural fields for review are complete."
-          : "The record is still missing some structural fields required for strong review.",
+          : structureCompleteness > 0
+          ? "The record is partially structured, but still missing fields required for strong review."
+          : "The record is still missing the structural fields required for review.",
     },
     {
       label: "Evidence support",
@@ -894,7 +1233,7 @@ export function evaluateCaseRecordStatus(input = {}) {
         evidenceSupport === 1 ? "passed" : evidenceSupport > 0 ? "warning" : "failed",
       detail:
         evidenceSupport === 1
-         ? "The record is supported by receipt proof and observable signals or RUN evidence."
+          ? "The record is supported by receipt proof and observable signals or RUN evidence."
           : evidenceSupport > 0
           ? "Part of the support layer is present, but the proof chain is not fully complete."
           : "The support layer is missing.",
@@ -909,13 +1248,36 @@ export function evaluateCaseRecordStatus(input = {}) {
   const failedCount = checks.filter((check) => check.status === "failed").length;
   const warningCount = checks.filter((check) => check.status === "warning").length;
 
-  const verificationStatus = resolveCommercialVerificationStatus({
-    failedCount,
-    warningCount,
-    receiptEligible,
-    hasCompleteStructure,
-    behavioralGrounding,
-  });
+  let verificationStatus = "Verification Warning";
+
+  if (hardFail) {
+    verificationStatus = "Verification Failed";
+  } else if (!receiptEligible) {
+    verificationStatus = "Verification Failed";
+  } else if (
+    hasCompleteStructure &&
+    behavioralGrounding >= 1 &&
+    failedCount === 0 &&
+    warningCount <= 1
+  ) {
+    verificationStatus = "Verification Ready";
+  } else {
+    verificationStatus = "Verification Warning";
+  }
+
+  const receiptStatus =
+    verificationStatus === "Verification Ready"
+      ? "Ready for Verification"
+      : verificationStatus === "Verification Warning"
+      ? "Review Pending"
+      : "Record Incomplete";
+
+  const score =
+    continuity +
+    consistency +
+    structureCompleteness +
+    evidenceSupport +
+    behavioralGrounding;
 
   return {
     continuity,

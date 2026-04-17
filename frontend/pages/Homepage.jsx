@@ -82,6 +82,12 @@ export default function Homepage() {
 
           <Link
             to={ROUTES.DIAGNOSTIC}
+            state={{
+              pcMeta: {
+                pc_id: "PC-001",
+                pc_name: "Decision Risk Diagnostic"
+              }
+            }}
             style={{
               display: "inline-block",
               padding: "12px 18px",

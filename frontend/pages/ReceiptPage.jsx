@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
+import { logTrialEvent } from "../lib/trialApi";
+import { getTrialSession } from "../lib/trialSession";
+
 import {
   getCaseSummary,
   getCaseContext,
@@ -22,6 +25,38 @@ function getStoredReceiptData() {
   } catch (error) {
     console.error("Failed to read receiptPageData from localStorage:", error);
     return null;
+  }
+}
+
+function getStoredSharedReceiptVerificationContract() {
+  try {
+    const raw = localStorage.getItem("sharedReceiptVerificationContract");
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error(
+      "Failed to read sharedReceiptVerificationContract from localStorage:",
+      error
+    );
+    return null;
+  }
+}
+
+function getStoredReceiptRouteDecision() {
+  try {
+    const raw = localStorage.getItem("receiptRouteDecision");
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error("Failed to read receiptRouteDecision from localStorage:", error);
+    return null;
+  }
+}
+
+function getStoredReceiptSource() {
+  try {
+    return localStorage.getItem("receiptSource") || "";
+  } catch (error) {
+    console.error("Failed to read receiptSource from localStorage:", error);
+    return "";
   }
 }
 
@@ -422,10 +457,22 @@ function normalizeReceiptData(input = {}) {
 export default function ReceiptPage() {
   const location = useLocation();
   const navigate = useNavigate();
-
+  
+  const receiptViewedLoggedRef = React.useRef(false);
   const routeEnvelope = location.state || null;
-  const routeDecision = routeEnvelope?.routeDecision || null;
-  const receiptSource = routeEnvelope?.receiptSource || "";
+
+  const storedRouteDecision = getStoredReceiptRouteDecision();
+  const storedReceiptSource = getStoredReceiptSource();
+
+  const routeDecision =
+    routeEnvelope?.routeDecision ||
+    storedRouteDecision ||
+    null;
+
+  const receiptSource =
+    routeEnvelope?.receiptSource ||
+    storedReceiptSource ||
+    "";
 
   const rawReceiptMode = routeDecision?.mode || "";
 
@@ -442,11 +489,8 @@ export default function ReceiptPage() {
     (receiptMode === "final_receipt" &&
       receiptSource === "pilot_weekly_summary");
 
-  const routeData = canRenderReceipt
-    ? location.state?.receiptPageData || null
-    : null;
-
-  const storedData = canRenderReceipt ? getStoredReceiptData() : null;
+  const routeData = location.state?.receiptPageData || null;
+  const storedData = getStoredReceiptData();
 
   const resolvedPayload = resolveReceiptPayload(
     location.state || {},
@@ -491,8 +535,18 @@ const rawData = {
     getCaseContext(baseReceiptData),
 };
 
+const storedSharedReceiptVerificationContract =
+  getStoredSharedReceiptVerificationContract();
+
+const incomingSharedReceiptVerificationContract =
+  location.state?.sharedReceiptVerificationContract ||
+  storedSharedReceiptVerificationContract ||
+  null;
+
 const sharedContract = buildReceiptContract({
+  ...(incomingSharedReceiptVerificationContract || {}),
   ...rawData,
+  caseData: rawData.caseData || null,
   receiptSource,
 });
 
@@ -516,6 +570,11 @@ const data = {
     rawData.nextStepText ||
     normalized.nextStepText ||
     "Proceed to verification to confirm whether this aggregated RUN record can be checked consistently across the final output, proof, and receipt.",
+  receiptNote:
+    sharedFlat.receiptNote ||
+    rawData.receiptNote ||
+    normalized.receiptNote ||
+    "This receipt is a structured record of aggregated RUN patterns for review and verification. It does not certify individual events, but validates the structural patterns observed across the pilot window.",
   verificationCtaText:
     sharedFlat.verificationCtaText ||
     rawData.verificationCtaText ||
@@ -525,7 +584,7 @@ const data = {
     isVerified
       ? "Verified"
       : sharedFlat.decisionStatus || "Ready for Verification",
-  };
+};
 
 const finalEvidenceLock = {
   ...(location.state?.evidenceLock || {}),
@@ -576,20 +635,59 @@ const returnedFromFailedVerification =
   verificationReturnStatus === "Verification Failed";
 
 React.useEffect(() => {
-  try {
-    localStorage.setItem("receiptPageData", JSON.stringify(data));
-    localStorage.setItem(
-      "sharedReceiptVerificationContract",
-      JSON.stringify(sharedContract)
-    );
+  const session =
+    location.state?.trialSession || getTrialSession();
 
-    if (data.caseData) {
-      localStorage.setItem("receiptCaseData", JSON.stringify(data.caseData));
-    }
-  } catch (error) {
-    console.error("Failed to persist receipt payload:", error);
-  }
-}, [data, sharedContract]);
+  if (!session?.userId || !session?.trialId) return;
+  if (!canRenderReceipt) return;
+  if (receiptViewedLoggedRef.current) return;
+
+  receiptViewedLoggedRef.current = true;
+
+  logTrialEvent(
+    {
+      userId: session.userId,
+      trialId: session.trialId,
+      sessionId:
+        location.state?.session_id ||
+        location.state?.sessionId ||
+        data.caseData?.sessionId ||
+        data.receiptId ||
+        "receipt_entry",
+      caseId:
+        data.caseData?.caseId ||
+        data.caseData?.id ||
+        data.receiptId ||
+        "receipt_entry",
+      type: "receipt_viewed",
+      page: "ReceiptPage",
+      meta: {
+        receiptMode,
+        receiptSource,
+        decisionStatus: data.decisionStatus,
+        canEnterVerification,
+        isVerified: !!data.verifiedAt,
+        evidenceLockStatus: isEvidenceLockedConsistent
+          ? "consistent"
+          : "broken",
+      },
+    },
+    { once: true }
+  ).catch((error) => {
+    console.error("receipt_viewed log error:", error);
+  });
+}, [
+  canRenderReceipt,
+  location.state,
+  data.caseData,
+  data.receiptId,
+  data.decisionStatus,
+  data.verifiedAt,
+  receiptMode,
+  receiptSource,
+  canEnterVerification,
+  isEvidenceLockedConsistent,
+]);
 
 if (!canRenderReceipt) {
   return (
@@ -623,7 +721,7 @@ if (!canRenderReceipt) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <p className="text-sm font-medium text-slate-500 mb-2">
             {receiptMode === "final_receipt"
@@ -636,7 +734,7 @@ if (!canRenderReceipt) {
               : "Case Structure Proof"}
           </h1>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div className="grid md:grid-cols-3 gap-4 text-sm">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Receipt ID</p>
               <p className="font-semibold break-all">{data.receiptId}</p>
@@ -648,8 +746,27 @@ if (!canRenderReceipt) {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-slate-500 mb-1">Verified At</p>
+              <p className="font-semibold">
+                {data.verifiedAt || "Not verified yet"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid md:grid-cols-2 gap-4 text-sm">
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-slate-500 mb-1">Receipt Hash</p>
-              <p className="font-semibold break-all">{data.receiptHash}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold break-all">{data.receiptHash}</p>
+
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(data.receiptHash)}
+                  className="shrink-0 text-xs font-medium text-green-700 bg-white border border-green-200 rounded-full px-3 py-1.5 hover:bg-green-50 hover:border-green-300 transition"
+                >
+                  Copy
+                </button>
+              </div>
               <p className="text-xs text-slate-500 mt-2">
                 Deterministically generated from RUN structure and behavioral execution summary. Reproducible under the same inputs.
               </p>
@@ -664,13 +781,6 @@ if (!canRenderReceipt) {
                 {isEvidenceLockedConsistent
                   ? "Receipt matches the issued pilot evidence chain."
                   : "This receipt no longer matches the issued pilot evidence chain."}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Verified At</p>
-              <p className="font-semibold">
-                {data.verifiedAt || "Not verified yet"}
               </p>
             </div>
 
@@ -758,13 +868,6 @@ if (!canRenderReceipt) {
               <p className="text-sm text-slate-500 mb-1">Confidence</p>
               <p className="font-semibold">{data.confidenceLabel}</p>
             </div>
-          </div>
-
-          <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <p className="text-sm text-slate-500 mb-1">Primary RUN</p>
-            <p className="font-semibold leading-7">
-              {data.primaryRunLabel || data.runLabel || data.caseData?.fallbackRunCode || "RUN000"}
-            </p>
           </div>
 
           <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -870,10 +973,15 @@ if (!canRenderReceipt) {
             </div>
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 grid md:grid-cols-2 gap-4">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                What happened
+              </p>
               <p className="text-sm text-slate-500 mb-1">Latest event</p>
-              <p className="font-semibold">{data.executionSummary.latestEventLabel}</p>
+              <p className="font-semibold leading-7">
+                {data.executionSummary.latestEventLabel}
+              </p>
             </div>
 
             {data.executionSummary.latestEventDescription ? (
@@ -886,13 +994,16 @@ if (!canRenderReceipt) {
             ) : null}
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                What it caused
+              </p>
               <p className="text-sm text-slate-500 mb-1">Observed structural shift</p>
               <p className="font-semibold leading-7">
                 {data.executionSummary.mainObservedShift}
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 md:col-span-2">
               <p className="text-sm text-slate-500 mb-1">Next calibration action</p>
               <p className="font-semibold leading-7">
                 {data.executionSummary.nextCalibrationAction}
@@ -933,18 +1044,20 @@ if (!canRenderReceipt) {
           </p>
         </section>
 
-        <section className="bg-amber-50 rounded-2xl border border-amber-200 p-6">
-          <h2 className="text-lg font-semibold mb-2">Record Note</h2>
-          <p className="text-slate-700 leading-7">{data.receiptNote}</p>
-        </section>
+        <div>
+          <section className="bg-amber-50 rounded-2xl border border-amber-200 p-6">
+            <h2 className="text-lg font-semibold mb-2">Record Note</h2>
+            <p className="text-slate-700 leading-7">{data.receiptNote}</p>
+          </section>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
-          <p>
-            This record can be shared, but not verified externally.
-          </p>
-          <p className="mt-1 font-medium">
-            Verification unlocks audit-ready proof.
-          </p>
+          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-900">
+            <p>
+              This record can be shared, but not verified externally.
+            </p>
+            <p className="mt-1 font-medium">
+              Verification unlocks audit-ready proof.
+            </p>
+          </div>
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">

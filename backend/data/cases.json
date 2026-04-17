@@ -1,0 +1,24 @@
+[
+  {
+    "caseId": "case_result_entry",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "stage": "pilot",
+    "score": 1,
+    "receiptEligible": false,
+    "verificationEligible": false,
+    "caseData": {
+      "sessionId": "",
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "basically_stable",
+      "weakestDimension": "authority",
+      "chainId": "CHAIN-001",
+      "stage": "S1",
+      "pilotFocusKey": "authority_gap",
+      "firstGuidedAction": "Clarify who has the authority to decide, approve, or finalize the next structural step.",
+      "firstStepLabel": "Start with authority clarity"
+    },
+    "version": 8,
+    "savedAt": "2026-04-17T04:08:30.323Z"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "trialId": "trial_1776323696873_yehd2y",
+    "userId": "usr_1776323696872_m0wxct",
+    "status": "active",
+    "createdAt": "2026-04-16T07:14:56.872Z",
+    "startedAt": "2026-04-17T04:08:52.722Z",
+    "expiresAt": "2026-04-24T04:08:52.722Z",
+    "trialSessionId": "ts_1776323696884_eu60t4",
+    "entryPoint": "pilot_setup_page",
+    "pcCode": "PC-001"
+  }
+]

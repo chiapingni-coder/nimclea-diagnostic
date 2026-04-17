@@ -1,5 +1,14 @@
+const loggedEvents = new Set();
+
 export function logEvent(type, payload = {}) {
   try {
+    const sessionId = payload?.sessionId || "anonymous";
+    const dedupeKey = `${sessionId}_${type}`;
+
+    if (loggedEvents.has(dedupeKey)) return;
+
+    loggedEvents.add(dedupeKey);
+
     const entry = {
       type,
       payload,
@@ -14,4 +23,8 @@ export function logEvent(type, payload = {}) {
   } catch (error) {
     console.error("logEvent failed:", error);
   }
+}
+
+export function logTrialEvent(payload) {
+  console.log("logTrialEvent:", payload);
 }

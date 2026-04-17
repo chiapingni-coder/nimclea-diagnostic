@@ -1,14 +1,18 @@
 console.log("🔥 THIS IS MY NEW SERVER");
 console.log("🔥 SERVER.JS IS RUNNING");
 
-// server.js
 import express from "express";
 import cors from "cors";
 import questions from "./questions.js";
 import runSignalEngine from "./engine/signalEngine.js";
 import runScenarioEngine from "./scenarioEngine.js";
 import generatePreview from "./previewGenerator.js";
-// import { validateAnswersPayload } from "./validateAnswers.js";
+import trialRegisterRoutes from "./routes/trialRegisterRoutes.js";
+import trialStartRoutes from "./routes/trialStartRoutes.js";
+import caseRoutes from "./routes/caseRoutes.js";
+import eventRoutes from "./routes/eventRoutes.js";
+import emailRoutes from "./routes/emailRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 function buildPressureProfile(groups = {}, signals = {}) {
   const pressureScore = Number(groups?.pressure_context_score || 0);
@@ -53,6 +57,13 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.use("/trial", trialRegisterRoutes);
+app.use("/trial", trialStartRoutes);
+app.use("/case", caseRoutes);
+app.use("/event", eventRoutes);
+app.use("/email", emailRoutes);
+app.use("/analytics", analyticsRoutes);
 
 function validateSubmittedAnswers(payload) {
   const answers = payload?.answers;

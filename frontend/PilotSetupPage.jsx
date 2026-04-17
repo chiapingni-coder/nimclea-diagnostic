@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "./routes";
-import { logEvent } from "./utils/eventLogger";
 import { buildPilotNavigationState } from "./utils/pilotRouting";
 import { appendPilotEntry } from "./utils/pilotEntries";
 import { normalizeCaseInput } from "./utils/caseSchema";
+import { registerTrialUser, startTrial, logTrialEvent } from "./lib/trialApi";
+import { getTrialSession, setTrialSession } from "./lib/trialSession";
 
 import {
   getCaseSummary,
@@ -256,6 +257,7 @@ function SetupHero({
   firstStepLabel = "",
   firstGuidedAction = "",
   eventWindow = "",
+  progressLabel = "",
 }) {
 
   const scenarioLabel = getEnglishScenarioLabel(preview);
@@ -291,31 +293,34 @@ function SetupHero({
           window, with up to 5 structured reviews generated from those inputs.
         </p>
 
-        <div className="mt-5 flex flex-wrap gap-3">
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-              Pilot coverage
-            </div>
-            <p className="mt-1 text-sm font-medium text-emerald-900">
-              Unlimited event logging
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
-              Structured output
-            </div>
-            <p className="mt-1 text-sm font-medium text-sky-900">
-              Up to 5 structured reviews
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <div className="mt-8 grid grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-full flex flex-col justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Timing logic
+              Scenario
             </div>
-            <p className="mt-1 text-sm font-medium text-slate-900">
-              Events are logged as they occur, not by fixed daily quotas.
+            <p className="mt-2 text-sm text-slate-900">
+              {scenarioLabel}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-full flex flex-col justify-center">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Progress
+            </div>
+            <p className="mt-2 text-sm text-slate-900">
+              {progressLabel || "Pilot access opened"}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 h-full flex flex-col justify-center">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+              Weakest dimension
+            </div>
+            <p className="mt-2 text-sm text-amber-900">
+              {weakestDimension || "Not specified"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-amber-900">
+              This dimension will shape the cost of your pilot path.
             </p>
           </div>
         </div>
@@ -535,6 +540,7 @@ function PilotEventInputSection({
   eventType,
   setEventType,
   showEventRequired,
+  setShowEventRequired,
   signalLevels,
   setSignalLevels,
   description,
@@ -568,34 +574,29 @@ function PilotEventInputSection({
 
       <div className="mt-6 space-y-8">
         <div>
-          <div className="text-sm font-semibold text-slate-900">
-            1. What just happened?
-          </div>
-          <div className="mt-3 grid gap-3">
-            {EVENT_OPTIONS.map((option) => (
-              <label
-                key={option.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
-                  eventType === option.value
-                    ? "border-slate-950 bg-slate-50"
-                    : showEventRequired
-                    ? "border-red-300 bg-red-50/40 hover:bg-red-50/60"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-               }`}
-              >
-                <input
-                  type="radio"
-                  name="eventType"
-                  value={option.value}
-                  checked={eventType === option.value}
-                  onChange={(e) => {
-                    setEventType(e.target.value);
-                  }}
-                  className="mt-1 h-4 w-4"
-                />
-                <span className="text-sm text-slate-800">{option.label}</span>
-              </label>
-            ))}
+          <div className="mt-3">
+            <select
+              value={eventType || ""}
+              onChange={(e) => {
+                setEventType(e.target.value);
+                setShowEventRequired(false);
+              }}
+              className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                showEventRequired && !eventType
+                  ? "border-red-300 bg-red-50"
+                  : "border-slate-300 bg-white focus:border-slate-950"
+              }`}
+            >
+              <option value="" disabled>
+                Select what happened
+              </option>
+
+              {EVENT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {showEventRequired && !eventType ? (
@@ -733,19 +734,29 @@ export default function PilotSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  console.log("PILOT_SETUP_LIVE_CHECK", "frontend-root-PilotSetupPage");
+
+  const pcMeta = location.state?.pcMeta || {
+    pc_id: "PC-001",
+    pc_name: "Decision Risk Diagnostic",
+  };
+
   const incomingCaseSchema =
-    location.state?.caseSchema && typeof location.state.caseSchema === "object"
-      ? normalizeCaseInput(location.state.caseSchema)
-      : null;
+  location.state?.caseSchema && typeof location.state.caseSchema === "object"
+    ? normalizeCaseInput(location.state.caseSchema)
+    : null;
 
   const [eventType, setEventType] = useState("");
   const [showEventRequired, setShowEventRequired] = useState(false);
+
+  console.log("HAS_SET_SHOW_EVENT_REQUIRED", typeof setShowEventRequired);
   const [signalLevels, setSignalLevels] = useState({
     externalPressure: "medium",
     authorityBoundary: "slightly_unclear",
     dependency: "medium",
   });
   const [description, setDescription] = useState("");
+  const pilotSetupPageViewedLoggedRef = useRef(false);
 
   const pilotSetup = location.state?.pilot_setup || null;
 
@@ -826,11 +837,47 @@ export default function PilotSetupPage() {
     pilotSetup &&
     typeof pilotSetup === "object";
 
+  useEffect(() => {
+    if (pilotSetupPageViewedLoggedRef.current) return;
+    if (!hasRequiredContext) return;
+
+    const session =
+      location.state?.trialSession || getTrialSession();
+
+    if (!session?.userId || !session?.trialId) return;
+
+    pilotSetupPageViewedLoggedRef.current = true;
+
+    logTrialEvent({
+      userId: session.userId,
+      trialId: session.trialId,
+      caseId: sessionId || "case_result_entry",
+      eventType: "pilot_setup_page_viewed",
+      page: "PilotSetupPage",
+      meta: {
+        workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+        scenarioCode:
+          incomingCaseSchema?.scenarioCode ||
+          preview?.scenario?.code ||
+          "",
+        weakestDimension,
+        pilotFocusKey,
+      },
+    }).catch((error) => {
+      console.error("pilot_setup_page_viewed log error:", error);
+      pilotSetupPageViewedLoggedRef.current = false;
+    });
+  }, [
+    hasRequiredContext,
+    sessionId,
+  ]);
+
   const handleBack = () => {
     navigate(
       sessionId ? `${ROUTES.PILOT}?session_id=${sessionId}` : ROUTES.PILOT,
       {
         state: {
+          pcMeta,
           session_id: sessionId,
           sessionId,
           preview,
@@ -852,9 +899,13 @@ export default function PilotSetupPage() {
     );
   };
 
-const handleConfirm = () => {
-  const trimmedDescription = buildContextForSubmission(description);
+const handleConfirm = async () => {
+  if (!eventType) {
+    setShowEventRequired(true);
+    return;
+  }
 
+  const trimmedDescription = buildContextForSubmission(description);
   let summarizedDescription = "";
 
   if (trimmedDescription) {
@@ -870,9 +921,81 @@ const handleConfirm = () => {
       summarizedDescription = buildContextSummary(trimmedDescription);
     }
   }
+  
+  let existingTrialSession =
+    location.state?.trialSession || getTrialSession();
 
-  if (!eventType) {
-    setShowEventRequired(true);
+  console.log("TRIAL_SESSION_CHECK", {
+    fromState: location.state?.trialSession,
+    fromStorage: getTrialSession(),
+  });
+
+  if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
+    try {
+      const registerRes = await registerTrialUser({
+        email: "pilot@nimclea.local",
+        name: "",
+        company: "",
+      });
+
+      existingTrialSession = {
+        userId: registerRes?.data?.userId || "",
+        trialId: registerRes?.data?.trialId || "",
+        email: registerRes?.data?.email || "pilot@nimclea.local",
+        status: registerRes?.data?.status || "registered",
+        createdAt: registerRes?.data?.createdAt || "",
+      };
+  
+      if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
+        console.error("PilotSetupPage registerTrialUser returned empty session", {
+          registerRes,
+       });
+        alert("Trial session was not created.");
+        return;
+      }
+  
+      setTrialSession(existingTrialSession);
+    } catch (error) {
+      console.error("PilotSetupPage registerTrialUser error:", error);
+      alert(error?.message || "Failed to create trial session.");
+      return;
+    }
+  }
+
+  let mergedTrialSession = existingTrialSession;
+
+  try {
+    const startRes = await startTrial({
+      userId: existingTrialSession.userId,
+      trialId: existingTrialSession.trialId,
+      entryPoint: "pilot_setup_page",
+      pcCode: pcMeta?.pc_id || "PC-001",
+    });
+
+    mergedTrialSession = {
+      ...existingTrialSession,
+      trialSessionId:
+        startRes?.data?.trialSessionId ||
+        existingTrialSession?.trialSessionId ||
+        "",
+      startedAt:
+        startRes?.data?.startedAt ||
+        existingTrialSession?.startedAt ||
+        "",
+      expiresAt:
+        startRes?.data?.expiresAt ||
+        existingTrialSession?.expiresAt ||
+        "",
+      status:
+        startRes?.data?.status ||
+        existingTrialSession?.status ||
+        "active",
+    };
+
+    setTrialSession(mergedTrialSession);
+  } catch (error) {
+    console.error("startTrial error:", error);
+    alert(error?.message || "Failed to start pilot.");
     return;
   }
 
@@ -901,7 +1024,40 @@ const handleConfirm = () => {
       : "unknown";
 
   setShowEventRequired(false);
-  logEvent("pilot_entry_clicked");
+
+  try {
+    await logTrialEvent({
+      userId: mergedTrialSession.userId,
+      trialId: mergedTrialSession.trialId,
+      caseId: sessionId || "case_result_entry",
+      eventType: "trial_started",
+      page: "PilotSetupPage",
+      meta: {
+        workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+        eventType,
+        weakestDimension,
+        pcId: pcMeta?.pc_id || "PC-001",
+      },
+    });
+
+    await logTrialEvent({
+      userId: mergedTrialSession.userId,
+      trialId: mergedTrialSession.trialId,
+      caseId: sessionId || "case_result_entry",
+      eventType: "pilot_setup_confirmed",
+      page: "PilotSetupPage",
+      meta: {
+        workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+        selectedEventType: eventType,
+        externalPressure: signalLevels.externalPressure,
+        authorityBoundary: signalLevels.authorityBoundary,
+        dependency: signalLevels.dependency,
+        weakestDimension,
+      },
+    });
+  } catch (error) {
+    console.error("logTrialEvent error:", error);
+  }
 
   const entryTimestamp = new Date().toISOString();
 
@@ -920,8 +1076,6 @@ const handleConfirm = () => {
     boundaryState,
     timestamp: entryTimestamp,
   };
-
-  logEvent("pilot_event_structured", structuredEvent);
 
   const strongestSignal = Array.isArray(preview?.top_signals)
     ? preview.top_signals[0]
@@ -1256,7 +1410,7 @@ const handleConfirm = () => {
       resultSeed?.summary ||
       "No structured summary available.",
     
-    pilotEntriesCount: allPilotEntries.length,
+    pilotEntriesCount: structuredEventCount,
     latestEntryId: pilotEntry.id,
     summaryTriggerMode: "manual_click",
   };
@@ -1359,7 +1513,7 @@ const handleConfirm = () => {
       resolvedBy: weakestDimension || "event_type",
     },
 
-    pilot_entries: allPilotEntries,
+    pilot_entries: Array.isArray(allPilotEntries) ? allPilotEntries : [],
     latest_pilot_entry: pilotEntry,
     pilot_result: {
       ...pilotResult,
@@ -1398,6 +1552,8 @@ const handleConfirm = () => {
       state: {
         ...location.state,
         ...navState,
+        pcMeta,
+        trialSession: mergedTrialSession,
         caseSchema: entryCaseData,
 
         session_id: sessionId,
@@ -1479,7 +1635,7 @@ const handleConfirm = () => {
           resolvedBy: weakestDimension || "event_type",
         },
 
-        pilot_entries: allPilotEntries,
+        pilot_entries: Array.isArray(allPilotEntries) ? allPilotEntries : [],
         latest_pilot_entry: pilotEntry,
 
         pilot_result: {
@@ -1505,7 +1661,7 @@ const handleConfirm = () => {
           structuredEventCount:
             navState.routeMeta.structuredEventCount ??
             navState.pilot_result.structuredEventCount ??
-            allPilotEntries.length,
+            structuredEventCount,
           evidenceSupport:
             navState.routeMeta.evidenceSupport ??
             navState.pilot_result.evidenceSupport ??
@@ -1539,20 +1695,14 @@ return (
           firstStepLabel={firstStepLabel}
           firstGuidedAction={firstGuidedAction}
           eventWindow={location.state?.routeMeta?.eventWindow || ""}
-        />
-
-        <CarryOverSection
-          preview={preview}
-          workflow={workflow}
-          weakestDimension={weakestDimension}
-          firstGuidedAction={firstGuidedAction}
-          firstStepLabel={firstStepLabel}
+          progressLabel={location.state?.routeMeta?.progressLabel || "Pilot access opened"}
         />
 
         <PilotEventInputSection
           eventType={eventType}
           setEventType={setEventType}
           showEventRequired={showEventRequired}
+          setShowEventRequired={setShowEventRequired}
           signalLevels={signalLevels}
           setSignalLevels={setSignalLevels}
           description={description}

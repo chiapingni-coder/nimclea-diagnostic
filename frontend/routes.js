@@ -3,11 +3,12 @@ export const ROUTES = {
   DIAGNOSTIC: "/diagnostic",
   RESULT: "/result",
   PILOT: "/pilot",
- PILOT_SETUP: "/pilot/setup",
+  PILOT_SETUP: "/pilot/setup",
   PILOT_RESULT: "/pilot-result",
   RECEIPT: "/receipt",
   VERIFICATION: "/verification",
   RUN_LEDGER: "/run-ledger",
+  ANALYTICS: "/analytics",
 };
 
 export default ROUTES;

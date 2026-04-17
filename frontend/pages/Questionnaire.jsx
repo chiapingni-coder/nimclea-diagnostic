@@ -5,7 +5,8 @@ import { getRoutingResultFromCoreAnswers } from "../routingLogic.js";
 import { ROUTES } from "../routes.js";
 import { extractStructure } from "../engines/structureExtraction.js";
 import { buildResultSeed } from "./resultSeedBuilder";
-import { logEvent } from "../utils/eventLogger";
+import { logTrialEvent } from "../lib/trialApi";
+import { getTrialSession } from "../lib/trialSession";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -181,7 +182,7 @@ function QuestionCard({
   );
 }
 
-export default function Questionnaire() {
+export default function Questionnaire({ pcMeta }) {
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState(PHASE.LANDING);
@@ -412,7 +413,7 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
       const includedQuestions = [...coreQuestions, ...activeBranchQuestions];
       const payloadAnswers = buildPayloadAnswers(includedQuestions, answers);
 
-      // 🧹 清理旧 preview + session
+      const session = getTrialSession();
       clearDiagnosticStorage();
       const response = await fetch(`${API_BASE_URL}/diagnostic`, {
         method: "POST",
@@ -443,26 +444,28 @@ console.log("🧪 isLastCurrentQuestion =", isLastCurrentQuestion, {
       const apiResult = data || null;
 const extraction = extractStructure(payloadAnswers);
 
-logEvent("diagnostic_submitted", {
-  answers: payloadAnswers
-});
+// ✅ 当前问卷链路使用的统一 PC
+const resolvedPcMeta = pcMeta || null;
 
 const resultSeed = buildResultSeed({
   answers: payloadAnswers,
-  extraction
+  extraction,
+  pcMeta: resolvedPcMeta
 });
 
 const preview = {
   ...(apiResult?.preview || apiResult || {}),
   extraction,
-  resultSeed
+  resultSeed,
+  pcMeta: resolvedPcMeta
 };
 
 const result = {
   ...(apiResult || {}),
   preview,
   extraction,
-  resultSeed
+  resultSeed,
+  pcMeta: resolvedPcMeta
 };
 
 const sessionId =
@@ -470,6 +473,14 @@ const sessionId =
   result?.sessionId ||
   result?.id ||
   "";
+
+await logTrialEvent(
+  {
+    type: "diagnostic_completed",
+    sessionId: session?.sessionId || sessionId || "unknown"
+  },
+  { once: true }
+);
 
 if (!apiResult?.preview && !apiResult) {
   throw new Error("Preview payload is missing.");
@@ -500,7 +511,8 @@ if (!apiResult?.preview && !apiResult) {
         state: {
           preview,
           result,
-          session_id: sessionId
+          session_id: sessionId,
+          pcMeta: resolvedPcMeta
         }
       });
 

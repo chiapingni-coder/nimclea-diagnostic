@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { logTrialEvent } from "../lib/trialApi";
+import { getTrialSession } from "../lib/trialSession";
 import ROUTES from "../routes";
 import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput } from "../utils/caseSchema";
@@ -68,7 +70,6 @@ function resolveVerificationPayload(
     : null;
 
   const schema =
-    sharedFlat?.caseData ||
     routeEnvelope?.caseData ||
     routeEnvelope?.caseSchemaSnapshot ||
     routeEnvelope?.caseSchema ||
@@ -78,6 +79,7 @@ function resolveVerificationPayload(
     routeData?.caseData ||
     routeData?.caseSchemaSnapshot ||
     routeData?.caseSchema ||
+    sharedFlat?.caseData ||
     storedData?.caseData ||
     storedData?.caseSchemaSnapshot ||
     storedData?.caseSchema ||
@@ -329,7 +331,7 @@ function normalizeVerificationData(input = {}) {
 
     introText:
       input.introText ||
-      "This page shows whether the receipt, supporting structure, and final output can be checked consistently. It is designed to make the record easier to trust, review, and carry forward.",
+      "This page shows whether this receipt is now strong enough to be reviewed, trusted, and carried into real decisions. It confirms that the structure, proof chain, and supporting record can be checked together.",
     checks: Array.isArray(input.checks)
       ? input.checks
       : [
@@ -410,12 +412,12 @@ function getStatusStyles(status) {
 function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) {
   if (status === "Verification Ready") {
     return {
-      title: "Structure ready for review",
+      title: "This proof is ready to carry forward",
       message:
-        "This record is structurally stable and can be used for review or sharing.",
+        "This record is now stable enough to be reviewed, shared, and relied on outside the pilot flow.",
       actions: [
         "Preserve the receipt and its hash before external use.",
-        "Proceed with review or audit workflow.",
+        "Use the formal version when this decision needs to travel outside your system.",
       ],
       alternatives: [
        {
@@ -704,7 +706,7 @@ function getVerificationVerdictLine({ overallStatus, weakestDimension = "" }) {
     return `⚠ This proof is internally reviewable but unstable due to: ${dimensionLabel}`;
   }
 
-  return "✓ This proof is structurally valid and ready for external review";
+  return "✓ This proof is structurally valid and ready to be reviewed, shared, and used externally";
 }
 
 function CalibrationCard({ guidance }) {
@@ -777,7 +779,15 @@ function CalibrationCard({ guidance }) {
 
 export default function VerificationPage() {
   const location = useLocation();
+  const verificationViewedLoggedRef = React.useRef(false);
+
+  const pcMeta = location.state?.pcMeta || {
+    pc_id: "PC-001",
+    pc_name: "Decision Risk Diagnostic",
+  };
+
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
@@ -831,7 +841,7 @@ export default function VerificationPage() {
             <Link
               to={ROUTES.RECEIPT}
               state={routeEnvelope || {}}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
             >
               Back to Receipt
             </Link>
@@ -851,18 +861,31 @@ export default function VerificationPage() {
   );
   const baseData = normalizeVerificationData(resolvedPayload);
 
-  const verificationContract = buildVerificationContract({
-    ...baseData,
-    receiptSource,
-  });
-
   const verificationFlat =
-    flattenSharedReceiptVerificationContract(verificationContract);
+    sharedContract
+      ? flattenSharedReceiptVerificationContract(sharedContract)
+      : {};
 
   const evaluated = evaluateCaseRecordStatus({
     ...baseData,
     ...verificationFlat,
   });
+
+  const receiptLevelStructurePass =
+    receiptDecisionStatus === "Ready for Verification" ||
+    receiptDecisionStatus === "Verified";
+
+  const hasUsableCaseData =
+    !!(
+      resolvedPayload?.schema ||
+      baseData?.caseData ||
+      verificationFlat?.caseData ||
+      receiptContext?.caseData
+    );
+
+  const shouldPromoteVerificationReady =
+    receiptLevelStructurePass &&
+    hasUsableCaseData;
 
   const hasVerificationPayload =
     !!(
@@ -879,14 +902,23 @@ export default function VerificationPage() {
     ...baseData,
     ...verificationFlat,
     caseData: verificationFlat.caseData || baseData.caseData || resolvedPayload.schema || null,
-    weakestDimension: verificationFlat.weakestDimension || baseData.weakestDimension || "",
+    weakestDimension:
+      shouldPromoteVerificationReady &&
+      evaluated.verificationStatus === "Verification Failed"
+        ? ""
+        : verificationFlat.weakestDimension || baseData.weakestDimension || "",
     displayContext:
       getCaseSummary(verificationFlat) ||
       getCaseContext(verificationFlat) ||
       getCaseSummary(baseData) ||
       getCaseContext(baseData),
     overallStatus: hasVerificationPayload
-      ? evaluated.verificationStatus
+      ? (
+          shouldPromoteVerificationReady &&
+          evaluated.verificationStatus === "Verification Failed"
+            ? "Verification Ready"
+            : evaluated.verificationStatus
+        )
       : "Verification Warning",
     checks: hasVerificationPayload
       ? evaluated.checks
@@ -1030,13 +1062,41 @@ const finalOverallStatus =
   const canActivateFormalVerification =
     isEvidenceLockedConsistent &&
     finalOverallStatus !== "Verification Failed";
+
+  const canShowSubscriptionOptions =
+  isEvidenceLockedConsistent && hasVerificationPayload;  
   
+  const verdictTheme =
+  finalOverallStatus === "Verification Failed"
+    ? {
+        cardBg: "#FEF2F2",
+        cardBorder: "#FCA5A5",
+        titleColor: "#991B1B",
+        chipBg: "#991B1B",
+        chipText: "#FFFFFF",
+      }
+    : finalOverallStatus === "Verification Warning"
+    ? {
+        cardBg: "#FFFBEB",
+        cardBorder: "#FDE68A",
+        titleColor: "#B45309",
+        chipBg: "#B45309",
+        chipText: "#FFFFFF",
+      }
+    : {
+        cardBg: "#ECFDF5",
+        cardBorder: "#A7F3D0",
+        titleColor: "#047857",
+        chipBg: "#047857",
+        chipText: "#FFFFFF",
+      };
+
   React.useEffect(() => {
     try {
       localStorage.setItem("verificationPageData", JSON.stringify(data));
       localStorage.setItem(
         "sharedReceiptVerificationContract",
-        JSON.stringify(verificationContract)
+        JSON.stringify(sharedContract || {})
       );
 
       if (data.caseData) {
@@ -1045,11 +1105,99 @@ const finalOverallStatus =
     } catch (error) {
       console.error("Failed to persist verification payload:", error);
     }
-  }, [data, verificationContract]);
+  }, [data, sharedContract]);
+
+  React.useEffect(() => {
+    const session =
+      location.state?.trialSession || getTrialSession();
+
+    if (!session?.userId || !session?.trialId) return;
+    if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
+    if (verificationViewedLoggedRef.current) return;
+
+    verificationViewedLoggedRef.current = true;
+
+  logTrialEvent(
+    {
+      userId: session.userId,
+      trialId: session.trialId,
+      sessionId:
+        location.state?.session_id ||
+        location.state?.sessionId ||
+        data.caseData?.sessionId ||
+        data.receiptId ||
+        "verification_entry",
+      caseId:
+        data.caseData?.caseId ||
+        data.caseData?.id ||
+        data.receiptId ||
+        "verification_entry",
+      type: "verification_viewed",
+      page: "VerificationPage",
+      meta: {
+        overallStatus: finalOverallStatus,
+        receiptMode,
+        receiptSource,
+        canActivateFormalVerification,
+        canShowSubscriptionOptions,
+        evidenceLockStatus: isEvidenceLockedConsistent
+          ? "consistent"
+          : "broken",
+        weakestDimension:
+          data.weakestDimension || data.caseData?.weakestDimension || "",
+      },
+    },
+    { once: true }
+  ).catch((error) => {
+    console.error("verification_viewed log error:", error);
+    verificationViewedLoggedRef.current = false;
+  });
+  }, [
+    cameFromIssuedReceipt,
+    receiptAllowsVerification,
+    location.state,
+    data.caseData,
+    data.receiptId,
+    data.weakestDimension,
+    finalOverallStatus,
+    receiptMode,
+    receiptSource,
+    canActivateFormalVerification,
+    canShowSubscriptionOptions,
+    isEvidenceLockedConsistent,
+  ]);
+  
+  const handleOpenSubscriptionModal = async (source = "verification_cta") => {
+    const session =
+      location.state?.trialSession || getTrialSession();
+
+    if (session?.userId && session?.trialId) {
+      try {
+        await logTrialEvent({
+          userId: session.userId,
+          trialId: session.trialId,
+          caseId: data.receiptId || "verification_entry",
+          eventType: "pricing_modal_opened",
+          page: "VerificationPage",
+          meta: {
+            source,
+            overallStatus: finalOverallStatus,
+            canActivateFormalVerification,
+            canShowSubscriptionOptions,
+          },
+        });
+      } catch (error) {
+        console.error("pricing_modal_opened log error:", error);
+      }
+    }
+
+    setShowSubscriptionModal(true);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-      <div className="max-w-4xl mx-auto space-y-6">
+  <div className="min-h-screen bg-slate-50 text-slate-900 px-4 py-8">
+    <div className="max-w-5xl mx-auto">
+      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <p className="text-sm font-medium text-slate-500 mb-2">Structure Proof Verification</p>
           <h1 className="text-3xl font-bold mb-3">{data.verificationTitle}</h1>
@@ -1120,72 +1268,95 @@ const finalOverallStatus =
               ) : null}
             </div>
           </div>
-
-          <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <p className="text-slate-500 mb-1">Behavioral grounding</p>
-            <p className="font-semibold">
-              {data.behavioralGroundingSummary?.groundingLabel
-                ? data.behavioralGroundingSummary.groundingLabel
-                : !hasVerificationPayload || !behavioralGroundingCheck
-                ? "Unavailable"
-                : behavioralGroundingCheck?.status === "passed"
-                ? "Strong"
-                : behavioralGroundingCheck.status === "warning"
-                ? "Partial"
-                : "Weak"}
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              {data.behavioralGroundingSummary?.groundingNote
-                ? data.behavioralGroundingSummary.groundingNote
-                : !hasVerificationPayload || !behavioralGroundingCheck
-                ? "Behavioral grounding cannot be confirmed until a live receipt payload is loaded."
-                : behavioralGroundingCheck.detail}
-            </p>
-          </div>
         </header>
         <div
-          className="rounded-2xl px-12 py-6 shadow-md"
+          className="px-6 py-7 shadow-sm"
           style={{
-            backgroundColor:
+            backgroundColor: verdictTheme.cardBg,
+            border:
               finalOverallStatus === "Verification Failed"
-                ? "#991B1B"
+                ? "1px solid rgba(153,27,27,0.12)"
                 : finalOverallStatus === "Verification Warning"
-                ? "#B45309"
-                : "#047857",
+                ? "1px solid rgba(180,83,9,0.12)"
+                : "1px solid rgba(4,120,87,0.12)",
+            minHeight: "130px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "26px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              color: "#ffffff",
-              fontSize: "17px",
-              lineHeight: "1.3",
-              fontWeight: 600,
-              gap: "16px",
-              flexWrap: "wrap",
-              paddingLeft: "8px",
-            }}
-          >
-            <div style={{ flex: 1.8, opacity: 0.98, textAlign: "left", paddingLeft: "12px" }}>
+          <div className="space-y-5">
+            <div
+              style={{
+                color: verdictTheme.titleColor,
+                fontSize: "22px",
+                lineHeight: "1.25",
+                fontWeight: 700,
+              }}
+            >
               {verdictLine}
             </div>
-        
-            <div style={{ flex: 1 }}>
-              {hasReceiptHash ? "✓ Receipt Hash verified" : "• Receipt Hash unavailable"}
-            </div>
-        
-            <div style={{ flex: 1 }}>
-              {hasCompleteStructure ? "✓ Structure consistent" : "• Structure incomplete"}
-            </div>
-        
-            <div style={{ flex: 1 }}>
-              {auditReady ? "✓ Ready for review" : "• Review pending"}
-            </div>
-        
-            <div style={{ flex: 1 }}>
-              {isEvidenceLockedConsistent ? "✓ Evidence lock consistent" : "• Evidence lock broken"}
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "10px",
+              }}
+            >
+              {[
+                {
+                  text: hasReceiptHash
+                    ? "✓ Receipt Hash verified"
+                    : "• Receipt Hash unavailable",
+                  backgroundColor: hasReceiptHash
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.12)",
+                },
+                {
+                  text: hasCompleteStructure
+                    ? "✓ Structure consistent"
+                    : "• Structure sufficient",
+                  backgroundColor: hasCompleteStructure
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.12)",
+                },
+                {
+                  text: auditReady
+                    ? "✓ Ready for review"
+                    : "• Review pending",
+                  backgroundColor: auditReady
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.12)",
+                },
+                {
+                  text: isEvidenceLockedConsistent
+                    ? "✓ Evidence lock consistent"
+                    : "• Evidence lock broken",
+                  backgroundColor: isEvidenceLockedConsistent
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.12)",
+                },
+              ].map((item) => (
+                <span
+                  key={item.text}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 12px",
+                    borderRadius: "999px",
+                    backgroundColor: verdictTheme.chipBg,
+                    color: verdictTheme.chipText,
+                    fontSize: "13px",
+                    lineHeight: "1.2",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {item.text}
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -1216,7 +1387,7 @@ const finalOverallStatus =
             </p>
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 grid sm:grid-cols-1 md:grid-cols-2 gap-4">
             {Array.isArray(data.runEntries) && data.runEntries.length > 0 ? (
               data.runEntries.map((entry, index) => (
                 <div
@@ -1246,52 +1417,31 @@ const finalOverallStatus =
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <h2 className="text-xl font-semibold mb-4">Case Schema Snapshot</h2>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-4 gap-4">
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Weakest dimension</p>
+                <p className="text-sm text-slate-500 mb-1">Scenario</p>
                 <p className="font-semibold">
-                  {data.caseData.weakestDimension || "Not specified"}
-                </p>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Scenario code</p>
-                <p className="font-semibold">
-                  {data.caseData.scenarioCode || "unknown_scenario"}
-                </p>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Pattern</p>
-                <p className="font-semibold">
-                  {data.caseData.patternId || "PAT-00"}
-                </p>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">RUN fallback</p>
-                <p className="font-semibold">
-                  {data.caseData.fallbackRunCode || "RUN000"}
+                  {data.scenarioLabel || data.caseData?.scenarioCode || "No Dominant Scenario"}
                 </p>
               </div>
 
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                 <p className="text-sm text-slate-500 mb-1">Stage</p>
                 <p className="font-semibold">
-                  {data.caseData.stage || "S0"}
+                  {data.stageLabel || data.caseData?.stage || "S0"}
                 </p>
               </div>
 
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Route decision</p>
-                <p className="font-semibold">
-                  {data.caseData.routeDecision?.mode || "summary_only"}
+                <p className="text-sm text-slate-500 mb-1">Confidence</p>
+                <p className="font-semibold">{data.confidenceLabel}</p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-sm text-slate-500 mb-1">Primary RUN</p>
+                <p className="font-semibold leading-7">
+                  {data.primaryRunLabel || data.runLabel || data.caseData?.fallbackRunCode || "RUN000"}
                 </p>
-                {data.caseData.routeDecision?.reason ? (
-                  <p className="text-xs text-slate-500 mt-2">
-                    {data.caseData.routeDecision.reason}
-                  </p>
-                ) : null}
               </div>
             </div>
           </section>
@@ -1327,58 +1477,98 @@ const finalOverallStatus =
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">Verification timeline</h2>
+  
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Verification timeline</h2>
 
-          <div className="space-y-4">
-            {data.eventTimeline.map((item, index) => (
-              <div
-                key={`${item.time}-${item.title}-${index}`}
-                className="rounded-xl border border-slate-200 p-4 bg-slate-50"
-              >
-                <p className="text-sm text-slate-500 mb-1">{item.time}</p>
-                <h3 className="font-semibold mb-2">{item.title}</h3>
-                <p className="text-slate-700 leading-7">{item.detail}</p>
-              </div>
-            ))}
+            <button
+              type="button"
+              onClick={() => setShowTimeline(prev => !prev)}
+              className="text-sm font-medium text-slate-600 hover:text-slate-900"
+            >
+              {showTimeline ? "Hide" : "View"}
+            </button>
           </div>
+
+          {showTimeline && (
+            <div className="space-y-4">
+              {data.eventTimeline.map((item, index) => (
+                <div
+                  key={`${item.time}-${item.title}-${index}`}
+                  className="rounded-xl border border-slate-200 p-4 bg-slate-50"
+                >
+                  <p className="text-sm text-slate-500 mb-1">{item.time}</p>
+                  <h3 className="font-semibold mb-2">{item.title}</h3>
+                  <p className="text-slate-700 leading-7">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">Ledger-backed proof</h2>
-
-          <p className="mb-4 text-sm text-slate-600">
-            This receipt is supported by a backend verification record for traceability and audit readiness.
-          </p>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Anchor status</p>
-              <p
-                className={`font-semibold ${
-                  anchorStatus === "Anchored"
-                    ? "text-emerald-700"
-                    : anchorStatus === "Pending"
-                    ? "text-amber-700"
-                    : "text-slate-700"
-                }`}
-              >
-                {anchorStatus}
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-xl font-semibold">Ledger-backed proof</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                This receipt is supported by a backend verification record for traceability and audit readiness.
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Proof record ID</p>
-              <p className="font-semibold break-all">{proofRecordId}</p>
-            </div>
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
+                anchorStatus === "Anchored"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : anchorStatus === "Pending"
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-slate-50 text-slate-700 border-slate-200"
+              }`}
+            >
+              {anchorStatus}
+            </span>
+          </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Receipt hash</p>
-              <p className="font-semibold break-all">{displayReceiptHash}</p>
-            </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5">
+            <div className="grid md:grid-cols-3 gap-4 items-stretch">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Proof record ID
+                </p>
+                <p className="mt-2 font-semibold text-slate-900 break-all">
+                  {proofRecordId}
+                </p>
+              </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Anchored at</p>
-              <p className="font-semibold">{anchoredAt}</p>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Anchored at
+                </p>
+                <p className="mt-2 font-semibold text-slate-900">
+                  {anchoredAt}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Receipt hash
+                    </p>
+                    <p className="mt-2 font-semibold text-slate-900 break-all">
+                      {displayReceiptHash}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(proofReceiptHash)}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Copy full hash
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1398,8 +1588,8 @@ const finalOverallStatus =
         <section
           className={`rounded-2xl border p-6 ${
             canActivateFormalVerification
-              ? "bg-amber-50 border-amber-200"
-              : "bg-red-50 border-red-200"
+             ? "bg-amber-50 border-amber-200"
+              : "bg-slate-50 border-slate-200"
           }`}
         >
           <h2 className="text-lg font-semibold mb-2">
@@ -1410,7 +1600,7 @@ const finalOverallStatus =
 
           <p className="text-slate-700 leading-7">
             {canActivateFormalVerification
-               ? "You can already review the verification logic here. Activate the formal version when you need a result that can be exported, shared, and used externally."
+              ? "You can already see that this proof passes structurally here. Activate the formal version when you need a version that can leave this workspace and be used in real workflows."
               : !isEvidenceLockedConsistent
               ? "This verification view is currently locked because the evidence chain no longer matches the issued receipt."
               : "This verification result is not ready for formal activation because the current proof has not yet passed verification."}
@@ -1448,36 +1638,33 @@ const finalOverallStatus =
               </>
             )}
 
-            {canActivateFormalVerification ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSubscriptionModal(true);
-                }}
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-              >
-                Activate Formal Verification →
-              </button>
-            ) : (
-              <Link
-                to={ROUTES.RECEIPT}
-                state={{
-                  receiptPageData: receiptContext || data,
-                  verificationPageData: {
-                    ...data,
-                    overallStatus: finalOverallStatus,
-                  },
-                  routeDecision,
-                  receiptSource,
-                  evidenceLock: finalEvidenceLock,
-                  caseData: data.caseData || null,
-                  sharedReceiptVerificationContract: verificationContract,
-                }}
-                className="inline-flex items-center justify-center rounded-2xl bg-red-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800"
-              >
-                Return to Receipt to Recover →
-              </Link>
-            )}
+            <div className="mt-5 flex flex-wrap gap-3">
+              {canActivateFormalVerification ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenSubscriptionModal("formal_verification_cta");
+                  }}
+                  className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  Activate Formal Verification →
+                </button>
+              ) : (
+                <>
+                  {canShowSubscriptionOptions && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleOpenSubscriptionModal("support_options_cta");
+                      }}
+                      className="inline-flex items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-700 shadow-sm transition hover:bg-green-100"
+                    >
+                      View Support Options
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </section>
 
@@ -1485,24 +1672,29 @@ const finalOverallStatus =
           <Link
             to={ROUTES.RECEIPT}
             state={{
-              receiptPageData: receiptContext || data,
-              verificationPageData: {
-                ...data,
-                overallStatus: finalOverallStatus,
-              },
-              routeDecision,
-              receiptSource,
-              evidenceLock: finalEvidenceLock,
-              caseData: data.caseData || null,
-              sharedReceiptVerificationContract: verificationContract,
+              ...(routeEnvelope || {}),
+              pcMeta,
             }}
-            className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 border border-slate-300 shadow-sm transition hover:bg-slate-100"
           >
-            {data.backToReceiptText || "Back to Decision Receipt"}
+            Back to Receipt
           </Link>
         </div>
         
-        {showSubscriptionModal && canActivateFormalVerification && (
+        <p
+          style={{
+            margin: "12px 8px 16px 8px",
+            fontSize: "14px",
+            lineHeight: 1.6,
+            color: "#475569",
+          }}
+        >
+          {finalOverallStatus === "Verification Failed"
+            ? "This proof has not yet passed verification. Support options are available if you want help moving it forward."
+            : "Choose the option that best fits how you want to continue from this verification result."}
+        </p>
+
+        {showSubscriptionModal && canShowSubscriptionOptions && (
           <div
             style={{
               position: "fixed",
@@ -1551,9 +1743,9 @@ const finalOverallStatus =
                     flex: 1,
                   }}
                 >
-                  {canActivateFormalVerification
-                    ? "Choose how to continue"
-                    : "Formal activation unavailable"}
+                  {finalOverallStatus === "Verification Failed"
+                    ? "View support options"
+                    : "Choose how to continue"}
                 </h2>
         
                 <button
@@ -1635,9 +1827,9 @@ const finalOverallStatus =
                       minWidth: "200px",
                       padding: "10px 20px",
                       borderRadius: "999px",
-                      backgroundColor: "#FEF2F2",
-                      color: "#DC2626",
-                      border: "1px solid #FECACA",
+                      backgroundColor: "#ECFDF5",
+                      color: "#059669",
+                      border: "1px solid #A7F3D0",
                       fontSize: "14px",
                       fontWeight: 600,
                       cursor: "pointer",
@@ -1771,5 +1963,6 @@ const finalOverallStatus =
         )}
       </div>
     </div>
-  );
+  </div>
+);
 }
