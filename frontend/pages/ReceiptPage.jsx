@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
-import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
+// import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
@@ -483,12 +483,6 @@ export default function ReceiptPage() {
       ? "final_receipt"
       : "case_receipt";
 
-  const canRenderReceipt =
-    (receiptMode === "case_receipt" &&
-      receiptSource === "pilot_case_result") ||
-    (receiptMode === "final_receipt" &&
-      receiptSource === "pilot_weekly_summary");
-
   const routeData = location.state?.receiptPageData || null;
   const storedData = getStoredReceiptData();
 
@@ -498,88 +492,169 @@ export default function ReceiptPage() {
     storedData
   );
 
-  const normalized = normalizeReceiptData(resolvedPayload);
-  const isVerified =
-    normalized.verifiedAt ||
-    location.state?.verificationPageData?.verifiedAt;
-
-  const normalizedWithoutDecisionStatus = normalized;
-
-  const baseReceiptData = {
-    ...normalizedWithoutDecisionStatus,
-      caseData: normalized.caseData || resolvedPayload.caseData || null,
-    generatedAt: normalized.generatedAt || new Date().toLocaleString(),
-
-    verifiedAt:
+    const normalized = normalizeReceiptData(resolvedPayload);
+    const isVerified =
       normalized.verifiedAt ||
-      location.state?.verificationPageData?.verifiedAt ||
-      "",
+      location.state?.verificationPageData?.verifiedAt;
+  
+    const normalizedWithoutDecisionStatus = normalized;
+  
+    const baseReceiptData = {
+      ...normalizedWithoutDecisionStatus,
+        caseData: normalized.caseData || resolvedPayload.caseData || null,
+      generatedAt: normalized.generatedAt || new Date().toLocaleString(),
+  
+      verifiedAt:
+        normalized.verifiedAt ||
+        location.state?.verificationPageData?.verifiedAt ||
+        "",
+  
+      receiptHash:
+        normalized.receiptHash ||
+        createReceiptHash({
+          ...normalized,
+          runEntries: normalized.runEntries,
+          totalRunHits: normalized.totalRunHits,
+        }),
+    };
 
-    receiptHash:
-      normalized.receiptHash ||
-      createReceiptHash({
-        ...normalized,
-        runEntries: normalized.runEntries,
-        totalRunHits: normalized.totalRunHits,
-      }),
+  const rawData = {
+    ...baseReceiptData,
+    caseData: baseReceiptData.caseData || null,
+    summaryContext: getCaseSummary(baseReceiptData),
+    displayContext:
+      getCaseSummary(baseReceiptData) ||
+      getCaseContext(baseReceiptData),
   };
 
-const evaluated = evaluateCaseRecordStatus(baseReceiptData);
+  const storedSharedReceiptVerificationContract =
+    getStoredSharedReceiptVerificationContract();
 
-const rawData = {
-  ...baseReceiptData,
-  caseData: baseReceiptData.caseData || null,
-  summaryContext: getCaseSummary(baseReceiptData),
-  displayContext:
-    getCaseSummary(baseReceiptData) ||
-    getCaseContext(baseReceiptData),
-};
+  const incomingSharedReceiptVerificationContract =
+    location.state?.sharedReceiptVerificationContract ||
+    storedSharedReceiptVerificationContract ||
+    null;
 
-const storedSharedReceiptVerificationContract =
-  getStoredSharedReceiptVerificationContract();
+  const hasReceiptIdentity = !!(
+    resolvedPayload.receiptId ||
+    storedData?.receiptId ||
+    routeData?.receiptId ||
+    incomingSharedReceiptVerificationContract?.receiptId
+  );
 
-const incomingSharedReceiptVerificationContract =
-  location.state?.sharedReceiptVerificationContract ||
-  storedSharedReceiptVerificationContract ||
-  null;
+  const hasReceiptProof = !!(
+    resolvedPayload.receiptHash ||
+    storedData?.receiptHash ||
+    routeData?.receiptHash ||
+    incomingSharedReceiptVerificationContract?.receiptHash ||
+    location.state?.evidenceLock?.receiptHash
+  );
 
-const sharedContract = buildReceiptContract({
-  ...(incomingSharedReceiptVerificationContract || {}),
-  ...rawData,
-  caseData: rawData.caseData || null,
-  receiptSource,
-});
+  const hasReceiptSource = !!(
+    receiptSource ||
+    incomingSharedReceiptVerificationContract?.receiptSource ||
+    location.state?.evidenceLock?.receiptSource
+  );
 
-const sharedFlat = flattenSharedReceiptVerificationContract(sharedContract);
+  const hasReceiptMode = !!(
+    receiptMode ||
+    incomingSharedReceiptVerificationContract?.receiptMode ||
+    location.state?.evidenceLock?.receiptMode
+  );
 
-const data = {
-  ...rawData,
-  ...sharedFlat,
+  const hasReceiptEligibilitySignal =
+    incomingSharedReceiptVerificationContract?.scoring?.receiptEligible === true ||
+    location.state?.sharedReceiptVerificationContract?.scoring?.receiptEligible === true ||
+    routeDecision?.mode === "case_receipt" ||
+    routeDecision?.mode === "final_receipt";
+
+  const canRenderReceipt =
+    (hasReceiptIdentity && hasReceiptSource) ||
+    (hasReceiptIdentity && hasReceiptProof) ||
+    (hasReceiptIdentity && hasReceiptMode) ||
+    hasReceiptEligibilitySignal;
+
+  const sharedContract = buildReceiptContract({
+    ...(incomingSharedReceiptVerificationContract || {}),
+    ...rawData,
+    caseData: rawData.caseData || null,
+    receiptSource,
+  });
+
+  const sharedFlat = flattenSharedReceiptVerificationContract(sharedContract);
+
+  const data = {
+    ...rawData,
+    ...sharedFlat,
+
+  executionSummary:
+    sharedFlat.executionSummary ||
+    rawData.executionSummary ||
+    normalized.executionSummary || {
+      totalEvents: 0,
+      structuredEventsCount: 0,
+      latestEventType: "other",
+      latestEventLabel: "No recorded structural event",
+      latestEventDescription: "",
+      mainObservedShift: "No behavioral shift recorded yet.",
+      nextCalibrationAction: "Record one real workflow event to begin calibration.",
+      behaviorStatus: "behavior_weak",
+    },
+
+    totalRunHits:
+      sharedFlat.totalRunHits ??
+      rawData.totalRunHits ??
+      normalized.totalRunHits ??
+      0,
+
+  topSignals:
+    Array.isArray(sharedFlat.topSignals) && sharedFlat.topSignals.length > 0
+      ? sharedFlat.topSignals
+      : Array.isArray(rawData.topSignals) && rawData.topSignals.length > 0
+      ? rawData.topSignals
+      : Array.isArray(normalized.topSignals) && normalized.topSignals.length > 0
+      ? normalized.topSignals
+      : [],
+
+  runEntries:
+    Array.isArray(sharedFlat.runEntries) && sharedFlat.runEntries.length > 0
+      ? sharedFlat.runEntries
+      : Array.isArray(rawData.runEntries) && rawData.runEntries.length > 0
+      ? rawData.runEntries
+      : Array.isArray(normalized.runEntries)
+      ? normalized.runEntries
+      : [],
+
   confidenceLabel:
     sharedFlat.confidenceLabel ||
     rawData.confidenceLabel ||
     normalized.confidenceLabel ||
     "High",
+
   nextStepTitle:
     sharedFlat.nextStepTitle ||
     rawData.nextStepTitle ||
     normalized.nextStepTitle ||
     "Recommended Next Step",
+
   nextStepText:
     sharedFlat.nextStepText ||
     rawData.nextStepText ||
     normalized.nextStepText ||
     "Proceed to verification to confirm whether this aggregated RUN record can be checked consistently across the final output, proof, and receipt.",
+
   receiptNote:
     sharedFlat.receiptNote ||
     rawData.receiptNote ||
     normalized.receiptNote ||
     "This receipt is a structured record of aggregated RUN patterns for review and verification. It does not certify individual events, but validates the structural patterns observed across the pilot window.",
+
   verificationCtaText:
     sharedFlat.verificationCtaText ||
     rawData.verificationCtaText ||
     normalized.verificationCtaText ||
     "Proceed to Verification",
+
   decisionStatus:
     isVerified
       ? "Verified"
@@ -594,7 +669,11 @@ const finalEvidenceLock = {
   receiptMode: receiptMode,
 };
 
-const evidenceLock = location.state?.evidenceLock || null;
+const evidenceLock =
+  location.state?.evidenceLock ||
+  incomingSharedReceiptVerificationContract?.evidenceLock ||
+  null;
+
 const isEvidenceLockedConsistent =
   !evidenceLock ||
   (
@@ -617,7 +696,15 @@ console.log("lock checks =", {
 
 const receiptAllowsVerification =
   data.decisionStatus === "Ready for Verification" ||
-  data.decisionStatus === "Verified";
+  data.decisionStatus === "Verified" ||
+  data.overallStatus === "Ready for Review" ||
+  data.overallStatus === "Verified" ||
+  sharedFlat?.overallStatus === "Ready for Review" ||
+  sharedFlat?.overallStatus === "Verified" ||
+  sharedFlat?.scoring?.receiptEligible === true ||
+  incomingSharedReceiptVerificationContract?.scoring?.receiptEligible === true ||
+  receiptMode === "case_receipt" ||
+  receiptMode === "final_receipt";
 
 const canEnterVerification =
   receiptAllowsVerification && isEvidenceLockedConsistent;
@@ -659,7 +746,7 @@ React.useEffect(() => {
         data.caseData?.id ||
         data.receiptId ||
         "receipt_entry",
-      type: "receipt_viewed",
+      eventType: "receipt_viewed",
       page: "ReceiptPage",
       meta: {
         receiptMode,
@@ -678,8 +765,6 @@ React.useEffect(() => {
   });
 }, [
   canRenderReceipt,
-  location.state,
-  data.caseData,
   data.receiptId,
   data.decisionStatus,
   data.verifiedAt,
@@ -701,7 +786,7 @@ if (!canRenderReceipt) {
             This entry has not been issued as a receipt
           </h1>
           <p className="text-slate-700 leading-7">
-            Receipts are issued only after confirmation from the pilot result page.
+            This receipt could not be reconstructed from the current proof chain. Please return to the pilot result page and re-issue the receipt.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -964,12 +1049,12 @@ if (!canRenderReceipt) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-sm text-slate-500 mb-1">Recorded events</p>
-              <p className="font-semibold">{data.executionSummary.totalEvents}</p>
+              <p className="font-semibold">{data.executionSummary?.totalEvents ?? 0}</p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <p className="text-sm text-slate-500 mb-1">Structured events</p>
-              <p className="font-semibold">{data.executionSummary.structuredEventsCount}</p>
+              <p className="font-semibold">{data.executionSummary?.structuredEventsCount ?? 0}</p>
             </div>
           </div>
 
@@ -980,11 +1065,11 @@ if (!canRenderReceipt) {
               </p>
               <p className="text-sm text-slate-500 mb-1">Latest event</p>
               <p className="font-semibold leading-7">
-                {data.executionSummary.latestEventLabel}
+                {data.executionSummary?.latestEventLabel || "No recorded structural event"}
               </p>
             </div>
 
-            {data.executionSummary.latestEventDescription ? (
+            {data.executionSummary?.latestEventDescription ? (
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                 <p className="text-sm text-slate-500 mb-1">Latest description</p>
                 <p className="font-semibold leading-7">
@@ -999,14 +1084,14 @@ if (!canRenderReceipt) {
               </p>
               <p className="text-sm text-slate-500 mb-1">Observed structural shift</p>
               <p className="font-semibold leading-7">
-                {data.executionSummary.mainObservedShift}
+                {data.executionSummary?.mainObservedShift || "No behavioral shift recorded yet."}
               </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 md:col-span-2">
               <p className="text-sm text-slate-500 mb-1">Next calibration action</p>
               <p className="font-semibold leading-7">
-                {data.executionSummary.nextCalibrationAction}
+                {data.executionSummary?.nextCalibrationAction || "Record one real workflow event to begin calibration."}
               </p>
             </div>
           </div>
@@ -1015,7 +1100,7 @@ if (!canRenderReceipt) {
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-4">Supporting Signals</h2>
 
-          {data.topSignals.length > 0 ? (
+          {Array.isArray(data.topSignals) && data.topSignals.length > 0 ? (
             <ul className="space-y-3">
               {data.topSignals.map((signal, index) => (
                 <li
@@ -1062,23 +1147,70 @@ if (!canRenderReceipt) {
 
         <div className="mt-8 flex flex-wrap gap-3">
           {canEnterVerification ? (
-            <Link
-              to={ROUTES.VERIFICATION}
-              state={{
-                receiptPageData: data,
-                sharedReceiptVerificationContract: sharedContract,
-                caseData: data.caseData || null,
-                verificationPageData: location.state?.verificationPageData || null,
-                routeDecision,
-                receiptSource,
-                evidenceLock: finalEvidenceLock,
+            <button
+              type="button"
+              onClick={() => {
+                const session =
+                  location.state?.trialSession || getTrialSession();
+
+                logTrialEvent(
+                  {
+                    userId:
+                      session?.userId ||
+                      location.state?.stableUserId ||
+                      localStorage.getItem("nimclea_user_id") ||
+                      "anonymous_user",
+                    trialId:
+                      session?.trialId ||
+                      session?.trialSessionId ||
+                      "receipt_entry",
+                    sessionId:
+                      location.state?.session_id ||
+                      location.state?.sessionId ||
+                      data.caseData?.sessionId ||
+                      data.receiptId ||
+                      "receipt_entry",
+                    caseId:
+                      data.caseData?.caseId ||
+                      data.caseData?.id ||
+                      data.receiptId ||
+                      "receipt_entry",
+                    eventType: "receipt_to_verification_clicked",
+                    page: "ReceiptPage",
+                    meta: {
+                      receiptMode,
+                      receiptSource,
+                      decisionStatus: data.decisionStatus,
+                      canEnterVerification,
+                      evidenceLockStatus: isEvidenceLockedConsistent
+                        ? "consistent"
+                        : "broken",
+                    },
+                  },
+                  { once: true }
+                ).catch((error) => {
+                  console.error("receipt_to_verification_clicked log error:", error);
+                });
+          
+                navigate(ROUTES.VERIFICATION, {
+                  state: {
+                    ...(location.state || {}),
+                    receiptPageData: data,
+                    sharedReceiptVerificationContract: sharedContract,
+                    caseData: data.caseData || null,
+                    verificationPageData: location.state?.verificationPageData || null,
+                    routeDecision,
+                    receiptSource,
+                    evidenceLock: finalEvidenceLock,
+                  },
+                });
               }}
               className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
               {returnedFromFailedVerification
                 ? "Retry Verification from Recovered Receipt →"
                 : data.verificationCtaText || "Proceed to Verification"}
-            </Link>
+            </button>
           ) : (
             <div className="flex flex-col gap-3">
               <button

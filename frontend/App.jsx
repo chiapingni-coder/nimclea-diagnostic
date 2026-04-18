@@ -1,7 +1,6 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 
-import Homepage from "./pages/Homepage.jsx";
 import DiagnosticPage from "./pages/DiagnosticPage.jsx";
 import ResultPage from "./pages/ResultPage.jsx";
 import PilotPage from "./pages/PilotPage.jsx";
@@ -21,7 +20,7 @@ export const PC_META = {
 export default function App() {
   return (
     <Routes>
-      <Route path={ROUTES.HOME} element={<Homepage />} />
+      <Route path={ROUTES.HOME} element={<DiagnosticPage pcMeta={PC_META} />} />
       <Route path={ROUTES.DIAGNOSTIC} element={<DiagnosticPage pcMeta={PC_META} />} />
       <Route path={ROUTES.RESULT} element={<ResultPage pcMeta={PC_META} />} />
       <Route path={ROUTES.PILOT} element={<PilotPage pcMeta={PC_META} />} />

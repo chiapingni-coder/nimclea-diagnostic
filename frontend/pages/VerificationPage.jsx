@@ -780,6 +780,7 @@ function CalibrationCard({ guidance }) {
 export default function VerificationPage() {
   const location = useLocation();
   const verificationViewedLoggedRef = React.useRef(false);
+  const verificationResultLoggedRef = React.useRef(false);
 
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
@@ -813,8 +814,13 @@ export default function VerificationPage() {
   const receiptDecisionStatus = receiptContext?.decisionStatus || "";
 
   const receiptAllowsVerification =
-    receiptDecisionStatus === "Ready for Verification" ||
-    receiptDecisionStatus === "Verified";
+  receiptDecisionStatus === "Ready for Verification" ||
+  receiptDecisionStatus === "Verified" ||
+  receiptContext?.overallStatus === "Ready for Review" ||
+  receiptContext?.overallStatus === "Verified" ||
+  sharedContract?.scoring?.receiptEligible === true ||
+  sharedContract?.overallStatus === "Ready for Review" ||
+  sharedContract?.overallStatus === "Verified";
 
   const cameFromIssuedReceipt =
     !!receiptContext &&
@@ -1132,7 +1138,7 @@ const finalOverallStatus =
         data.caseData?.id ||
         data.receiptId ||
         "verification_entry",
-      type: "verification_viewed",
+      eventType: "verification_viewed",
       page: "VerificationPage",
       meta: {
         overallStatus: finalOverallStatus,
@@ -1167,6 +1173,76 @@ const finalOverallStatus =
     isEvidenceLockedConsistent,
   ]);
   
+  React.useEffect(() => {
+    const session =
+      location.state?.trialSession || getTrialSession();
+
+    if (!session?.userId || !session?.trialId) return;
+    if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
+
+    const finalEventType =
+      finalOverallStatus === "Verification Ready"
+        ? "verification_passed"
+        : finalOverallStatus === "Verification Warning" ||
+          finalOverallStatus === "Verification Failed"
+        ? "verification_failed"
+        : null;
+
+    if (!finalEventType) return;
+    if (verificationResultLoggedRef.current) return;
+
+    verificationResultLoggedRef.current = true;
+
+    logTrialEvent(
+      {
+        userId: session.userId,
+        trialId: session.trialId,
+        sessionId:
+          location.state?.session_id ||
+          location.state?.sessionId ||
+          data.caseData?.sessionId ||
+          data.receiptId ||
+          "verification_entry",
+        caseId:
+          data.caseData?.caseId ||
+          data.caseData?.id ||
+          data.receiptId ||
+          "verification_entry",
+        eventType: finalEventType,
+        page: "VerificationPage",
+        meta: {
+          overallStatus: finalOverallStatus,
+          receiptMode,
+          receiptSource,
+          canActivateFormalVerification,
+          canShowSubscriptionOptions,
+          evidenceLockStatus: isEvidenceLockedConsistent
+            ? "consistent"
+            : "broken",
+          weakestDimension:
+            data.weakestDimension || data.caseData?.weakestDimension || "",
+        },
+      },
+      { once: true }
+    ).catch((error) => {
+      console.error(`${finalEventType} log error:`, error);
+      verificationResultLoggedRef.current = false;
+    });
+  }, [
+    cameFromIssuedReceipt,
+    receiptAllowsVerification,
+    location.state,
+    data.caseData,
+    data.receiptId,
+    data.weakestDimension,
+    finalOverallStatus,
+    receiptMode,
+    receiptSource,
+    canActivateFormalVerification,
+    canShowSubscriptionOptions,
+    isEvidenceLockedConsistent,
+  ]);
+
   const handleOpenSubscriptionModal = async (source = "verification_cta") => {
     const session =
       location.state?.trialSession || getTrialSession();
@@ -1184,7 +1260,9 @@ const finalOverallStatus =
             overallStatus: finalOverallStatus,
             canActivateFormalVerification,
             canShowSubscriptionOptions,
-          },
+            weakestDimension:
+              data.weakestDimension || data.caseData?.weakestDimension || "",
+          }
         });
       } catch (error) {
         console.error("pricing_modal_opened log error:", error);
@@ -1629,11 +1707,11 @@ const finalOverallStatus =
             {canActivateFormalVerification && (
               <>
                 <p className="text-xs text-slate-500 w-full">
-                  This is the version that can be exported, shared, and used externally.
+                  This is the version you use when this decision needs to leave your workspace.
                 </p>
 
                 <p className="text-xs text-amber-700 font-medium w-full">
-                  If this decision needs to leave your system, this is the version you activate.
+                  Use this when you need one version that others can review, trust, and act on.
                 </p>
               </>
             )}
@@ -1642,12 +1720,31 @@ const finalOverallStatus =
               {canActivateFormalVerification ? (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
+                    const session =
+                      location.state?.trialSession || getTrialSession();
+
+                    if (session?.userId && session?.trialId) {
+                      try {
+                        await logTrialEvent({
+                          userId: session.userId,
+                          trialId: session.trialId,
+                          eventType: "verification_cta_clicked",
+                          page: "VerificationPage",
+                          caseId: data.receiptId || "verification_entry",
+                          meta: {
+                            overallStatus: finalOverallStatus,
+                            canActivateFormalVerification,
+                          },
+                        });
+                      } catch (e) {}
+                    }
+
                     handleOpenSubscriptionModal("formal_verification_cta");
                   }}
                   className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
                 >
-                  Activate Formal Verification →
+                  Get My Formal Verification →
                 </button>
               ) : (
                 <>
@@ -1835,7 +1932,7 @@ const finalOverallStatus =
                       cursor: "pointer",
                     }}
                   >
-                    Activate Formal Verification →
+                    Get My Formal Verification →
                   </button>
                 </div>
         

@@ -12,6 +12,8 @@ import {
 import ROUTES from "../routes";
 import { logEvent } from "../utils/eventLogger";
 import { getPilotEntries } from "../utils/pilotEntries";
+import { logTrialEvent } from "../lib/trialApi";
+import { getTrialSession } from "../lib/trialSession";
 import { evaluatePilotCombinationStatus } from "../utils/verificationStatus";
 import { recordRun } from "./runLedger";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
@@ -2272,177 +2274,161 @@ return (
                       const routeDecision = {
                         mode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
                         reason: resolvedSummaryMode
-                          ? "weekly_summary_confirmed"
-                          : runtimeState.resolvedNextAction || "single_case_confirmed",
+                          ? "Weekly review has reached receipt evaluation."
+                          : "Current case is ready for receipt evaluation.",
                       };
                     
-                      const receiptSource = isWeeklySummaryFlow
+                      const receiptSource = resolvedSummaryMode
                         ? "pilot_weekly_summary"
                         : "pilot_case_result";
                     
                       const receiptSourceInput = {
                         ...enhancedSourceInput,
-                        eventHistory: entries,
-                        latestEvent: entries[entries.length - 1] || null,
-                        executionSummary,
+                        summaryMode: resolvedSummaryMode,
+                        routeDecision: {
+                          ...(enhancedSourceInput.routeDecision || {}),
+                          ...routeDecision,
+                        },
                         runEntries,
                         totalRunHits,
                         primaryRunLabel,
                         runSummaryText,
-                        summaryMode: resolvedSummaryMode,
-                        structureStatus: resolvedStructureStatus,
-                        receiptEligible: receiptReviewEligible,
-                        score: scoring.totalScore,
+                        executionSummary,
+                        scoring: {
+                          scoringVersion: scoring.scoringVersion,
+                          evidenceScore: scoring.evidenceScore,
+                          structureScore: scoring.structureScore,
+                          consistencyScore: scoring.consistencyScore,
+                          continuityScore: scoring.continuityScore,
+                          totalScore: scoring.totalScore,
+                          receiptThreshold: scoring.receiptThreshold,
+                          receiptEligible: scoring.receiptEligible,
+                        },
                       };
                     
                       const receiptPageData = buildReceiptPageData(receiptSourceInput);
-
-                      const verificationPageData = buildVerificationPageData({
-                        ...receiptSourceInput,
-                        eventHistory: entries,
-                        routeDecision,
-                        receiptSource,
-                      });
-                    
                       const finalReceiptHash = createReceiptHash({
-                        ...receiptSourceInput,
                         ...receiptPageData,
                         runEntries,
                         totalRunHits,
-                        executionSummary,
-                        generatedAt: receiptPageData.generatedAt,
                       });
                     
                       const receiptPageDataWithHash = {
                         ...receiptPageData,
                         receiptHash: finalReceiptHash,
+                        runEntries,
+                        totalRunHits,
+                        primaryRunLabel,
+                        runSummaryText,
+                        executionSummary,
                       };
                     
-                      const finalEvidenceLock = {
-                        receiptId: receiptPageDataWithHash.receiptId || "RCPT-DEMO-001",
-                        receiptHash: finalReceiptHash,
-                        receiptSource,
-                        receiptMode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
-                    };
+                      const verificationPageData = buildVerificationPageData(receiptSourceInput);
                     
                       const sharedReceiptVerificationContract = buildReceiptContract({
                         ...receiptPageDataWithHash,
-                        receiptSource,
-                        receiptHash: finalReceiptHash,
-                    
+                        ...verificationPageData,
                         caseData:
                           receiptSourceInput.caseData ||
                           enhancedSourceInput.caseData ||
                           null,
-                        schemaVersion:
-                          receiptSourceInput.caseData?.schemaVersion ||
-                          enhancedSourceInput.caseData?.schemaVersion ||
-                          null,
-                    
-                        structureScoreFromCase:
-                          receiptSourceInput.caseData?.structureScore ??
-                          enhancedSourceInput.caseData?.structureScore ??
-                          null,
-                    
-                        structureStatusFromCase:
-                          receiptSourceInput.caseData?.structureStatus ||
-                          enhancedSourceInput.caseData?.structureStatus ||
-                          resolvedStructureStatus ||
-                          null,
-                    
-                        routeDecisionFromCase:
-                          receiptSourceInput.caseData?.routeDecision ||
-                          enhancedSourceInput.caseData?.routeDecision ||
-                          null,
-                    
-                        weakestDimension:
-                          resolvedWeakestDimension ||
-                          receiptSourceInput.caseData?.weakestDimension ||
-                          enhancedSourceInput.caseData?.weakestDimension ||
-                          "",
-                    
-                        behavioralGroundingSummary:
-                          verificationPageData?.behavioralGroundingSummary || {
-                            groundingStatus: "",
-                            groundingLabel: "",
-                            groundingNote: "",
-                            groundingScore: null,
-                          },
-                    
-                        verificationTitle:
-                          verificationPageData?.verificationTitle ||
-                          "Structure Proof Verification",
-                        introText:
-                          verificationPageData?.introText ||
-                          "This page shows whether the receipt, supporting structure, and final output can be checked consistently.",
-                        finalNote:
-                        verificationPageData?.finalNote ||
-                        "Verification confirms whether the current receipt and supporting output are consistent and reviewable.",
-                        backToReceiptText:
-                          verificationPageData?.backToReceiptText ||
-                          "Back to Decision Receipt",
-                        checks: verificationPageData?.checks || [],
-                        eventTimeline: verificationPageData?.eventTimeline || [],
-                        overallStatus:
-                          verificationPageData?.overallStatus || "Ready for Review",
-                        scoringVersion: scoring.scoringVersion,
-                        evidenceScore: scoring.evidenceScore,
-                        structureScore: scoring.structureScore,
-                        consistencyScore: scoring.consistencyScore,
-                        continuityScore: scoring.continuityScore,
-                        totalScore: scoring.totalScore,
-                        receiptThreshold: scoring.receiptThreshold,
-                        receiptEligible: scoring.receiptEligible,
-                        complexityScore,
-                        complexityLabel,
-                        complexityNote,
+                        receiptSource,
                       });
                     
                       const flattenedSharedReceiptVerificationContract =
                         flattenSharedReceiptVerificationContract(
                           sharedReceiptVerificationContract
                         );
-                    
-                      try {
-                        recordRun({
-                          receiptId: receiptPageDataWithHash.receiptId,
-                          workflow: receiptSourceInput.workflow || "",
-                          scenarioLabel: receiptSourceInput.scenarioLabel || "",
-                          stageLabel: receiptSourceInput.stage || "",
-                          runLabel: receiptSourceInput.runId || "",
-                          totalEvents: executionSummary.totalEvents,
-                          structuredEventsCount: executionSummary.structuredEventsCount,
-                          latestEventType: executionSummary.latestEventType,
-                          behaviorStatus: executionSummary.behaviorStatus,
-                          receiptSource,
-                          totalRunHits,
-                          primaryRunLabel,
-                        });
-                      } catch (error) {
-                        console.error("Failed to write run ledger:", error);
-                      }
 
+                      const finalEvidenceLock = {
+                        receiptId:
+                          flattenedSharedReceiptVerificationContract?.receiptId ||
+                          receiptPageDataWithHash.receiptId,
+                        receiptHash:
+                          flattenedSharedReceiptVerificationContract?.receiptHash ||
+                          finalReceiptHash,
+                        receiptSource,
+                        receiptMode: routeDecision.mode,
+                      };
+                    
+                      const sharedReceiptVerificationContractForStorage = {
+                        receiptId:
+                          flattenedSharedReceiptVerificationContract?.receiptId ||
+                          receiptPageDataWithHash.receiptId ||
+                          null,
+
+                        receiptHash:
+                          flattenedSharedReceiptVerificationContract?.receiptHash ||
+                          finalReceiptHash ||
+                          null,
+
+                        receiptSource,
+                        receiptMode: routeDecision.mode,
+
+                        weakestDimension:
+                          flattenedSharedReceiptVerificationContract?.weakestDimension ||
+                          resolvedWeakestDimension ||
+                          "",
+
+                        overallStatus:
+                          flattenedSharedReceiptVerificationContract?.overallStatus ||
+                          verificationPageData?.overallStatus ||
+                          "Ready for Review",
+
+                        scoring: {
+                          scoringVersion: scoring.scoringVersion,
+                          evidenceScore: scoring.evidenceScore,
+                          structureScore: scoring.structureScore,
+                          consistencyScore: scoring.consistencyScore,
+                          continuityScore: scoring.continuityScore,
+                          totalScore: scoring.totalScore,
+                          receiptThreshold: scoring.receiptThreshold,
+                          receiptEligible: scoring.receiptEligible,
+                        },
+
+                        evidenceLock: finalEvidenceLock,
+
+                        routeDecision: {
+                          mode: routeDecision.mode,
+                          reason: routeDecision.reason,
+                        },
+
+                        reviewMode: runtimeState.resolvedReviewMode || "event_review",
+                        summaryMode: resolvedSummaryMode === true,
+
+                        primaryRunLabel: primaryRunLabel || "RUN000",
+                        runSummaryText: runSummaryText || "",
+
+                        executionSummary: executionSummary
+                          ? {
+                              totalEvents: executionSummary.totalEvents ?? 0,
+                              structuredEventsCount: executionSummary.structuredEventsCount ?? 0,
+                              latestEventType: executionSummary.latestEventType || "other",
+                              latestEventLabel: executionSummary.latestEventLabel || "",
+                              mainObservedShift: executionSummary.mainObservedShift || "",
+                              nextCalibrationAction: executionSummary.nextCalibrationAction || "",
+                              behaviorStatus: executionSummary.behaviorStatus || "behavior_weak",
+                            }
+                          : null,
+                      }; 
+                  
                       try {
                         localStorage.setItem(
                           "receiptPageData",
-                          JSON.stringify({
-                            receiptId: receiptPageDataWithHash.receiptId,
-                            generatedAt: receiptPageDataWithHash.generatedAt,
-                            receiptHash: receiptPageDataWithHash.receiptHash,
-                            decisionStatus: receiptPageDataWithHash.decisionStatus,
-                          })
+                    JSON.stringify(receiptPageDataWithHash)
                         );
-
                         localStorage.setItem(
-                          "receiptRouteDecision",
+                    "receiptRouteDecision",
                           JSON.stringify(routeDecision)
                         );
-                      
                         localStorage.setItem("receiptSource", receiptSource);
-                      
                         localStorage.setItem(
                           "sharedReceiptVerificationContract",
-                         JSON.stringify({
+                          JSON.stringify(sharedReceiptVerificationContractForStorage)
+                        );
+                        localStorage.setItem(
+                          "verificationPageData",
+                          JSON.stringify({
                             receiptId:
                               flattenedSharedReceiptVerificationContract?.receiptId ||
                               receiptPageDataWithHash.receiptId,
@@ -2457,31 +2443,83 @@ return (
                               flattenedSharedReceiptVerificationContract?.overallStatus ||
                               verificationPageData?.overallStatus ||
                               "Ready for Review",
-                              scoring: {
-                                scoringVersion: scoring.scoringVersion,
-                                evidenceScore: scoring.evidenceScore,
-                                structureScore: scoring.structureScore,
-                                consistencyScore: scoring.consistencyScore,
-                                continuityScore: scoring.continuityScore,
-                                totalScore: scoring.totalScore,
-                                receiptThreshold: scoring.receiptThreshold,
-                                receiptEligible: scoring.receiptEligible,
-                              },
-                            })
-                          );
-                        } catch (error) {
-                          console.error("Failed to persist receipt payload:", error);
-                        }
+                            scoring: {
+                              scoringVersion: scoring.scoringVersion,
+                              evidenceScore: scoring.evidenceScore,
+                              structureScore: scoring.structureScore,
+                              consistencyScore: scoring.consistencyScore,
+                              continuityScore: scoring.continuityScore,
+                              totalScore: scoring.totalScore,
+                              receiptThreshold: scoring.receiptThreshold,
+                              receiptEligible: scoring.receiptEligible,
+                            },
+                          })
+                        );
+                      } catch (error) {
+                        console.error("Failed to persist receipt payload:", error);
+                      }
                     
+                      const session =
+                        location.state?.trialSession ||
+                        getTrialSession() ||
+                        null;
+                    
+                      logTrialEvent(
+                        {
+                          userId:
+                            session?.userId ||
+                            location.state?.stableUserId ||
+                            localStorage.getItem("nimclea_user_id") ||
+                            "anonymous_user",
+                          trialId:
+                            session?.trialId ||
+                            session?.trialSessionId ||
+                            "pilot_result",
+                          sessionId:
+                            location.state?.session_id ||
+                            location.state?.sessionId ||
+                            session?.trialSessionId ||
+                            session?.trialId ||
+                            receiptPageDataWithHash.receiptId ||
+                            "pilot_result",
+                          caseId:
+                            receiptSourceInput.caseData?.caseId ||
+                            receiptSourceInput.caseData?.id ||
+                            location.state?.caseId ||
+                            location.state?.case_id ||
+                            receiptPageDataWithHash.receiptId ||
+                            "pilot_result",
+                          eventType: "pilot_to_receipt_clicked",
+                          page: "PilotResultPage",
+                          meta: {
+                            receiptMode: routeDecision.mode,
+                            receiptSource,
+                            receiptEligible: scoring.receiptEligible,
+                            totalScore: scoring.totalScore,
+                            weakestDimension: resolvedWeakestDimension || "",
+                            receiptId:
+                              flattenedSharedReceiptVerificationContract?.receiptId ||
+                              receiptPageDataWithHash.receiptId,
+                            receiptHash:
+                              flattenedSharedReceiptVerificationContract?.receiptHash ||
+                              finalReceiptHash,
+                          },
+                        },
+                        { once: true }
+                      ).catch((error) => {
+                        console.error("pilot_to_receipt_clicked log error:", error);
+                      });
+
                       navigate(ROUTES.RECEIPT, {
                         state: {
+                          ...location.state,
                           pcMeta,
                           receiptPageData: receiptPageDataWithHash,
                           verificationPageData,
                           routeDecision,
                           receiptSource,
                           evidenceLock: finalEvidenceLock,
-                          sharedReceiptVerificationContract,
+                          sharedReceiptVerificationContract: sharedReceiptVerificationContractForStorage,
                           flattenedSharedReceiptVerificationContract,
                           caseData:
                             receiptSourceInput.caseData ||

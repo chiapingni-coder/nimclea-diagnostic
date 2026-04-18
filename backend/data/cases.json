@@ -9,6 +9,7 @@
     "verificationEligible": false,
     "caseData": {
       "sessionId": "",
+      "stableUserId": "nim_29c480f6-6b52-40be-853d-d9ed8c5486af",
       "workflow": "Decision trace reconstruction",
       "scenarioCode": "basically_stable",
       "weakestDimension": "authority",
@@ -18,7 +19,7 @@
       "firstGuidedAction": "Clarify who has the authority to decide, approve, or finalize the next structural step.",
       "firstStepLabel": "Start with authority clarity"
     },
-    "version": 8,
-    "savedAt": "2026-04-17T04:08:30.323Z"
+    "version": 25,
+    "savedAt": "2026-04-18T05:41:12.002Z"
   }
 ]

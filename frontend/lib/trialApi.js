@@ -20,7 +20,9 @@ async function safeJsonFetch(url, options = {}) {
 
 function getEventOnceKey(payload = {}) {
   const sessionId = payload?.sessionId || "anonymous";
-  const eventType = payload?.type || payload?.event || "unknown_event";
+  const eventType =
+    payload?.eventType || payload?.type || payload?.event || "unknown_event";
+
   return `nimclea_event_once_${sessionId}_${eventType}`;
 }
 

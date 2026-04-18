@@ -69,12 +69,24 @@ function isExactEvent(item, expected) {
   return getEventType(item) === expected;
 }
 
+function isEntryEvent(item) {
+  return (
+    isExactEvent(item, "entry_viewed") ||
+    isExactEvent(item, "entry_clicked")
+  );
+}
+
 function isDiagnosticEvent(item) {
-  return isExactEvent(item, "diagnostic_completed") || matchEvent(item, [
-    "submit_diagnostic",
-    "diagnostic_submit",
-    "questionnaire",
-  ]);
+  return (
+    isExactEvent(item, "diagnostic_completed") ||
+    isExactEvent(item, "result_viewed") ||
+    matchEvent(item, [
+      "submit_diagnostic",
+      "diagnostic_submit",
+      "questionnaire",
+      "result_view",
+    ])
+  );
 }
 
 function isPilotSetupEvent(item) {
@@ -108,6 +120,20 @@ function isVerificationEvent(item) {
     "verification_view",
     "verification_result",
   ]);
+}
+
+function isButtonViewed(item, buttonId) {
+  return (
+    getEventType(item) === "button_viewed" &&
+    item?.meta?.buttonId === buttonId
+  );
+}
+
+function isButtonClicked(item, buttonId) {
+  return (
+    getEventType(item) === "button_clicked" &&
+    item?.meta?.buttonId === buttonId
+  );
 }
 
 export default function AnalyticsPage() {
@@ -176,16 +202,49 @@ export default function AnalyticsPage() {
       return set.size;
     }
 
+    const entryCount = items.filter(isEntryEvent).length;
     const diagnosticCount = items.filter(isDiagnosticEvent).length;
     const pilotSetupCount = items.filter(isPilotSetupEvent).length;
     const pilotCount = items.filter(isPilotEvent).length;
     const receiptCount = items.filter(isReceiptEvent).length;
     const verificationCount = items.filter(isVerificationEvent).length;
+
+    const entryUsers = uniqueBy(items.filter(isEntryEvent), getActorKey);
     const diagnosticUsers = uniqueBy(items.filter(isDiagnosticEvent), getActorKey);
     const pilotSetupUsers = uniqueBy(items.filter(isPilotSetupEvent), getActorKey);
     const pilotUsers = uniqueBy(items.filter(isPilotEvent), getActorKey);
     const receiptUsers = uniqueBy(items.filter(isReceiptEvent), getActorKey);
     const verificationUsers = uniqueBy(items.filter(isVerificationEvent), getActorKey);
+    const totalActors = uniqueBy(items, getActorKey);
+
+    function buildButtonStats(buttonId, label) {
+      const viewedItems = items.filter((item) => isButtonViewed(item, buttonId));
+      const clickedItems = items.filter((item) => isButtonClicked(item, buttonId));
+
+      const viewedUsers = uniqueBy(viewedItems, getActorKey);
+      const clickedUsers = uniqueBy(clickedItems, getActorKey);
+
+      const ctr =
+        viewedUsers > 0
+          ? `${Math.round((clickedUsers / viewedUsers) * 100)}%`
+          : clickedUsers > 0
+          ? "Missing viewed event"
+          : "0%";
+
+      return {
+        buttonId,
+        label,
+        viewedUsers,
+        clickedUsers,
+        drop: Math.max(viewedUsers - clickedUsers, 0),
+        ctr,
+      };
+    }
+
+    const startPilotHeroButton = buildButtonStats(
+      "start_pilot_result_hero",
+      "Start Pilot Button"
+    );
 
     function safeRate(current, previous) {
       if (!previous) return "0%";
@@ -349,6 +408,7 @@ export default function AnalyticsPage() {
     }
 
     const funnelSteps = [
+      { key: "entry", users: entryUsers },
       { key: "diagnostic", users: diagnosticUsers },
       { key: "pilotSetup", users: pilotSetupUsers },
       { key: "pilot", users: pilotUsers },
@@ -357,6 +417,15 @@ export default function AnalyticsPage() {
     ];
     
     const optimizationCandidates = [
+      {
+        fromKey: "entry",
+        toKey: "diagnostic",
+        fromLabel: "Entry",
+        toLabel: "Diagnostic",
+        fromUsers: entryUsers,
+        toUsers: diagnosticUsers,
+        ...buildPriorityScore(entryUsers, diagnosticUsers),
+      },
       {
         fromKey: "diagnostic",
         toKey: "pilotSetup",
@@ -413,6 +482,7 @@ export default function AnalyticsPage() {
     }
     
     const LABEL_MAP = {
+      entry: "Entry",
       diagnostic: "Diagnostic",
       pilotSetup: "Pilot Setup",
       pilot: "Pilot",
@@ -421,18 +491,20 @@ export default function AnalyticsPage() {
     };
 
     const stepIndexMap = {
-      diagnostic: 0,
-      pilotSetup: 1,
-      pilot: 2,
-      receipt: 3,
-      verification: 4,
+      entry: 0,
+      diagnostic: 1,
+      pilotSetup: 2,
+      pilot: 3,
+      receipt: 4,
+      verification: 5,
     };
 
-    let diagnosticText = "No significant drop detected";
-    let recommendedAction = "No action needed right now.";
+    let diagnosticText = "No high-confidence drop detected yet";
+    let recommendedAction = "More data is needed before flagging a high-value optimization point.";
     let optimizationInsight = null;
 
     const hasPostDiagnosticData =
+      diagnosticUsers > 0 ||
       pilotSetupUsers > 0 ||
       pilotUsers > 0 ||
       receiptUsers > 0 ||
@@ -444,15 +516,15 @@ export default function AnalyticsPage() {
       receiptUsers > pilotUsers ||
       verificationUsers > receiptUsers;
 
-    if (diagnosticUsers === 0 && hasPostDiagnosticData) {
-      diagnosticText = "No Diagnostic data detected. Funnel may be incomplete.";
-      recommendedAction = "Check entry-stage logging.";
+    if (entryUsers === 0 && hasPostDiagnosticData) {
+      diagnosticText = "Entry-stage data is incomplete.";
+      recommendedAction = "Check entry_viewed / entry_clicked logging.";
 
       optimizationInsight = {
         step: "Entry",
-        problem: "Users are entering later stages without a recorded entry point.",
-        hypothesis: "Diagnostic event is not consistently logged.",
-        action: "Fix diagnostic_completed event trigger and ensure it fires once per user.",
+        problem: "Later-stage events exist, but the entry stage is not fully recorded.",
+        hypothesis: "entry_viewed or entry_clicked is missing or inconsistent.",
+        action: "Fix entry-stage logging first so funnel analysis becomes trustworthy.",
       };
 
     } else if (hasFunnelInconsistency) {
@@ -524,7 +596,10 @@ export default function AnalyticsPage() {
     return {
       total: items.length,
       topTypes,
+      totalActors,
       funnel: {
+        entryCount,
+        entryUsers,
         diagnosticCount,
         pilotSetupCount,
         pilotCount,
@@ -542,13 +617,16 @@ export default function AnalyticsPage() {
         biggestDropKey,
         diagnosticText,
         recommendedAction,
-        overallConversionRate: safeRate(verificationUsers, diagnosticUsers),
-        receiptConversionRate: safeRate(receiptUsers, diagnosticUsers),
-        pilotConversionRate: safeRate(pilotUsers, diagnosticUsers),
-        setupConversionRate: safeRate(pilotSetupUsers, diagnosticUsers),
+        overallConversionRate: safeRate(verificationUsers, entryUsers),
+        receiptConversionRate: safeRate(receiptUsers, entryUsers),
+        pilotConversionRate: safeRate(pilotUsers, entryUsers),
+        setupConversionRate: safeRate(pilotSetupUsers, entryUsers),
         optimizationInsight,
         highestValueCandidate,
         optimizationCandidates,
+        buttonInsights: {
+          startPilotHeroButton,
+        },
       },
     };
   }, [items]);
@@ -662,7 +740,7 @@ export default function AnalyticsPage() {
           <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
             <div className="text-sm leading-5 text-neutral-500">Unique Actors</div>
             <div className="mt-2 text-2xl font-semibold leading-none text-neutral-900">
-              {summary.funnel.diagnosticUsers}
+              {summary.totalActors}
             </div>
             <div className="mt-2 text-xs text-neutral-500">
               Based on session / trial / user identity
@@ -699,6 +777,47 @@ export default function AnalyticsPage() {
         </div>
         <div className="grid gap-4 md:grid-cols-3">
 
+        <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
+          <div className="text-sm leading-5 text-neutral-500">Button-Level Proof</div>
+
+          <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+            <div className="text-sm font-medium text-neutral-900">
+              {summary.funnel.buttonInsights.startPilotHeroButton.label}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                Viewed · {summary.funnel.buttonInsights.startPilotHeroButton.viewedUsers}
+              </span>
+              <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                Clicked · {summary.funnel.buttonInsights.startPilotHeroButton.clickedUsers}
+              </span>
+              <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                Drop · {summary.funnel.buttonInsights.startPilotHeroButton.drop}
+              </span>
+              <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-900">
+                CTR · {summary.funnel.buttonInsights.startPilotHeroButton.ctr}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`rounded-2xl border px-5 py-4 shadow-sm ${
+            summary.funnel.highestValueCandidate?.toKey === "entry"
+              ? "border-red-300 bg-red-50"
+              : "border-neutral-200 bg-white"
+          }`}
+        >
+          <div className="text-sm text-neutral-500">Entry</div>
+          <div className="mt-2 text-2xl font-semibold text-neutral-900">
+            {summary.funnel.entryUsers}
+          </div>
+          <div className="mt-2 text-xs text-neutral-500">
+            Events · {summary.funnel.entryCount}
+          </div>
+        </div>
+
           <div
             className={`rounded-2xl border px-5 py-4 shadow-sm ${
               summary.funnel.highestValueCandidate?.toKey === "diagnostic"
@@ -710,7 +829,15 @@ export default function AnalyticsPage() {
             <div className="mt-2 text-2xl font-semibold text-neutral-900">
               {summary.funnel.diagnosticUsers}
             </div>
-            <div className="mt-2 text-xs text-neutral-500">
+            <div className="mt-3 text-xs leading-5 text-neutral-500">
+              {pathText(
+                "Entry",
+                "Diagnostic",
+                summary.funnel.entryUsers,
+                summary.funnel.diagnosticUsers
+              )}
+            </div>
+            <div className="mt-1 text-xs text-neutral-500">
               Events · {summary.funnel.diagnosticCount}
             </div>
           </div>

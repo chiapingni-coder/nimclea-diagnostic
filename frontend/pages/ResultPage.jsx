@@ -20,6 +20,67 @@ import {
 } from "../lib/trialApi";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
 
+const USER_ID_KEY = "nimclea_user_id_v1";
+
+function createStableUserId() {
+  const seed = Math.random().toString(36).slice(2, 10);
+  const time = Date.now().toString(36);
+  return `u_${time}_${seed}`;
+}
+
+function getStableUserId() {
+  if (typeof window === "undefined") {
+    return `u_ssr_${Date.now()}`;
+  }
+
+  try {
+    const existing = localStorage.getItem(USER_ID_KEY);
+    if (existing) return existing;
+
+    const nextId = createStableUserId();
+    localStorage.setItem(USER_ID_KEY, nextId);
+    return nextId;
+  } catch {
+    return `u_fallback_${Date.now()}`;
+  }
+}
+
+function getEntrySource(location) {
+  const stateSource =
+    location?.state?.entrySource ||
+    location?.state?.source ||
+    "";
+
+  if (stateSource) return stateSource;
+
+  if (typeof window === "undefined") return "unknown";
+
+  try {
+    const url = new URL(window.location.href);
+
+    const querySource =
+      url.searchParams.get("source") ||
+      url.searchParams.get("from") ||
+      url.searchParams.get("utm_source") ||
+      url.searchParams.get("ref") ||
+      "";
+
+    if (querySource) return querySource;
+
+    const path = window.location.pathname || "";
+
+    if (path.includes("/verification")) return "verification";
+    if (path.includes("/receipt")) return "receipt";
+    if (path.includes("/pilot-setup")) return "pilot_setup";
+    if (path.includes("/pilot")) return "pilot";
+    if (path.includes("/result")) return "result";
+
+    return "direct";
+  } catch {
+    return "unknown";
+  }
+}
+
 const STORAGE_KEYS = {
   RESULT: "nimclea_result",
   PREVIEW: "nimclea_preview_result",
@@ -1954,8 +2015,26 @@ export default function ResultPage({
 
   const navigate = useNavigate();
   const location = useLocation();
-  const [ctaState, setCtaState] = useState("default"); // default | warm | ready
 
+  useEffect(() => {
+  const session = getTrialSession();
+
+  if (!session?.userId) {
+    const stableUserId = getStableUserId();
+
+    setTrialSession({
+      ...session,
+      userId: stableUserId,
+    });
+
+    console.log("SESSION USER LOCKED:", stableUserId);
+  }
+}, []);
+
+  const stableUserId = useMemo(() => getStableUserId(), []);
+  const entrySource = useMemo(() => getEntrySource(location), [location]);
+  const [ctaState, setCtaState] = useState("default"); // default | warm | ready
+  
   const resolvedPcMeta =
     pcMeta ||
     location.state?.pcMeta ||
@@ -2154,7 +2233,20 @@ export default function ResultPage({
   };
 }, [result, resultSeed, resolvedPcMeta]);
 
-  useEffect(() => {
+useEffect(() => {
+  const existing = getTrialSession();
+
+  if (!existing?.userId) {
+    const stableUserId = getStableUserId();
+
+    setTrialSession({
+      ...existing,
+      userId: stableUserId,
+    });
+  }
+}, []);
+
+useEffect(() => {
   // 20秒后 → warm
   const t1 = setTimeout(() => {
     setCtaState("warm");
@@ -2254,11 +2346,14 @@ useEffect(() => {
   if (resultViewedLoggedRef.current) return;
   if (loading) return;
   if (error) return;
-  if (!result || !isValidPreview(result)) return;
+  if (!enrichedResult && !result) return;
 
   const caseId = resolvedSessionId || "case_result_view";
-  const userId = getTrialSession()?.userId || "anonymous";
-  const weakestDimension =
+  const userId =
+    getTrialSession()?.userId ||
+    stableUserId;
+
+  const weakestDimensionForView =
     result?.extraction?.weakestDimension ||
     inferWeakestDimension({
       scenarioCode: result?.scenario?.code || "",
@@ -2268,25 +2363,34 @@ useEffect(() => {
 
   const scenarioCode = result?.scenario?.code || "";
 
+  const payload = {
+    eventType: "result_viewed",
+    page: "ResultPage",
+    caseId,
+    userId,
+    meta: {
+      weakestDimension: weakestDimensionForView,
+      scenarioCode,
+      sessionId: resolvedSessionId || "",
+      source: entrySource,
+    },
+  };
+
+  console.log("RESULT_VIEWED_FIRED", payload);
+
   resultViewedLoggedRef.current = true;
 
-  Promise.resolve(
-    logTrialEvent({
-      eventType: "result_viewed",
-      page: "ResultPage",
-      caseId,
-      userId,
-      meta: {
-        weakestDimension,
-        scenario: scenarioCode,
-        sessionId: resolvedSessionId || "",
-      },
+  Promise.resolve(logTrialEvent(payload))
+    .then((res) => {
+      console.log("RESULT_VIEWED_LOGGED", res);
     })
-  ).catch((err) => {
-    console.error("result_viewed log failed:", err);
-    resultViewedLoggedRef.current = false;
-  });
-}, [result, loading, error, resolvedSessionId]);
+    .catch((err) => {
+      console.error("result_viewed log failed:", err);
+      resultViewedLoggedRef.current = false;
+    });
+}, [result, loading, error, resolvedSessionId, stableUserId, entrySource]);
+
+const startPilotButtonViewedRef = useRef(false);
 
 const SCENARIO_TO_PATTERN_ID = {
   barely_functional: "PATTERN-001",
@@ -2366,7 +2470,112 @@ const enrichedResult = useMemo(() => {
     stage: resolvedPath?.stage || displayResult?.stage || "S1",
     chainId: resolvedPath?.chainId || "CHAIN-001",
   };
-  }, [displayResult, resolvedPath]);
+}, [displayResult, resolvedPath]);
+
+const weakestDimension = useMemo(() => {
+  return inferWeakestDimension({
+    scenarioCode: displayResult?.scenario?.code || "",
+    pressureProfileCode: displayResult?.pressureProfile?.code || "",
+    signals: displayResult?.top_signals || [],
+  });
+}, [displayResult]);
+
+useEffect(() => {
+  if (resultViewedLoggedRef.current) return;
+  if (loading) return;
+  if (error) return;
+  if (!result || !isValidPreview(result)) return;
+
+  const caseId = resolvedSessionId || "case_result_view";
+  const userId = getTrialSession()?.userId || "anonymous";
+  const weakestDimension =
+    result?.extraction?.weakestDimension ||
+    inferWeakestDimension({
+      scenarioCode: result?.scenario?.code || "",
+      pressureProfileCode: result?.pressureProfile?.code || "",
+      signals: result?.top_signals || [],
+    });
+
+  const scenarioCode = result?.scenario?.code || "";
+
+  resultViewedLoggedRef.current = true;
+
+  Promise.resolve(
+    logTrialEvent({
+      eventType: "result_viewed",
+      page: "ResultPage",
+      caseId,
+      userId,
+      meta: {
+        weakestDimension,
+        scenario: scenarioCode,
+        sessionId: resolvedSessionId || "",
+      },
+    })
+  ).catch((err) => {
+    console.error("result_viewed log failed:", err);
+    resultViewedLoggedRef.current = false;
+  });
+}, [result, loading, error, resolvedSessionId, stableUserId, entrySource]);
+
+useEffect(() => {
+  if (startPilotButtonViewedRef.current) return;
+  if (loading) return;
+  if (error) return;
+  if (!result || !isValidPreview(result)) return;
+
+  const caseId = resolvedSessionId || "case_result_view";
+  const userId =
+    getTrialSession()?.userId ||
+    stableUserId;
+
+  const weakestDimension =
+    result?.extraction?.weakestDimension ||
+    inferWeakestDimension({
+      scenarioCode: result?.scenario?.code || "",
+      pressureProfileCode: result?.pressureProfile?.code || "",
+      signals: result?.top_signals || [],
+    });
+
+  const scenarioCode = result?.scenario?.code || "";
+
+  const viewedButtonLabel = getPilotCtaLabel({
+    scenarioCode: result?.scenario?.code || "",
+    stage: result?.stage || "",
+    weakestDimension,
+  });
+
+  startPilotButtonViewedRef.current = true;
+
+  console.log("BUTTON_VIEWED_FIRED", {
+    sessionId: resolvedSessionId || "",
+    buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot →",
+    scenarioCode,
+    entrySource,
+  });
+
+  Promise.resolve(
+    logTrialEvent({
+      eventType: "button_viewed",
+      page: "ResultPage",
+      caseId,
+      userId,
+      meta: {
+        buttonId: "start_pilot_result_hero",
+        buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot →",
+        placement: "result_hero",
+        weakestDimension,
+        scenarioCode,
+        sessionId: resolvedSessionId || "",
+        source: entrySource,
+        entrySource,
+      },
+    })
+  ).catch((err) => {
+    console.error("button_viewed log failed:", err);
+    startPilotButtonViewedRef.current = false;
+  });
+}, [result, loading, error, resolvedSessionId, stableUserId, entrySource]);
 
 const runMeta = useMemo(() => {
   const runCode =
@@ -2381,19 +2590,11 @@ const runMeta = useMemo(() => {
   return getRunRouteMeta(runCode) || null;
 }, [resolvedPath, displayResult]);
 
-const weakestDimension = useMemo(() => {
-  return inferWeakestDimension({
-    scenarioCode: displayResult?.scenario?.code || "",
-    pressureProfileCode: displayResult?.pressureProfile?.code || "",
-    signals: displayResult?.top_signals || [],
-  });
-}, [displayResult]);
-
 const pilotRouting = useMemo(() => {
   return getPilotRoutingByWeakestDimension(weakestDimension);
 }, [weakestDimension]);
 
-const scenarioCode = enrichedResult?.scenario?.code || "";
+const scenarioCode = displayResult?.scenario?.code || result?.scenario?.code || "";
 
 const pilotFocus = useMemo(() => {
   const primarySignalKey =
@@ -2437,8 +2638,9 @@ const pilotCtaLabel = useMemo(() => {
   return getPilotCtaLabel({
     scenarioCode: displayResult?.scenario?.code || "",
     stage: resolvedPath?.stage || "",
+    weakestDimension,
   });
-}, [displayResult, resolvedPath]);
+}, [displayResult, resolvedPath, weakestDimension]);
 
 const pilotCtaMicrocopy = useMemo(() => {
   return getPilotCtaMicrocopy({
@@ -2531,10 +2733,10 @@ if (typeof window !== "undefined") {
         resolvedPath?.chainId ||
         "CHAIN-001",
       fallbackRunCode:
-        enrichedResult?.fallbackRunCode ||
+       enrichedResult?.fallbackRunCode ||
         resolvedPath?.runCode ||
         "",
-      patternId:
+       patternId:
         enrichedResult?.patternId ||
         resolvedPath?.patternId ||
         "",
@@ -2552,10 +2754,51 @@ if (typeof window !== "undefined") {
 
     Promise.resolve(
       logTrialEvent({
+        eventType: "button_clicked",
+        page: "ResultPage",
+        caseId: resolvedSessionId || "case_result_entry",
+        userId:
+          getTrialSession()?.userId ||
+          stableUserId,
+        meta: {
+          buttonId: "start_pilot_result_hero",
+          buttonLabel:
+            getPilotCtaLabel({
+              scenarioCode: enrichedResult?.scenario?.code || "",
+              stage: resolvedPath?.stage || "",
+              weakestDimension: effectiveWeakestDimension,
+            }) ||
+            enrichedResult?.pilot_preview?.cta_label ||
+            "Start my 7-Day Pilot →",
+      source: "result_page_start_pilot",
+      entrySource,
+          placement: "result_hero",
+          sessionId: resolvedSessionId || "",
+          pattern: enrichedResult?.patternId || "",
+          chain: enrichedResult?.chainId || "",
+          stage: enrichedResult?.stage || "",
+          run: enrichedResult?.runId || "",
+          scenarioCode: enrichedResult?.scenario?.code || "",
+          primarySignalKey,
+          weakestDimension: effectiveWeakestDimension,
+          pilotFocusKey: effectivePilotFocusKey,
+        },
+      })
+    ).catch((err) => {
+      console.error("button_clicked log failed:", err);
+    });
+
+    source: "result_page_start_pilot",
+    entrySource,
+
+    Promise.resolve(
+      logTrialEvent({
         eventType: "pilot_started",
         page: "ResultPage",
         caseId: resolvedSessionId || "case_result_entry",
-        userId: getTrialSession()?.userId || "anonymous",
+        userId:
+          getTrialSession()?.userId ||
+          stableUserId,
         meta: {
           sessionId: resolvedSessionId || "",
           pattern: enrichedResult?.patternId || "",
@@ -2566,6 +2809,8 @@ if (typeof window !== "undefined") {
           primarySignalKey,
           weakestDimension: effectiveWeakestDimension,
           pilotFocusKey: effectivePilotFocusKey,
+          source: "result_page_start_pilot",
+          entrySource,
         },
       })
     ).catch((err) => {
@@ -2595,6 +2840,10 @@ if (typeof window !== "undefined") {
       state: {
         sessionId: resolvedSessionId,
         session_id: resolvedSessionId,
+
+        stableUserId,
+        userId: stableUserId,
+        entrySource,
 
         sourceInput: enrichedResult,
         preview: enrichedResult,
@@ -2726,7 +2975,7 @@ if (!isValidPreview(result)) {
 
           <PilotSection
             pilotPreview={{
-              ...enrichedResult.pilot_preview,
+              ...(enrichedResult?.pilot_preview || {}),
               firstGuidedAction: pilotRouting?.firstGuidedAction || "",
               firstStepLabel: pilotRouting?.firstStepLabel || "",
               weakestDimension,

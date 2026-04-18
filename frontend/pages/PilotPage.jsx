@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
@@ -9,6 +9,11 @@ import {
   saveCaseSnapshot,
 } from "../lib/trialApi";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
+
+const ANALYTICS_KEYS = {
+  USER_ID: "nimclea_user_id",
+  USER_ID_CREATED_AT: "nimclea_user_id_created_at",
+};
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
@@ -74,6 +79,36 @@ function getStoredPreview(sessionId = "") {
   if (bySession) return bySession;
 
   return safeParse(localStorage.getItem(STORAGE_KEYS.PREVIEW));
+}
+
+function createStableUserId() {
+  const seed =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `u_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+  return `nim_${String(seed).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+}
+
+function getStableUserId() {
+  if (typeof window === "undefined") return "";
+
+  const existing = localStorage.getItem(ANALYTICS_KEYS.USER_ID);
+  if (existing) return existing;
+
+  const created = createStableUserId();
+  localStorage.setItem(ANALYTICS_KEYS.USER_ID, created);
+  localStorage.setItem(
+    ANALYTICS_KEYS.USER_ID_CREATED_AT,
+    new Date().toISOString()
+  );
+
+  return created;
+}
+
+function buildPilotRegisterEmail(stableUserId = "") {
+  if (!stableUserId) return "pilot@nimclea.local";
+  return `${stableUserId}@nimclea.local`;
 }
 
 function createPilotId(sessionId = "") {
@@ -857,6 +892,9 @@ export default function PilotPage() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
+
+  const stableUserId = useMemo(() => getStableUserId(), []);
+  const startInFlightRef = useRef(false);
   
   useEffect(() => {
     const source =
@@ -897,31 +935,49 @@ export default function PilotPage() {
     const resolvedProgressLabelForStart = incomingProgressLabel;
     const resolvedNextActionForStart = incomingNextAction;
 
+    if (startInFlightRef.current) return;
+    startInFlightRef.current = true;
+
     let trialSession =
       location.state?.trialSession || getTrialSession();
 
-    if (!trialSession?.userId || !trialSession?.trialId) {
-      try {
+    try {
+      if (trialSession?.userId && !trialSession?.stableUserId) {
+        trialSession = {
+          ...trialSession,
+          stableUserId,
+        };
+        setTrialSession(trialSession);
+      }
+
+      if (!trialSession?.userId || !trialSession?.trialId) {
         const registerRes = await registerTrialUser({
-          email: "pilot@nimclea.local",
+          email: buildPilotRegisterEmail(stableUserId),
           name: "",
           company: "",
+          stableUserId,
         });
 
         trialSession = {
-          userId: registerRes?.data?.userId || "",
+          userId:
+            registerRes?.data?.userId ||
+            stableUserId,
           trialId: registerRes?.data?.trialId || "",
-          email: registerRes?.data?.email || "pilot@nimclea.local",
+          email:
+            registerRes?.data?.email ||
+            buildPilotRegisterEmail(stableUserId),
           status: registerRes?.data?.status || "registered",
           createdAt: registerRes?.data?.createdAt || "",
+          stableUserId,
         };
 
         setTrialSession(trialSession);
-      } catch (error) {
-        console.error("PilotPage registerTrialUser error:", error);
-        alert(error?.message || "Failed to create trial session.");
-        return;
       }
+    } catch (error) {
+      console.error("PilotPage registerTrialUser error:", error);
+      alert(error?.message || "Failed to create trial session.");
+      startInFlightRef.current = false;
+      return;
     }
 
     if (!trialSession?.userId || !trialSession?.trialId) {
@@ -929,6 +985,7 @@ export default function PilotPage() {
         trialSession,
       });
       alert("Trial session was not created. Stop here and check registerTrialUser response.");
+      startInFlightRef.current = false;
       return;
     }
 
@@ -976,6 +1033,7 @@ export default function PilotPage() {
           verificationEligible: false,
           caseData: {
             sessionId: resolvedSessionId,
+            stableUserId,
             workflow,
             scenarioCode:
               preview?.scenario?.code ||
@@ -1013,6 +1071,7 @@ export default function PilotPage() {
       totalRunHits: 0,
       primaryRunLabel: "",
       runSummaryText: "",
+      stableUserId,
   
       pilot_setup: {
         workflow,
@@ -1028,52 +1087,66 @@ export default function PilotPage() {
       nextAction: resolvedNextActionForStart,
     };
   
-    await logTrialEvent(
-      {
-        userId: trialSession.userId,
-        trialId: trialSession.trialId,
-        caseId: resolvedSessionId || "case_result_entry",
-        type: "pilot_entered",
-        page: "PilotPage",
-        meta: {
-          scenarioCode:
-            preview?.scenario?.code ||
-            fallbackCaseSchema?.scenarioCode ||
-            "",
-          weakestDimension:
-            weakestDimension ||
-            fallbackCaseSchema?.weakestDimension ||
-            "",
-          chainId: resolvedChainId,
-          stage: resolvedStage,
-        }
-      },
-      { once: true }
-    );
+    try {
+      await logTrialEvent(
+        {
+          userId: trialSession.userId,
+          trialId: trialSession.trialId,
+          caseId: resolvedSessionId || "case_result_entry",
+          eventType: "pilot_entered",
+          page: "PilotPage",
+          meta: {
+            stableUserId,
+            workflow,
+            scenarioCode:
+              preview?.scenario?.code ||
+              fallbackCaseSchema?.scenarioCode ||
+              "",
+            weakestDimension:
+              weakestDimension ||
+              fallbackCaseSchema?.weakestDimension ||
+              "",
+            chainId: resolvedChainId,
+            stage: resolvedStage,
+          }
+        },
+        { once: true }
+      );
+    } catch (eventError) {
+      console.error("pilot_entered log failed:", eventError);
+    }
 
-    await logTrialEvent({
-      userId: trialSession.userId,
-      trialId: trialSession.trialId,
-      caseId: resolvedSessionId || "case_result_entry",
-      type: "pilot_workflow_selected",
-      page: "PilotPage",
-      meta: {
-        workflow,
-        scenarioCode:
-          preview?.scenario?.code ||
-          fallbackCaseSchema?.scenarioCode ||
-          "",
-        weakestDimension:
-          weakestDimension ||
-          fallbackCaseSchema?.weakestDimension ||
-          "",
-        chainId: resolvedChainId,
-        stage: resolvedStage,
-      },
-    },
-    { once: true }
-  );
+    try {
+      await logTrialEvent(
+        {
+          userId: trialSession.userId,
+          trialId: trialSession.trialId,
+          caseId: resolvedSessionId || "case_result_entry",
+          eventType: "pilot_workflow_selected",
+          page: "PilotPage",
+          meta: {
+            stableUserId,
+            workflow,
+            scenarioCode:
+              preview?.scenario?.code ||
+              fallbackCaseSchema?.scenarioCode ||
+              "",
+            weakestDimension:
+              weakestDimension ||
+              fallbackCaseSchema?.weakestDimension ||
+              "",
+            chainId: resolvedChainId,
+            stage: resolvedStage,
+          },
+        },
+        { once: true }
+      );
+    } catch (eventError) {
+      console.error("pilot_workflow_selected log failed:", eventError);
+    }
 
+    startInFlightRef.current = false;
+    
     navigate(
       resolvedSessionId
         ? `/pilot/setup?session_id=${resolvedSessionId}`

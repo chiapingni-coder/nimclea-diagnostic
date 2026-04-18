@@ -734,6 +734,32 @@ export default function PilotSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const stableUserId = useMemo(() => {
+    return (
+      location?.state?.stableUserId ||
+      location?.state?.userId ||
+      getTrialSession()?.userId ||
+      localStorage.getItem("stableUserId") ||
+      ""
+    );
+  }, [location]);
+
+  const trialSession = useMemo(() => {
+    return (
+      location?.state?.trialSession ||
+      getTrialSession() ||
+      null
+    );
+  }, [location]);
+
+  const entrySource = useMemo(() => {
+    return (
+      location?.state?.entrySource ||
+      location?.state?.source ||
+      "direct"
+    );
+  }, [location]);
+
   console.log("PILOT_SETUP_LIVE_CHECK", "frontend-root-PilotSetupPage");
 
   const pcMeta = location.state?.pcMeta || {
@@ -756,7 +782,7 @@ export default function PilotSetupPage() {
     dependency: "medium",
   });
   const [description, setDescription] = useState("");
-  const pilotSetupPageViewedLoggedRef = useRef(false);
+  const confirmLockedRef = useRef(false);
 
   const pilotSetup = location.state?.pilot_setup || null;
 
@@ -838,7 +864,22 @@ export default function PilotSetupPage() {
     typeof pilotSetup === "object";
 
   useEffect(() => {
-    if (pilotSetupPageViewedLoggedRef.current) return;
+    if (!stableUserId) {
+      const newId = "u_" + Date.now();
+      localStorage.setItem("stableUserId", newId);
+    }
+
+    if (!trialSession) {
+      const fallbackSession = {
+        userId: localStorage.getItem("stableUserId") || "u_" + Date.now(),
+        trialId: "t_" + Date.now(),
+      };
+
+      setTrialSession(fallbackSession);
+    }
+  }, [stableUserId, trialSession]);
+
+  useEffect(() => {
     if (!hasRequiredContext) return;
 
     const session =
@@ -846,7 +887,11 @@ export default function PilotSetupPage() {
 
     if (!session?.userId || !session?.trialId) return;
 
-    pilotSetupPageViewedLoggedRef.current = true;
+    const pageViewKey = `pilot_setup_page_viewed_${sessionId || "no_session"}`;
+
+    if (sessionStorage.getItem(pageViewKey)) return;
+
+    sessionStorage.setItem(pageViewKey, "1");
 
     logTrialEvent({
       userId: session.userId,
@@ -865,11 +910,18 @@ export default function PilotSetupPage() {
       },
     }).catch((error) => {
       console.error("pilot_setup_page_viewed log error:", error);
-      pilotSetupPageViewedLoggedRef.current = false;
+      sessionStorage.removeItem(pageViewKey);
     });
   }, [
     hasRequiredContext,
     sessionId,
+    pilotSetup,
+    preview,
+    incomingCaseSchema,
+    weakestDimension,
+    pilotFocusKey,
+    entrySource,
+    location.state,
   ]);
 
   const handleBack = () => {
@@ -883,6 +935,10 @@ export default function PilotSetupPage() {
           preview,
           result: preview,
           caseSchema: incomingCaseSchema,
+          stableUserId:
+            stableUserId || localStorage.getItem("stableUserId") || "",
+          trialSession:
+            trialSession || getTrialSession() || null,
           stage:
             incomingCaseSchema?.stage ||
             location.state?.stage ||
@@ -904,6 +960,9 @@ const handleConfirm = async () => {
     setShowEventRequired(true);
     return;
   }
+
+  if (confirmLockedRef.current) return;
+  confirmLockedRef.current = true;
 
   const trimmedDescription = buildContextForSubmission(description);
   let summarizedDescription = "";
@@ -950,6 +1009,7 @@ const handleConfirm = async () => {
         console.error("PilotSetupPage registerTrialUser returned empty session", {
           registerRes,
        });
+        confirmLockedRef.current = false;
         alert("Trial session was not created.");
         return;
       }
@@ -957,6 +1017,7 @@ const handleConfirm = async () => {
       setTrialSession(existingTrialSession);
     } catch (error) {
       console.error("PilotSetupPage registerTrialUser error:", error);
+      confirmLockedRef.current = false;
       alert(error?.message || "Failed to create trial session.");
       return;
     }
@@ -995,6 +1056,7 @@ const handleConfirm = async () => {
     setTrialSession(mergedTrialSession);
   } catch (error) {
     console.error("startTrial error:", error);
+    confirmLockedRef.current = false;
     alert(error?.message || "Failed to start pilot.");
     return;
   }
@@ -1544,6 +1606,8 @@ const handleConfirm = async () => {
 
   console.log("🧾 final pilot_entries =", allPilotEntries);
 
+  confirmLockedRef.current = false;
+
   navigate(
     sessionId
       ? `${navState.routeMeta.pathname}?session_id=${sessionId}`
@@ -1555,6 +1619,17 @@ const handleConfirm = async () => {
         pcMeta,
         trialSession: mergedTrialSession,
         caseSchema: entryCaseData,
+        stableUserId:
+          stableUserId ||
+          mergedTrialSession?.userId ||
+          localStorage.getItem("stableUserId") ||
+          "",
+        userId:
+          stableUserId ||
+          mergedTrialSession?.userId ||
+          localStorage.getItem("stableUserId") ||
+          "",
+        entrySource,
 
         session_id: sessionId,
         sessionId,

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import questions, { coreQuestions, branchQuestionMap } from "../questions.js";
 import { getRoutingResultFromCoreAnswers } from "../routingLogic.js";
@@ -188,9 +188,35 @@ export default function Questionnaire({ pcMeta }) {
   const [phase, setPhase] = useState(PHASE.LANDING);
   const [answers, setAnswers] = useState(() => buildInitialAnswers(questions));
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  useEffect(() => {
+    if (phase !== PHASE.LANDING) return;
+
+    const session = getTrialSession();
+
+    logTrialEvent(
+      {
+        eventType: "entry_viewed",
+        page: "DiagnosticPage",
+        sessionId:
+          session?.sessionId ||
+          session?.trialId ||
+          "diagnostic_entry",
+        caseId: "diagnostic_entry",
+        userId: session?.userId || "",
+        meta: {
+          pcId: pcMeta?.pc_id || "",
+          source: "landing_view",
+        },
+      },
+      { once: true }
+    ).catch(() => {});
+  }, [phase, pcMeta]);
+
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const startedLoggedRef = useRef(false);
   const [activeBranchKey, setActiveBranchKey] = useState("");
   const [activeBranchQuestions, setActiveBranchQuestions] = useState([]);
   const [routingResult, setRoutingResult] = useState(null);
@@ -272,6 +298,7 @@ function clearDiagnosticStorage() {
 function resetDiagnostic() {
   clearDiagnosticStorage();
   submittingRef.current = false;
+  startedLoggedRef.current = false;
   setAnswers(buildInitialAnswers(questions));
   setCurrentQuestionIndex(0);
   setSubmitError("");
@@ -293,6 +320,36 @@ function startDiagnostic() {
   setCurrentQuestionIndex(0);
   setPhase(PHASE.CORE);
   setRoutingResult(null);
+
+  if (startedLoggedRef.current) return;
+  startedLoggedRef.current = true;
+
+  const session = getTrialSession();
+
+  Promise.resolve(
+    logTrialEvent(
+      {
+        eventType: "entry_clicked",
+        page: "DiagnosticPage",
+        sessionId:
+          session?.sessionId ||
+          session?.trialId ||
+          "diagnostic_entry",
+        caseId:
+          session?.trialId ||
+          "diagnostic_entry",
+        userId: session?.userId || "",
+        meta: {
+          pcId: pcMeta?.pc_id || "",
+          source: "landing_start_button",
+        },
+      },
+      { once: true }
+    )
+  ).catch((eventError) => {
+    console.error("diagnostic_started event log failed:", eventError);
+    startedLoggedRef.current = false;
+  });
 }
 
 function handleCoreBack() {
@@ -474,13 +531,45 @@ const sessionId =
   result?.id ||
   "";
 
-await logTrialEvent(
-  {
-    type: "diagnostic_completed",
-    sessionId: session?.sessionId || sessionId || "unknown"
-  },
-  { once: true }
-);
+try {
+  const resolvedSessionId =
+    session?.sessionId ||
+    session?.trialId ||
+    sessionId ||
+    "diagnostic_result";
+
+  const resolvedCaseId =
+    sessionId ||
+    session?.trialId ||
+    session?.sessionId ||
+    "diagnostic_result";
+
+  const resolvedUserId =
+    session?.userId ||
+    localStorage.getItem("nimclea_user_id") ||
+    "anonymous_user";
+
+  await logTrialEvent(
+    {
+      eventType: "diagnostic_completed",
+      page: "DiagnosticPage",
+      sessionId: resolvedSessionId,
+      caseId: resolvedCaseId,
+      userId: resolvedUserId,
+      meta: {
+        pcId: resolvedPcMeta?.pc_id || "",
+        scenarioCode:
+          preview?.scenario?.code ||
+          result?.preview?.scenario?.code ||
+          "",
+      },
+    },
+    { once: true }
+  );
+  
+} catch (eventError) {
+  console.error("diagnostic_completed event log failed:", eventError);
+}
 
 if (!apiResult?.preview && !apiResult) {
   throw new Error("Preview payload is missing.");
@@ -547,26 +636,26 @@ if (phase === PHASE.LANDING) {
   return (
     <div style={styles.shell}>
       <div style={styles.heroCard}>
-        <div style={styles.kicker}>Nimclea Diagnostic</div>
+        <div style={styles.kicker}>Decision Risk Diagnostic</div>
 
         <h1 style={styles.heroTitle}>
-          See where your decision path starts breaking, and whether it is worth testing in a 7-day pilot
+          Find where your decision path will fail—and fix it before it does
         </h1>
 
         <p style={styles.heroSubtitle}>
-          A 3-minute diagnostic that shows where structural risk sits, what it is already costing, and what the next controlled step should be.
+          See exactly where your decision path is breaking, what it’s already costing, and what to do next.
         </p>
 
         <p style={styles.heroText}>
-          You will answer a short set of questions about evidence, coordination, ownership, and pressure conditions. At the end, you will get a result that explains the structure and recommends the next step.
+          Most teams already have structural risk here — this will show if you do.
         </p>
 
         <button type="button" style={styles.primaryButton} onClick={startDiagnostic}>
-          See My Structural Path
+          See My Structural Risk →
         </button>
 
         <div style={styles.microcopy}>
-          No prep required • No rollout required • One clear next step
+          Takes ~3 minutes • No prep • One clear next step
         </div>
 
         <div style={styles.landingGrid}>
@@ -585,9 +674,9 @@ if (phase === PHASE.LANDING) {
           </div>
 
           <div style={styles.landingCard}>
-            <div style={styles.landingCardTitle}>This is not a scorecard</div>
+            <div style={styles.landingCardTitle}>Why this works</div>
             <div style={styles.landingCardText}>
-              This diagnostic does not rate your organization with a generic score. It identifies where the current decision path becomes harder to execute, explain, or verify.
+              This is not a generic assessment. It identifies where your decision path becomes harder to execute, explain, or verify — and turns that into a clear next step.
             </div>
           </div>
         </div>
