@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { logTrialEvent } from "../lib/trialApi";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getTrialSession } from "../lib/trialSession";
 import ROUTES from "../routes";
 import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput } from "../utils/caseSchema";
+import { logTrialEvent } from "../lib/trialApi";
+import { getStableUserId } from "../utils/eventLogger";
+
 import {
   getCaseSummary,
   getCaseContext,
@@ -14,7 +16,6 @@ import {
   getCaseWeakestDimension,
 } from "../utils/caseAccessors";
 import {
-  buildVerificationContract,
   flattenSharedReceiptVerificationContract,
 } from "../utils/sharedReceiptVerificationContract";
 
@@ -281,6 +282,12 @@ function normalizeVerificationData(input = {}) {
       ...input,
       caseData: normalizedCaseData,
     }),
+
+    confidenceLabel:
+      input.confidenceLabel ||
+      normalizedCaseData?.confidenceLabel ||
+      normalizedCaseData?.confidence ||
+      "Not available",
 
     runLabel: getCaseRunCode({
       ...input,
@@ -666,7 +673,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
     }
 
     return {
-      title: "Structure not ready for verification",
+      title: "Structure not eligible for verification",
       message:
         "This record cannot support reliable review. The issue is structural, not formatting.",
       actions: [
@@ -698,18 +705,113 @@ function getVerificationVerdictLine({ overallStatus, weakestDimension = "" }) {
   const dimensionLabel =
     raw.charAt(0).toUpperCase() + raw.slice(1);
 
-  if (overallStatus === "Verification Failed") {
-    return `✕ This proof is not externally valid due to weakness in: ${dimensionLabel}`;
+  if (overallStatus === "Verification Ready") {
+    return "✓ This proof meets the criteria for external use.";
   }
 
   if (overallStatus === "Verification Warning") {
     return `⚠ This proof is internally reviewable but unstable due to: ${dimensionLabel}`;
   }
 
-  return "✓ This proof is structurally valid and ready to be reviewed, shared, and used externally";
+  return `✕ This proof is not externally valid due to weakness in: ${dimensionLabel}`;
+  }
+
+function getMinimalInterventionPoint({ status, weakestDimension = "", checks = [], isEvidenceLockedConsistent = true }) {
+  if (!isEvidenceLockedConsistent) {
+    return {
+      title: "Minimal intervention point",
+      action: "Return to the receipt and restore the correct proof chain.",
+      note: "This failure is caused by a broken evidence lock, not by the structure itself.",
+    };
+  }
+  const normalizedWeakestDimension = String(weakestDimension || "").toLowerCase();
+
+  if (status === "Verification Ready") {
+    return {
+      title: "Smallest next action",
+      action: "Preserve this proof path and use the formal version only when this decision needs to travel outside the workspace.",
+      note: "No structural repair is required. The next step is operational, not corrective.",
+    };
+  }
+
+  if (status === "Verification Failed") {
+    return {
+      title: "Minimal intervention point",
+      action: "Return to the last valid structural stage and repair only the broken segment.",
+      note: "This is a structural failure. Do not optimize forward. Repair backward from the break point.",
+    };
+  }
+
+  if (normalizedWeakestDimension === "evidence") {
+    return {
+      title: "Minimal intervention point",
+      action: "Add one traceable evidence item to the current record before re-running verification.",
+      note: "A single proof-strengthening move is more valuable than rewriting the whole record.",
+    };
+  }
+
+  if (normalizedWeakestDimension === "boundary") {
+    return {
+      title: "Minimal intervention point",
+      action: "Re-establish one clear role or approval boundary before re-running verification.",
+      note: "Repair the structural edge first, then check whether the proof stabilizes.",
+    };
+  }
+
+  if (normalizedWeakestDimension === "coordination") {
+    return {
+      title: "Minimal intervention point",
+      action: "Assign one owner and one next structural step before re-running verification.",
+      note: "Tighten coordination first so the proof stops drifting.",
+    };
+  }
+
+  const weakChecks = checks.filter(
+    (c) => c.status === "warning" || c.status === "failed"
+  );
+
+  const weakestCheck = weakChecks[0];
+
+  if (weakestCheck?.label === "Structure completeness") {
+    return {
+      title: "Minimal intervention point",
+      action: "Fill one missing structural field before re-running verification.",
+      note: "Do the smallest structural completion first.",
+    };
+  }
+
+  if (weakestCheck?.label === "Consistency") {
+    return {
+      title: "Minimal intervention point",
+      action: "Align scenario, stage, and RUN into one coherent path before re-running verification.",
+      note: "Fix alignment before adding more material.",
+    };
+  }
+
+  if (weakestCheck?.label === "Continuity") {
+    return {
+      title: "Minimal intervention point",
+      action: "Reconnect one broken case-to-RUN path before re-running verification.",
+      note: "Repair the path, not the wording.",
+    };
+  }
+
+  if (weakestCheck?.label === "Evidence support") {
+    return {
+      title: "Minimal intervention point",
+      action: "Add one supporting signal or proof artifact before re-running verification.",
+      note: "A small evidence repair is enough to test whether the result moves out of failed status.",
+    };
+  }
+
+  return {
+    title: "Minimal intervention point",
+    action: "Make one smaller structural correction before re-running verification.",
+    note: "Keep the repair narrow. The goal is to move the result, not rewrite everything.",
+  };
 }
 
-function CalibrationCard({ guidance }) {
+function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEvidenceLockedConsistent }) {
   const [showAlternatives, setShowAlternatives] = useState(false);
 
   if (!guidance) return null;
@@ -718,8 +820,15 @@ function CalibrationCard({ guidance }) {
     ? guidance.alternatives
     : [];
 
+  const minimalIntervention = getMinimalInterventionPoint({
+    status,
+    weakestDimension,
+    checks,
+    isEvidenceLockedConsistent,
+  });
+
   return (
-    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+    <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
       <h2 className="text-lg font-semibold mb-2">
         🔧 {guidance.title}
       </h2>
@@ -737,6 +846,22 @@ function CalibrationCard({ guidance }) {
           ))}
         </ul>
       </div>
+
+      {minimalIntervention && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900 mb-2">
+            {minimalIntervention.title}
+          </p>
+
+          <p className="text-sm font-semibold text-slate-900 leading-6">
+            {minimalIntervention.action}
+          </p>
+
+          <p className="mt-2 text-sm text-amber-800 leading-6">
+            {minimalIntervention.note}
+          </p>
+        </div>
+      )}
 
       {alternatives.length > 0 && (
         <div className="mt-4">
@@ -779,8 +904,10 @@ function CalibrationCard({ guidance }) {
 
 export default function VerificationPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const verificationViewedLoggedRef = React.useRef(false);
   const verificationResultLoggedRef = React.useRef(false);
+  const recoverySectionRef = React.useRef(null);
 
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
@@ -789,6 +916,7 @@ export default function VerificationPage() {
 
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showRecoveryPanel, setShowRecoveryPanel] = useState(false);
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
@@ -814,7 +942,7 @@ export default function VerificationPage() {
   const receiptDecisionStatus = receiptContext?.decisionStatus || "";
 
   const receiptAllowsVerification =
-  receiptDecisionStatus === "Ready for Verification" ||
+  receiptDecisionStatus === "Eligible for Verification" ||
   receiptDecisionStatus === "Verified" ||
   receiptContext?.overallStatus === "Ready for Review" ||
   receiptContext?.overallStatus === "Verified" ||
@@ -840,7 +968,7 @@ export default function VerificationPage() {
             This receipt has not been issued for verification
           </h1>
           <p className="text-slate-700 leading-7">
-            Verification can only be opened from an issued receipt that is ready for verification.
+            Verification can only be opened from an issued receipt that is eligible for verification.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -878,7 +1006,7 @@ export default function VerificationPage() {
   });
 
   const receiptLevelStructurePass =
-    receiptDecisionStatus === "Ready for Verification" ||
+    receiptDecisionStatus === "Eligible for Verification" ||
     receiptDecisionStatus === "Verified";
 
   const hasUsableCaseData =
@@ -919,12 +1047,7 @@ export default function VerificationPage() {
       getCaseSummary(baseData) ||
       getCaseContext(baseData),
     overallStatus: hasVerificationPayload
-      ? (
-          shouldPromoteVerificationReady &&
-          evaluated.verificationStatus === "Verification Failed"
-            ? "Verification Ready"
-            : evaluated.verificationStatus
-        )
+      ? evaluated.verificationStatus
       : "Verification Warning",
     checks: hasVerificationPayload
       ? evaluated.checks
@@ -995,15 +1118,6 @@ const finalOverallStatus =
     ? "Verification Failed"
     : data.overallStatus;
 
-  const finalEvidenceLock =
-    evidenceLock ||
-    {
-      receiptId: data.receiptId,
-      receiptHash: data.receiptHash,
-      receiptSource,
-      receiptMode: receiptMode,
-    };
-
   const guidance = !isEvidenceLockedConsistent
     ? {
         title: "Evidence lock broken",
@@ -1065,12 +1179,80 @@ const finalOverallStatus =
     isEvidenceLockedConsistent &&
     finalOverallStatus === "Verification Ready";
 
-  const canActivateFormalVerification =
+  const scopeLock = {
+    status:
+      isEvidenceLockedConsistent &&
+      hasVerificationPayload &&
+      finalOverallStatus !== "Verification Failed"
+        ? "Locked"
+        : "Open",
+    receiptMode,
+    receiptSource,
+    receiptId: data.receiptId || "No live receipt attached",
+    receiptHashReady: !!hasReceiptHash,
+    structureReady: !!hasCompleteStructure,
+    evidenceLockReady: !!isEvidenceLockedConsistent,
+  };
+
+  const acceptanceChecklist = [
+    {
+      label: "Issued receipt attached",
+      passed: !!hasVerificationPayload,
+      detail: hasVerificationPayload
+        ? "A live receipt payload is attached to this verification view."
+        : "No live receipt payload is attached yet.",
+    },
+    {
+      label: "Receipt hash available",
+      passed: !!hasReceiptHash,
+      detail: hasReceiptHash
+        ? "The receipt hash is available for proof traceability."
+        : "The receipt hash is missing or unavailable.",
+    },
+    {
+      label: "Structure completeness passed",
+      passed: !!hasCompleteStructure,
+      detail: hasCompleteStructure
+        ? "Core structural fields are present and readable."
+        : "The structure is still incomplete for stable acceptance.",
+    },
+    {
+      label: "Evidence lock consistent",
+      passed: !!isEvidenceLockedConsistent,
+      detail: isEvidenceLockedConsistent
+        ? "This verification view matches the issued receipt chain."
+        : "The verification view no longer matches the issued receipt chain.",
+    },
+    {
+      label: "Behavioral grounding available",
+      passed: behavioralGroundingCheck?.status === "passed",
+      detail:
+        behavioralGroundingCheck?.detail ||
+        "Behavioral grounding is not yet strong enough.",
+    },
+  ];
+
+  const acceptancePassedCount = acceptanceChecklist.filter(
+    (item) => item.passed
+  ).length;
+
+  const acceptanceReady =
+    acceptanceChecklist.every((item) => item.passed) &&
+    finalOverallStatus === "Verification Ready";
+
+  const verificationPass =
+    finalOverallStatus === "Verification Ready" &&
     isEvidenceLockedConsistent &&
-    finalOverallStatus !== "Verification Failed";
+    acceptanceReady;
+
+  const verificationBlock = !verificationPass;
+
+  const canActivateFormalVerification = verificationPass;
 
   const canShowSubscriptionOptions =
-  isEvidenceLockedConsistent && hasVerificationPayload;  
+    canActivateFormalVerification &&
+    isEvidenceLockedConsistent &&
+    hasVerificationPayload;
   
   const verdictTheme =
   finalOverallStatus === "Verification Failed"
@@ -1114,8 +1296,9 @@ const finalOverallStatus =
   }, [data, sharedContract]);
 
   React.useEffect(() => {
-    const session =
-      location.state?.trialSession || getTrialSession();
+  const session =
+    location.state?.trialSession || getTrialSession() || {};
+  const resolvedUserId = session.userId || getStableUserId();
 
     if (!session?.userId || !session?.trialId) return;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
@@ -1125,7 +1308,7 @@ const finalOverallStatus =
 
   logTrialEvent(
     {
-      userId: session.userId,
+      userId: resolvedUserId,
       trialId: session.trialId,
       sessionId:
         location.state?.session_id ||
@@ -1174,8 +1357,9 @@ const finalOverallStatus =
   ]);
   
   React.useEffect(() => {
-    const session =
-      location.state?.trialSession || getTrialSession();
+  const session =
+    location.state?.trialSession || getTrialSession() || {};
+  const resolvedUserId = session.userId || getStableUserId();
 
     if (!session?.userId || !session?.trialId) return;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
@@ -1195,7 +1379,7 @@ const finalOverallStatus =
 
     logTrialEvent(
       {
-        userId: session.userId,
+        userId: resolvedUserId,
         trialId: session.trialId,
         sessionId:
           location.state?.session_id ||
@@ -1243,14 +1427,31 @@ const finalOverallStatus =
     isEvidenceLockedConsistent,
   ]);
 
-  const handleOpenSubscriptionModal = async (source = "verification_cta") => {
-    const session =
-      location.state?.trialSession || getTrialSession();
+  const recommendedPathLabel =
+    finalOverallStatus === "Verification Ready"
+      ? "Recommended next step"
+      : finalOverallStatus === "Verification Warning"
+      ? "Fastest path to verification pass"
+      : "Fastest recovery path";
 
-    if (session?.userId && session?.trialId) {
+  const recommendFormalActivation =
+    finalOverallStatus === "Verification Ready";
+
+  const recommendWeeklyAccess =
+    finalOverallStatus === "Verification Warning" ||
+    finalOverallStatus === "Verification Failed";
+
+  const [modalSource, setModalSource] = useState("verification_cta");
+
+  const handleOpenSubscriptionModal = async (source = "verification_cta") => {
+  const session =
+    location.state?.trialSession || getTrialSession() || {};
+  const resolvedUserId = session.userId || getStableUserId();
+
+    if (resolvedUserId) {
       try {
         await logTrialEvent({
-          userId: session.userId,
+          userId: resolvedUserId,
           trialId: session.trialId,
           caseId: data.receiptId || "verification_entry",
           eventType: "pricing_modal_opened",
@@ -1262,29 +1463,62 @@ const finalOverallStatus =
             canShowSubscriptionOptions,
             weakestDimension:
               data.weakestDimension || data.caseData?.weakestDimension || "",
-          }
+          },
         });
       } catch (error) {
         console.error("pricing_modal_opened log error:", error);
       }
     }
 
+    setModalSource(source);
     setShowSubscriptionModal(true);
+  };
+
+  const handleRecoveryPath = async (source = "recovery_cta") => {
+    const nextOpen = !showRecoveryPanel;
+
+  const session =
+    location.state?.trialSession || getTrialSession() || {};
+  const resolvedUserId = session.userId || getStableUserId();
+
+    if (resolvedUserId) {
+      try {
+        await logTrialEvent({
+          userId: resolvedUserId,
+          trialId: session.trialId,
+          caseId: data.receiptId || "verification_entry",
+          eventType: nextOpen
+            ? "verification_recovery_cta_clicked"
+            : "verification_recovery_cta_closed",
+          page: "VerificationPage",
+          meta: {
+            source,
+            overallStatus: finalOverallStatus,
+            weakestDimension:
+              data.weakestDimension || data.caseData?.weakestDimension || "",
+          },
+       });
+      } catch (error) {
+        console.error("verification_recovery_cta log error:", error);
+      }
+    }
+
+    setShowRecoveryPanel((prev) => !prev);
   };
 
   return (
   <div className="min-h-screen bg-slate-50 text-slate-900 px-4 py-8">
     <div className="max-w-5xl mx-auto">
-      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
-        <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-sm font-medium text-slate-500 mb-2">Structure Proof Verification</p>
+      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-7 md:p-10 space-y-9">
+        <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-7">
           <h1 className="text-3xl font-bold mb-3">{data.verificationTitle}</h1>
+
           <p className="text-slate-700 leading-7 mb-5">
             {data.introText ||
-              "This verifies whether the issued case record remains consistent, traceable, behaviorally grounded, and ready for review."}
+               "This page is the verification layer. It does not repeat receipt eligibility. It determines whether the issued record is externally ready, internally reviewable, or still structurally incomplete."}
           </p>
 
-          <p className="text-sm text-slate-500 leading-6">
+          <p className="text-sm text-slate-500 leading-6 mb-6">
             {data.weakestDimension
               ? `This proof is first interpreted through your weakest dimension: ${data.weakestDimension}.`
               : data.caseData
@@ -1292,64 +1526,227 @@ const finalOverallStatus =
               : "This proof is interpreted through the structural weak point currently exposed in the record."}
           </p>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Verification Status</p>
-              <p
-                className={`font-semibold ${
-                  finalOverallStatus === "Verification Failed"
-                    ? "text-red-700"
-                    : finalOverallStatus === "Verification Warning"
-                    ? "text-amber-700"
-                    : "text-emerald-700"
-                }`}
+          <div className="mt-3">
+            <div
+              style={{
+                border: "1px solid #CBD5E1",
+                borderRadius: "16px",
+                padding: "14px 18px",
+                backgroundColor: "#F8FAFC",
+              }}
+            >
+              {/* 上排 */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  alignItems: "start",
+                  columnGap: "0",
+                }}
               >
-                {finalOverallStatus}
-              </p>
-            </div>
+                <div style={{ padding: "2px 16px 4px 6px" }}>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Verification Status
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "15px",
+                      lineHeight: 1.3,
+                      fontWeight: 600,
+                      color:
+                        finalOverallStatus === "Verification Ready"
+                          ? "#047857"
+                          : finalOverallStatus === "Verification Warning"
+                          ? "#B45309"
+                          : "#991B1B",
+                    }}
+                  >
+                    {finalOverallStatus === "Verification Ready"
+                      ? "READY · Reviewable and externally usable"
+                      : finalOverallStatus === "Verification Warning"
+                      ? "WARNING · Internally reviewable only"
+                      : "FAILED · Correction required"}
+                  </p>
+                </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Receipt ID</p>
-              <p className="font-semibold break-all">
-                {hasVerificationPayload ? data.receiptId : "No live receipt attached"}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Verified At</p>
-              <p className="font-semibold">{data.verifiedAt || "Not recorded yet"}</p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Case tested</p>
-              <p className="font-semibold">
-                {data.displayContext || "No case attached"}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Case Schema</p>
-              <p className="font-semibold">
-                {data.schemaVersion || "Not attached"}
-              </p>
-
-              {typeof data.structureScoreFromCase === "number" ? (
-                <p className="text-xs text-slate-500 mt-2">
-                  Structure score: {data.structureScoreFromCase.toFixed(2)}
-                </p>
-              ) : null}
-
-              {data.structureStatusFromCase ? (
-                <p className="text-xs text-slate-500 mt-1">
-                  Structure status: {data.structureStatusFromCase}
-                </p>
-              ) : null}
+                <div
+                  style={{
+                    padding: "2px 16px 4px 16px",
+                    borderLeft: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Receipt ID
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "15px",
+                      lineHeight: 1.3,
+                      fontWeight: 600,
+                      wordBreak: "break-all",
+                      color: "#0F172A",
+                    }}
+                  >
+                    {hasVerificationPayload ? data.receiptId : "No live receipt attached"}
+                  </p>
+                </div>
+          
+                <div
+                  style={{
+                    padding: "2px 6px 4px 16px",
+                    borderLeft: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Verified At
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "15px",
+                      lineHeight: 1.3,
+                      fontWeight: 600,
+                      color: "#0F172A",
+                    }}
+                  >
+                    {data.verifiedAt || "Not recorded yet"}
+                  </p>
+                </div>
+              </div>
+          
+              {/* 中间只保留长横线，不要极短线 */}
+              <div
+                style={{
+                  margin: "10px 0 10px 0",
+                  height: "1px",
+                  backgroundColor: "#CBD5E1",
+                }}
+              />
+          
+              {/* 下排 */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  alignItems: "start",
+                  columnGap: "0",
+                }}
+              >
+                <div style={{ padding: "2px 16px 2px 6px" }}>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Case Schema
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "14px",
+                      lineHeight: 1.3,
+                      fontWeight: 600,
+                      color: "#0F172A",
+                    }}
+                  >
+                    {data.schemaVersion || "Not attached"}
+                  </p>
+          
+                  {typeof data.structureScoreFromCase === "number" ? (
+                    <p
+                      style={{
+                        margin: "8px 0 0 0",
+                        fontSize: "11px",
+                        lineHeight: 1.25,
+                        color: "#64748B",
+                      }}
+                    >
+                      Structure score: {data.structureScoreFromCase.toFixed(2)}
+                    </p>
+                  ) : null}
+          
+                  {data.structureStatusFromCase ? (
+                    <p
+                      style={{
+                        margin: "3px 0 0 0",
+                        fontSize: "11px",
+                        lineHeight: 1.25,
+                        color: "#64748B",
+                      }}
+                    >
+                      Structure status: {data.structureStatusFromCase}
+                    </p>
+                  ) : null}
+                </div>
+          
+                <div
+                  style={{
+                    padding: "2px 6px 2px 16px",
+                    borderLeft: "1px solid #CBD5E1",
+                    minHeight: "72px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Case tested
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "14px",
+                      lineHeight: 1.3,
+                      fontWeight: 600,
+                      color: "#0F172A",
+                    }}
+                  >
+                    {data.displayContext || "No structured summary available."}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </header>
-        <div
-          className="px-6 py-7 shadow-sm"
+        <section
+          className="mt-3 p-6 md:p-7 shadow-sm"
           style={{
+            width: "calc(100% - 48px)",
+            marginLeft: "24px",
+            marginRight: "24px",
             backgroundColor: verdictTheme.cardBg,
             border:
               finalOverallStatus === "Verification Failed"
@@ -1379,66 +1776,169 @@ const finalOverallStatus =
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
-                gap: "10px",
+                alignItems: "center",
+                border: "1px solid #FCA5A5",       // 淡红框（比底色深一点）
+                borderRadius: "12px",
+                overflow: "hidden",
+                width: "fit-content",
+                backgroundColor: "transparent",
               }}
             >
               {[
-                {
-                  text: hasReceiptHash
-                    ? "✓ Receipt Hash verified"
-                    : "• Receipt Hash unavailable",
-                  backgroundColor: hasReceiptHash
-                    ? "rgba(255,255,255,0.18)"
-                    : "rgba(255,255,255,0.12)",
-                },
-                {
-                  text: hasCompleteStructure
-                    ? "✓ Structure consistent"
-                    : "• Structure sufficient",
-                  backgroundColor: hasCompleteStructure
-                    ? "rgba(255,255,255,0.18)"
-                    : "rgba(255,255,255,0.12)",
-                },
-                {
-                  text: auditReady
-                    ? "✓ Ready for review"
-                    : "• Review pending",
-                  backgroundColor: auditReady
-                    ? "rgba(255,255,255,0.18)"
-                    : "rgba(255,255,255,0.12)",
-                },
-                {
-                  text: isEvidenceLockedConsistent
-                    ? "✓ Evidence lock consistent"
-                    : "• Evidence lock broken",
-                  backgroundColor: isEvidenceLockedConsistent
-                    ? "rgba(255,255,255,0.18)"
-                    : "rgba(255,255,255,0.12)",
-                },
-              ].map((item) => (
-                <span
-                  key={item.text}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "6px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: verdictTheme.chipBg,
-                    color: verdictTheme.chipText,
-                    fontSize: "13px",
-                    lineHeight: "1.2",
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.text}
-                </span>
+                hasReceiptHash
+                  ? "✓ Receipt Hash verified"
+                  : "• Receipt Hash unavailable",
+
+                hasCompleteStructure
+                  ? "✓ Structure consistent"
+                  : "• Structure sufficient",
+
+                auditReady
+                  ? "✓ Ready for review"
+                  : "• Review pending",
+
+                isEvidenceLockedConsistent
+                  ? "✓ Evidence lock consistent"
+                  : "• Evidence lock broken",
+              ].map((text, index, arr) => (
+                <React.Fragment key={text}>
+      
+                  {/* 每一块 */}
+                  <div
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "#991B1B", // 深红字（跟标题一致）
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {text}
+                  </div>
+            
+                  {/* 中间竖线（关键） */}
+                  {index < arr.length - 1 && (
+                    <div
+                      style={{
+                        width: "1px",
+                        height: "18px",
+                        backgroundColor: "#FCA5A5",
+                      }}
+                    />
+                  )}
+                </React.Fragment>
               ))}
             </div>
           </div>
-        </div>
-        
+        </section>
+
+        <section className="mt-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2
+            className={`text-lg font-semibold mb-2 ${
+              finalOverallStatus === "Verification Failed"
+                ? "text-red-800"
+                : finalOverallStatus === "Verification Warning"
+                ? "text-amber-800"
+                : "text-emerald-800"
+            }`}
+          >
+            {canActivateFormalVerification
+              ? "Externally usable version"
+              : finalOverallStatus === "Verification Warning"
+              ? "Fastest path to verification pass"
+              : "Fastest recovery path"}
+          </h2>
+
+          <p
+            className={`leading-7 ${
+              finalOverallStatus === "Verification Failed"
+               ? "text-red-700"
+                : finalOverallStatus === "Verification Warning"
+                ? "text-amber-700"
+                : "text-emerald-700"
+            }`}
+          >
+            {canActivateFormalVerification
+              ? "This proof is now strong enough to be used outside your system. Activate the formal version when this decision needs to travel beyond the workspace."
+              : !isEvidenceLockedConsistent
+              ? "This proof is blocked by a broken evidence chain. Return to the receipt and recover the source of truth before trying to activate anything."
+              : finalOverallStatus === "Verification Warning"
+              ? "One focused structural fix may be enough to move this result into a fully usable state."
+              : "This result is still recoverable, but the next move should be a narrow structural repair instead of a full rewrite."}
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            {canActivateFormalVerification ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  const session =
+                    location.state?.trialSession || getTrialSession();
+
+                  const resolvedUserId =
+                    session?.userId || getStableUserId();
+
+                  if (resolvedUserId) {
+                    try {
+                      await logTrialEvent({
+                        userId: resolvedUserId,
+                        trialId: session?.trialId,
+                        eventType: "verification_cta_clicked",
+                        page: "VerificationPage",
+                        caseId: data.receiptId || "verification_entry",
+                        meta: {
+                          overallStatus: finalOverallStatus,
+                          canActivateFormalVerification,
+                        },
+                      });
+                    } catch (e) {}
+                  }
+
+                  handleOpenSubscriptionModal("formal_verification_cta");
+                }}
+                className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                Activate Formal Verification →
+              </button>
+            ) : finalOverallStatus === "Verification Warning" ? (
+              <button
+                type="button"
+                onClick={() => handleRecoveryPath("warning_cta")}
+                className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
+              >
+                Improve Before Activation →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleRecoveryPath("failed_cta")}
+                className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold transition"
+                style={{
+                  backgroundColor: "#991B1B",
+                  color: "#FFFFFF",
+                  borderRadius: "9999px",
+                  padding: "10px 18px",
+                  boxShadow: "0 4px 10px rgba(153,27,27,0.25)"
+                }}
+              >
+                Recover This Proof Path →
+              </button>
+            )}
+          </div>
+
+          {showRecoveryPanel && !canActivateFormalVerification && (
+            <div className="mt-6" ref={recoverySectionRef}>
+              <CalibrationCard
+                guidance={guidance}
+                status={finalOverallStatus}
+                weakestDimension={data.weakestDimension || data.caseData?.weakestDimension || ""}
+                checks={data.checks}
+                isEvidenceLockedConsistent={isEvidenceLockedConsistent}
+              />
+            </div>
+          )}
+        </section>
+
         {!isEvidenceLockedConsistent && (
           <section className="bg-red-50 rounded-2xl border border-red-200 p-6">
             <h2 className="text-lg font-semibold mb-2 text-red-800">
@@ -1452,109 +1952,324 @@ const finalOverallStatus =
             </p>
           </section>
         )}
-
-        <CalibrationCard guidance={guidance} />
-
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      
+        <section className="mt-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-4">Aggregated RUN Record</h2>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-500 mb-1">RUN Summary</p>
-            <p className="font-semibold">
-              {data.runSummaryText || "No aggregated RUN summary available."}
-            </p>
-          </div>
+          <div
+            style={{
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+              borderRadius: "20px",
+              padding: "12px 16px",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                alignItems: "center",
+              }}
+            >
+              {/* 左：Summary */}
+              <div
+                style={{
+                  padding: "2px 18px",
+                  borderRight: "1px solid #CBD5E1",
+                }}
+              >
+                <p style={{ fontSize: "15px", color: "#64748B", marginBottom: "10px" }}>
+                  RUN Summary
+                </p>
+                <p style={{ fontSize: "18px", fontWeight: 600 }}>
+                  {data.runSummaryText || "No aggregated RUN summary available."}
+                </p>
+              </div>
 
-          <div className="mt-4 grid sm:grid-cols-1 md:grid-cols-2 gap-4">
-            {Array.isArray(data.runEntries) && data.runEntries.length > 0 ? (
-              data.runEntries.map((entry, index) => (
-                <div
-                  key={`${entry.runLabel}-${index}`}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold">{entry.runLabel}</p>
-                    <span className="text-sm font-medium text-slate-600">
-                      × {entry.count}
-                    </span>
+              {/* 右：RUN entries */}
+              <div style={{ padding: "2px 18px" }}>
+                <p style={{ fontSize: "15px", color: "#64748B", marginBottom: "10px" }}>
+                  RUN Signals
+                </p>
+
+                {Array.isArray(data.runEntries) && data.runEntries.length > 0 ? (
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    {data.runEntries.map((entry, index) => (
+                      <span
+                        key={index}
+                        style={{
+                          padding: "4px 10px",
+                          border: "1px solid #CBD5E1",
+                          borderRadius: "10px",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {entry.runLabel} × {entry.count}
+                      </span>
+                    ))}
                   </div>
-                  {(entry.stageLabel || entry.scenarioLabel) && (
-                    <p className="mt-2 text-sm text-slate-600">
-                      {[entry.stageLabel, entry.scenarioLabel].filter(Boolean).join(" · ")}
-                    </p>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-slate-600">No aggregated RUN data available.</p>
-            )}
+                ) : (
+                  <p style={{ color: "#64748B" }}>
+                    No aggregated RUN data available.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
         {data.caseData ? (
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <h2 className="text-xl font-semibold mb-4">Case Schema Snapshot</h2>
 
-            <div className="grid md:grid-cols-4 gap-4">
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Scenario</p>
-                <p className="font-semibold">
-                  {data.scenarioLabel || data.caseData?.scenarioCode || "No Dominant Scenario"}
-                </p>
-              </div>
+            <div
+              style={{
+                backgroundColor: "#F8FAFC",
+                border: "1px solid #CBD5E1",
+                borderRadius: "20px",
+                padding: "12px 16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "2px 18px",
+                    borderRight: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      color: "#64748B",
+                      margin: "0 0 10px 0",
+                    }}
+                  >
+                    Scenario
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      lineHeight: 1,
+                      margin: 0,
+                    }}
+                  >
+                    {data.scenarioLabel || data.caseData?.scenarioCode || "No Dominant Scenario"}
+                  </p>
+                </div>
 
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Stage</p>
-                <p className="font-semibold">
-                  {data.stageLabel || data.caseData?.stage || "S0"}
-                </p>
-              </div>
+                <div
+                  style={{
+                    padding: "2px 18px",
+                    borderRight: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      color: "#64748B",
+                      margin: "0 0 10px 0",
+                    }}
+                  >
+                    Stage
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      lineHeight: 1,
+                      margin: 0,
+                    }}
+                  >
+                    {data.stageLabel || data.caseData?.stage || "S0"}
+                  </p>
+                </div>
 
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Confidence</p>
-                <p className="font-semibold">{data.confidenceLabel}</p>
-              </div>
+                <div
+                  style={{
+                    padding: "2px 18px",
+                    borderRight: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      color: "#64748B",
+                      margin: "0 0 10px 0",
+                    }}
+                  >
+                    Confidence
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      lineHeight: 1,
+                      margin: 0,
+                    }}
+                  >
+                    {data.confidenceLabel}
+                  </p>
+                </div>
 
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Primary RUN</p>
-                <p className="font-semibold leading-7">
-                  {data.primaryRunLabel || data.runLabel || data.caseData?.fallbackRunCode || "RUN000"}
-                </p>
+                <div
+                  style={{
+                    padding: "2px 18px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      color: "#64748B",
+                      margin: "0 0 10px 0",
+                    }}
+                  >
+                    Primary RUN
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      lineHeight: 1,
+                      margin: 0,
+                    }}
+                  >
+                    {data.primaryRunLabel || data.runLabel || data.caseData?.fallbackRunCode || "RUN000"}
+                  </p>
+                </div>
               </div>
             </div>
           </section>
         ) : null}  
 
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-xl font-semibold mb-4">What was checked</h2>
 
-          <p className="mb-4 text-sm text-slate-600">
-            Verification confirms whether the issued case record remains consistent across the receipt and verification layers.
-          </p>
+          <div
+            style={{
+              marginBottom: "16px",
+              padding: "12px 16px",
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+              borderRadius: "16px",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: "15px",
+                fontWeight: 600,
+                color: "#0F172A",
+              }}
+            >
+              {(() => {
+                const warningCount = data.checks.filter((c) => c.status === "warning").length;
+                const failedCount = data.checks.filter((c) => c.status === "failed").length;
 
-          <div className="space-y-4">
+                if (failedCount > 0) {
+                  return `✕ ${failedCount} failure${failedCount > 1 ? "s" : ""} detected. Structural issues must be corrected.`;
+                }
+
+                if (warningCount > 0) {
+                  return `⚠ ${warningCount} warning${warningCount > 1 ? "s" : ""} detected. Structure is partially complete.`;
+                }
+
+                return "✓ All checks passed. Structure is consistent and reviewable.";
+              })()}
+            </p>
+
+            <p
+              style={{
+                margin: "6px 0 0 0",
+               fontSize: "13px",
+                color: "#64748B",
+                lineHeight: 1.5,
+              }}
+            >
+              Verification confirms whether the issued case record remains consistent across the receipt and verification layers.
+            </p>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+              borderRadius: "16px",
+              padding: "12px 0",
+            }}
+          >
             {data.checks.map((check, index) => (
-              <div
-                key={`${check.label}-${index}`}
-                className="rounded-xl border border-slate-200 p-4 bg-slate-50"
-              >
-                <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <h3 className="font-semibold">{check.label}</h3>
+              <div key={`${check.label}-${index}`} style={{ padding: "12px 16px" }}>
+      
+                {/* 标题行 */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{check.label}</span>
+
                   <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusStyles(
-                      check.status
-                    )}`}
+                    style={{
+                      fontSize: "11px",
+                      padding: "2px 8px",
+                      borderRadius: "8px",
+                      fontWeight: 500,
+                      backgroundColor:
+                        check.status === "passed"
+                          ? "#ECFDF5"
+                          : check.status === "warning"
+                          ? "#FFFBEB"
+                          : "#FEF2F2",
+                      color:
+                        check.status === "passed"
+                          ? "#047857"
+                          : check.status === "warning"
+                          ? "#B45309"
+                          : "#991B1B",
+                      border:
+                        check.status === "passed"
+                          ? "1px solid #A7F3D0"
+                          : check.status === "warning"
+                          ? "1px solid #FDE68A"
+                          : "1px solid #FCA5A5",
+                    }}
                   >
-                    {check.status || "unknown"}
+                    {check.status}
                   </span>
                 </div>
-                <p className="text-slate-700 leading-7">{check.detail}</p>
+
+                {/* 描述 */}
+                <p style={{ color: "#475569", lineHeight: 1.6 }}>
+                  {check.detail}
+                </p>
+
+                {/* 断开横线（关键） */}
+                {index < data.checks.length - 1 && (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      width: "100%",
+                      borderTop: "1px solid #CBD5E1",
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>
         </section>
 
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
   
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Verification timeline</h2>
@@ -1585,8 +2300,8 @@ const finalOverallStatus =
 
         </section>
 
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-5 pr-4">
             <div>
               <h2 className="text-xl font-semibold">Ledger-backed proof</h2>
               <p className="mt-1 text-sm text-slate-600">
@@ -1595,53 +2310,174 @@ const finalOverallStatus =
             </div>
 
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
-                anchorStatus === "Anchored"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "26px",
+                padding: "0 12px",
+                borderRadius: "6px",
+                fontSize: "11px",
+                lineHeight: 1,
+                fontWeight: 600,
+                border: anchorStatus === "Anchored"
+                  ? "1px solid #A7F3D0"
                   : anchorStatus === "Pending"
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-slate-50 text-slate-700 border-slate-200"
-              }`}
+                  ? "1px solid #FDE68A"
+                  : "1px solid #CBD5E1",
+                backgroundColor: anchorStatus === "Anchored"
+                  ? "#ECFDF5"
+                  : anchorStatus === "Pending"
+                  ? "#FFFBEB"
+                  : "#F8FAFC",
+                color: anchorStatus === "Anchored"
+                  ? "#047857"
+                  : anchorStatus === "Pending"
+                  ? "#B45309"
+                  : "#475569",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
             >
               {anchorStatus}
             </span>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5">
-            <div className="grid md:grid-cols-3 gap-4 items-stretch">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <div
+            style={{
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+              borderRadius: "20px",
+              padding: "12px 16px",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1.2fr",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  padding: "2px 18px",
+                  borderRight: "1px solid #CBD5E1",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
                   Proof record ID
                 </p>
-                <p className="mt-2 font-semibold text-slate-900 break-all">
+                <p
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    margin: 0,
+                    color: "#0F172A",
+                    wordBreak: "break-all",
+                  }}
+                >
                   {proofRecordId}
                 </p>
               </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          
+              <div
+                style={{
+                  padding: "2px 18px",
+                  borderRight: "1px solid #CBD5E1",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
                   Anchored at
                 </p>
-                <p className="mt-2 font-semibold text-slate-900">
+                <p
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    margin: 0,
+                    color: "#0F172A",
+                  }}
+                >
                   {anchoredAt}
                 </p>
               </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Receipt hash
-                    </p>
-                    <p className="mt-2 font-semibold text-slate-900 break-all">
-                      {displayReceiptHash}
-                    </p>
-                  </div>
+          
+              <div
+                style={{
+                  padding: "2px 18px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
+                  Receipt hash
+                </p>
+          
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      lineHeight: 1.2,
+                      margin: 0,
+                      color: "#0F172A",
+                      wordBreak: "break-all",
+                      flex: 1,
+                    }}
+                  >
+                    {displayReceiptHash}
+                  </p>
 
                   <button
                     type="button"
                     onClick={() => navigator.clipboard.writeText(proofReceiptHash)}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "10px",
+                      border: "1px solid #CBD5E1",
+                      backgroundColor: "#FFFFFF",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#334155",
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                    }}
                   >
                     Copy full hash
                   </button>
@@ -1655,117 +2491,23 @@ const finalOverallStatus =
           </p>
         </section>
 
-        <section className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
+        <section className="mt-4 bg-blue-50 rounded-2xl border border-blue-200 p-6">
           <h2 className="text-lg font-semibold mb-2">Verification note</h2>
-          <p className="text-slate-700 leading-7">
+          <p
+            className={`leading-7 ${
+              finalOverallStatus === "Verification Failed"
+                ? "text-red-700"
+                : finalOverallStatus === "Verification Warning"
+                ? "text-amber-700"
+                : "text-emerald-700"
+            }`}
+          >
             {data.finalNote ||
               "Verification improves trust, portability, and review readiness by checking whether the issued case record remains internally consistent and traceable. It does not replace professional or legal review."}
           </p>
         </section>
 
-        <section
-          className={`rounded-2xl border p-6 ${
-            canActivateFormalVerification
-             ? "bg-amber-50 border-amber-200"
-              : "bg-slate-50 border-slate-200"
-          }`}
-        >
-          <h2 className="text-lg font-semibold mb-2">
-            {canActivateFormalVerification
-              ? "Formal verification preview"
-              : "Formal activation unavailable"}
-          </h2>
-
-          <p className="text-slate-700 leading-7">
-            {canActivateFormalVerification
-              ? "You can already see that this proof passes structurally here. Activate the formal version when you need a version that can leave this workspace and be used in real workflows."
-              : !isEvidenceLockedConsistent
-              ? "This verification view is currently locked because the evidence chain no longer matches the issued receipt."
-              : "This verification result is not ready for formal activation because the current proof has not yet passed verification."}
-          </p>
-
-          <p className="mt-3 text-slate-700 leading-7">
-            {canActivateFormalVerification
-              ? "This version is for preview only. Activate the formal version when you need a result that can be used externally."
-              : !isEvidenceLockedConsistent
-              ? "Formal activation is disabled until you return to the receipt layer and recover the current source of truth."
-              : "Formal activation remains disabled until the verification result moves out of failed status."}
-          </p>
-
-          <p className={`mt-3 text-sm font-medium ${
-            canActivateFormalVerification ? "text-amber-900" : "text-red-800"
-          }`}>
-            {canActivateFormalVerification
-              ? "Activate the formal version to use this verification in real workflows."
-              : !isEvidenceLockedConsistent
-              ? "Return to the receipt before trying to activate any formal verification product."
-              : "Strengthen the proof before trying to activate any formal verification product."}
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-
-            {canActivateFormalVerification && (
-              <>
-                <p className="text-xs text-slate-500 w-full">
-                  This is the version you use when this decision needs to leave your workspace.
-                </p>
-
-                <p className="text-xs text-amber-700 font-medium w-full">
-                  Use this when you need one version that others can review, trust, and act on.
-                </p>
-              </>
-            )}
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              {canActivateFormalVerification ? (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const session =
-                      location.state?.trialSession || getTrialSession();
-
-                    if (session?.userId && session?.trialId) {
-                      try {
-                        await logTrialEvent({
-                          userId: session.userId,
-                          trialId: session.trialId,
-                          eventType: "verification_cta_clicked",
-                          page: "VerificationPage",
-                          caseId: data.receiptId || "verification_entry",
-                          meta: {
-                            overallStatus: finalOverallStatus,
-                            canActivateFormalVerification,
-                          },
-                        });
-                      } catch (e) {}
-                    }
-
-                    handleOpenSubscriptionModal("formal_verification_cta");
-                  }}
-                  className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-                >
-                  Get My Formal Verification →
-                </button>
-              ) : (
-                <>
-                  {canShowSubscriptionOptions && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleOpenSubscriptionModal("support_options_cta");
-                      }}
-                      className="inline-flex items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-700 shadow-sm transition hover:bg-green-100"
-                    >
-                      View Support Options
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <div className="flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-wrap gap-3">
           <Link
             to={ROUTES.RECEIPT}
             state={{
@@ -1777,21 +2519,8 @@ const finalOverallStatus =
             Back to Receipt
           </Link>
         </div>
-        
-        <p
-          style={{
-            margin: "12px 8px 16px 8px",
-            fontSize: "14px",
-            lineHeight: 1.6,
-            color: "#475569",
-          }}
-        >
-          {finalOverallStatus === "Verification Failed"
-            ? "This proof has not yet passed verification. Support options are available if you want help moving it forward."
-            : "Choose the option that best fits how you want to continue from this verification result."}
-        </p>
 
-        {showSubscriptionModal && canShowSubscriptionOptions && (
+        {showSubscriptionModal && canActivateFormalVerification && (
           <div
             style={{
               position: "fixed",
@@ -1809,17 +2538,17 @@ const finalOverallStatus =
           >
             <div
               style={{
-                width: "100%",
-                maxWidth: "520px",
+                width: "fit-content",
+                maxWidth: "calc(100vw - 80px)",
                 maxHeight: "90vh",
                 overflowY: "auto",
                 backgroundColor: "#ffffff",
-               borderRadius: "24px",
+                borderRadius: "24px",
                 boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
                 border: "1px solid #E2E8F0",
                 padding: "16px",
               }}
->
+            >
               <div
                 style={{
                   display: "grid",
@@ -1840,8 +2569,10 @@ const finalOverallStatus =
                     flex: 1,
                   }}
                 >
-                  {finalOverallStatus === "Verification Failed"
-                    ? "View support options"
+                  {modalSource === "failed_cta"
+                    ? "Choose the fastest recovery path"
+                    : modalSource === "warning_cta"
+                    ? "Choose the fastest path to verification pass"
                     : "Choose how to continue"}
                 </h2>
         
@@ -1873,9 +2604,9 @@ const finalOverallStatus =
 
               <div
                 style={{
-                  display: "grid",
-                  gap: "12px",
-                  justifyItems: "center",
+                  display: "flex",
+                  gap: "16px",
+                  overflowX: "auto",
                   paddingLeft: "8px",
                   paddingRight: "8px",
                 }}
@@ -1891,170 +2622,180 @@ const finalOverallStatus =
                   }}
                 >
                   <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Formal Verification Activation
+                    Pilot Workspace
                   </h3>
 
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    One formal verification proof for one specific case, ready to export, share, and use externally.
+                    For continuous decision work inside the system.
                   </p>
-
-                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $29
-                  </p>
-
-                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $49 original
-                  </p>
-
-                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing is reserved for 3 days after your trial ends.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSubscriptionModal(false);
-                    }}
-                    style={{
-                      marginTop: "12px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "auto",
-                      minWidth: "200px",
-                      padding: "10px 20px",
-                      borderRadius: "999px",
-                      backgroundColor: "#ECFDF5",
-                      color: "#059669",
-                      border: "1px solid #A7F3D0",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Get My Formal Verification →
-                  </button>
-                </div>
-        
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: "460px",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    backgroundColor: "#FFFFFF",
-                  }}
-                >
-                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Weekly Decision Access
-                  </h3>
-
-                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Structured handling for multiple live decision events across one active week — not just one case.
-                  </p>
-
-                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                    $149 / week
-                  </p>
-
-                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $199 original
-                  </p>
-
-                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing is reserved for 3 days after your trial ends.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSubscriptionModal(false);
-                    }}
-                    style={{
-                      marginTop: "12px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "auto",
-                      minWidth: "200px",
-                      padding: "10px 20px",
-                      borderRadius: "999px",
-                      backgroundColor: "#FEF6D2",
-                      color: "#D97706",
-                      border: "1px solid #ffe98f",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Get Weekly Access →
-                  </button>
-                </div>
-        
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: "460px",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    backgroundColor: "#FFFFFF",
-                  }}
-                >
-                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Monthly Judgment Access
-                  </h3>
-
-                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Monthly access to process multiple cases across different scenarios using a structured decision approach.
-                  </p>
-
-                  <p style={{ fontSize: "20px", fontWeight: 700 }}>
+              
+                  <p style={{ margin: "12px 0 0 0", fontSize: "28px", fontWeight: 700, color: "#0F172A" }}>
                     $499 / month
                   </p>
-
-                  <p style={{ fontSize: "13px", color: "#94A3B8", textDecoration: "line-through" }}>
-                    $699 original
+              
+                  <p
+                    style={{
+                      margin: "4px 0 0 0",
+                      fontSize: "13px",
+                      color: "#94A3B8",
+                      textDecoration: "line-through",
+                    }}
+                  >
+                    $699
                   </p>
-
-                  <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: 600, color: "#969aa4" }}>
-                    Pilot continuation pricing is reserved for 3 days after your trial ends.
-                  </p>
+              
+                  <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
+                    <div>· Unlimited pilot sessions</div>
+                    <div>· Unlimited result access</div>
+                    <div>· Internal case tracking</div>
+                    <div>· Analytics and history</div>
+                    <div>· Preview of receipt & verification states</div>
+                  </div>
+              
+                  <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Does not include</div>
+                    <div>· Formal Receipt issuance</div>
+                    <div>· Formal Verification packages</div>
+                    <div>· Exportable proof</div>
+                  </div>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowSubscriptionModal(false);
-                    }}
+                    className="inline-flex items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-700 shadow-sm transition hover:bg-green-100"
+                    style={{ marginTop: "16px" }}
+                  >
+                    Start Workspace →
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: "460px",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
+                    Formal Receipt
+                  </h3>
+
+                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
+                    Turn a case into a formal, stored decision record.
+                  </p>
+
+                  <p style={{ margin: "12px 0 0 0", fontSize: "28px", fontWeight: 700, color: "#0F172A" }}>
+                    $499 / case
+                  </p>
+
+                 <p
                     style={{
-                      marginTop: "16px",
-
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-
-                      width: "auto",
-                      minWidth: "220px",
-
-                      padding: "10px 20px",
-
-                      borderRadius: "999px",
-
-                      backgroundColor: "#ECFDF5",
-                      color: "#059669",
-                      border: "1px solid #A7F3D0",
-
-                      fontSize: "14px",
-                      fontWeight: 600,
-
-                      cursor: "pointer",
+                      margin: "4px 0 0 0",
+                     fontSize: "13px",
+                      color: "#94A3B8",
+                      textDecoration: "line-through",
                     }}
                   >
-                    Get Monthly Access →
+                    $699
+                  </p>
+
+                  <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
+                    <div>· Official receipt issuance</div>
+                    <div>· Locked case snapshot</div>
+                    <div>· Persistent storage</div>
+                    <div>· Internal documentation use</div>
+                  </div>
+              
+                  <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
+              <div>· Recording key decisions</div>
+                    <div>· Internal audits</div>
+                    <div>· Case archiving</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 hover:border-amber-400"
+                    style={{ marginTop: "16px" }}
+                  >
+                    Activate Receipt →
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: "460px",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
+                    Formal Verification
+                  </h3>
+
+                  <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
+                    Unlock the full verified proof package.
+                  </p>
+
+                  <p style={{ margin: "12px 0 0 0", fontSize: "28px", fontWeight: 700, color: "#0F172A" }}>
+                    $999 / case
+                  </p>
+
+                  <p
+                    style={{
+                      margin: "4px 0 0 0",
+                      fontSize: "13px",
+                      color: "#94A3B8",
+                      textDecoration: "line-through",
+                    }}
+                  >
+                    $1499
+                  </p>
+
+                  <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
+                    <div>· Verified outcome</div>
+                    <div>· Full proof package</div>
+                    <div>· External-use ready result</div>
+                    <div>· Portable and shareable format</div>
+                  </div>
+
+                  <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
+                    <div>· External validation</div>
+                    <div>· Compliance / risk proof</div>
+                    <div>· High-stakes decisions</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                    style={{ marginTop: "16px" }}
+                  >
+                    Activate Verification →
                   </button>
                 </div>
               </div>
+                <p
+                  style={{
+                    width: "100%",
+                    margin: "4px 0 0 0",
+                    fontSize: "13px",
+                    lineHeight: 1.7,
+                    color: "#475569",
+                    textAlign: "left",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Run unlimited decisions inside the workspace. Only pay when a case becomes a formal, portable outcome.
+                </p>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = "http://localhost:3000";
 
@@ -122,6 +122,14 @@ function isVerificationEvent(item) {
   ]);
 }
 
+function isVerificationPassEvent(item) {
+  return isExactEvent(item, "verification_passed");
+}
+
+function isVerificationBlockEvent(item) {
+  return isExactEvent(item, "verification_failed");
+}
+
 function isButtonViewed(item, buttonId) {
   return (
     getEventType(item) === "button_viewed" &&
@@ -136,10 +144,32 @@ function isButtonClicked(item, buttonId) {
   );
 }
 
+function safeRate(numerator, denominator) {
+  const num = Number(numerator || 0);
+  const den = Number(denominator || 0);
+
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) {
+    return "0%";
+  }
+
+  return `${Math.round((num / den) * 100)}%`;
+}
+
 export default function AnalyticsPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedRankKey, setSelectedRankKey] = useState("");
+  const [showRankingDetails, setShowRankingDetails] = useState(false);
+
+  const funnelRefs = useRef({
+    entry: null,
+    diagnostic: null,
+    pilotSetup: null,
+    pilot: null,
+    receipt: null,
+    verification: null,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -208,6 +238,8 @@ export default function AnalyticsPage() {
     const pilotCount = items.filter(isPilotEvent).length;
     const receiptCount = items.filter(isReceiptEvent).length;
     const verificationCount = items.filter(isVerificationEvent).length;
+    const verificationPassCount = items.filter(isVerificationPassEvent).length;
+    const verificationBlockCount = items.filter(isVerificationBlockEvent).length;
 
     const entryUsers = uniqueBy(items.filter(isEntryEvent), getActorKey);
     const diagnosticUsers = uniqueBy(items.filter(isDiagnosticEvent), getActorKey);
@@ -215,6 +247,8 @@ export default function AnalyticsPage() {
     const pilotUsers = uniqueBy(items.filter(isPilotEvent), getActorKey);
     const receiptUsers = uniqueBy(items.filter(isReceiptEvent), getActorKey);
     const verificationUsers = uniqueBy(items.filter(isVerificationEvent), getActorKey);
+    const verificationPassUsers = uniqueBy(items.filter(isVerificationPassEvent), getActorKey);
+    const verificationBlockUsers = uniqueBy(items.filter(isVerificationBlockEvent), getActorKey);
     const totalActors = uniqueBy(items, getActorKey);
 
     function buildButtonStats(buttonId, label) {
@@ -246,10 +280,61 @@ export default function AnalyticsPage() {
       "Start Pilot Button"
     );
 
-    function safeRate(current, previous) {
-      if (!previous) return "0%";
-      return `${Math.round((current / previous) * 100)}%`;
-    }
+    const formalVerificationCtaClickedUsers = uniqueBy(
+      items.filter((item) => isExactEvent(item, "verification_cta_clicked")),
+      getActorKey
+    );
+
+    const formalVerificationCta = {
+      buttonId: "formal_verification_cta",
+      label: "Formal Verification CTA",
+      viewedUsers: verificationPassUsers,
+      clickedUsers: formalVerificationCtaClickedUsers,
+      drop: Math.max(verificationPassUsers - formalVerificationCtaClickedUsers, 0),
+      ctr:
+        verificationPassUsers > 0
+          ? `${Math.round(
+              (formalVerificationCtaClickedUsers / verificationPassUsers) * 100
+            )}%`
+          : "0%",
+    };
+
+    const passToCtaInsight =
+      verificationPassUsers <= 0
+        ? {
+            status: "no_pass_yet",
+            title: "No PASS users yet",
+            reason:
+              "The system has not produced enough PASS results yet, so CTA hesitation cannot be evaluated.",
+            action:
+              "Improve BLOCK → PASS conversion first before diagnosing CTA hesitation.",
+          }
+        : formalVerificationCtaClickedUsers === 0
+        ? {
+            status: "cta_not_triggering",
+            title: "PASS users are not clicking the CTA",
+            reason:
+              "Users are reaching PASS, but the pricing / activation step is not being entered at all.",
+            action:
+              "Check CTA visibility, trust wording, and whether the next step feels worth acting on.",
+          }
+        : formalVerificationCtaClickedUsers < verificationPassUsers
+        ? {
+            status: "cta_hesitation",
+            title: "Some PASS users hesitate before clicking CTA",
+            reason:
+              "The proof is strong enough to pass, but the value of formal activation may still feel unclear or non-urgent.",
+            action:
+              "Strengthen value messaging around external use, trust, and why formal verification matters now.",
+          }
+        : {
+            status: "cta_healthy",
+            title: "PASS → CTA conversion is healthy",
+            reason:
+              "Users who pass are continuing into the activation step at a healthy rate.",
+            action:
+              "Keep the current CTA path stable and focus on increasing PASS volume upstream.",
+          };
     
     function buildPriorityScore(prevUsers, currentUsers) {
       const prev = Number(prevUsers || 0);
@@ -464,8 +549,13 @@ export default function AnalyticsPage() {
       },
     ];
 
-    const highestValueCandidate = [...optimizationCandidates]
-      .sort((a, b) => b.score - a.score)[0] || null;
+    // 👉 新增：完整排序（估算型）
+    const estimatedRanking = [...optimizationCandidates]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3); // 👉 只保留前3个
+
+    // 👉 保留原有逻辑（不破 UI）
+    const highestValueCandidate = estimatedRanking[0] || null;
 
     let biggestDropKey = "";
     let biggestDropValue = -1;
@@ -502,6 +592,50 @@ export default function AnalyticsPage() {
     let diagnosticText = "No high-confidence drop detected yet";
     let recommendedAction = "More data is needed before flagging a high-value optimization point.";
     let optimizationInsight = null;
+
+    const blockToPassInsight =
+      verificationBlockUsers <= 0
+        ? {
+            status: "no_block_detected",
+            title: "No BLOCK users detected",
+            reason:
+              "The system has not recorded blocked verification outcomes yet, so no intervention point needs to be prioritized.",
+            action:
+              "Keep monitoring PASS quality and upstream conversion.",
+          }
+        : highestValueCandidate && highestValueCandidate.score > 0
+        ? {
+            status: "intervention_identified",
+            title: `Smallest intervention point: ${highestValueCandidate.fromLabel} → ${highestValueCandidate.toLabel}`,
+            reason:
+              highestValueCandidate.toKey === "pilotSetup"
+                ? "Most blocked users appear to lose momentum right after Diagnostic. This usually means the next action is not compelling enough."
+                : highestValueCandidate.toKey === "pilot"
+                ? "Most blocked users appear to stall between setup and active Pilot. This usually points to flow friction or weak handoff."
+                : highestValueCandidate.toKey === "receipt"
+                ? "Most blocked users appear to fail before Receipt becomes visible. This usually means the structure never becomes concrete enough to review."
+                : highestValueCandidate.toKey === "verification"
+                ? "Most blocked users reach Receipt but do not become verification-ready. This usually means the proof chain still feels weak or incomplete."
+                : "The current biggest structural drop is the best candidate for intervention.",
+            action:
+              highestValueCandidate.toKey === "pilotSetup"
+                ? "Strengthen the post-Diagnostic CTA and make the next step feel obvious and worthwhile."
+                : highestValueCandidate.toKey === "pilot"
+                ? "Reduce transition friction from setup into live Pilot and make entry automatic where possible."
+                : highestValueCandidate.toKey === "receipt"
+                ? "Make the result trigger and receipt generation more visible so structure becomes tangible."
+                : highestValueCandidate.toKey === "verification"
+                ? "Strengthen proof clarity, evidence confidence, and readiness cues before users hit Verification."
+                : "Prioritize the largest structural drop before changing secondary steps.",
+          }
+        : {
+            status: "needs_more_data",
+            title: "Not enough data to identify the smallest intervention point",
+            reason:
+              "Blocked outcomes exist, but current event volume is too thin to confidently isolate the best leverage point.",
+            action:
+              "Collect more live cases before locking one intervention as the priority.",
+          };
 
     const hasPostDiagnosticData =
       diagnosticUsers > 0 ||
@@ -605,15 +739,21 @@ export default function AnalyticsPage() {
         pilotCount,
         receiptCount,
         verificationCount,
+        verificationPassCount,
+        verificationBlockCount,
         pilotSetupRate: safeRate(pilotSetupCount, diagnosticCount),
         pilotRate: safeRate(pilotCount, pilotSetupCount),
         receiptRate: safeRate(receiptCount, pilotCount),
         verificationRate: safeRate(verificationCount, receiptCount),
+        verificationPassRate: safeRate(verificationPassUsers, verificationUsers),
+        verificationBlockRate: safeRate(verificationBlockUsers, verificationUsers),
         diagnosticUsers,
         pilotSetupUsers,
         pilotUsers,
         receiptUsers,
         verificationUsers,
+        verificationPassUsers,
+        verificationBlockUsers,
         biggestDropKey,
         diagnosticText,
         recommendedAction,
@@ -624,15 +764,22 @@ export default function AnalyticsPage() {
         optimizationInsight,
         highestValueCandidate,
         optimizationCandidates,
+        estimatedRanking,
         buttonInsights: {
           startPilotHeroButton,
+          formalVerificationCta,
         },
+        passToCtaInsight,
+        blockToPassInsight,
       },
     };
   }, [items]);
 
   const hasHighValueDrop =
     summary?.funnel?.highestValueCandidate?.score > 0;
+
+  const activeHighlightKey =
+    selectedRankKey || summary?.funnel?.highestValueCandidate?.toKey || "";
 
   const fmt = (n) => (Number.isFinite(n) ? n : 0);
 
@@ -675,7 +822,31 @@ export default function AnalyticsPage() {
             {summary.funnel.recommendedAction}
           </p>
 
-          {summary.funnel.optimizationInsight ? (
+        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
+          <div className="font-medium text-neutral-900">
+            {summary.funnel.passToCtaInsight.title}
+          </div>
+          <div className="mt-1 text-neutral-600">
+            {summary.funnel.passToCtaInsight.reason}
+          </div>
+          <div className="mt-1 text-green-700">
+            Action: {summary.funnel.passToCtaInsight.action}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
+          <div className="font-medium text-neutral-900">
+            {summary.funnel.blockToPassInsight.title}
+          </div>
+          <div className="mt-1 text-neutral-600">
+            {summary.funnel.blockToPassInsight.reason}
+          </div>
+          <div className="mt-1 text-green-700">
+            Action: {summary.funnel.blockToPassInsight.action}
+          </div>
+        </div>
+
+        {summary.funnel.optimizationInsight ? (
             <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
               <div className="font-medium text-neutral-900">
                 Focus Step: {summary.funnel.optimizationInsight.step}
@@ -728,6 +899,104 @@ export default function AnalyticsPage() {
             </div>
           ) : null}
         </div>
+
+        {summary.funnel.estimatedRanking?.length > 0 ? (
+          <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium leading-6 text-neutral-900">
+                  Top Optimization Opportunity
+                </div>
+                <div className="mt-1 text-sm leading-6 text-neutral-600">
+                  Default view shows the highest-ranked step. Expand only when needed.
+                </div>
+              </div>
+        
+              <button
+                type="button"
+                onClick={() => setShowRankingDetails((prev) => !prev)}
+                className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                {showRankingDetails ? "Collapse" : "View Top 3"}
+              </button>
+            </div>
+        
+            <div className="mt-4 space-y-3">
+              {(showRankingDetails
+                ? summary.funnel.estimatedRanking
+                : summary.funnel.estimatedRanking.slice(0, 1)
+              ).map((item, index) => (
+                <button
+                  key={`${item.fromKey}-${item.toKey}`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRankKey(item.toKey);
+
+                    const target = funnelRefs.current?.[item.toKey];
+                    if (target && typeof target.scrollIntoView === "function") {
+                      target.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      });
+                    }
+                  }}
+                  className={`block w-full rounded-xl border px-4 py-3 text-left transition ${
+                    activeHighlightKey === item.toKey
+                      ? "border-red-300 bg-red-50"
+                      : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-neutral-900">
+                      #{index + 1} · {item.fromLabel} → {item.toLabel}
+                    </div>
+        
+                    <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-900">
+                      Score · {item.score}
+                    </div>
+                  </div>
+        
+                  <div className="mt-2 text-sm text-neutral-700">
+                    Likely Issue ·{" "}
+                    {item.toKey === "pilotSetup"
+                      ? "CTA / Button"
+                      : item.toKey === "pilot"
+                      ? "Path / Routing"
+                      : item.toKey === "receipt"
+                      ? "Path / Trigger"
+                      : item.toKey === "verification"
+                      ? "Copy / Messaging"
+                      : "Unknown"}
+                  </div>
+        
+                  <div className="mt-1 text-sm text-neutral-600">
+                    {item.toKey === "pilotSetup"
+                      ? "Users finish Diagnostic but do not start the next step."
+                      : item.toKey === "pilot"
+                      ? "Users begin setup but do not reach Pilot."
+                      : item.toKey === "receipt"
+                      ? "Users reach Pilot but do not see Receipt."
+                      : item.toKey === "verification"
+                      ? "Users reach Receipt but do not continue."
+                      : "More data is needed to interpret this step."}
+                  </div>
+        
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                      Drop · {item.drop}
+                    </span>
+                    <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                      Drop Rate · {Math.round(item.dropRate * 100)}%
+                    </span>
+                    <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                      Confidence · {item.confidence}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
@@ -803,8 +1072,11 @@ export default function AnalyticsPage() {
         </div>
 
         <div
+          ref={(node) => {
+            funnelRefs.current.entry = node;
+          }}
           className={`rounded-2xl border px-5 py-4 shadow-sm ${
-            summary.funnel.highestValueCandidate?.toKey === "entry"
+            activeHighlightKey === "entry"
               ? "border-red-300 bg-red-50"
               : "border-neutral-200 bg-white"
           }`}
@@ -819,8 +1091,11 @@ export default function AnalyticsPage() {
         </div>
 
           <div
+            ref={(node) => {
+              funnelRefs.current.diagnostic = node;
+            }}
             className={`rounded-2xl border px-5 py-4 shadow-sm ${
-              summary.funnel.highestValueCandidate?.toKey === "diagnostic"
+              activeHighlightKey === "diagnostic"
                 ? "border-red-300 bg-red-50"
                 : "border-neutral-200 bg-white"
             }`}
@@ -843,8 +1118,11 @@ export default function AnalyticsPage() {
           </div>
 
           <div
+            ref={(node) => {
+              funnelRefs.current.pilotSetup = node;
+            }}
             className={`rounded-2xl border px-5 py-4 shadow-sm ${
-              summary.funnel.highestValueCandidate?.toKey === "pilotSetup"
+              activeHighlightKey === "pilotSetup"
                 ? "border-red-300 bg-red-50"
                 : "border-neutral-200 bg-white"
             }`}
@@ -867,8 +1145,11 @@ export default function AnalyticsPage() {
           </div>
 
           <div
+            ref={(node) => {
+              funnelRefs.current.pilot = node;
+            }}
             className={`rounded-2xl border px-5 py-4 shadow-sm ${
-              summary.funnel.highestValueCandidate?.toKey === "pilot"
+              activeHighlightKey === "pilot"
                 ? "border-red-300 bg-red-50"
                 : "border-neutral-200 bg-white"
             }`}
@@ -891,8 +1172,11 @@ export default function AnalyticsPage() {
           </div>
         
           <div
+            ref={(node) => {
+              funnelRefs.current.receipt = node;
+            }}
             className={`rounded-2xl border px-5 py-4 shadow-sm ${
-              summary.funnel.highestValueCandidate?.toKey === "receipt"
+              activeHighlightKey === "receipt"
                 ? "border-red-300 bg-red-50"
                 : "border-neutral-200 bg-white"
             }`}
@@ -915,30 +1199,69 @@ export default function AnalyticsPage() {
           </div>
 
         <div
+          ref={(node) => {
+            funnelRefs.current.verification = node;
+          }}
           className={`rounded-2xl border px-5 py-4 shadow-sm ${
-            summary.funnel.highestValueCandidate?.toKey === "verification"
+            activeHighlightKey === "verification"
               ? "border-red-300 bg-red-50"
               : "border-neutral-200 bg-white"
           }`}
         >
-            <div className="text-sm text-neutral-500">Verification</div>
-            <div className="mt-2 text-2xl font-semibold text-neutral-900">
-              {summary.funnel.verificationUsers}
-            </div>
-            <div className="mt-3 text-xs leading-5 text-neutral-500">
-              {pathText(
-                "Receipt",
-                "Verification",
-                summary.funnel.receiptUsers,
-                summary.funnel.verificationUsers
-              )}
-            </div>
-            <div className="mt-1 text-xs text-neutral-500">
-              Events · {summary.funnel.verificationCount}
-            </div>
+          <div className="text-sm text-neutral-500">Verification</div>
+          <div className="mt-2 text-2xl font-semibold text-neutral-900">
+            {summary.funnel.verificationUsers}
+          </div>
+          <div className="mt-3 text-xs leading-5 text-neutral-500">
+            {pathText(
+              "Receipt",
+              "Verification",
+              summary.funnel.receiptUsers,
+              summary.funnel.verificationUsers
+            )}
+          </div>
+          <div className="mt-1 text-xs text-neutral-500">
+            Events · {summary.funnel.verificationCount}
           </div>
         </div>
-
+        
+        <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
+          <div className="text-sm text-neutral-500">Verification PASS</div>
+          <div className="mt-2 text-2xl font-semibold text-emerald-700">
+            {summary.funnel.verificationPassUsers}
+          </div>
+          <div className="mt-3 text-xs leading-5 text-neutral-500">
+            {pathText(
+              "Verification",
+              "PASS",
+              summary.funnel.verificationUsers,
+              summary.funnel.verificationPassUsers
+            )}
+          </div>
+          <div className="mt-1 text-xs text-neutral-500">
+            Events · {summary.funnel.verificationPassCount}
+          </div>
+        </div>
+        
+        <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
+          <div className="text-sm text-neutral-500">Verification BLOCK</div>
+          <div className="mt-2 text-2xl font-semibold text-red-700">
+            {summary.funnel.verificationBlockUsers}
+          </div>
+          <div className="mt-3 text-xs leading-5 text-neutral-500">
+            {pathText(
+              "Verification",
+              "BLOCK",
+              summary.funnel.verificationUsers,
+              summary.funnel.verificationBlockUsers
+            )}
+          </div>
+          <div className="mt-1 text-xs text-neutral-500">
+            Events · {summary.funnel.verificationBlockCount}
+          </div>
+        </div>
+      </div>
+    
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-neutral-900">
             Recent Event Stream

@@ -12,6 +12,7 @@ import { chainRegistry } from "../data/chainRegistry";
 import { getRun } from "../data/stageRunMap";
 import { resultStageCopy } from "../data/resultStageCopy";
 import { mapResultToCaseSchema } from "../utils/schemaMapper";
+import { getStableUserId } from "../utils/eventLogger";
 
 import {
   registerTrialUser,
@@ -19,31 +20,6 @@ import {
   logTrialEvent,
 } from "../lib/trialApi";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
-
-const USER_ID_KEY = "nimclea_user_id_v1";
-
-function createStableUserId() {
-  const seed = Math.random().toString(36).slice(2, 10);
-  const time = Date.now().toString(36);
-  return `u_${time}_${seed}`;
-}
-
-function getStableUserId() {
-  if (typeof window === "undefined") {
-    return `u_ssr_${Date.now()}`;
-  }
-
-  try {
-    const existing = localStorage.getItem(USER_ID_KEY);
-    if (existing) return existing;
-
-    const nextId = createStableUserId();
-    localStorage.setItem(USER_ID_KEY, nextId);
-    return nextId;
-  } catch {
-    return `u_fallback_${Date.now()}`;
-  }
-}
 
 function getEntrySource(location) {
   const stateSource =
@@ -2016,11 +1992,34 @@ export default function ResultPage({
   const navigate = useNavigate();
   const location = useLocation();
 
+  const trialSession = useMemo(() => {
+    const existing = getTrialSession();
+
+    if (existing?.sessionId || existing?.trialId) {
+      return existing;
+    }
+
+    const stableUserId = getStableUserId();
+    userId: session?.userId || stableUserId
+
+    const nextSession = {
+      sessionId: `sess_${Date.now()}`,
+      trialId: `trial_${Date.now()}`,
+      userId: stableUserId,
+      startedAt: new Date().toISOString(),
+      entrySource: getEntrySource(location),
+    };
+
+    setTrialSession(nextSession);
+    return nextSession;
+  }, [location]);
+
   useEffect(() => {
   const session = getTrialSession();
 
   if (!session?.userId) {
     const stableUserId = getStableUserId();
+    userId: session?.userId || stableUserId
 
     setTrialSession({
       ...session,
@@ -2238,6 +2237,7 @@ useEffect(() => {
 
   if (!existing?.userId) {
     const stableUserId = getStableUserId();
+    userId: session?.userId || stableUserId
 
     setTrialSession({
       ...existing,
@@ -2349,9 +2349,7 @@ useEffect(() => {
   if (!enrichedResult && !result) return;
 
   const caseId = resolvedSessionId || "case_result_view";
-  const userId =
-    getTrialSession()?.userId ||
-    stableUserId;
+  const userId = stableUserId;
 
   const weakestDimensionForView =
     result?.extraction?.weakestDimension ||
@@ -2649,6 +2647,80 @@ const pilotCtaMicrocopy = useMemo(() => {
   });
 }, [displayResult]);
 
+const lockedScopeSnapshot = useMemo(() => {
+  if (!enrichedResult || !isValidPreview(enrichedResult)) return null;
+
+  const scenarioCode =
+    enrichedResult?.scenario?.code || "";
+
+  const effectiveWeakestDimension =
+    enrichedResult?.extraction?.weakestDimension ||
+    inferWeakestDimension({
+      scenarioCode,
+      pressureProfileCode: enrichedResult?.pressureProfile?.code || "",
+      signals: enrichedResult?.top_signals || [],
+    });
+
+  const effectivePilotFocusKey =
+    pilotRouting?.pilotFocusKey ||
+    enrichedResult?.top_signals?.[0]?.key ||
+    enrichedResult?.top_signals?.[0]?.signalKey ||
+    "";
+
+  const firstGuidedAction =
+    pilotRouting?.firstGuidedAction ||
+    "Start with the first place where this workflow becomes harder to explain, verify, or sustain.";
+
+  const firstStepLabel =
+    pilotRouting?.firstStepLabel ||
+    "Start with the weakest structural point";
+
+  return {
+    scopeVersion: "scope_v0_1",
+    status: "locked",
+    lockedAt: new Date().toISOString(),
+    source: "result_page",
+    caseId: resolvedSessionId || "case_result_entry",
+    sessionId: resolvedSessionId || "",
+    scenarioCode,
+    weakestDimension: effectiveWeakestDimension,
+    pilotFocusKey: effectivePilotFocusKey,
+    firstGuidedAction,
+    firstStepLabel,
+    stage:
+      enrichedResult?.stage ||
+      resolvedPath?.stage ||
+      "S1",
+    chainId:
+      enrichedResult?.chainId ||
+      resolvedPath?.chainId ||
+      "CHAIN-001",
+    patternId:
+      enrichedResult?.patternId ||
+      resolvedPath?.patternId ||
+      "",
+    runId:
+      enrichedResult?.fallbackRunCode ||
+      enrichedResult?.runId ||
+      resolvedPath?.runCode ||
+      "",
+    workflow:
+      enrichedResult?.pilot_preview?.entry ||
+      "Selected workflow",
+    primarySignalKey:
+      enrichedResult?.top_signals?.[0]?.key ||
+      enrichedResult?.top_signals?.[0]?.signalKey ||
+      "",
+    primarySignalLabel:
+      enrichedResult?.top_signals?.[0]?.label ||
+      "",
+    summary:
+      Array.isArray(enrichedResult?.summary)
+        ? enrichedResult.summary.slice(0, 3)
+        : [],
+  };
+}, [enrichedResult, resolvedSessionId, resolvedPath, pilotRouting]);
+
 const handleStartPilot = useCallback(
   (signal = null) => {
     if (!enrichedResult || !isValidPreview(enrichedResult)) {
@@ -2733,10 +2805,10 @@ if (typeof window !== "undefined") {
         resolvedPath?.chainId ||
         "CHAIN-001",
       fallbackRunCode:
-       enrichedResult?.fallbackRunCode ||
+        enrichedResult?.fallbackRunCode ||
         resolvedPath?.runCode ||
         "",
-       patternId:
+      patternId:
         enrichedResult?.patternId ||
         resolvedPath?.patternId ||
         "",
@@ -2751,6 +2823,17 @@ if (typeof window !== "undefined") {
         source: "result_page_start_pilot",
       },
     });
+
+    try {
+      if (lockedScopeSnapshot) {
+        localStorage.setItem(
+          "nimclea_locked_scope_snapshot",
+          JSON.stringify(lockedScopeSnapshot)
+        );
+      }
+    } catch (error) {
+      console.error("failed to persist lockedScopeSnapshot:", error);
+    }
 
     Promise.resolve(
       logTrialEvent({
@@ -2788,9 +2871,6 @@ if (typeof window !== "undefined") {
       console.error("button_clicked log failed:", err);
     });
 
-    source: "result_page_start_pilot",
-    entrySource,
-
     Promise.resolve(
       logTrialEvent({
         eventType: "pilot_started",
@@ -2824,6 +2904,7 @@ if (typeof window !== "undefined") {
         preview: enrichedResult,
         result: enrichedResult,
         caseSchema,
+        lockedScopeSnapshot,
         scenarioCode: enrichedResult?.scenario?.code || "",
         primarySignalKey,
         weakestDimension: effectiveWeakestDimension,
@@ -2841,15 +2922,13 @@ if (typeof window !== "undefined") {
         sessionId: resolvedSessionId,
         session_id: resolvedSessionId,
 
-        stableUserId,
-        userId: stableUserId,
-        entrySource,
-
         sourceInput: enrichedResult,
         preview: enrichedResult,
         result: enrichedResult,
         caseSchema,
-        trialSession: getTrialSession() || null,
+        lockedScopeSnapshot,
+
+        trialSession,
 
         stage:
           enrichedResult?.stage ||
@@ -2956,6 +3035,117 @@ if (!isValidPreview(result)) {
             </p>
           </div>
           
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+              Scope Lock
+            </div>
+
+            <h3 className="mt-2 text-lg font-semibold text-slate-900">
+              This pilot is locked to one structural point.
+            </h3>
+
+            <p className="mt-2 text-sm leading-7 text-slate-800">
+              Instead of testing everything, Nimclea is locking this 7-day pilot to the
+              single structural point most likely to change the outcome.
+            </p>
+
+            <p className="mt-2 text-sm leading-7 text-slate-700">
+              A clear scope makes the judgment defensible. Verification makes it trusted.
+            </p>
+
+            <p className="mt-2 text-sm leading-7 text-slate-700">
+              A clear scope makes the judgment defensible. Verification makes it trusted.
+            </p>
+          
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                  Locked Dimension
+                </div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  {weakestDimension || "authority"}
+                </div>
+              </div>
+          
+              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                  Locked Focus
+                </div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  {pilotRouting?.pilotFocusKey || "authority_gap"}
+                </div>
+              </div>
+          
+              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4 md:col-span-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                  First Guided Action
+                </div>
+                <div className="mt-1 text-sm text-slate-800">
+                  {pilotRouting?.firstGuidedAction || "Clarify the weakest structural point first."}
+                </div>
+              </div>
+            </div>
+          
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
+                Acceptance Checklist v0.1
+              </div>
+          
+              <p className="mt-4 text-sm leading-6 text-slate-700">
+                For decisions that need to hold under scrutiny, proceed to Verification.
+              </p>
+
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+                <div className="flex gap-2">
+                  <span className="font-semibold text-emerald-700">✓</span>
+                  <span>
+                    One real workflow is selected around{" "}
+                    <span className="font-semibold text-slate-900">
+                      {enrichedResult?.top_signals?.[0]?.label || "the primary structural signal"}
+                    </span>.
+                  </span>
+                </div>
+          
+                <div className="flex gap-2">
+                  <span className="font-semibold text-emerald-700">✓</span>
+                  <span>
+                    The pilot starts from{" "}
+                    <span className="font-semibold text-slate-900">
+                      {pilotRouting?.firstStepLabel || "the weakest structural point"}
+                    </span>.
+                  </span>
+                </div>
+          
+                <div className="flex gap-2">
+                  <span className="font-semibold text-emerald-700">✓</span>
+                  <span>
+                    Success means this path becomes easier to explain, verify, or control
+                    in one real workflow.
+                  </span>
+                </div>
+          
+                <div className="flex gap-2">
+                  <span className="font-semibold text-emerald-700">✓</span>
+                  <span>
+                    This is a scoped validation for{" "}
+                    <span className="font-semibold text-slate-900">
+                      {enrichedResult?.scenario?.label || "the current scenario"}
+                    </span>,
+                    not a full rollout.
+                  </span>
+                </div>
+                
+                <p className="mt-4 text-sm leading-6 text-slate-700">
+                  For decisions that need to hold under scrutiny, proceed to Verification.
+                </p>
+
+                <p className="mt-4 text-sm leading-6 text-slate-700">
+                  For decisions that need to hold under scrutiny, proceed to Verification.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <SummarySection summary={enrichedResult.summary} />
 
           <SynthesisSection items={enrichedResult.synthesis || []} />

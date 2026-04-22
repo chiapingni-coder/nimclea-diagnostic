@@ -62,8 +62,8 @@ function getStoredReceiptSource() {
 
 function normalizeRunEntry(entry = {}) {
   return {
-    runId: entry.runId || entry.runLabel || "RUN000",
-    runLabel: entry.runLabel || entry.runId || "RUN000",
+    runId: entry.runId || entry.runLabel || "",
+    runLabel: entry.runLabel || entry.runId || "",
     count: Number.isFinite(entry.count) ? entry.count : 1,
     stageLabel: entry.stageLabel || "",
     scenarioLabel: entry.scenarioLabel || "",
@@ -95,8 +95,8 @@ function buildRunAggregation(input = {}) {
   }
 
   const fallbackRun = normalizeRunEntry({
-    runId: input.runId || input.runLabel || "RUN000",
-    runLabel: input.runLabel || input.runId || "RUN000",
+    runId: input.runId || input.runLabel || "",
+    runLabel: input.runLabel || input.runId || "",
     count: 1,
     stageLabel: input.stageLabel || "",
     scenarioLabel: input.scenarioLabel || "",
@@ -429,7 +429,7 @@ function normalizeReceiptData(input = {}) {
     decisionStatus:
       input.decisionStatus ||
       resolvedReviewSummary.decisionStatus ||
-      "Ready for Verification",
+      "READY FOR FORMAL DETERMINATION",
 
     confidenceLabel:
       input.confidenceLabel ||
@@ -439,12 +439,12 @@ function normalizeReceiptData(input = {}) {
     receiptNote:
       input.receiptNote ||
       resolvedReviewSummary.receiptNote ||
-      "This receipt is a structured record of aggregated RUN patterns for review and verification. It does not certify individual events, but validates the structural patterns observed across the pilot window.",
+      "This record establishes a single baseline for scope, ownership, and later review. Once issued, it prevents post-hoc revision, denial, or responsibility drift.",
 
     verificationCtaText:
       input.verificationCtaText ||
       resolvedReviewSummary.verificationCtaText ||
-      "Proceed to Verification",
+      "Open Verification Review",
 
     caseData: normalizedCaseData,
     schemaVersion: normalizedCaseData?.schemaVersion || null,
@@ -647,19 +647,26 @@ export default function ReceiptPage() {
     sharedFlat.receiptNote ||
     rawData.receiptNote ||
     normalized.receiptNote ||
-    "This receipt is a structured record of aggregated RUN patterns for review and verification. It does not certify individual events, but validates the structural patterns observed across the pilot window.",
+    "This record establishes a single baseline for scope, ownership, and later review. Once issued, it prevents post-hoc revision, denial, or responsibility drift.",
 
   verificationCtaText:
     sharedFlat.verificationCtaText ||
     rawData.verificationCtaText ||
     normalized.verificationCtaText ||
-    "Proceed to Verification",
+    "Open Verification Review",
 
-  decisionStatus:
-    isVerified
-      ? "Verified"
-      : sharedFlat.decisionStatus || "Ready for Verification",
-};
+  decisionStatus: (() => {
+    if (isVerified) return "Verified";
+
+    const isEligible =
+      sharedFlat?.scoring?.receiptEligible === true ||
+      incomingSharedReceiptVerificationContract?.scoring?.receiptEligible === true;
+
+    if (isEligible) return "READY FOR FORMAL DETERMINATION";
+
+    return "Receipt Failed";
+  })(),
+    };
 
 const finalEvidenceLock = {
   ...(location.state?.evidenceLock || {}),
@@ -695,7 +702,7 @@ console.log("lock checks =", {
 });
 
 const receiptAllowsVerification =
-  data.decisionStatus === "Ready for Verification" ||
+  data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
   data.decisionStatus === "Verified" ||
   data.overallStatus === "Ready for Review" ||
   data.overallStatus === "Verified" ||
@@ -720,6 +727,10 @@ const verificationReturnStatus =
 
 const returnedFromFailedVerification =
   verificationReturnStatus === "Verification Failed";
+
+const canFormalizeProof =
+  data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+  data.decisionStatus === "Verified";
 
 React.useEffect(() => {
   const session =
@@ -808,93 +819,391 @@ if (!canRenderReceipt) {
     <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-sm font-medium text-slate-500 mb-2">
+          <p className="text-sm font-medium text-slate-500 mb-1">
             {receiptMode === "final_receipt"
-              ? "Derived from 7-day pilot summary"
+              ? "Structure-level output"
               : "Generated from a single pilot case"}
           </p>
-          <h1 className="text-3xl font-bold mb-3">
+
+          <p className="text-xs text-slate-400">
             {receiptMode === "final_receipt"
-              ? "Final Structure Proof"
-              : "Case Structure Proof"}
+              ? "Recorded structure state issued from pilot execution"
+              : "Recorded case structure from pilot execution"}
+          </p>
+
+          <h1
+            className="font-bold tracking-tight text-slate-900 mt-3 mb-2"
+            style={{ fontSize: "28px", lineHeight: "1.2" }}
+          >
+            {receiptMode === "final_receipt"
+              ? "Official Baseline Record"
+              : "Case Baseline Record"}
           </h1>
 
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Receipt ID</p>
-              <p className="font-semibold break-all">{data.receiptId}</p>
-            </div>
+          <p className="text-sm text-slate-600 mt-1 mb-3">
+            This record locks the current structure as the official baseline for scope, ownership, and future review.
+          </p>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Generated At</p>
-              <p className="font-semibold">{data.generatedAt}</p>
-            </div>
+          <div className="mt-4 flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+              <span
+                style={{
+                  width: "16px",
+                  height: "16px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "999px",
+                  border: "1px solid #86EFAC",
+                  background: "#ECFDF5",
+                  fontSize: "10px",
+                  lineHeight: 1,
+                }}
+              >
+                🛡
+              </span>
+              Issued by Nimclea Engine
+            </span>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Verified At</p>
-              <p className="font-semibold">
-                {data.verifiedAt || "Not verified yet"}
-              </p>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
+              deterministic structure record
+            </span>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+          borderRadius: "20px",
+              padding: "14px 16px",
+              marginTop: "12px",
+            }}
+          >
+            {/* ===== Row 1：ID / Time / Verified ===== */}
+           <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ padding: "6px 16px", borderRight: "1px solid #CBD5E1" }}>
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
+                  Receipt ID
+                </p>
+                <p style={{ fontWeight: 600, margin: 0 }}>{data.receiptId}</p>
+              </div>
+
+              <div style={{ padding: "6px 16px", borderRight: "1px solid #CBD5E1" }}>
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
+                  Generated At
+                </p>
+                <p style={{ fontWeight: 600, margin: 0 }}>{data.generatedAt}</p>
+              </div>
+          
+              <div style={{ padding: "6px 16px" }}>
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
+                  Verified At
+                </p>
+                <p style={{ fontWeight: 600, margin: 0 }}>
+                  {data.verifiedAt || "Not verified yet"}
+                </p>
+              </div>
+            </div>
+          
+            <div style={{ margin: "12px 0", height: "1px", background: "#CBD5E1" }} />
+          
+            {/* ===== Row 2：Hash / Lock ===== */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+              <div style={{ padding: "6px 16px" }}>
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
+                  Receipt Hash
+                </p>
+          
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                  <p style={{ fontWeight: 600, margin: 0 }}>{data.receiptHash}</p>
+          
+                  <button
+                    onClick={() => navigator.clipboard.writeText(data.receiptHash)}
+                    style={{
+                      fontSize: "11px",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      border: "1px solid #CBD5E1",
+                      background: "white",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+          
+                <p style={{ fontSize: "11px", color: "#64748B", margin: 0, lineHeight: 1.5 }}>
+                  This hash locks the issued baseline. Any material change to structure, scope, or evidence breaks the record.
+                </p>
+              </div>
+          
+              <div
+                style={{
+                  padding: "6px 16px",
+                  borderLeft: "1px solid #CBD5E1",
+                }}
+              >
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 10px 0" }}>
+                  Evidence Lock
+                </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    margin: "0 0 8px 0",
+                    color: isEvidenceLockedConsistent ? "#059669" : "#DC2626",
+                    fontWeight: 700,
+                    fontSize: "16px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "22px",
+                      height: "22px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      background: isEvidenceLockedConsistent ? "#059669" : "#DC2626",
+                      color: "#ffffff",
+                      fontSize: "12px",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {isEvidenceLockedConsistent ? "✓" : "!"}
+                  </span>
+
+                  <span>{isEvidenceLockedConsistent ? "Consistent" : "Broken"}</span>
+                </div>
+
+                <p style={{ fontSize: "11px", color: "#64748B", margin: 0, lineHeight: 1.5 }}>
+                  {isEvidenceLockedConsistent
+                    ? "Receipt matches the issued pilot evidence chain."
+                    : "Evidence chain mismatch detected."}
+                </p>
+
+                <div style={{ marginTop: "10px" }}>
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748B",
+                      margin: 0,
+                      lineHeight: 1.5,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Structure trace is preserved in the locked baseline and is fully expressed through downstream evidence outputs.
+                  </p>
+                </div>
+              </div>
+            </div>
+          
+            <div style={{ margin: "12px 0", height: "1px", background: "#CBD5E1" }} />
+          
+            {/* ===== Row 3：Status / Schema ===== */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                alignItems: "stretch",
+                gap: "0px",
+              }}
+            >
+              <div
+                style={{
+                  padding: "12px 18px 12px 14px",
+                  marginTop: "12px",
+                  marginRight: "6px",
+                  borderRadius: "16px",
+                  background:
+                    data.decisionStatus === "Verified"
+                      ? "#ECFDF5"
+                      : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                      ? "#F0FDF4"
+                      : "#FEF2F2",
+                  border:
+                    data.decisionStatus === "Verified"
+                     ? "1px solid #86EFAC"
+                      : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                      ? "1px solid #86EFAC"
+                      : "1px solid #FCA5A5",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color:
+                      data.decisionStatus === "Verified" ||
+                      data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                        ? "#059669"
+                        : "#B91C1C",
+                    margin: "0 0 10px 0",
+                  }}
+                >
+                  Status (Judgment)
+                </p>
+              
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "44px",
+                      height: "44px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      background:
+                        data.decisionStatus === "Verified" ||
+                        data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                          ? "#059669"
+                          : "#DC2626",
+                      color: "#ffffff",
+                      fontSize: "22px",
+                      lineHeight: 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {data.decisionStatus === "Verified"
+                      ? "✓"
+                      : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                      ? "⚖"
+                      : "✕"}
+                  </span>
+              
+                  <div style={{ minWidth: 0 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "15px",
+                        fontWeight: 800,
+                        letterSpacing: "0.02em",
+                        color:
+                          data.decisionStatus === "Verified" ||
+                          data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                            ? "#047857"
+                            : "#991B1B",
+                      }}
+                    >
+                      {data.decisionStatus.toUpperCase()}
+                    </p>
+              
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#64748B",
+                        margin: "8px 0 0 0",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Baseline issuance is required for a valid and enforceable determination.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "6px 16px",
+                  borderLeft: "1px solid #CBD5E1",
+                }}
+              >
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
+                  Case Schema
+                </p>
+                <p style={{ fontWeight: 600, margin: "0 0 6px 0" }}>
+                  {data.schemaVersion || "Not attached"}
+                </p>
+
+                {typeof data.structureScoreFromCase === "number" && (
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748B",
+                      margin: "0 0 4px 0",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Structure score: {data.structureScoreFromCase.toFixed(2)}
+                  </p>
+                )}
+
+                {data.structureStatusFromCase && (
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748B",
+                      margin: 0,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Structure status: {data.structureStatusFromCase}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 grid md:grid-cols-2 gap-4 text-sm">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Receipt Hash</p>
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold break-all">{data.receiptHash}</p>
+          <div className="mt-6">
+            {canFormalizeProof ? (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-700 font-medium">
+                  This step locks the current structure as the official baseline record.
+                  No baseline, no valid determination or evidence.
+                </p>
+
+                <p style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#D97706"
+                }}>
+                  It defines scope, ownership, and the reference point for all later review.
+                </p>
 
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard.writeText(data.receiptHash)}
-                  className="shrink-0 text-xs font-medium text-green-700 bg-white border border-green-200 rounded-full px-3 py-1.5 hover:bg-green-50 hover:border-green-300 transition"
+                  onClick={() => {
+                    window.location.href =
+                      "https://buy.stripe.com/xxxxxxxxxxxx";
+                  }}
+                  className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition"
+                  style={{
+                    backgroundColor: "#D97706",
+                    color: "#ffffff",
+                    boxShadow: "0 4px 14px rgba(194,65,12,0.28)",
+                  }}
                 >
-                  Copy
+                  Lock Official Baseline Record
                 </button>
+
+                <p className="text-[11px] text-slate-400 mt-2">
+                  You will review and confirm before the record becomes irreversible.
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Deterministically generated from RUN structure and behavioral execution summary. Reproducible under the same inputs.
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Evidence Lock</p>
-              <p className="font-semibold">
-                {isEvidenceLockedConsistent ? "Consistent" : "Broken"}
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                {isEvidenceLockedConsistent
-                  ? "Receipt matches the issued pilot evidence chain."
-                  : "This receipt no longer matches the issued pilot evidence chain."}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Status</p>
-              <p className="font-semibold">{data.decisionStatus}</p>
-              <p className="text-xs text-slate-500 mt-2">
-                This status reflects structural consistency evaluation across RUN aggregation, hash integrity, and verification readiness.
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-slate-500 mb-1">Case Schema</p>
-              <p className="font-semibold">
-                {data.schemaVersion || "Not attached"}
-              </p>
-
-              {typeof data.structureScoreFromCase === "number" ? (
-                <p className="text-xs text-slate-500 mt-2">
-                  Structure score: {data.structureScoreFromCase.toFixed(2)}
-                </p>
-              ) : null}
-
-              {data.structureStatusFromCase ? (
-                <p className="text-xs text-slate-500 mt-1">
-                  Structure status: {data.structureStatusFromCase}
-                </p>
-              ) : null}
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(ROUTES.PILOT_RESULT, { state: location.state })
+                }
+                className="inline-flex items-center justify-center rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+              >
+                Return to Pilot Result
+              </button>
+            )}
           </div>
         </header>
 
@@ -912,220 +1221,505 @@ if (!canRenderReceipt) {
           </section>
         )}
 
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-3">{data.summaryTitle}</h2>
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold mb-3">Recorded Structure</h2>
 
-          <p className="text-slate-700 leading-7">
-            {data.summaryText ||
-              (receiptMode === "final_receipt"
-                ? "This structure proof certifies the summarized outcome of the 7-day pilot window, including the dominant workflow, observed structure, and final decision path."
-                : "This structure proof certifies the aggregated RUN patterns identified during the current pilot window.")}
-          </p>
-
-          {!data.summaryText && (
-            <p className="mt-3 text-slate-700 leading-7">
-              {receiptMode === "final_receipt"
-                ? "It does not represent a generic recommendation. It formalizes the final pilot summary that was eligible for receipt generation."
-                : "It does not represent a generic recommendation. It formalizes the structural patterns (RUNs) observed across the current pilot execution."}
-            </p>
-          )}
-        </section>
-
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">Recorded Structure</h2>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-sm text-slate-500 mb-1">Scenario</p>
-              <p className="font-semibold">
-                {data.scenarioLabel || data.caseData?.scenarioCode || "No Dominant Scenario"}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-sm text-slate-500 mb-1">Stage</p>
-              <p className="font-semibold">
-                {data.stageLabel || data.caseData?.stage || "S0"}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-sm text-slate-500 mb-1">Confidence</p>
-              <p className="font-semibold">{data.confidenceLabel}</p>
-            </div>
-          </div>
-
-          <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <p className="text-sm text-slate-500">Aggregated RUNs</p>
-              <p className="text-sm font-medium text-slate-600">
-                {data.totalRunHits} total hit{data.totalRunHits > 1 ? "s" : ""}
-              </p>
-            </div>
-
-            {Array.isArray(data.runEntries) && data.runEntries.length > 0 ? (
-              <ul className="space-y-3">
-                {data.runEntries.map((entry, index) => (
-                  <li
-                    key={`${entry.runLabel}-${index}`}
-                    className="rounded-xl border border-slate-200 bg-white p-4"
+            <div
+              style={{
+                backgroundColor: "#F8FAFC",
+                border: "1px solid #CBD5E1",
+                borderRadius: "20px",
+                padding: "14px 16px",
+              }}
+            >
+              {/* ===== Row 1：Scenario / Stage / Confidence ===== */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "6px 16px",
+                    borderRight: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                    }}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold">{entry.runLabel}</p>
-                      <span className="text-sm font-medium text-slate-600">
-                        × {entry.count}
-                      </span>
-                    </div>
+                    Scenario
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 600,
+                      margin: 0,
+                    }}
+                  >
+                    {data.scenarioLabel || "No Dominant Scenario"}
+                  </p>
+                </div>
 
-                    {(entry.stageLabel || entry.scenarioLabel) && (
-                      <p className="mt-2 text-sm text-slate-600">
-                        {[entry.stageLabel, entry.scenarioLabel].filter(Boolean).join(" · ")}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-slate-600">No RUN aggregation available.</p>
-            )}
-          </div>
+                <div
+                  style={{
+                    padding: "6px 16px",
+                    borderRight: "1px solid #CBD5E1",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                    }}
+                  >
+                    Stage
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 600,
+                      margin: 0,
+                    }}
+                  >
+                    {data.stageLabel || "S0"}
+                  </p>
+                </div>
+          
+                <div
+                  style={{
+                    padding: "6px 16px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                    }}
+                  >
+                    Confidence
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 600,
+                      margin: 0,
+                    }}
+                  >
+                    {data.confidenceLabel}
+                  </p>
+                </div>
+              </div>
+          
+              <div
+                style={{
+                  margin: "12px 0",
+                  height: "1px",
+                  background: "#CBD5E1",
+                }}
+              />
 
-          <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <p className="text-sm text-slate-500 mb-1">
-              {receiptMode === "final_receipt" ? "Pilot summary" : "Case tested"}
-            </p>
-            <p className="font-semibold leading-7">
-              {getSafeCaseSummary(data.caseData || {}) ||
-                data.displayContext ||
-                "No case attached"}
-            </p>
-          </div>
-        </section>
+              {/* ===== Row 2：RUN summary ===== */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "0 16px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    margin: 0,
+                  }}
+                >
+                  Aggregated RUNs
+                </p>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    margin: 0,
+                    color: "#0F172A",
+                  }}
+                >
+                  {data.totalRunHits} total hit{data.totalRunHits > 1 ? "s" : ""}
+                </p>
+              </div>
 
-              {data.caseData ? (
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-xl font-semibold mb-4">Case Schema Snapshot</h2>
+              <div
+                style={{
+                  margin: "12px 0",
+                  height: "1px",
+                  background: "#CBD5E1",
+                }}
+              />
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Weakest dimension</p>
-                <p className="font-semibold">
+              {/* ===== Row 3：Pilot summary ===== */}
+              <div style={{ padding: "0 16px" }}>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    margin: "0 0 4px 0",
+                  }}
+                >
+                  {receiptMode === "final_receipt" ? "Pilot summary" : "Case tested"}
+                </p>
+
+                <p
+                  style={{
+                    fontWeight: 600,
+                    lineHeight: 1.4,
+                    margin: 0,
+                  }}
+                >
+                  {(() => {
+                    const summary =
+                      getSafeCaseSummary(data.caseData || {}) ||
+                      data.displayContext ||
+                      "";
+          
+                    if (!summary || summary === "No structured summary available.") {
+                      return "No pilot case summary attached.";
+                    }
+          
+                    return summary;
+                  })()}
+                </p>
+              </div>
+           </div>
+          </section>
+
+      {data.caseData ? (
+        <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold mb-3">Case Schema Snapshot</h2>
+
+          <div
+            style={{
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+              borderRadius: "20px",
+              padding: "12px 16px",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  padding: "2px 18px",
+                  borderRight: "1px solid #CBD5E1",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
+                  Weakest dimension
+                </p>
+                <p
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    margin: 0,
+                  }}
+                >
                   {data.caseData.weakestDimension || "Not specified"}
                 </p>
               </div>
-
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Pattern</p>
-                <p className="font-semibold">
+      
+              <div
+                style={{
+                  padding: "2px 18px",
+                  borderRight: "1px solid #CBD5E1",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
+                  Pattern
+                </p>
+                <p
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    margin: 0,
+                  }}
+                >
                   {data.caseData.patternId || "PAT-00"}
                 </p>
               </div>
-
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">RUN fallback</p>
-                <p className="font-semibold">
-                  {data.caseData.fallbackRunCode || "RUN000"}
+      
+              <div
+                style={{
+                  padding: "2px 18px",
+                  borderRight: "1px solid #CBD5E1",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
+                  RUN fallback
+                </p>
+                <p
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    margin: 0,
+                  }}
+                >
+                  {data.caseData.fallbackRunCode || "RUN not resolved"}
                 </p>
               </div>
-
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Route decision</p>
-                <p className="font-semibold">
+      
+              <div
+                style={{
+                  padding: "2px 18px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    margin: "0 0 10px 0",
+                  }}
+                >
+                  Route decision
+                </p>
+                <p
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    margin: 0,
+                  }}
+                >
                   {data.caseData.routeDecision?.mode || "summary_only"}
                 </p>
+      
                 {data.caseData.routeDecision?.reason ? (
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p
+                    style={{
+                      margin: "8px 0 0 0",
+                      fontSize: "11px",
+                      lineHeight: 1.25,
+                      color: "#64748B",
+                    }}
+                  >
                     {data.caseData.routeDecision.reason}
                   </p>
                 ) : null}
               </div>
             </div>
-          </section>
-        ) : null}
+          </div>
+        </section>
+      ) : null}
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">Execution Summary</h2>
+          <h2 className="text-lg font-semibold mb-3">Execution Summary</h2>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-sm text-slate-500 mb-1">Recorded events</p>
-              <p className="font-semibold">{data.executionSummary?.totalEvents ?? 0}</p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-sm text-slate-500 mb-1">Structured events</p>
-              <p className="font-semibold">{data.executionSummary?.structuredEventsCount ?? 0}</p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid md:grid-cols-2 gap-4">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                What happened
-              </p>
-              <p className="text-sm text-slate-500 mb-1">Latest event</p>
-              <p className="font-semibold leading-7">
-                {data.executionSummary?.latestEventLabel || "No recorded structural event"}
-              </p>
-            </div>
-
-            {data.executionSummary?.latestEventDescription ? (
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Latest description</p>
-                <p className="font-semibold leading-7">
-                  {data.executionSummary.latestEventDescription}
+          <div
+            style={{
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #CBD5E1",
+              borderRadius: "20px",
+              padding: "14px 16px",
+            }}
+          >
+            {/* ===== Row 1 ===== */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+              <div style={{ padding: "6px 16px" }}>
+                <p style={{ fontSize: "13px", color: "#64748B" }}>
+                  Recorded events
+                </p>
+                <p style={{ fontSize: "16px", fontWeight: 600 }}>
+                  {data.executionSummary?.totalEvents ?? 0}
                 </p>
               </div>
-            ) : null}
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                What it caused
-              </p>
-              <p className="text-sm text-slate-500 mb-1">Observed structural shift</p>
-              <p className="font-semibold leading-7">
-                {data.executionSummary?.mainObservedShift || "No behavioral shift recorded yet."}
-              </p>
+              <div
+                style={{
+                  padding: "6px 16px",
+                  borderLeft: "1px solid #CBD5E1",
+                }}
+              >
+                <p style={{ fontSize: "13px", color: "#64748B" }}>
+                  Structured events
+                </p>
+                <p style={{ fontSize: "16px", fontWeight: 600 }}>
+                  {data.executionSummary?.structuredEventsCount ?? 0}
+                </p>
+              </div>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 md:col-span-2">
-              <p className="text-sm text-slate-500 mb-1">Next calibration action</p>
-              <p className="font-semibold leading-7">
-                {data.executionSummary?.nextCalibrationAction || "Record one real workflow event to begin calibration."}
-              </p>
+            <div style={{ margin: "10px 0", height: "1px", background: "#CBD5E1" }} />
+
+            {/* ===== Row 2 ===== */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+              <div style={{ padding: "6px 16px" }}>
+                <p style={{ fontSize: "12px", color: "#64748B" }}>
+                  WHAT HAPPENED
+                </p>
+                <p style={{ fontSize: "13px", color: "#64748B" }}>
+                  Latest event
+                </p>
+                <p style={{ fontWeight: 600 }}>
+                  {data.executionSummary?.latestEventLabel}
+                </p>
+              </div>
+          
+              <div
+                style={{
+                  padding: "6px 16px",
+                  borderLeft: "1px solid #CBD5E1",
+                }}
+              >
+                <p style={{ fontSize: "13px", color: "#64748B" }}>
+                  Latest description
+                </p>
+                <p style={{ fontWeight: 600 }}>
+                  {data.executionSummary?.latestEventDescription}
+                </p>
+              </div>
+            </div>
+          
+            <div style={{ margin: "10px 0", height: "1px", background: "#CBD5E1" }} />
+          
+            {/* ===== Row 3 ===== */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+              <div style={{ padding: "6px 16px" }}>
+                <p style={{ fontSize: "12px", color: "#64748B" }}>
+                  WHAT IT CAUSED
+                </p>
+                <p style={{ fontSize: "13px", color: "#64748B" }}>
+                  Observed structural shift
+                </p>
+                <p style={{ fontWeight: 600 }}>
+                  {data.executionSummary?.mainObservedShift}
+                </p>
+              </div>
+          
+              <div
+                style={{
+                  padding: "6px 16px",
+                  borderLeft: "1px solid #CBD5E1",
+                }}
+              >
+                <p style={{ fontSize: "13px", color: "#64748B" }}>
+                  Next calibration action
+                </p>
+                <p style={{ fontWeight: 600 }}>
+                  {data.executionSummary?.nextCalibrationAction}
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">Supporting Signals</h2>
+          <h2 className="text-lg font-semibold mb-3">Supporting Signals</h2>
 
           {Array.isArray(data.topSignals) && data.topSignals.length > 0 ? (
-            <ul className="space-y-3">
-              {data.topSignals.map((signal, index) => (
-                <li
-                  key={`${signal}-${index}`}
-                  className="bg-slate-50 rounded-xl p-4 border border-slate-200"
-                >
-                  {signal}
-                </li>
-              ))}
-            </ul>
+            <div
+              style={{
+                backgroundColor: "#F8FAFC",
+                border: "1px solid #CBD5E1",
+                borderRadius: "20px",
+                padding: "12px 16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${data.topSignals.length}, minmax(0, 1fr))`,
+                  alignItems: "center",
+                }}
+              >
+                {data.topSignals.map((signal, index) => (
+                  <div
+                    key={`${signal}-${index}`}
+                    style={{
+                      padding: "2px 14px",
+                      borderRight:
+                        index < data.topSignals.length - 1
+                          ? "1px solid #CBD5E1"
+                          : "none",
+                      flex: "1 1 auto",   // ✅ 关键：允许变宽
+                      minWidth: "0",      // ✅ 防止溢出
+                    }}
+                  >
+                    {/* 上：label */}
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "#64748B",
+                        margin: "0 0 8px 0",
+                      }}
+                    >
+                      Signal {index + 1}
+                    </p>
+        
+                    {/* 下：value（不加粗 👇） */}
+                    <p
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 600, 
+                        margin: 0,
+                        color: "#0F172A",
+                        whiteSpace: "normal",
+                        wordBreak: "keep-all",
+                        overflowWrap: "break-word",
+                      }}
+                    >
+                      {signal}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <p className="text-slate-600">No signal data available.</p>
           )}
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-3">
-            {returnedFromFailedVerification ? "Recovery step" : data.nextStepTitle}
+          <h2 className="text-lg font-semibold mb-2">
+            Receipt status
           </h2>
           <p className="text-slate-700 leading-7">
             {returnedFromFailedVerification
-              ? "Verification previously failed on this chain. Reconfirm this receipt as the current source of truth before attempting any further verification or activation."
-              : receiptMode === "final_receipt"
-              ? "Proceed to verification to confirm whether this final pilot summary, workflow, and decision path can be consistently checked across the final output, proof, and receipt."
-              : "Proceed to verification to confirm whether this aggregated RUN structure can be consistently validated across the receipt, proof, and verification layers."}
+              ? "This receipt has returned from a failed verification path. Use Verification to review the current failure state and see the repair path."
+              : canEnterVerification
+              ? "This receipt is now carrying the current structure forward. Open Verification to review whether the proof is ready, warning, or failed."
+              : "This receipt records the current structure state. Open Verification to see the failure or warning state, along with the repair path and smallest next action."}
           </p>
         </section>
 
@@ -1135,23 +1729,13 @@ if (!canRenderReceipt) {
             <p className="text-slate-700 leading-7">{data.receiptNote}</p>
           </section>
 
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-900">
-            <p>
-              This record can be shared, but not verified externally.
-            </p>
-            <p className="mt-1 font-medium">
-              Verification unlocks audit-ready proof.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          {canEnterVerification ? (
-            <button
-              type="button"
-              onClick={() => {
-                const session =
-                  location.state?.trialSession || getTrialSession();
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            {canEnterVerification ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const session =
+                   location.state?.trialSession || getTrialSession();
 
                 logTrialEvent(
                   {
@@ -1188,17 +1772,16 @@ if (!canRenderReceipt) {
                     },
                   },
                   { once: true }
-                ).catch((error) => {
-                  console.error("receipt_to_verification_clicked log error:", error);
-                });
-          
+                ).catch(() => {});
+                
                 navigate(ROUTES.VERIFICATION, {
                   state: {
                     ...(location.state || {}),
                     receiptPageData: data,
                     sharedReceiptVerificationContract: sharedContract,
                     caseData: data.caseData || null,
-                    verificationPageData: location.state?.verificationPageData || null,
+                    verificationPageData:
+                      location.state?.verificationPageData || null,
                     routeDecision,
                     receiptSource,
                     evidenceLock: finalEvidenceLock,
@@ -1208,8 +1791,8 @@ if (!canRenderReceipt) {
               className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
               {returnedFromFailedVerification
-                ? "Retry Verification from Recovered Receipt →"
-                : data.verificationCtaText || "Proceed to Verification"}
+                ? "Re-open Verification Status"
+                : "View Verification Status"}
             </button>
           ) : (
             <div className="flex flex-col gap-3">
@@ -1221,24 +1804,25 @@ if (!canRenderReceipt) {
                     ? "bg-red-700 text-white"
                     : "bg-slate-300 text-slate-600"
                 }`}
-                title={verificationBlockedReason}
               >
-                {!receiptAllowsVerification ? "Verification Unavailable" : "Verification Locked"}
+                {!receiptAllowsVerification
+                  ? "Verification Unavailable"
+                  : "Verification Locked"}
               </button>
-
-              <div
-                className={`rounded-xl px-4 py-3 text-sm ${
-                  !receiptAllowsVerification
-                   ? "border border-red-200 bg-red-50 text-red-700"
-                    : "border border-red-200 bg-red-50 text-red-700"
-                }`}
-              >
-               {returnedFromFailedVerification
-                  ? "Verification was previously downgraded on this chain, and the receipt still needs recovery before re-entry."
-                  : verificationBlockedReason}
-              </div>
             </div>
           )}
+
+          {/* 👇 新增：Back to Pilot 按钮 */}
+          <button
+            type="button"
+            onClick={() =>
+              navigate(ROUTES.PILOT_RESULT, { state: location.state })
+            }
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
+          >
+            Back to Pilot
+          </button>
+        </div>
         </div>
       </div>
     </div>

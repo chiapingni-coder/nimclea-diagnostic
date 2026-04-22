@@ -6,6 +6,7 @@ import { appendPilotEntry } from "./utils/pilotEntries";
 import { normalizeCaseInput } from "./utils/caseSchema";
 import { registerTrialUser, startTrial, logTrialEvent } from "./lib/trialApi";
 import { getTrialSession, setTrialSession } from "./lib/trialSession";
+import { logEvent } from "./utils/eventLogger";
 
 import {
   getCaseSummary,
@@ -734,6 +735,12 @@ export default function PilotSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const suggestedIntervention =
+    location.state?.suggestedIntervention || "";
+
+  const suggestedInterventionRank =
+    location.state?.suggestedInterventionRank || null;
+
   const stableUserId = useMemo(() => {
     return (
       location?.state?.stableUserId ||
@@ -745,7 +752,7 @@ export default function PilotSetupPage() {
   }, [location]);
 
   const trialSession = useMemo(() => {
-    return (
+   return (
       location?.state?.trialSession ||
       getTrialSession() ||
       null
@@ -760,6 +767,15 @@ export default function PilotSetupPage() {
     );
   }, [location]);
 
+  const fallbackLockedScopeSnapshot = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("nimclea_locked_scope_snapshot");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   console.log("PILOT_SETUP_LIVE_CHECK", "frontend-root-PilotSetupPage");
 
   const pcMeta = location.state?.pcMeta || {
@@ -768,9 +784,15 @@ export default function PilotSetupPage() {
   };
 
   const incomingCaseSchema =
-  location.state?.caseSchema && typeof location.state.caseSchema === "object"
-    ? normalizeCaseInput(location.state.caseSchema)
-    : null;
+    location.state?.caseSchema && typeof location.state.caseSchema === "object"
+      ? normalizeCaseInput(location.state.caseSchema)
+      : null;
+
+  const incomingLockedScopeSnapshot =
+    location.state?.lockedScopeSnapshot &&
+    typeof location.state.lockedScopeSnapshot === "object"
+      ? location.state.lockedScopeSnapshot
+      : null;
 
   const [eventType, setEventType] = useState("");
   const [showEventRequired, setShowEventRequired] = useState(false);
@@ -781,7 +803,15 @@ export default function PilotSetupPage() {
     authorityBoundary: "slightly_unclear",
     dependency: "medium",
   });
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(
+    location.state?.suggestedIntervention || ""
+  );
+
+  useEffect(() => {
+    if (!suggestedIntervention) return;
+    setDescription((prev) => prev || suggestedIntervention);
+  }, [suggestedIntervention]);
+
   const confirmLockedRef = useRef(false);
 
   const pilotSetup = location.state?.pilot_setup || null;
@@ -840,6 +870,12 @@ export default function PilotSetupPage() {
     location.state?.weakestDimension ||
     "";
 
+  const resolvedLockedScopeSnapshot =
+    incomingLockedScopeSnapshot ||
+    trialSession?.lockedScopeSnapshot ||
+    fallbackLockedScopeSnapshot ||
+    null;
+
   const pilotFocusKey =
     location.state?.pilotFocusKey ||
     incomingCaseSchema?.patternId ||
@@ -864,6 +900,17 @@ export default function PilotSetupPage() {
     typeof pilotSetup === "object";
 
   useEffect(() => {
+    if (!suggestedIntervention) return;
+
+    logEvent("suggested_intervention_started", {
+      eventName: "suggested_intervention_started",
+      rank: suggestedInterventionRank || 1,
+      intervention: suggestedIntervention,
+      page: "PilotSetupPage",
+    });
+  }, [suggestedIntervention, suggestedInterventionRank]);
+
+  useEffect(() => {
     if (!stableUserId) {
       const newId = "u_" + Date.now();
       localStorage.setItem("stableUserId", newId);
@@ -873,9 +920,22 @@ export default function PilotSetupPage() {
       const fallbackSession = {
         userId: localStorage.getItem("stableUserId") || "u_" + Date.now(),
         trialId: "t_" + Date.now(),
+        lockedScopeSnapshot:
+          resolvedLockedScopeSnapshot || {
+            workflow: pilotSetup?.workflow || "Selected workflow",
+            lockedAt: new Date().toISOString(),
+            lockedBy: "fallback",
+          },
       };
 
       setTrialSession(fallbackSession);
+
+      try {
+        localStorage.setItem(
+          "nimclea_trial_session",
+          JSON.stringify(fallbackSession)
+        );
+      } catch {}
     }
   }, [stableUserId, trialSession]);
 
@@ -935,6 +995,7 @@ export default function PilotSetupPage() {
           preview,
           result: preview,
           caseSchema: incomingCaseSchema,
+          lockedScopeSnapshot: resolvedLockedScopeSnapshot,
           stableUserId:
             stableUserId || localStorage.getItem("stableUserId") || "",
           trialSession:
@@ -1003,6 +1064,7 @@ const handleConfirm = async () => {
         email: registerRes?.data?.email || "pilot@nimclea.local",
         status: registerRes?.data?.status || "registered",
         createdAt: registerRes?.data?.createdAt || "",
+        lockedScopeSnapshot: resolvedLockedScopeSnapshot,
       };
   
       if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
@@ -1035,6 +1097,10 @@ const handleConfirm = async () => {
 
     mergedTrialSession = {
       ...existingTrialSession,
+      lockedScopeSnapshot:
+        existingTrialSession?.lockedScopeSnapshot ||
+        resolvedLockedScopeSnapshot ||
+        null,
       trialSessionId:
         startRes?.data?.trialSessionId ||
         existingTrialSession?.trialSessionId ||
@@ -1043,7 +1109,7 @@ const handleConfirm = async () => {
         startRes?.data?.startedAt ||
         existingTrialSession?.startedAt ||
         "",
-      expiresAt:
+     expiresAt:
         startRes?.data?.expiresAt ||
         existingTrialSession?.expiresAt ||
         "",
@@ -1122,7 +1188,21 @@ const handleConfirm = async () => {
   }
 
   const entryTimestamp = new Date().toISOString();
-
+  // 🧷 Scope Lock v0.1
+  const scopeLock = resolvedLockedScopeSnapshot
+    ? {
+        ...resolvedLockedScopeSnapshot,
+        workflow:
+          resolvedLockedScopeSnapshot.workflow ||
+          pilotSetup?.workflow ||
+          preview?.workflow ||
+          "Selected workflow",
+      }
+    : {
+        workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+        lockedAt: entryTimestamp,
+        lockedBy: "pilot_setup",
+      };
   const structuredEvent = {
     eventType,
     signals: {
@@ -1197,6 +1277,7 @@ const handleConfirm = async () => {
     id: `entry_${Date.now()}`,
     timestamp: entryTimestamp,
     eventType,
+    scopeLock,
 
     workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
 
@@ -1366,6 +1447,18 @@ const handleConfirm = async () => {
       ? 0.5
       : 0;
 
+  // ✅ Acceptance Checklist v0.1
+  const acceptanceChecklist = {
+    hasEvent: Boolean(eventType),
+    hasSignals: hasCoreSignals,
+    hasStructure: hasResolvedStructure,
+    hasEvidence: evidenceState === "present",
+    passed:
+      Boolean(eventType) &&
+      hasCoreSignals &&
+      hasResolvedStructure,
+  };
+
   const currentReviewMode =
     structuredEventCount >= 1 ? "event_review" : "pilot_setup";
 
@@ -1386,6 +1479,8 @@ const handleConfirm = async () => {
     runId: resolvedRoute.runId,
     pattern: resolvedRoute.pattern,
     patternLabel: resolvedRoute.patternLabel,
+    acceptanceChecklist,
+    
     stage:
       extraction?.stageCode ||
       resultSeed?.stageCode ||
@@ -1480,6 +1575,7 @@ const handleConfirm = async () => {
   const navState = buildPilotNavigationState({
     ...location.state,
     caseSchema: entryCaseData,
+    acceptanceChecklist,
 
     session_id: sessionId,
     sessionId,
@@ -1563,6 +1659,8 @@ const handleConfirm = async () => {
 
     pilot_setup: {
       ...pilotSetup,
+      scopeLock,
+      lockedScopeSnapshot: resolvedLockedScopeSnapshot || scopeLock,
       eventType,
       signalLevels,
       description: trimmedDescription,
@@ -1616,8 +1714,10 @@ const handleConfirm = async () => {
       state: {
         ...location.state,
         ...navState,
+        acceptanceChecklist,
         pcMeta,
         trialSession: mergedTrialSession,
+        lockedScopeSnapshot: resolvedLockedScopeSnapshot || scopeLock,
         caseSchema: entryCaseData,
         stableUserId:
           stableUserId ||
@@ -1697,6 +1797,8 @@ const handleConfirm = async () => {
 
         pilot_setup: {
           ...navState.pilot_setup,
+          scopeLock,
+          lockedScopeSnapshot: resolvedLockedScopeSnapshot || scopeLock,
           workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
           eventType,
           signalLevels,

@@ -305,6 +305,54 @@ function getCostAttachment(weakestDimension = "") {
   );
 }
 
+function getTopInterventions({
+  acceptanceChecklist = null,
+  weakestDimension = "",
+}) {
+  const checklist = acceptanceChecklist || {};
+  const interventions = [];
+
+  if (!checklist.hasEvent) {
+    interventions.push("Log one real event before continuing.");
+  }
+
+  if (!checklist.hasSignals) {
+    interventions.push("Add one event with clearer structural signals.");
+  }
+
+  if (!checklist.hasStructure) {
+    interventions.push("Resolve one RUN or Pattern before receipt review.");
+  }
+
+  if (!checklist.hasEvidence) {
+    interventions.push("Attach one minimal traceable explanation or evidence note.");
+  }
+
+  if (interventions.length >= 2) {
+    return interventions.slice(0, 2);
+  }
+
+  const fallbackMap = {
+    authority: "Clarify one ownership point before moving forward.",
+    boundary: "Restore one role boundary before moving forward.",
+    evidence: "Add one traceable record before moving forward.",
+    coordination: "Lock one owner and one next step before moving forward.",
+  };
+
+  if (interventions.length === 0) {
+    interventions.push(
+      fallbackMap[weakestDimension] ||
+        "Make one smaller structural correction before continuing."
+    );
+  }
+
+  if (interventions.length === 1) {
+    interventions.push("Strengthen one more structural signal before continuing.");
+  }
+
+  return interventions.slice(0, 2);
+}
+
 function getScoreTag(score, type) {
   if (type === "evidence") {
     if (score >= 3) return "strong";
@@ -657,14 +705,14 @@ function getMainPathSummary({
   if (status === "ready") {
     return {
       title: "This case is structurally strong enough to move forward.",
-      body: `${eventLabel} is now being interpreted through ${dimension || "the current structure"}, and the record is strong enough to proceed to receipt review.`,
+      body: `${eventLabel} is now being interpreted through ${dimension || "the current structure"}, and the record is strong enough to proceed to receipt review. If this decision needs to hold under scrutiny, continue to Verification after receipt generation.`,
     };
   }
 
   if (status === "building") {
     return {
       title: "This case is structurally forming, but not stable yet.",
-      body: `${eventLabel} reveals pressure around ${dimension || "the current structure"}, but the record still needs more support before it becomes review-ready.`,
+      body: `${eventLabel} reveals pressure around ${dimension || "the current structure"}, but the record still needs more support before it becomes review-ready for receipt or later Verification.`,
     };
   }
 
@@ -1120,6 +1168,12 @@ export default function PilotResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const suggestedIntervention =
+    location.state?.suggestedIntervention || "";
+
+  const suggestedInterventionRank =
+    location.state?.suggestedInterventionRank || null;
+
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
     pc_name: "Decision Risk Diagnostic",
@@ -1145,6 +1199,10 @@ export default function PilotResultPage() {
   }, []);
 
   const sourceInput = buildSourceInputFromState(location.state || {});
+  const acceptanceChecklist =
+    location.state?.acceptanceChecklist ||
+    location.state?.pilot_result?.acceptanceChecklist ||
+    null;
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showPilotRulesModal, setShowPilotRulesModal] = useState(false);
 
@@ -1366,6 +1424,24 @@ export default function PilotResultPage() {
     getEntryWeakestDimension(latestEvent) ||
     sourceInput.weakestDimension ||
     "";
+
+  const topInterventions = useMemo(() => {
+    return getTopInterventions({
+      acceptanceChecklist,
+      weakestDimension: resolvedWeakestDimension,
+    });
+  }, [acceptanceChecklist, resolvedWeakestDimension]);
+
+  useEffect(() => {
+    if (!topInterventions[0]) return;
+
+    logEvent("suggested_intervention_shown", {
+      eventName: "suggested_intervention_shown",
+      rank: 1,
+      intervention: topInterventions[0],
+      page: "PilotResultPage",
+    });
+  }, [topInterventions]);
 
   const executionSummary = useMemo(() => {
     return buildExecutionSummary(
@@ -1642,8 +1718,12 @@ const scoring = {
     combinationStatus.receiptEligible === true,
 };
 
-const receiptReviewEligible = scoring.receiptEligible;
-const weeklyReceiptEligible = receiptReviewEligible;
+const scopeGatePassed =
+  acceptanceChecklist?.passed === true;
+
+const canProceedToReceipt =
+  scoring.receiptEligible && scopeGatePassed;
+const weeklyReceiptEligible = canProceedToReceipt;
 
 const totalBase =
   scoring.evidenceScore +
@@ -1736,7 +1816,7 @@ const enhancedSourceInput = {
   continuity: combinationStatus.continuity,
   consistency: combinationStatus.consistency,
   score: scoring.totalScore,
-  receiptEligible: receiptReviewEligible,
+  receiptEligible: canProceedToReceipt,
 };
 
 return (
@@ -1744,6 +1824,18 @@ return (
     <div className="max-w-5xl mx-auto">
       <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          {suggestedIntervention && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                {suggestedInterventionRank
+                  ? `Suggested next move #${suggestedInterventionRank}`
+                  : "Suggested next move"}
+              </p>
+              <p className="mt-1 text-sm text-amber-900">
+                {suggestedIntervention}
+              </p>
+            </div>
+          )}
           <p className="text-sm font-medium text-slate-500 mb-2">
             {isWeeklySummaryFlow
               ? "7-Day Summary"
@@ -1841,14 +1933,15 @@ return (
 
                 <div className="mx-5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <p className="text-sm font-medium text-emerald-700">
-                    Primary recommendation
-                  </p>
-                  <p className="mt-1 text-base font-semibold text-emerald-900">
-                    {primaryRecommendation}
+                    Minimal intervention point
                   </p>
 
-                  <p className="mt-3 text-sm leading-6 text-emerald-800">
-                    {costAttachment}
+                  <p className="mt-1 text-base font-semibold text-emerald-900">
+                    {primaryRecommendation} 
+                  </p>
+
+                  <p className="mt-1 text-sm font-normal text-emerald-900">
+                    This is the smallest next action most likely to change the outcome without rebuilding the entire path.
                   </p>
                 </div>
 
@@ -2059,9 +2152,9 @@ return (
                 </p>
 
                 <p className="text-base font-semibold text-slate-900">
-                  {receiptReviewEligible
-                    ? "Weekly review complete enough for receipt evaluation"
-                    : "Weekly review is due, but materials are still incomplete"}
+                  {canProceedToReceipt
+                    ? "Your formal receipt is ready to unlock"
+                    : "Your formal receipt is still locked"}
                 </p>
               </div>
 
@@ -2073,11 +2166,112 @@ return (
             {receiptEligibilityExpanded && (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
                 <p className="text-sm text-slate-700">
-                  Structure {receiptReviewEligible ? "meets" : "does not meet"}{" "}
-                  the minimum threshold for receipt review. Receipt stays locked
-                  until the score reaches{" "}
-                  {scoringDisplay.receiptThreshold.toFixed(1)} / 4.
+                  {canProceedToReceipt
+                    ? "You can now unlock the formal receipt and move this case into verification."
+                    : `Your formal receipt stays locked until the structure is strong enough to pass ${scoringDisplay.receiptThreshold.toFixed(1)} / 4.`}
                 </p>
+
+                {!scopeGatePassed && (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm text-red-600">
+                      Structure is incomplete. Receipt is locked until checklist is passed.
+                    </p>
+                    <div className="space-y-3">
+                      <div className="text-sm text-amber-700">
+                        <p className="font-medium">Unlock path:</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          logEvent("suggested_intervention_clicked", {
+                            eventName: "suggested_intervention_clicked",
+                            rank: 1,
+                            intervention: topInterventions[0] || "",
+                            page: "PilotResultPage",
+                            weakestDimension: resolvedWeakestDimension,
+                            runId: primaryRunLabel || sourceInput.runId || "RUN000",
+                            pattern: sourceInput.pattern || "PAT-00",
+                          });
+
+                          const session =
+                            location.state?.trialSession ||
+                            getTrialSession() ||
+                            null;
+
+                          logTrialEvent(
+                            {
+                              userId:
+                                session?.userId ||
+                                location.state?.stableUserId ||
+                                localStorage.getItem("nimclea_user_id") ||
+                                "anonymous_user",
+                              trialId:
+                                session?.trialId ||
+                                session?.trialSessionId ||
+                                "pilot_result",
+                              sessionId:
+                                location.state?.session_id ||
+                                location.state?.sessionId ||
+                                session?.trialSessionId ||
+                                session?.trialId ||
+                                "pilot_result",
+                              caseId:
+                                location.state?.caseId ||
+                                location.state?.case_id ||
+                                "pilot_result",
+                              eventType: "intervention_started",
+                              page: "PilotResultPage",
+                              meta: {
+                                rank: 1,
+                                intervention: topInterventions[0] || "",
+                                weakestDimension: resolvedWeakestDimension || "",
+                                runId: primaryRunLabel || sourceInput.runId || "RUN000",
+                                pattern: sourceInput.pattern || "PAT-00",
+                              },
+                            },
+                            { once: true }
+                          ).catch((error) => {
+                            console.error("intervention_started log error:", error);
+                          });
+                        
+                          navigate(
+                            location.state?.session_id
+                              ? `${ROUTES.PILOT_SETUP}?session_id=${location.state.session_id}`
+                              : ROUTES.PILOT_SETUP,
+                            {
+                              state: {
+                                ...location.state,
+                                pcMeta,
+                                suggestedIntervention: topInterventions[0] || "",
+                                suggestedInterventionRank: 1,
+                              },
+                            }
+                          );
+                        }}
+                        className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
+                      >
+                        <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                          Start here
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-amber-900">
+                          {topInterventions[0] || "Take the next smallest intervention."}
+                        </p>
+                      </button>
+
+                      {topInterventions[1] && (
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                            Backup option
+                          </p>
+                          <p className="mt-1 text-sm text-slate-700">
+                            {topInterventions[1]}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="px-3 py-2 space-y-2 text-sm text-slate-800">
                   <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
@@ -2230,7 +2424,7 @@ return (
                 <div className="space-y-1">
                   <p className="text-sm text-slate-600">{complexityNote}</p>
 
-                  {receiptReviewEligible ? (
+                  {canProceedToReceipt ? (
                     <p className="text-sm text-emerald-700">
                       Receipt eligibility is based on four checks: Evidence,
                       Structure, Consistency, and Continuity.
@@ -2269,7 +2463,7 @@ return (
                   <button
                     type="button"
                     onClick={() => {
-                      if (!receiptReviewEligible) return;
+                      scoring.receiptEligible && scopeGatePassed
 
                       const routeDecision = {
                         mode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
@@ -2539,20 +2733,20 @@ return (
                       padding: "12px 20px",
                       fontSize: "14px",
                       fontWeight: 600,
-                      boxShadow: receiptReviewEligible
+                      boxShadow: canProceedToReceipt
                         ? "0 2px 8px rgba(15, 23, 42, 0.12)"
                         : "none",
-                      backgroundColor: receiptReviewEligible
+                      backgroundColor: canProceedToReceipt
                         ? "#0F172A"
                         : "#FFFFFF",
-                      color: receiptReviewEligible ? "#FFFFFF" : "#cbd5e1",
-                      border: receiptReviewEligible
+                      color: canProceedToReceipt ? "#FFFFFF" : "#cbd5e1",
+                      border: canProceedToReceipt
                         ? "1px solid #0F172A"
                         : "1px solid #E2E8F0",
-                      cursor: receiptReviewEligible ? "pointer" : "not-allowed",
+                      cursor: canProceedToReceipt ? "pointer" : "not-allowed",
                     }}
                   >
-                    {receiptReviewEligible
+                    {canProceedToReceipt
                       ? "Continue to Receipt Review →"
                       : "Receipt locked"}
                   </button>
@@ -2837,55 +3031,49 @@ return (
         >
           <div
             style={{
-              width: "100%",
-              maxWidth: "520px",
+              width: "fit-content",
+              maxWidth: "calc(100vw - 80px)",
               maxHeight: "90vh",
               overflowY: "auto",
               backgroundColor: "#ffffff",
               borderRadius: "24px",
-              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
-              border: "1px solid #E2E8F0",
-              padding: "16px",
+              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.18)",
+              padding: "18px 18px 14px 18px",
             }}
           >
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
+                display: "flex",
                 alignItems: "center",
-                columnGap: "12px",
-                marginBottom: "16px",
+                justifyContent: "space-between",
+                gap: "16px",
+                marginBottom: "14px",
                 paddingLeft: "8px",
                 paddingRight: "8px",
               }}
             >
-              <h2
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  color: "#0F172A",
-                  margin: 0,
-                  flex: 1,
-                }}
-              >
-                Choose how to continue
-              </h2>
+              <div>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "#0F172A",
+                  }}
+                >
+                  Choose how to continue
+                </h2>
+              </div>
 
               <button
                 type="button"
                 onClick={() => setShowSubscriptionModal(false)}
-                aria-label="Close"
                 style={{
-                  width: "32px",
-                  height: "32px",
-                  flexShrink: 0,
-                  borderRadius: "999px",
-                  border: "1px solid #E2E8F0",
-                  backgroundColor: "#FFFFFF",
-                  color: "#64748B",
-                  fontSize: "20px",
+                  border: "none",
+                  background: "transparent",
+                  color: "#94A3B8",
+                  fontSize: "24px",
                   lineHeight: 1,
-                  fontWeight: 500,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -2896,12 +3084,12 @@ return (
                 ×
               </button>
             </div>
-
+      
             <div
               style={{
-                display: "grid",
-                gap: "12px",
-                justifyItems: "center",
+                display: "flex",
+                gap: "16px",
+                overflowX: "auto",
                 paddingLeft: "8px",
                 paddingRight: "8px",
               }}
@@ -2924,9 +3112,9 @@ return (
                     color: "#0F172A",
                   }}
                 >
-                  Structured Review
+                  Pilot Workspace
                 </h3>
-            
+      
                 <p
                   style={{
                     margin: "8px 0 0 0",
@@ -2935,57 +3123,68 @@ return (
                     color: "#475569",
                   }}
                 >
-                  One structured review for a single case, with clear next-step guidance and decision framing.
+                  For continuous decision work inside the system.
                 </p>
-            
-                <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                  $29
-                </p>
-            
+
                 <p
                   style={{
+                    margin: "12px 0 0 0",
+                    fontSize: "28px",
+                    fontWeight: 700,
+                    color: "#0F172A",
+                  }}
+                >
+                  $499 / month
+                </p>
+      
+                <p
+                  style={{
+                    margin: "4px 0 0 0",
                     fontSize: "13px",
                     color: "#94A3B8",
                     textDecoration: "line-through",
                   }}
                 >
-                  $49 original
+                  $699
                 </p>
-            
-                <p
+      
+                <div
                   style={{
-                    marginTop: "4px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#969aa4",
+                    marginTop: "14px",
+                    fontSize: "14px",
+                    lineHeight: 1.7,
+                    color: "#334155",
                   }}
                 >
-                  Pilot continuation pricing available within 3 days
-                </p>
-            
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSubscriptionModal(false);
-                  }}
+                  <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
+                  <div>· Unlimited pilot sessions</div>
+                  <div>· Unlimited result access</div>
+                  <div>· Internal case tracking</div>
+                  <div>· Analytics and history</div>
+                  <div>· Preview of receipt & verification states</div>
+                </div>
+      
+                <div
                   style={{
                     marginTop: "12px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "auto",
-                    minWidth: "200px",
-                    padding: "10px 20px",
-                    borderRadius: "999px",
-                    backgroundColor: "#FEF2F2",
-                    color: "#DC2626",
-                    border: "1px solid #FECACA",
                     fontSize: "14px",
-                    fontWeight: 600,
-                    cursor: "pointer",
+                    lineHeight: 1.7,
+                    color: "#64748B",
                   }}
                 >
-                  Activate Formal Verification →
+                  <div style={{ fontWeight: 700, marginBottom: "4px" }}>Does not include</div>
+                  <div>· Formal Receipt issuance</div>
+                  <div>· Formal Verification packages</div>
+                  <div>· Exportable proof</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSubscriptionModal(false)}
+                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                  style={{ marginTop: "16px" }}
+                >
+                  Start Workspace →
                 </button>
               </div>
 
@@ -3007,9 +3206,9 @@ return (
                     color: "#0F172A",
                   }}
                 >
-                  Weekly Decision Access
+                  Formal Receipt
                 </h3>
-            
+      
                 <p
                   style={{
                     margin: "8px 0 0 0",
@@ -3017,144 +3216,85 @@ return (
                     lineHeight: 1.6,
                     color: "#475569",
                   }}
-            >
-                  Structured handling for multiple live decision events across one active week — not just one case.
+                >
+                  Turn a case into a formal, stored decision record.
                 </p>
-            
-                <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                  $149 / week
-                </p>
-            
+
                 <p
                   style={{
-                    fontSize: "13px",
-                    color: "#94A3B8",
-                    textDecoration: "line-through",
-                  }}
-                >
-                  $199 original
-                </p>
-            
-                <p
-                  style={{
-                    marginTop: "4px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#969aa4",
-                  }}
-                >
-                  Pilot continuation pricing available within 3 days
-                </p>
-            
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSubscriptionModal(false);
-                  }}
-                  style={{
-                    marginTop: "12px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "auto",
-                    minWidth: "200px",
-                    padding: "10px 20px",
-                    borderRadius: "999px",
-                    backgroundColor: "#FEF6D2",
-                    color: "#D97706",
-                    border: "1px solid #ffe98f",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Get Weekly Access →
-                </button>
-              </div>
-            
-              <div
-                style={{
-                  width: "100%",
-                  maxWidth: "460px",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: "16px",
-                  padding: "16px",
-                  backgroundColor: "#FFFFFF",
-                }}
-              >
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: "20px",
+                    margin: "12px 0 0 0",
+                    fontSize: "28px",
                     fontWeight: 700,
                     color: "#0F172A",
                   }}
                 >
-                  Monthly Judgment Access
-                </h3>
-            
+                  $499 / case
+                </p>
+      
                 <p
                   style={{
-                    margin: "8px 0 0 0",
-                    fontSize: "14px",
-                    lineHeight: 1.6,
-                    color: "#475569",
-                  }}
-                >
-                  Monthly access to process multiple cases across different scenarios using a structured decision approach.
-            </p>
-            
-                <p style={{ fontSize: "20px", fontWeight: 700 }}>
-                  $499 / month
-                </p>
-            
-                <p
-            style={{
+                    margin: "4px 0 0 0",
                     fontSize: "13px",
                     color: "#94A3B8",
                     textDecoration: "line-through",
                   }}
                 >
-                  $699 original
+                  $699
                 </p>
-            
-                <p
+
+                <div
                   style={{
-                    marginTop: "4px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#969aa4",
-                  }}
-                >
-                  Pilot continuation pricing available within 3 days
-                </p>
-            
-            <button
-                  type="button"
-                  onClick={() => {
-                    setShowSubscriptionModal(false);
-                  }}
-                  style={{
-                    marginTop: "16px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "auto",
-                    minWidth: "220px",
-                    padding: "10px 20px",
-                    borderRadius: "999px",
-                    backgroundColor: "#ECFDF5",
-                    color: "#059669",
-                    border: "1px solid #A7F3D0",
+                    marginTop: "14px",
                     fontSize: "14px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-            }}
+                    lineHeight: 1.7,
+                    color: "#334155",
+                  }}
                 >
-                  Get Monthly Access →
+                  <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
+                  <div>· Official receipt issuance</div>
+                  <div>· Locked case snapshot</div>
+                  <div>· Persistent storage</div>
+                  <div>· Internal documentation use</div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "12px",
+                    fontSize: "14px",
+                    lineHeight: 1.7,
+                    color: "#64748B",
+                  }}
+                >
+                  <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
+                  <div>· Recording key decisions</div>
+                  <div>· Internal audits</div>
+                  <div>· Case archiving</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSubscriptionModal(false)}
+                  className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
+                  style={{ marginTop: "16px" }}
+                >
+                  Activate Receipt →
                 </button>
               </div>
             </div>
+
+            <p
+              style={{
+                width: "100%",
+                margin: "12px 8px 0 8px",
+                fontSize: "13px",
+                lineHeight: 1.7,
+                color: "#475569",
+                textAlign: "left",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Run unlimited decisions inside the workspace. Only pay when a case becomes a formal, portable outcome.
+            </p>
           </div>
         </div>
       )}

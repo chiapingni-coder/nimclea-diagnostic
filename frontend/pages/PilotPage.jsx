@@ -2,18 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
+import { getStableUserId } from "../utils/eventLogger";
 
 import {
   registerTrialUser,
-  logTrialEvent,
   saveCaseSnapshot,
+  logTrialEvent,
 } from "../lib/trialApi";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
-
-const ANALYTICS_KEYS = {
-  USER_ID: "nimclea_user_id",
-  USER_ID_CREATED_AT: "nimclea_user_id_created_at",
-};
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
@@ -79,31 +75,6 @@ function getStoredPreview(sessionId = "") {
   if (bySession) return bySession;
 
   return safeParse(localStorage.getItem(STORAGE_KEYS.PREVIEW));
-}
-
-function createStableUserId() {
-  const seed =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `u_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-
-  return `nim_${String(seed).replace(/[^a-zA-Z0-9_-]/g, "")}`;
-}
-
-function getStableUserId() {
-  if (typeof window === "undefined") return "";
-
-  const existing = localStorage.getItem(ANALYTICS_KEYS.USER_ID);
-  if (existing) return existing;
-
-  const created = createStableUserId();
-  localStorage.setItem(ANALYTICS_KEYS.USER_ID, created);
-  localStorage.setItem(
-    ANALYTICS_KEYS.USER_ID_CREATED_AT,
-    new Date().toISOString()
-  );
-
-  return created;
 }
 
 function buildPilotRegisterEmail(stableUserId = "") {
@@ -935,11 +906,15 @@ export default function PilotPage() {
     const resolvedProgressLabelForStart = incomingProgressLabel;
     const resolvedNextActionForStart = incomingNextAction;
 
+    let trialSession =
+      location.state?.trialSession ||
+      getTrialSession() ||
+      {};
+
+    let resolvedUserId = trialSession?.userId || stableUserId;
+
     if (startInFlightRef.current) return;
     startInFlightRef.current = true;
-
-    let trialSession =
-      location.state?.trialSession || getTrialSession();
 
     try {
       if (trialSession?.userId && !trialSession?.stableUserId) {
@@ -972,6 +947,7 @@ export default function PilotPage() {
         };
 
         setTrialSession(trialSession);
+        resolvedUserId = trialSession.userId || stableUserId;
       }
     } catch (error) {
       console.error("PilotPage registerTrialUser error:", error);
@@ -1021,7 +997,7 @@ export default function PilotPage() {
     if (trialSession?.userId && trialSession?.trialId) {
       try {          
         await saveCaseSnapshot({
-          userId: trialSession.userId,
+          userId: resolvedUserId,
           trialId: trialSession.trialId,
           caseId: resolvedSessionId || "case_result_entry",
           stage: "pilot",
@@ -1090,7 +1066,7 @@ export default function PilotPage() {
     try {
       await logTrialEvent(
         {
-          userId: trialSession.userId,
+          userId: resolvedUserId,
           trialId: trialSession.trialId,
           caseId: resolvedSessionId || "case_result_entry",
           eventType: "pilot_entered",
@@ -1119,7 +1095,7 @@ export default function PilotPage() {
     try {
       await logTrialEvent(
         {
-          userId: trialSession.userId,
+          userId: resolvedUserId,
           trialId: trialSession.trialId,
           caseId: resolvedSessionId || "case_result_entry",
           eventType: "pilot_workflow_selected",

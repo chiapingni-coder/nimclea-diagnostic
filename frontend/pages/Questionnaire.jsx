@@ -639,11 +639,13 @@ if (phase === PHASE.LANDING) {
         <div style={styles.kicker}>Decision Risk Diagnostic</div>
 
         <h1 style={styles.heroTitle}>
-          Find where your decision path will fail—and fix it before it does
+          Find where your decision path will fail,
+          <br />
+          and what must be formalized next
         </h1>
 
         <p style={styles.heroSubtitle}>
-          See exactly where your decision path is breaking, what it’s already costing, and what to do next.
+          See exactly where your decision path is breaking, what it’s already costing, and what to do next and which decisions are worth formalizing.
         </p>
 
         <p style={styles.heroText}>
@@ -655,14 +657,14 @@ if (phase === PHASE.LANDING) {
         </button>
 
         <div style={styles.microcopy}>
-          Takes ~3 minutes • No prep • One clear next step
+          Takes ~3 minutes • No prep • Save your result or formalize it later
         </div>
 
         <div style={styles.landingGrid}>
           <div style={styles.landingCard}>
             <div style={styles.landingCardTitle}>What you’ll get in 3 minutes</div>
             <div style={styles.landingCardText}>
-              A clear structural result showing where the current decision path is creating friction, ambiguity, or weak traceability.
+              A clear structural result showing where your decision path is creating friction, ambiguity, or weak traceability.
             </div>
           </div>
 
@@ -676,7 +678,7 @@ if (phase === PHASE.LANDING) {
           <div style={styles.landingCard}>
             <div style={styles.landingCardTitle}>Why this works</div>
             <div style={styles.landingCardText}>
-              This is not a generic assessment. It identifies where your decision path becomes harder to execute, explain, or verify — and turns that into a clear next step.
+              This is not a generic assessment. It identifies where your decision path breaks — and turns that into a clear next step.
             </div>
           </div>
         </div>
@@ -905,7 +907,7 @@ const styles = {
     letterSpacing: "0.08em"
   },
   heroTitle: {
-    fontSize: "36px",
+    fontSize: "32px",
     lineHeight: 1.15,
     margin: "0 0 14px",
     color: "#142033"

@@ -9,6 +9,8 @@ export const ROUTES = {
   VERIFICATION: "/verification",
   RUN_LEDGER: "/run-ledger",
   ANALYTICS: "/analytics",
+  FORMAL_CHECKOUT: "/checkout/formal-verification",
+  WEEKLY_ACCESS_CHECKOUT: "/checkout/weekly-access",
 };
 
 export default ROUTES;

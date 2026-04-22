@@ -1990,5 +1990,2050 @@
       "weakestDimension": "authority"
     },
     "createdAt": "2026-04-18T05:41:29.016Z"
+  },
+  {
+    "eventId": "evt_1776558723533_watnrh",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-001",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "basically_stable",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T00:32:03.533Z"
+  },
+  {
+    "eventId": "evt_1776558723654_xe3czx",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-001",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "basically_stable",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T00:32:03.654Z"
+  },
+  {
+    "eventId": "evt_1776558734134_2ek7ck",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_page_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "basically_stable",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T00:32:14.134Z"
+  },
+  {
+    "eventId": "evt_1776558747466_xxcrp6",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-19T00:32:27.466Z"
+  },
+  {
+    "eventId": "evt_1776558747469_c226f5",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T00:32:27.469Z"
+  },
+  {
+    "eventId": "evt_1776575879816_zlvsmv",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-001",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "basically_stable",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T05:17:59.816Z"
+  },
+  {
+    "eventId": "evt_1776575879827_2l94uv",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-001",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "basically_stable",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T05:17:59.827Z"
+  },
+  {
+    "eventId": "evt_1776575900022_pthhbo",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-19T05:18:20.022Z"
+  },
+  {
+    "eventId": "evt_1776575900026_63li3p",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T05:18:20.026Z"
+  },
+  {
+    "eventId": "evt_1776576617894_aa4x7f",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "overallStatus": "Verification Ready",
+      "canActivateFormalVerification": true
+    },
+    "createdAt": "2026-04-19T05:30:17.894Z"
+  },
+  {
+    "eventId": "evt_1776576618416_9luqrv",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "formal_verification_cta",
+      "overallStatus": "Verification Ready",
+      "canActivateFormalVerification": true,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T05:30:18.416Z"
+  },
+  {
+    "eventId": "evt_1776636557328_rr36gz",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:09:17.328Z"
+  },
+  {
+    "eventId": "evt_1776636557440_lmzvfh",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T22:09:17.440Z"
+  },
+  {
+    "eventId": "evt_1776636558414_o1pm10",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:09:18.414Z"
+  },
+  {
+    "eventId": "evt_1776636558416_b020f9",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T22:09:18.416Z"
+  },
+  {
+    "eventId": "evt_1776636558902_svqynu",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:09:18.902Z"
+  },
+  {
+    "eventId": "evt_1776636558903_antz0k",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T22:09:18.903Z"
+  },
+  {
+    "eventId": "evt_1776636561877_n4xfxx",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:09:21.877Z"
+  },
+  {
+    "eventId": "evt_1776636561879_l5dblz",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T22:09:21.879Z"
+  },
+  {
+    "eventId": "evt_1776636969633_kr1pb1",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:16:09.634Z"
+  },
+  {
+    "eventId": "evt_1776636969640_omjwfl",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T22:16:09.640Z"
+  },
+  {
+    "eventId": "evt_1776636977396_zu1snk",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_page_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "boundary_blur",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:16:17.396Z"
+  },
+  {
+    "eventId": "evt_1776637239390_glis1m",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-19T22:20:39.390Z"
+  },
+  {
+    "eventId": "evt_1776637239396_q04q09",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T22:20:39.396Z"
+  },
+  {
+    "eventId": "evt_1776637318952_ca28ht",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "support_options_cta",
+      "overallStatus": "Verification Ready",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T22:21:58.952Z"
+  },
+  {
+    "eventId": "evt_1776637706604_96ybat",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-001",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "basically_stable",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-19T22:28:26.604Z"
+  },
+  {
+    "eventId": "evt_1776637706608_unbgba",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-001",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "basically_stable",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-19T22:28:26.608Z"
+  },
+  {
+    "eventId": "evt_1776637740804_kp2li2",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-19T22:29:00.804Z"
+  },
+  {
+    "eventId": "evt_1776637740808_jo37zg",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T22:29:00.808Z"
+  },
+  {
+    "eventId": "evt_1776637844209_9a2zt3",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-19T22:30:44.209Z"
+  },
+  {
+    "eventId": "evt_1776637844212_urm7nc",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T22:30:44.212Z"
+  },
+  {
+    "eventId": "evt_1776638157763_q0dpd1",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_failed",
+    "page": "VerificationPage",
+    "meta": {
+      "overallStatus": "Verification Failed",
+      "receiptMode": "final_receipt",
+      "receiptSource": "pilot_weekly_summary",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "evidenceLockStatus": "consistent",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T22:35:57.763Z"
+  },
+  {
+    "eventId": "evt_1776643036420_eerihu",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "support_options_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-19T23:57:16.420Z"
+  },
+  {
+    "eventId": "evt_1776648421612_bcgus3",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T01:27:01.612Z"
+  },
+  {
+    "eventId": "evt_1776648708713_v5dsqp",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T01:31:48.713Z"
+  },
+  {
+    "eventId": "evt_1776648924273_r6r9xr",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T01:35:24.273Z"
+  },
+  {
+    "eventId": "evt_1776648935064_8prsob",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T01:35:35.064Z"
+  },
+  {
+    "eventId": "evt_1776648941801_vq0148",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T01:35:41.801Z"
+  },
+  {
+    "eventId": "evt_1776651730195_lna4ya",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:22:10.195Z"
+  },
+  {
+    "eventId": "evt_1776651912880_egdnh6",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:25:12.880Z"
+  },
+  {
+    "eventId": "evt_1776652244721_5lnkqf",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:30:44.721Z"
+  },
+  {
+    "eventId": "evt_1776652596606_ofqhip",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:36:36.606Z"
+  },
+  {
+    "eventId": "evt_1776652720304_fmcmkz",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:38:40.304Z"
+  },
+  {
+    "eventId": "evt_1776652856943_5en3ow",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:40:56.943Z"
+  },
+  {
+    "eventId": "evt_1776653066213_reohrm",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:44:26.213Z"
+  },
+  {
+    "eventId": "evt_1776653312776_2ccsam",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:48:32.776Z"
+  },
+  {
+    "eventId": "evt_1776653429915_90oqx3",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:50:29.915Z"
+  },
+  {
+    "eventId": "evt_1776653551973_tz0oqj",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:52:31.973Z"
+  },
+  {
+    "eventId": "evt_1776653890035_l7do21",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:58:10.035Z"
+  },
+  {
+    "eventId": "evt_1776653910571_7jqqpf",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:58:30.571Z"
+  },
+  {
+    "eventId": "evt_1776653950201_itz31m",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T02:59:10.201Z"
+  },
+  {
+    "eventId": "evt_1776654085479_0aais7",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:01:25.479Z"
+  },
+  {
+    "eventId": "evt_1776654247637_swvjxq",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:04:07.637Z"
+  },
+  {
+    "eventId": "evt_1776654304256_abwvxw",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:05:04.256Z"
+  },
+  {
+    "eventId": "evt_1776654469237_9xkg0o",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:07:49.237Z"
+  },
+  {
+    "eventId": "evt_1776654503333_7scafd",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "pricing_modal_opened",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": true,
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:08:23.333Z"
+  },
+  {
+    "eventId": "evt_1776655262187_72k9jy",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:21:02.187Z"
+  },
+  {
+    "eventId": "evt_1776655280129_ruv6gx",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:21:20.129Z"
+  },
+  {
+    "eventId": "evt_1776655560523_0omf6h",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:26:00.523Z"
+  },
+  {
+    "eventId": "evt_1776655838513_n7d55o",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:30:38.513Z"
+  },
+  {
+    "eventId": "evt_1776656128723_9ni5c3",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:35:28.723Z"
+  },
+  {
+    "eventId": "evt_1776656132810_rqd8kk",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:35:32.810Z"
+  },
+  {
+    "eventId": "evt_1776656314528_e696mt",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:38:34.528Z"
+  },
+  {
+    "eventId": "evt_1776656352785_czltpm",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:39:12.785Z"
+  },
+  {
+    "eventId": "evt_1776656514173_fhzh39",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:41:54.173Z"
+  },
+  {
+    "eventId": "evt_1776656515386_n5t6q0",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:41:55.386Z"
+  },
+  {
+    "eventId": "evt_1776656515855_gvtdln",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:41:55.855Z"
+  },
+  {
+    "eventId": "evt_1776656590067_fh4qwx",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:10.067Z"
+  },
+  {
+    "eventId": "evt_1776656600782_g471d7",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:20.782Z"
+  },
+  {
+    "eventId": "evt_1776656606884_la5q84",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:26.884Z"
+  },
+  {
+    "eventId": "evt_1776656607742_o1420s",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:27.742Z"
+  },
+  {
+    "eventId": "evt_1776656612458_x7hkn4",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:32.458Z"
+  },
+  {
+    "eventId": "evt_1776656612896_c1w61s",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:32.896Z"
+  },
+  {
+    "eventId": "evt_1776656613150_6qkd2z",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:33.150Z"
+  },
+  {
+    "eventId": "evt_1776656617063_646xxb",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:37.063Z"
+  },
+  {
+    "eventId": "evt_1776656617604_lbknpi",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:43:37.604Z"
+  },
+  {
+    "eventId": "evt_1776656665474_ecflw6",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:44:25.474Z"
+  },
+  {
+    "eventId": "evt_1776656665856_7pv4bg",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:44:25.856Z"
+  },
+  {
+    "eventId": "evt_1776656666284_i9goe9",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:44:26.284Z"
+  },
+  {
+    "eventId": "evt_1776656789118_qkbq3i",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:29.118Z"
+  },
+  {
+    "eventId": "evt_1776656789957_qqag3x",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:29.957Z"
+  },
+  {
+    "eventId": "evt_1776656790573_wii54z",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:30.573Z"
+  },
+  {
+    "eventId": "evt_1776656790993_vpaytk",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:30.993Z"
+  },
+  {
+    "eventId": "evt_1776656791494_o2iec7",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:31.494Z"
+  },
+  {
+    "eventId": "evt_1776656791929_wenhnw",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:31.929Z"
+  },
+  {
+    "eventId": "evt_1776656800732_8kcd7b",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:40.732Z"
+  },
+  {
+    "eventId": "evt_1776656801231_3k9j1h",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T03:46:41.231Z"
+  },
+  {
+    "eventId": "evt_1776660426675_yrzj12",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-20T04:47:06.675Z"
+  },
+  {
+    "eventId": "evt_1776660427051_7ws9ug",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "low",
+      "authorityBoundary": "unclear",
+      "dependency": "low",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T04:47:07.051Z"
+  },
+  {
+    "eventId": "evt_1776662416812_mtlb12",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T05:20:16.812Z"
+  },
+  {
+    "eventId": "evt_1776665235945_ycdhxh",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T06:07:15.945Z"
+  },
+  {
+    "eventId": "evt_1776665244230_9w6xgw",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T06:07:24.230Z"
+  },
+  {
+    "eventId": "evt_1776665245629_jyth61",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T06:07:25.629Z"
+  },
+  {
+    "eventId": "evt_1776665249239_7848td",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T06:07:29.239Z"
+  },
+  {
+    "eventId": "evt_1776665638698_h8aq26",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T06:13:58.698Z"
+  },
+  {
+    "eventId": "evt_1776671533006_lyqd03",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T07:52:13.006Z"
+  },
+  {
+    "eventId": "evt_1776713788403_uio5t3",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-20T19:36:28.403Z"
+  },
+  {
+    "eventId": "evt_1776713788442_awhiwh",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-20T19:36:28.442Z"
+  },
+  {
+    "eventId": "evt_1776713796619_waijki",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_page_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "boundary_blur",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-20T19:36:36.619Z"
+  },
+  {
+    "eventId": "evt_1776713808449_3phjv1",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-20T19:36:48.449Z"
+  },
+  {
+    "eventId": "evt_1776713808453_h23xkd",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:36:48.453Z"
+  },
+  {
+    "eventId": "evt_1776713859328_k2zwt8",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:37:39.328Z"
+  },
+  {
+    "eventId": "evt_1776713862315_ygzy06",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:37:42.315Z"
+  },
+  {
+    "eventId": "evt_1776713863106_mwwfcm",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:37:43.106Z"
+  },
+  {
+    "eventId": "evt_1776713866533_3o40dd",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:37:46.533Z"
+  },
+  {
+    "eventId": "evt_1776713867892_a0xvli",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:37:47.892Z"
+  },
+  {
+    "eventId": "evt_1776713875088_0gva4q",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:37:55.088Z"
+  },
+  {
+    "eventId": "evt_1776713885742_jfhd7p",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:38:05.742Z"
+  },
+  {
+    "eventId": "evt_1776713887507_jgm9x0",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T19:38:07.507Z"
+  },
+  {
+    "eventId": "evt_1776718546460_q7nuiu",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T20:55:46.460Z"
+  },
+  {
+    "eventId": "evt_1776718547040_vwxulq",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T20:55:47.040Z"
+  },
+  {
+    "eventId": "evt_1776720849098_m9jlzu",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T21:34:09.098Z"
+  },
+  {
+    "eventId": "evt_1776720850291_stwg2g",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T21:34:10.291Z"
+  },
+  {
+    "eventId": "evt_1776724422484_il08h2",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T22:33:42.484Z"
+  },
+  {
+    "eventId": "evt_1776724423385_60ojt3",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T22:33:43.385Z"
+  },
+  {
+    "eventId": "evt_1776726362848_869vgr",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T23:06:02.848Z"
+  },
+  {
+    "eventId": "evt_1776726364895_jpb754",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-20T23:06:04.895Z"
+  },
+  {
+    "eventId": "evt_1776731027948_pxjq7d",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-21T00:23:47.948Z"
+  },
+  {
+    "eventId": "evt_1776731028962_pgju1s",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-21T00:23:48.962Z"
+  },
+  {
+    "eventId": "evt_1776731029694_ecfdk5",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_clicked",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-21T00:23:49.694Z"
+  },
+  {
+    "eventId": "evt_1776731031297_74zlmh",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "RCPT-DEMO-001",
+    "eventType": "verification_recovery_cta_closed",
+    "page": "VerificationPage",
+    "meta": {
+      "source": "failed_cta",
+      "overallStatus": "Verification Failed",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-21T00:23:51.297Z"
+  },
+  {
+    "eventId": "evt_1776795524217_pkmzx2",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-21T18:18:44.217Z"
+  },
+  {
+    "eventId": "evt_1776795524553_04x063",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-002",
+      "stage": "S1",
+      "run": "",
+      "scenarioCode": "boundary_blur",
+      "primarySignalKey": "dominant_failure_mode",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap",
+      "source": "result_page_start_pilot",
+      "entrySource": "result"
+    },
+    "createdAt": "2026-04-21T18:18:44.553Z"
+  },
+  {
+    "eventId": "evt_1776795567150_6xpb3n",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_page_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "boundary_blur",
+      "weakestDimension": "authority",
+      "pilotFocusKey": "authority_gap"
+    },
+    "createdAt": "2026-04-21T18:19:27.150Z"
+  },
+  {
+    "eventId": "evt_1776795576413_dfkbxc",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "eventType": "resource_control_request",
+      "weakestDimension": "authority",
+      "pcId": "PC-001"
+    },
+    "createdAt": "2026-04-21T18:19:36.413Z"
+  },
+  {
+    "eventId": "evt_1776795576418_6h7e4t",
+    "userId": "usr_1776323696872_m0wxct",
+    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "case_result_entry",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Decision trace reconstruction",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "clear",
+      "dependency": "high",
+      "weakestDimension": "authority"
+    },
+    "createdAt": "2026-04-21T18:19:36.418Z"
   }
 ]
