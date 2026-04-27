@@ -7,6 +7,8 @@ import { extractStructure } from "../engines/structureExtraction.js";
 import { buildResultSeed } from "./resultSeedBuilder";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
+import { createCaseId } from "../utils/caseRegistry.js";
+import { routeInput } from "../lib/inputRouter";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -140,7 +142,7 @@ function QuestionCard({
                   if (question.type === "multi_select") {
                     onMultiSelect(question, option);
                   } else {
-                    onSingleSelect(question.id, option.value);
+                    onSingleSelect(question.id, option.value, option.label);
                   }
                 }}
                 style={styles.optionInput}
@@ -186,8 +188,11 @@ export default function Questionnaire({ pcMeta }) {
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState(PHASE.LANDING);
+  const [diagnosticCaseId] = useState(() => createCaseId());
   const [answers, setAnswers] = useState(() => buildInitialAnswers(questions));
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [inputRouteHint, setInputRouteHint] = useState("");
+  const [pendingRouteEvent, setPendingRouteEvent] = useState(null);
 
   useEffect(() => {
     if (phase !== PHASE.LANDING) return;
@@ -202,7 +207,7 @@ export default function Questionnaire({ pcMeta }) {
           session?.sessionId ||
           session?.trialId ||
           "diagnostic_entry",
-        caseId: "diagnostic_entry",
+        caseId: diagnosticCaseId,
         userId: session?.userId || "",
         meta: {
           pcId: pcMeta?.pc_id || "",
@@ -211,7 +216,7 @@ export default function Questionnaire({ pcMeta }) {
       },
       { once: true }
     ).catch(() => {});
-  }, [phase, pcMeta]);
+  }, [phase, pcMeta, diagnosticCaseId]);
 
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -237,8 +242,33 @@ const routingFeedbackViewModel = buildRoutingFeedbackViewModel(
   activeBranchQuestions
 );
 
-  function updateSingleSelect(questionId, selectedValue) {
+  function updateSingleSelect(questionId, selectedValue, optionLabel = "") {
     console.log("👉 SELECT:", questionId, selectedValue);
+
+    const routeText = optionLabel || selectedValue;
+
+    const route = routeInput(routeText, {
+      hasActiveCase: false,
+    });
+
+    if (route?.type === "event") {
+      setInputRouteHint(
+        "This answer looks more like an event detail. You can continue, but later it may need to be attached to a case record."
+      );
+      setPendingRouteEvent({
+        questionId,
+        value: selectedValue,
+        label: optionLabel || "",
+        route,
+        capturedAt: new Date().toISOString(),
+        source: "diagnostic_questionnaire"
+      });
+    } else {
+      setInputRouteHint("");
+      setPendingRouteEvent(null);
+    }
+
+    console.log("[InputRouter]", route);
 
     setAnswers((prev) => {
       const next = {
@@ -253,6 +283,9 @@ const routingFeedbackViewModel = buildRoutingFeedbackViewModel(
   }
 
   function updateMultiSelect(question, option) {
+    setInputRouteHint("");
+    setPendingRouteEvent(null);
+
     setAnswers((prev) => {
       const current = Array.isArray(prev[question.id]) ? prev[question.id] : [];
       const isSelected = current.includes(option.value);
@@ -280,6 +313,30 @@ const routingFeedbackViewModel = buildRoutingFeedbackViewModel(
         [question.id]: next
       };
     });
+  }
+
+  function handleRecordPendingEvent() {
+    if (!pendingRouteEvent) return;
+
+    const eventPayload = {
+      id: `event_${Date.now()}`,
+      caseId: diagnosticCaseId,
+      type: "router_detected_event",
+      source: pendingRouteEvent.source,
+      questionId: pendingRouteEvent.questionId,
+      value: pendingRouteEvent.value,
+      label: pendingRouteEvent.label || "",
+      routeType: pendingRouteEvent.route?.type || "",
+      routeReason: pendingRouteEvent.route?.reason || "",
+      routeConfidence: pendingRouteEvent.route?.confidence || 0,
+      createdAt: pendingRouteEvent.capturedAt,
+    };
+
+    console.log("[InputRouter] Record as Event clicked:", eventPayload);
+
+    console.log("[InputRouter] Event held until diagnostic completion:", eventPayload);
+    setInputRouteHint("Event noted for this diagnostic. Complete the result before it becomes a case record.");
+    setPendingRouteEvent(null);
   }
 
 function clearDiagnosticStorage() {
@@ -335,9 +392,7 @@ function startDiagnostic() {
           session?.sessionId ||
           session?.trialId ||
           "diagnostic_entry",
-        caseId:
-          session?.trialId ||
-          "diagnostic_entry",
+        caseId: diagnosticCaseId,
         userId: session?.userId || "",
         meta: {
           pcId: pcMeta?.pc_id || "",
@@ -809,6 +864,18 @@ if (phase === PHASE.ROUTING_FEEDBACK) {
           canProceed={isQuestionAnswered(currentQuestion, value)}
           isSubmitting={isSubmitting || phase === PHASE.SUBMITTING}
         />
+        {inputRouteHint ? (
+          <div style={styles.inputRouteHint}>{inputRouteHint}</div>
+        ) : null}
+        {pendingRouteEvent ? (
+          <button
+            type="button"
+            style={styles.inputRouteActionButton}
+            onClick={handleRecordPendingEvent}
+          >
+            Record as Event
+          </button>
+        ) : null}
         {submitError ? <div style={styles.errorText}>{submitError}</div> : null}
       </div>
     );
@@ -854,6 +921,18 @@ if (phase === PHASE.ROUTING_FEEDBACK) {
           canProceed={isQuestionAnswered(currentQuestion, value)}
           isSubmitting={isSubmitting || phase === PHASE.SUBMITTING}
         />
+        {inputRouteHint ? (
+          <div style={styles.inputRouteHint}>{inputRouteHint}</div>
+        ) : null}
+        {pendingRouteEvent ? (
+          <button
+            type="button"
+            style={styles.inputRouteActionButton}
+            onClick={handleRecordPendingEvent}
+          >
+            Record as Event
+          </button>
+        ) : null}
         {submitError ? <div style={styles.errorText}>{submitError}</div> : null}
       </div>
     );
@@ -974,6 +1053,30 @@ const styles = {
     borderRadius: "14px",
     padding: "12px 14px",
     marginBottom: "20px"
+  },
+  inputRouteHint: {
+    width: "100%",
+    maxWidth: "760px",
+    marginTop: "12px",
+    padding: "10px 12px",
+    borderRadius: "12px",
+    background: "#fff8e6",
+    border: "1px solid #f0d48a",
+    color: "#6f5200",
+    fontSize: "13px",
+    lineHeight: 1.5,
+    boxSizing: "border-box"
+  },
+  inputRouteActionButton: {
+    marginTop: "8px",
+    border: "1px solid #e1c56d",
+    background: "#fff3c4",
+    color: "#5f4500",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer"
   },
   optionsWrap: {
     display: "grid",

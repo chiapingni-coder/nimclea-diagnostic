@@ -7,6 +7,5 @@ export default function DiagnosticPage({ pcMeta }) {
 
   // ✅ 统一口径（主轨 + fallback）
   const resolvedPcMeta = pcMeta || location.state?.pcMeta;
-
   return <Questionnaire pcMeta={resolvedPcMeta} />;
 }

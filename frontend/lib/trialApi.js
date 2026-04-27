@@ -34,10 +34,52 @@ function markEventLoggedOnce(payload = {}) {
   localStorage.setItem(getEventOnceKey(payload), "1");
 }
 
+function resolveCurrentCaseId(payload = {}) {
+  if (payload?.caseId) return payload.caseId;
+  if (payload?.meta?.caseId) return payload.meta.caseId;
+
+  try {
+    const candidates = [
+      localStorage.getItem("nimclea_current_case_id"),
+      localStorage.getItem("currentCaseId"),
+      localStorage.getItem("caseId"),
+    ].filter(Boolean);
+
+    return candidates[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+function enrichCasePayload(payload = {}, options = {}) {
+  const { includeMeta = false } = options;
+  const resolvedCaseId = resolveCurrentCaseId(payload);
+  const enrichedPayload = {
+    ...payload,
+    caseId: payload?.caseId ?? resolvedCaseId ?? null,
+  };
+
+  if (!includeMeta) return enrichedPayload;
+
+  return {
+    ...enrichedPayload,
+    meta: {
+      ...(payload?.meta || {}),
+      caseId:
+        payload?.meta?.caseId ??
+        payload?.caseId ??
+        resolvedCaseId ??
+        null,
+    },
+  };
+}
+
 export async function registerTrialUser(payload) {
+  const enrichedPayload = enrichCasePayload(payload);
+
   return safeJsonFetch(`${API_BASE}/trial/register`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(enrichedPayload),
   });
 }
 
@@ -57,8 +99,9 @@ export async function saveCaseSnapshot(payload) {
 
 export async function logTrialEvent(payload, options = {}) {
   const { once = false } = options;
+  const enrichedPayload = enrichCasePayload(payload, { includeMeta: true });
 
-  if (once && hasLoggedEventOnce(payload)) {
+  if (once && hasLoggedEventOnce(enrichedPayload)) {
     return {
       ok: true,
       skipped: true,
@@ -68,11 +111,11 @@ export async function logTrialEvent(payload, options = {}) {
 
   const data = await safeJsonFetch(`${API_BASE}/event/log`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(enrichedPayload),
   });
 
   if (once) {
-    markEventLoggedOnce(payload);
+    markEventLoggedOnce(enrichedPayload);
   }
 
   return data;

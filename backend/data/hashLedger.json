@@ -1,0 +1,16 @@
+[
+  {
+    "caseId": "CASE-1777239868765-3KXDE8",
+    "receiptHash": "H-7757642B512F2B0B0ABFCA0B",
+    "createdAt": "2026-04-26T21:55:36.733Z",
+    "updatedAt": "2026-04-26T21:55:36.735Z",
+    "source": "receipt_page"
+  },
+  {
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "receiptHash": "H-81AEA90C2121ED35DE4564C5",
+    "createdAt": "2026-04-27T06:12:43.854Z",
+    "updatedAt": "2026-04-27T06:12:44.061Z",
+    "source": "receipt_page"
+  }
+]

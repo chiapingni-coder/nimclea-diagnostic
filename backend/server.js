@@ -1,5 +1,10 @@
+import 'dotenv/config';
 console.log("🔥 THIS IS MY NEW SERVER");
 console.log("🔥 SERVER.JS IS RUNNING");
+import stripeRoutes from "./routes/stripe.js";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 import express from "express";
 import cors from "cors";
@@ -13,6 +18,8 @@ import caseRoutes from "./routes/caseRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import hashLedgerRoutes from "./routes/hashLedgerRoutes.js";
+import { ensureDataFiles } from "./utils/ensureDataFiles.js";
 
 function buildPressureProfile(groups = {}, signals = {}) {
   const pressureScore = Number(groups?.pressure_context_score || 0);
@@ -55,6 +62,8 @@ function buildPressureProfile(groups = {}, signals = {}) {
 
 const app = express();
 
+ensureDataFiles();
+
 app.use(cors());
 app.use(express.json());
 
@@ -64,6 +73,18 @@ app.use("/case", caseRoutes);
 app.use("/event", eventRoutes);
 app.use("/email", emailRoutes);
 app.use("/analytics", analyticsRoutes);
+app.use("/hash-ledger", hashLedgerRoutes);
+
+app.post("/api/events/log", (req, res) => {
+  console.log("[event log]", req.body);
+  return res.status(200).json({
+    ok: true,
+    received: true,
+    event: req.body,
+  });
+});
+
+app.use("/api", stripeRoutes);
 
 function validateSubmittedAnswers(payload) {
   const answers = payload?.answers;

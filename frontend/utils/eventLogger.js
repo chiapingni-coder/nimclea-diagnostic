@@ -45,15 +45,38 @@ export function getEntrySource() {
   }
 }
 
+function resolveCurrentCaseId(payload = {}) {
+  if (payload?.caseId) return payload.caseId;
+  if (payload?.meta?.caseId) return payload.meta.caseId;
+
+  try {
+    const candidates = [
+      localStorage.getItem("nimclea_current_case_id"),
+      localStorage.getItem("currentCaseId"),
+      localStorage.getItem("caseId"),
+    ].filter(Boolean);
+
+    return candidates[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildEventPayload(eventName, payload = {}) {
+  const resolvedCaseId = resolveCurrentCaseId(payload);
+
   return {
     event: eventName,
     timestamp: new Date().toISOString(),
     userId: payload.userId || getStableUserId(),
     source: payload.source || getEntrySource(),
     sessionId: payload.sessionId || null,
-    caseId: payload.caseId || null,
     ...payload,
+    caseId: payload.caseId ?? resolvedCaseId ?? null,
+    meta: {
+      ...(payload.meta || {}),
+      caseId: payload.meta?.caseId ?? payload.caseId ?? resolvedCaseId ?? null,
+    },
   };
 }
 

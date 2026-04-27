@@ -1,19 +1,80 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
 import {
-  appendJsonFile,
-  makeId,
   readJsonFile,
   writeJsonFile,
-} from "../utils/fileStore.js";
+  appendJsonRecord,
+} from "../utils/jsonStore.js";
 
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const CASES_FILE = "cases.json";
+const CASE_ID_PATTERN = /^CASE-\d+-[A-Z0-9]{6}$/;
 
-const casesFile = path.join(__dirname, "../data/cases.json");
+function createCaseId() {
+  return `CASE-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)
+    .toUpperCase()}`;
+}
+
+function normalizeCaseId(input = {}) {
+  if (!input || typeof input !== "object") return null;
+
+  return input.caseId || input.id || null;
+}
+
+function normalizeValidCaseId(caseId = "") {
+  const value = String(caseId || "").trim();
+  return CASE_ID_PATTERN.test(value) ? value : "";
+}
+
+function findCaseIndex(cases = [], caseId = "") {
+  if (!caseId) return -1;
+
+  return cases.findIndex(
+    (item) => item?.caseId === caseId || item?.id === caseId
+  );
+}
+
+function upsertCaseRecord(input = {}) {
+  const casesRaw = readJsonFile(CASES_FILE, []);
+  const cases = Array.isArray(casesRaw) ? casesRaw : [];
+  const now = new Date().toISOString();
+  const requestedCaseId = normalizeCaseId(input);
+  const resolvedCaseId = normalizeValidCaseId(requestedCaseId) || createCaseId();
+  const existingIndex = findCaseIndex(cases, resolvedCaseId);
+
+  if (existingIndex >= 0) {
+    const existing = cases[existingIndex] || {};
+    const updatedRecord = {
+      ...existing,
+      ...input,
+      id: existing.id || input.id || resolvedCaseId,
+      caseId: existing.caseId || input.caseId || resolvedCaseId,
+      createdAt: existing.createdAt || input.createdAt || now,
+      updatedAt: now,
+    };
+
+    cases[existingIndex] = updatedRecord;
+    writeJsonFile(CASES_FILE, cases);
+
+    return updatedRecord;
+  }
+
+  const createdRecord = {
+    ...input,
+    id: input.id || resolvedCaseId,
+    caseId: resolvedCaseId,
+    status: input.status || "draft",
+    createdAt: input.createdAt || now,
+    updatedAt: now,
+    source: "case_route",
+  };
+
+  appendJsonRecord(CASES_FILE, createdRecord);
+
+  return createdRecord;
+}
 
 router.post("/save", (req, res) => {
   try {
@@ -35,45 +96,17 @@ router.post("/save", (req, res) => {
       });
     }
 
-    const cases = readJsonFile(casesFile, []);
-    const resolvedCaseId = caseId || makeId("case");
-    const existingIndex = cases.findIndex((item) => item.caseId === resolvedCaseId);
-
     const now = new Date().toISOString();
+    const resolvedCaseId = normalizeValidCaseId(caseId) || createCaseId();
+    const cases = readJsonFile(CASES_FILE, []);
+    const existingIndex = findCaseIndex(Array.isArray(cases) ? cases : [], resolvedCaseId);
+    const previousVersion =
+      existingIndex >= 0
+        ? Number(cases[existingIndex]?.version || 1)
+        : 0;
 
-    if (existingIndex >= 0) {
-      const previousVersion = Number(cases[existingIndex]?.version || 1);
-
-      cases[existingIndex] = {
-        ...cases[existingIndex],
-        userId,
-        trialId,
-        stage,
-        score,
-        receiptEligible,
-        verificationEligible,
-        caseData,
-        version: previousVersion + 1,
-        savedAt: now,
-      };
-
-      writeJsonFile(casesFile, cases);
-
-      return res.json({
-        success: true,
-        message: "Case snapshot updated",
-        data: {
-          caseId: cases[existingIndex].caseId,
-          trialId: cases[existingIndex].trialId,
-          userId: cases[existingIndex].userId,
-          stage: cases[existingIndex].stage,
-          version: cases[existingIndex].version,
-          savedAt: cases[existingIndex].savedAt,
-        },
-      });
-    }
-
-    const record = {
+    const savedCase = upsertCaseRecord({
+      ...(req.body || {}),
       caseId: resolvedCaseId,
       userId,
       trialId,
@@ -82,22 +115,36 @@ router.post("/save", (req, res) => {
       receiptEligible,
       verificationEligible,
       caseData,
-      version: 1,
+      version: previousVersion + 1,
       savedAt: now,
-    };
+      status: req.body?.status || "draft",
+    });
 
-    appendJsonFile(casesFile, record, []);
+    if (existingIndex >= 0) {
+      return res.json({
+        success: true,
+        message: "Case snapshot updated",
+        data: {
+          caseId: savedCase.caseId,
+          trialId: savedCase.trialId,
+          userId: savedCase.userId,
+          stage: savedCase.stage,
+          version: savedCase.version,
+          savedAt: savedCase.savedAt,
+        },
+      });
+    }
 
     return res.json({
       success: true,
       message: "Case snapshot saved",
       data: {
-        caseId: record.caseId,
-        trialId: record.trialId,
-        userId: record.userId,
-        stage: record.stage,
-        version: record.version,
-        savedAt: record.savedAt,
+        caseId: savedCase.caseId,
+        trialId: savedCase.trialId,
+        userId: savedCase.userId,
+        stage: savedCase.stage,
+        version: savedCase.version,
+        savedAt: savedCase.savedAt,
       },
     });
   } catch (error) {
@@ -112,8 +159,10 @@ router.post("/save", (req, res) => {
 router.get("/:caseId", (req, res) => {
   try {
     const { caseId } = req.params;
-    const cases = readJsonFile(casesFile, []);
-    const target = cases.find((item) => item.caseId === caseId);
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
+    const targetIndex = findCaseIndex(cases, caseId);
+    const target = targetIndex >= 0 ? cases[targetIndex] : null;
 
     if (!target) {
       return res.status(404).json({
@@ -139,7 +188,8 @@ router.get("/:caseId", (req, res) => {
 router.get("/by-trial/:trialId", (req, res) => {
   try {
     const { trialId } = req.params;
-    const cases = readJsonFile(casesFile, []);
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
     const matched = cases.filter((item) => item.trialId === trialId);
 
     return res.json({

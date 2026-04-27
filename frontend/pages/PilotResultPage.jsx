@@ -10,13 +10,23 @@ import {
 } from "../utils/sharedReceiptVerificationContract";
 
 import ROUTES from "../routes";
+import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 import { logEvent } from "../utils/eventLogger";
 import { getPilotEntries } from "../utils/pilotEntries";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
+import { resolveAccessMode } from "../lib/accessMode";
 import { evaluatePilotCombinationStatus } from "../utils/verificationStatus";
+import { calculateDeterministicScore } from "../utils/deterministicScore";
 import { recordRun } from "./runLedger";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
+import {
+  resolveCaseId,
+  updateCaseStatus as setCaseStatus,
+  getCurrentCaseId,
+  getCaseById,
+  upsertCase,
+} from "../utils/caseRegistry.js";
 
 import {
   getCaseSummary,
@@ -33,6 +43,43 @@ const SCENARIO_LABEL_MAP = {
   barely_functional: "Barely Functional",
   boundary_blur: "Boundary Blur",
   fully_ready: "Fully Ready",
+};
+
+const getEventText = (event) => {
+  if (!event) return "";
+  return String(
+    event.text ??
+      event.eventText ??
+      event.description ??
+      event.input ??
+      event.rawText ??
+      event.content ??
+      event.eventInput?.description ??
+      event.eventInput?.summaryContext ??
+      event.sourceInput?.description ??
+      event.pilot_setup?.description ??
+      ""
+  ).trim();
+};
+
+const getRawEventText = (event) => {
+  if (!event) return "";
+
+  const text = String(
+    event.rawText ??
+      event.userInput ??
+      event.originalText ??
+      event.input ??
+      ""
+  ).trim();
+
+  return text;
+};
+
+const cleanTraceId = (value) => {
+  const text = String(value ?? "").trim();
+  const match = text.match(/\b(RUN\d+|PAT-\d+|CHAIN-\d+)\b/i);
+  return match ? match[1].toUpperCase() : "";
 };
 
 function normalizeRunEntry(entry = {}) {
@@ -140,7 +187,18 @@ function buildRunSummaryText(runEntries = []) {
   return `${runEntries.length} RUN pattern${runEntries.length > 1 ? "s" : ""} recorded across ${totalRunHits} structured hit${totalRunHits > 1 ? "s" : ""}.`;
 }
 
+function updateCase(caseId = "", patch = {}) {
+  if (!caseId) return null;
+
+  return upsertCase({
+    caseId,
+    ...patch,
+  });
+}
+
 function getEntryTimestamp(entry = {}) {
+  if (!entry || typeof entry !== "object") return null;
+
   const raw =
     entry.timestamp ||
     entry.createdAt ||
@@ -156,29 +214,233 @@ function getEntryTimestamp(entry = {}) {
 }
 
 function getEntryEventInput(entry = {}) {
+  if (!entry || typeof entry !== "object") return null;
+
   return entry.eventInput || entry.sourceInput || null;
 }
 
 function getEntryReviewResult(entry = {}) {
+  if (!entry || typeof entry !== "object") return null;
+
   return entry.reviewResult || entry.result || null;
 }
 
-function getEntryWeakestDimension(entry = {}) {
+function getEntryWeakestDimension(entry) {
+  if (!entry || typeof entry !== "object") {
+    return "N/A";
+  }
+
   return (
     entry.weakestDimensionSnapshot ||
     entry.weakestDimension ||
-    entry.caseData?.weakestDimension ||
-    ""
+    entry.dimension ||
+    entry?.snapshot?.weakestDimension ||
+    "N/A"
   );
 }
 
 function getEntryCaseData(entry = {}) {
+  if (!entry || typeof entry !== "object") return null;
+
   return (
     entry.reviewResult?.caseData ||
     entry.caseSchema ||
     entry.caseData ||
     null
   );
+}
+
+function getNormalizedEvidenceItems(caseData = {}, eventInput = {}) {
+  const items = [];
+
+  const pushItem = (value, type = "generic") => {
+    if (!value) return;
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      items.push({ type, text: trimmed });
+      return;
+    }
+
+    if (typeof value === "object") {
+      const text =
+        value.text ||
+        value.detail ||
+        value.description ||
+        value.label ||
+        value.id ||
+        "";
+
+      if (String(text).trim()) {
+        items.push({
+          type: value.type || type,
+          text: String(text).trim(),
+          id: value.id || "",
+          timestamp: value.timestamp || "",
+        });
+      }
+    }
+  };
+
+  // 1) 閸樼喓鏁?evidenceItems
+  if (Array.isArray(caseData?.evidenceItems)) {
+    caseData.evidenceItems.forEach((item) => pushItem(item, "evidence_item"));
+  }
+
+  // 2) 閸忕厧顔?evidence / evidenceSupport
+  if (Array.isArray(caseData?.evidence)) {
+    caseData.evidence.forEach((item) => pushItem(item, "evidence"));
+  }
+
+  if (Array.isArray(caseData?.evidenceSupport)) {
+    caseData.evidenceSupport.forEach((item) => pushItem(item, "evidence_support"));
+  }
+
+  // 3) 閸忕厧顔愭担鐘靛箛閸︺劌鐖堕崘娆戞畱鐎涙顔?
+  pushItem(caseData?.invoice, "invoice");
+  pushItem(caseData?.bankRecord, "bank_record");
+  pushItem(caseData?.approvalNote, "approval_note");
+  pushItem(caseData?.executionNote, "execution_note");
+  pushItem(caseData?.decisionStatement, "decision_statement");
+  pushItem(caseData?.executionSummary, "execution_summary");
+
+  // 4) 閸忕厧顔?eventInput 闁插苯褰查懗钘夘敚鏉╂稒娼甸惃鍕槈閹诡喗鏋冮張?
+  pushItem(eventInput?.evidence, "event_evidence");
+  pushItem(eventInput?.evidenceNote, "event_evidence_note");
+  pushItem(eventInput?.proofNote, "proof_note");
+
+  return items;
+}
+
+function buildRecordText(caseData = {}) {
+  const caseIdSafe =
+    caseData?.caseId ||
+    caseData?.case_id ||
+    caseData?.id ||
+    caseData?.resultId ||
+    "draft";
+
+  const title = caseData?.title || "Untitled case";
+
+  const pilotResult =
+    caseData?.pilot_result ||
+    caseData?.pilotResult ||
+    {};
+
+  const summary =
+    caseData?.workspace_summary ||
+    caseData?.workspaceSummary ||
+    pilotResult?.summary ||
+    "No summary available.";
+
+  const dominantScenario =
+    caseData?.dominantScenario ||
+    caseData?.dominant_scenario ||
+    pilotResult?.dominantScenario ||
+    pilotResult?.dominant_scenario ||
+    pilotResult?.scenario ||
+    "N/A";
+
+  const primarySignal =
+    caseData?.primarySignal ||
+    caseData?.primary_signal ||
+    pilotResult?.primarySignal ||
+    pilotResult?.primary_signal ||
+    pilotResult?.signal ||
+    "N/A";
+
+  const events = Array.isArray(caseData?.events) ? caseData.events : [];
+
+  const eventLines =
+    events.length > 0
+      ? events
+          .map((event, index) => {
+            const text =
+              event?.text ||
+              event?.content ||
+              event?.summary ||
+              event?.description ||
+              JSON.stringify(event);
+            return `${index + 1}. ${text}`;
+          })
+          .join("\n")
+      : "No events recorded.";
+
+  const scopeLock =
+    caseData?.scopeLock?.scopeStatement ||
+    caseData?.scope_lock?.scopeStatement ||
+    caseData?.scopeLock ||
+    "Not set";
+
+  const acceptanceChecklist = Array.isArray(caseData?.acceptanceChecklist)
+    ? caseData.acceptanceChecklist
+    : [];
+
+  const checklistLines =
+    acceptanceChecklist.length > 0
+      ? acceptanceChecklist
+          .map((item, index) => {
+            const label = item?.label || item?.name || "Checklist item";
+            const decision = item?.decision || item?.status || "UNKNOWN";
+            return `${index + 1}. ${label} 鈥?${decision}`;
+          })
+          .join("\n")
+      : "No checklist recorded.";
+
+  return `
+==============================
+EXECUTION SUMMARY
+==============================
+
+Case ID: ${caseIdSafe}
+Title: ${title}
+
+Dominant Scenario:
+${dominantScenario}
+
+Primary Signal:
+${primarySignal}
+
+Summary:
+${summary}
+
+==============================
+CUSTOMER RECORD
+==============================
+
+Structured Events:
+${eventLines}
+
+Scope Lock:
+${scopeLock}
+
+Acceptance Checklist:
+${checklistLines}
+`.trim();
+}
+
+function downloadRecord(caseData = {}) {
+  const text = buildRecordText(caseData);
+
+  const caseIdSafe =
+    caseData?.caseId ||
+    caseData?.case_id ||
+    caseData?.id ||
+    caseData?.resultId ||
+    "draft";
+
+  const fileName = `case-record-${caseIdSafe}.txt`;
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+
+  URL.revokeObjectURL(url);
 }
 
 function hasSevenDayWindowElapsed(entries = [], locationState = {}) {
@@ -453,9 +715,9 @@ function getScoreTriggerTag({
 
   if (type === "evidence") {
     const evidenceItemCount = latestThree.reduce((sum, entry) => {
-      const items = Array.isArray(entry?.caseData?.evidenceItems)
-        ? entry.caseData.evidenceItems
-        : [];
+      const caseData = entry?.caseData || entry?.reviewResult?.caseData || {};
+      const eventInput = entry?.eventInput || entry?.sourceInput || {};
+      const items = getNormalizedEvidenceItems(caseData, eventInput);
       return sum + items.length;
     }, 0);
 
@@ -627,7 +889,7 @@ function getTriggerEvidenceItems({ type, entries = [] }) {
       return {
         id: `continuity-${index}`,
         title: `Log ${safeEntries.length - Math.min(5, safeEntries.length) + index + 1}`,
-        detail: `${eventType} · ${ts}`,
+        detail: `${eventType} 璺?${ts}`,
       };
     });
   }
@@ -732,43 +994,40 @@ function getMainPathSummary({
 function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedAction = "") {
   const safeEntries = Array.isArray(entries) ? entries : [];
   const totalEvents = safeEntries.length;
+  const structuredEvents = safeEntries
+    .filter((entry) => {
+      const eventInput = getEntryEventInput(entry) || {};
+      return String(eventInput.description || "").trim().length > 0;
+    })
+    .map((entry, index) => {
+      const eventInput = getEntryEventInput(entry) || {};
+      const reviewResult = getEntryReviewResult(entry) || {};
 
-  const structuredEvents = safeEntries.filter((entry) => {
-  const eventInput = getEntryEventInput(entry) || {};
-  const caseData = getEntryCaseData(entry);
+      const eventType =
+        entry?.eventType ||
+        reviewResult?.eventType ||
+        "decision_accepted";
 
-  const hasDescription =
-    String(
-      getCaseSummary({
-        caseData,
-        summaryText: eventInput.summaryContext || "",
-      }) || ""
-    ).trim().length > 0 ||
-    String(
-      getCaseContext({
-        caseData,
-        caseInput: eventInput.description || "",
-      }) || ""
-    ).trim().length > 0;
+      const eventLabel =
+        getEventLabel(eventType) || "Structured event";
 
-  const hasEventType =
-    String(
-      entry?.eventType ||
-      getEntryReviewResult(entry)?.eventType ||
-      ""
-    ).trim().length > 0;
-  const hasPressure = String(eventInput?.externalPressure || "").trim().length > 0;
-  const hasBoundary = String(eventInput?.authorityBoundary || "").trim().length > 0;
-  const hasDependency = String(eventInput?.dependency || "").trim().length > 0;
+      const eventDescription = eventInput.description || "";
 
-    return (
-      hasDescription &&
-      hasEventType &&
-      hasPressure &&
-      hasBoundary &&
-      hasDependency
-    );
-  });
+      const createdAt =
+        entry?.timestamp ||
+        entry?.createdAt ||
+        new Date().toISOString();
+
+      return {
+        id: entry?.id || `evt_${Date.now()}_${index}`,
+        type: eventType,
+        label: eventLabel,
+        description: eventDescription,
+        text: eventDescription,
+        note: eventDescription,
+        time: createdAt,
+      };
+    });
 
   const latestEntry =
     safeEntries.length > 0 ? safeEntries[safeEntries.length - 1] : null;
@@ -797,6 +1056,7 @@ function buildExecutionSummary(entries = [], weakestDimension = "", firstGuidedA
   return {
     totalEvents,
     structuredEventsCount: structuredEvents.length,
+    structuredEvents,
     latestEventType: resolvedEventType,
     latestEventLabel:
       latestEventLabelMap[resolvedEventType] || "Structural event recorded",
@@ -1142,7 +1402,7 @@ function resolvePilotRuntimeState(locationState = {}, combinationStatus = {}, ha
         Number(upstreamStructureCompleteness || 0)
       : fallbackScore;
 
-  // ✅ descriptive-only（彻底去功能）
+  // 閴?descriptive-only閿涘牆浜ゆ惔鏇炲箵閸旂喕鍏橀敍?
 const resolvedReceiptEligible = null;
 
   return {
@@ -1167,44 +1427,41 @@ const resolvedReceiptEligible = null;
 export default function PilotResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const searchParams = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || "");
+    } catch {
+      return new URLSearchParams();
+    }
+  }, [location.search]);
 
-  const suggestedIntervention =
-    location.state?.suggestedIntervention || "";
-
-  const suggestedInterventionRank =
-    location.state?.suggestedInterventionRank || null;
-
-  const pcMeta = location.state?.pcMeta || {
-    pc_id: "PC-001",
-    pc_name: "Decision Risk Diagnostic",
-  };
-  const handleBack = () => {
-    navigate(
-      location.state?.session_id
-        ? `${ROUTES.PILOT_SETUP}?session_id=${location.state.session_id}`
-        : ROUTES.PILOT_SETUP,
-      {
-        state: {
-         ...location.state,
-          pcMeta,
-        },
-      }
-    );
-  };
-
-  console.log("🧠 PilotResult location.state =", location.state);
-
-  useEffect(() => {
-    logEvent("pilot_result_viewed");
-  }, []);
-
-  const sourceInput = buildSourceInputFromState(location.state || {});
-  const acceptanceChecklist =
-    location.state?.acceptanceChecklist ||
-    location.state?.pilot_result?.acceptanceChecklist ||
-    null;
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [showPilotRulesModal, setShowPilotRulesModal] = useState(false);
+  const resolvedCaseId = useMemo(
+    () =>
+      resolveCaseId({
+        caseId:
+          location.state?.caseId ||
+          location.state?.case_id ||
+          location.state?.result?.caseId ||
+          location.state?.result?.case_id ||
+          searchParams.get("caseId") ||
+          getCurrentCaseId() ||
+          "",
+      }),
+    [location.state, searchParams]
+  );
+  const caseId = resolvedCaseId;
+  const isCaseReview =
+    searchParams.get("from") === "case" || Boolean(searchParams.get("caseId"));
+  const resultCaseId =
+    location.state?.resultCaseId ||
+    location.state?.originCaseId ||
+    location.state?.fromCaseId ||
+    location.state?.caseId ||
+    location.state?.case_id ||
+    location.state?.result?.caseId ||
+    location.state?.result?.case_id ||
+    searchParams.get("caseId") ||
+    "";
 
   const rawPilotEntries =
     location.state?.pilot_entries ||
@@ -1225,11 +1482,152 @@ export default function PilotResultPage() {
     return Array.isArray(rawPilotEntries) ? rawPilotEntries : [];
   }, [rawPilotEntries]);
 
+  const capturedEvents = eventHistory;
+  const visibleEvents = Array.isArray(capturedEvents)
+    ? capturedEvents.filter((event) => getEventText(event).length > 0)
+    : [];
+  const hasCapturedEvents = capturedEvents.length > 0;
+
+  useEffect(() => {
+    if (!resolvedCaseId) return;
+    if (!hasCapturedEvents) return;
+
+    console.log("PILOT_RESULT_UPDATE_WORKSPACE_SUMMARY", resolvedCaseId);
+
+    try {
+      setCaseStatus(resolvedCaseId, "workspace_summary");
+    } catch (error) {
+      console.warn("Failed to update case status", error);
+    }
+  }, [resolvedCaseId, hasCapturedEvents]);
+
+  const persistedCase = useMemo(
+    () => {
+      try {
+        return caseId && typeof getCaseById === "function"
+          ? getCaseById(caseId)
+          : null;
+      } catch (error) {
+        console.warn("Failed to read case registry for pilot result guard", error);
+        return null;
+      }
+    },
+    [caseId]
+  );
+  const currentCase = persistedCase;
+
+  const hasEventBackedBaseline =
+    Array.isArray(currentCase?.events) && currentCase.events.length > 0;
+  const activeCaseBilling = currentCase?.caseBilling || {};
+  const isFormalWorkspaceActive =
+    activeCaseBilling?.receiptActivated === true ||
+    activeCaseBilling?.verificationActivated === true ||
+    currentCase?.payment?.receiptActivated === true ||
+    currentCase?.payment?.verificationActivated === true ||
+    currentCase?.isPaid === true;
+  const workspaceCopy = isFormalWorkspaceActive
+    ? {
+        workspaceTitle: "Active workspace",
+        workspaceCta: "Continue workspace",
+        receiptCta: "Open formal workspace",
+      }
+    : {
+        workspaceTitle: "Free workspace preview",
+        workspaceCta: "Start workspace preview",
+        receiptCta: "Activate formal workspace",
+      };
+
+  const suggestedIntervention =
+    location.state?.suggestedIntervention || "";
+
+  const suggestedInterventionRank =
+    location.state?.suggestedInterventionRank || null;
+
+  const pcMeta = location.state?.pcMeta || {
+    pc_id: "PC-001",
+    pc_name: "Decision Risk Diagnostic",
+  };
+  const diagnosticResultPath = resultCaseId
+    ? `${ROUTES.RESULT || "/result"}?caseId=${encodeURIComponent(resultCaseId)}&from=case`
+    : ROUTES.RESULT || "/result";
+  const backToPilotPath = location.state?.session_id
+    ? `${ROUTES.PILOT_SETUP}?session_id=${location.state.session_id}`
+    : ROUTES.PILOT_SETUP;
+  const handleBack = () => {
+    navigate(backToPilotPath, {
+      state: {
+        ...location.state,
+        pcMeta,
+      },
+    });
+  };
+
+  console.log("棣冾潵 PilotResult location.state =", location.state);
+
+  useEffect(() => {
+    if (!resolvedCaseId) return;
+    if (!hasCapturedEvents) return;
+
+    const session =
+      location.state?.trialSession ||
+      getTrialSession() ||
+      {};
+    const stableUserId =
+      location.state?.stableUserId ||
+      session?.stableUserId ||
+      session?.userId ||
+      "";
+
+    logTrialEvent(
+      {
+        userId: session?.userId || stableUserId || "",
+        trialId: session?.trialId || session?.trialSessionId || "",
+        caseId: resolvedCaseId,
+        eventType: "pilot_result_viewed",
+        page: "PilotResultPage",
+        stableUserId,
+        meta: {
+          stableUserId,
+          source: "funnel_event",
+        },
+      },
+      { once: true }
+    ).catch((error) => {
+      console.error("pilot_result_viewed log error:", error);
+    });
+  }, [resolvedCaseId, location.state, hasCapturedEvents]);
+
+  const sourceInput = buildSourceInputFromState(location.state || {});
+  const rawAcceptanceChecklist =
+    location.state?.acceptanceChecklist ||
+    location.state?.pilot_result?.acceptanceChecklist ||
+    null;
+  const acceptanceChecklist =
+    rawAcceptanceChecklist?.passed !== undefined
+      ? rawAcceptanceChecklist
+      : rawAcceptanceChecklist?.status
+      ? {
+          passed: rawAcceptanceChecklist.status === "PASS",
+        }
+      : rawAcceptanceChecklist;
+  const hardenedScopeLock =
+    currentCase?.scopeLock ||
+    location.state?.scopeLock ||
+    location.state?.pilot_setup?.scopeLock ||
+    null;
+  const resolvedAcceptanceChecklist =
+    currentCase?.acceptanceChecklist ||
+    location.state?.acceptanceChecklist ||
+    location.state?.pilot_result?.acceptanceChecklist ||
+    acceptanceChecklist;
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+
   const [forceWeeklySummary, setForceWeeklySummary] = useState(false);
-  const [weeklySummaryExpanded, setWeeklySummaryExpanded] = useState(false);
   const [structuralTraceExpanded, setStructuralTraceExpanded] = useState(false);
   const [receiptEligibilityExpanded, setReceiptEligibilityExpanded] = useState(false);
   const [backupPathExpanded, setBackupPathExpanded] = useState(false);
+  const [submittedExpanded, setSubmittedExpanded] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [expandedTriggerKey, setExpandedTriggerKey] = useState(null);
 
   const pilotFlow = useMemo(() => {
@@ -1274,44 +1672,6 @@ export default function PilotResultPage() {
 
     return "empty";
   }, [eventHistory, forceWeeklySummary]);
-
-  const weeklySummaryText = useMemo(() => {
-    if (!eventHistory.length) {
-      return "No pilot entries were recorded during this window.";
-    }
-
-    const latestEvent = eventHistory[eventHistory.length - 1] || {};
-    const latestEventInput = getEntryEventInput(latestEvent) || {};
-    const latestCaseData = getEntryCaseData(latestEvent);
-
-    const workflow =
-      latestEvent?.workflow ||
-      latestEventInput?.workflow ||
-      eventHistory[0]?.workflow ||
-      sourceInput.workflow ||
-      "Selected workflow";
-
-    const dominantEvent =
-      latestEvent?.eventType ||
-      getEntryReviewResult(latestEvent)?.eventType ||
-      latestCaseData?.eventType ||
-      "other";
-  
-    const lastDescription =
-      getCaseSummary({
-        caseData: latestCaseData,
-        summaryText: latestEventInput.summaryContext || "",
-      }) ||
-      getCaseContext({
-        caseData: latestCaseData,
-        caseInput: latestEventInput.description || "",
-      }) ||
-      latestEventInput.description ||
-      sourceInput.summaryText ||
-      "No detailed description recorded.";
-  
-    return `7-day summary for ${workflow}. ${eventHistory.length} pilot entr${eventHistory.length > 1 ? "ies were" : "y was"} recorded. Dominant event: ${dominantEvent}. Latest observed context: ${lastDescription}`;
-  }, [eventHistory, sourceInput.workflow, sourceInput.summaryText]);
 
   const entries = useMemo(() => {
     const rawEntries = eventHistory;
@@ -1412,6 +1772,24 @@ export default function PilotResultPage() {
     });
   }, [eventHistory, sourceInput]);
 
+  const customerRecordEvents = useMemo(() => {
+    return entries
+      .map((entry) => {
+        const eventInput = getEntryEventInput(entry) || {};
+
+        const time = getEntryTimestamp(entry);
+
+        return {
+          rawText: eventInput.rawText || entry?.rawText || "",
+          userInput: eventInput.userInput || entry?.userInput || "",
+          originalText: eventInput.originalText || entry?.originalText || "",
+          input: eventInput.input || entry?.input || "",
+          time,
+        };
+      })
+      .filter((event) => getRawEventText(event).length > 0);
+  }, [entries]);
+
   const latestEvent = entries[entries.length - 1] || null;
   const currentEventType = latestEvent?.eventType || getCurrentEventType(entries);
   const currentEventLabel = getEventLabel(currentEventType);
@@ -1421,7 +1799,7 @@ export default function PilotResultPage() {
   }, [entries]);
 
   const resolvedWeakestDimension =
-    getEntryWeakestDimension(latestEvent) ||
+    getEntryWeakestDimension(latestEvent || {}) ||
     sourceInput.weakestDimension ||
     "";
 
@@ -1432,16 +1810,87 @@ export default function PilotResultPage() {
     });
   }, [acceptanceChecklist, resolvedWeakestDimension]);
 
+  const scoringSource = useMemo(() => {
+    return (
+      persistedCase ||
+      currentCase ||
+      location.state?.case ||
+      {
+        caseId,
+        events: scoringEntries,
+        capturedEvents: scoringEntries,
+        entries: scoringEntries,
+        scopeLock: hardenedScopeLock,
+        acceptanceChecklist: resolvedAcceptanceChecklist || acceptanceChecklist,
+      }
+    );
+  }, [
+    acceptanceChecklist,
+    currentCase,
+    caseId,
+    hardenedScopeLock,
+    location.state,
+    persistedCase,
+    resolvedAcceptanceChecklist,
+    scoringEntries,
+  ]);
+
+  const score = useMemo(() => {
+    console.log("[SCORE_SOURCE_PRIORITY]", {
+      page: "PilotResultPage",
+      caseId,
+      usingPersistedCase: Boolean(persistedCase),
+      persistedKeys: persistedCase ? Object.keys(persistedCase) : [],
+      fallbackEntryCount: Array.isArray(scoringEntries) ? scoringEntries.length : 0,
+      scoringSourceKeys: scoringSource ? Object.keys(scoringSource) : [],
+    });
+
+    console.log("[SCORE_INPUT_SOURCE]", {
+      page: "PilotResultPage",
+      caseId,
+      sourceKeys: scoringSource ? Object.keys(scoringSource) : [],
+      source: scoringSource,
+    });
+
+    return calculateDeterministicScore(scoringSource);
+  }, [caseId, persistedCase, scoringEntries, scoringSource]);
+  const isReceiptReady = Boolean(score?.receiptEligible);
+
+  console.log("[DETERMINISTIC_SCORE]", {
+    page: "PilotResultPage",
+    caseId: resolvedCaseId,
+    score,
+    eventCount: score.eventCount,
+  });
+
   useEffect(() => {
     if (!topInterventions[0]) return;
+    if (!resolvedCaseId) return;
+    if (!hasCapturedEvents) return;
+
+    const session =
+      location.state?.trialSession ||
+      getTrialSession() ||
+      {};
+    const stableUserId =
+      location.state?.stableUserId ||
+      session?.stableUserId ||
+      session?.userId ||
+      "";
 
     logEvent("suggested_intervention_shown", {
       eventName: "suggested_intervention_shown",
       rank: 1,
       intervention: topInterventions[0],
       page: "PilotResultPage",
+      caseId: resolvedCaseId,
+      stableUserId,
+      meta: {
+        stableUserId,
+        source: "funnel_event",
+      },
     });
-  }, [topInterventions]);
+  }, [topInterventions, resolvedCaseId, location.state, hasCapturedEvents]);
 
   const executionSummary = useMemo(() => {
     return buildExecutionSummary(
@@ -1451,110 +1900,23 @@ export default function PilotResultPage() {
     );
   }, [entries, resolvedWeakestDimension, sourceInput.firstGuidedAction]);
 
-  const combinationStatus = useMemo(() => {
-    const entries = Array.isArray(scoringEntries) ? scoringEntries : [];
-
-    if (entries.length === 0) {
-      return {
-        score: 0,
-        evidenceSupport: 0,
-        structureCompleteness: 0,
-        consistency: 0,
-        continuity: 0,
-        structureStatus: "weak",
-        receiptEligible: false,
-      };
-    }
-
-    let evidence = 0;
-    let structure = 0;
-    let consistency = 0;
-
-    entries.forEach((e) => {
-      const eventInput = e.eventInput || e.sourceInput || {};
-      const caseData = e.caseData || e.reviewResult?.caseData || {};
-
-      // Evidence
-      const hasNarrative =
-        String(eventInput.summaryContext || eventInput.description || "").trim().length > 30;
-
-      const evidenceItems = Array.isArray(caseData.evidenceItems)
-        ? caseData.evidenceItems.length
-        : 0;
-
-      if (evidenceItems >= 2) evidence += 1;
-      else if (evidenceItems === 1) evidence += 0.75;
-      else if (hasNarrative) evidence += 0.5;
-      else if (String(eventInput.description || "").trim().length > 0) evidence += 0.25;
-
-      // Structure
-      let structureCount = 0;
-
-      if (e.eventType || e.reviewResult?.eventType) structureCount++;
-      if (eventInput.externalPressure) structureCount++;
-      if (eventInput.authorityBoundary) structureCount++;
-      if (eventInput.dependency) structureCount++;
-      if (caseData.scenarioCode) structureCount++;
-      if (caseData.stage) structureCount++;
-
-      if (structureCount >= 5) structure += 1;
-      else if (structureCount >= 3) structure += 0.5;
-    });
-
-    // 🧠 Consistency（只算一次！）
-    const latest3 = entries.slice(-3);
-
-    const scenarioSet = new Set(
-      latest3.map(x => x.caseData?.scenarioCode).filter(Boolean)
-    );
-
-    const weakestSet = new Set(
-      latest3.map(x =>
-        x.weakestDimensionSnapshot ||
-        x.weakestDimension ||
-        x.caseData?.weakestDimension
-      ).filter(Boolean)
-    );
-
-    let consistencyScoreRaw = 0;
-
-    if (scenarioSet.size === 1 && weakestSet.size === 1 && latest3.length >= 2) {
-      consistencyScoreRaw = 1;
-    } else if (latest3.length >= 2) {
-      consistencyScoreRaw = 0.5;
-    }
-
-    const n = entries.length;
-
-    const evidenceScore = evidence / n;
-    const structureScore = structure / n;
-    const consistencyScore = consistencyScoreRaw;
-
-    const continuityScore =
-      n >= 5 ? 1 :
-      n >= 3 ? 0.7 :
-      n >= 1 ? 0.4 :
-      0;
-
-    const total =
-      evidenceScore +
-      structureScore +
-      consistencyScore +
-      continuityScore;
-
-    return {
-      score: Number(total.toFixed(2)),
-      evidenceSupport: evidenceScore,
-      structureCompleteness: structureScore,
-      consistency: consistencyScore,
-      continuity: continuityScore,
+  const combinationStatus = useMemo(
+    () => ({
+      score: score.totalScore,
+      evidenceSupport: score.evidence,
+      structureCompleteness: score.structure,
+      consistency: score.consistency,
+      continuity: score.continuity,
       structureStatus:
-        total >= 3 ? "ready" :
-        total >= 2 ? "building" :
-        "weak",
-      receiptEligible: total >= 3,
-    };
-  }, [scoringEntries]);
+        score.receiptEligible || score.totalScore >= score.receiptThreshold
+          ? "ready"
+          : score.totalScore >= 2
+          ? "building"
+          : "weak",
+      receiptEligible: score.receiptEligible,
+    }),
+    [score]
+  );
 
   console.log("CASE DEBUG combinationStatus =", combinationStatus);
   console.log("CASE DEBUG all entries =", entries);
@@ -1574,7 +1936,7 @@ export default function PilotResultPage() {
     );
   }, [location.state, combinationStatus, hasPilotEntries]);
 
-  const resolvedStructureStatus = runtimeState.resolvedStructureStatus;  // ✅ 仅展示
+  const resolvedStructureStatus = runtimeState.resolvedStructureStatus;  // 閴?娴犲懎鐫嶇粈?
 
   const mainPathSummary = getMainPathSummary({
     structureStatus: resolvedStructureStatus,
@@ -1609,12 +1971,25 @@ export default function PilotResultPage() {
   }, [runEntries]);
 
   const primaryRunLabel = runEntries[0]?.runLabel || sourceInput.runId || "RUN000";
+  const cleanRunId = cleanTraceId(
+    primaryRunLabel ||
+      sourceInput.runId ||
+      sourceInput.result?.runId ||
+      sourceInput.result?.run
+  );
+  const cleanPatternId = cleanTraceId(
+    sourceInput.pattern ||
+      sourceInput.patternId ||
+      sourceInput.result?.patternId ||
+      sourceInput.result?.pattern
+  );
+  const structuralTraceText = [cleanRunId, cleanPatternId]
+    .filter(Boolean)
+    .join(" → ");
 
   const runSummaryText = useMemo(() => {
     return buildRunSummaryText(runEntries);
   }, [runEntries]);
-
-const canShowProgressSummary = hasPilotEntries;
 
 const weeklySummaryDue =
   runtimeState.resolvedSamplingWindowClosed ||
@@ -1686,13 +2061,6 @@ const complexityLabel =
     ? "Medium"
     : "Low";
 
-const complexityBoost =
-  complexityLabel === "High"
-    ? 0.35
-    : complexityLabel === "Medium"
-    ? 0.15
-    : 0;
-
 const complexityNote =
   complexityLabel === "High"
     ? "This score was reached under high structural complexity."
@@ -1700,30 +2068,45 @@ const complexityNote =
     ? "This score was reached under moderate structural complexity."
     : "This score was reached under relatively low structural complexity.";
 
-const finalTotalScore = Math.min(
-  4,
-  Number((Number(combinationStatus.score || 0) + complexityBoost).toFixed(2))
-);
-
-const scoring = {
-  scoringVersion: "v1",
-  evidenceScore: Number(combinationStatus.evidenceSupport || 0),
-  structureScore: Number(combinationStatus.structureCompleteness || 0),
-  consistencyScore: Number(combinationStatus.consistency || 0),
-  continuityScore: Number(combinationStatus.continuity || 0),
-  totalScore: finalTotalScore,
-  receiptThreshold: 3.0,
-  receiptEligible:
-    finalTotalScore >= 3.0 ||
-    combinationStatus.receiptEligible === true,
-};
+  const scoring = {
+    scoringVersion: "v1",
+    evidenceScore: Number(combinationStatus.evidenceSupport || 0),
+    structureScore: Number(combinationStatus.structureCompleteness || 0),
+    consistencyScore: Number(combinationStatus.consistency || 0),
+    continuityScore: Number(combinationStatus.continuity || 0),
+    totalScore: Number(score.totalScore.toFixed(2)),
+    receiptThreshold: Number(score.receiptThreshold.toFixed(1)),
+    receiptEligible: score.receiptEligible,
+  };
 
 const scopeGatePassed =
   acceptanceChecklist?.passed === true;
 
+const caseReceiptEligible =
+  typeof currentCase?.receipt?.eligible === "boolean"
+    ? currentCase.receipt.eligible
+    : null;
+
+const access = resolveAccessMode({
+  ...(currentCase || {}),
+  ...(sourceInput.caseData || {}),
+  normalizedScore: scoring.totalScore,
+  score: scoring.totalScore,
+  eventCount: entries.length,
+  events: entries,
+  receiptPaid:
+    activeCaseBilling?.receiptActivated === true ||
+    currentCase?.payment?.receiptActivated === true ||
+    currentCase?.payment?.receiptPaid === true ||
+    currentCase?.isPaid === true,
+  verificationPaid:
+    activeCaseBilling?.verificationActivated === true ||
+    currentCase?.payment?.verificationActivated === true ||
+    currentCase?.payment?.verificationPaid === true,
+});
+
 const canProceedToReceipt =
-  scoring.receiptEligible && scopeGatePassed;
-const weeklyReceiptEligible = canProceedToReceipt;
+  caseReceiptEligible ?? (access.receiptEligible && scopeGatePassed);
 
 const totalBase =
   scoring.evidenceScore +
@@ -1819,43 +2202,187 @@ const enhancedSourceInput = {
   receiptEligible: canProceedToReceipt,
 };
 
+const canExportEvidencePack = access.canExportPDF;
+
+const handleExportEvidencePack = () => {
+  downloadRecord(currentCase || location.state?.caseData || {});
+};
+
+const acceptanceStatus = resolvedAcceptanceChecklist?.status || "NEEDS_INPUT";
+const acceptanceStatusClass =
+  acceptanceStatus === "PASS"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : acceptanceStatus === "BLOCK"
+    ? "bg-red-50 text-red-700 border-red-200"
+    : "bg-amber-50 text-amber-700 border-amber-200";
+const resolvedChecklistItems = Array.isArray(resolvedAcceptanceChecklist?.items)
+  ? resolvedAcceptanceChecklist.items
+  : [];
+const now = Date.now();
+
+const pilotStartedAt =
+  currentCase?.pilotStartedAt ||
+  currentCase?.createdAt ||
+  location.state?.pilotStartedAt ||
+  location.state?.createdAt;
+
+const paidAt =
+  currentCase?.paidAt ||
+  currentCase?.payment?.paidAt ||
+  location.state?.paidAt;
+
+const isPaid =
+  Boolean(currentCase?.paid) ||
+  currentCase?.accessMode === "paid" ||
+  Boolean(paidAt);
+
+const pilotStartMs = pilotStartedAt ? new Date(pilotStartedAt).getTime() : null;
+const paidMs = paidAt ? new Date(paidAt).getTime() : null;
+
+const hasSevenDayWindowEnded =
+  pilotStartMs ? now - pilotStartMs >= 7 * 24 * 60 * 60 * 1000 : false;
+
+const paidSummaryStillVisible =
+  isPaid && paidMs ? now - paidMs < 24 * 60 * 60 * 1000 : false;
+
+const summaryTitle = hasSevenDayWindowEnded
+  ? (isPaid ? (paidSummaryStillVisible ? "7-Day Summary" : "Case Record") : "7-Day Summary")
+  : "Current Pilot Record";
+
+if (!hasCapturedEvents) {
+  const pilotPath = resolvedCaseId
+    ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(resolvedCaseId)}`
+    : ROUTES.PILOT || "/pilot";
+
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <TopRightCasesCapsule />
+      <div className="max-w-3xl mx-auto">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm leading-6 text-slate-700">
+            Please capture at least one event before generating a pilot result.
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              navigate(pilotPath, {
+                state: {
+                  ...(location.state || {}),
+                  caseId: resolvedCaseId,
+                  case_id: resolvedCaseId,
+                  pcMeta,
+                },
+              })
+            }
+            className="mt-4 inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 transition"
+          >
+            Capture first event
+          </button>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 return (
-  <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-    <div className="max-w-5xl mx-auto">
+  <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+    <style>
+      {`
+        .backup-path-caret {
+          width: 0;
+          height: 0;
+          border-top: 7px solid transparent;
+          border-bottom: 7px solid transparent;
+          border-left: 10px solid #020617;
+          display: inline-block;
+          transition: transform 160ms ease;
+          transform-origin: center;
+          flex: 0 0 auto;
+        }
+
+        .backup-path-caret-open {
+          transform: rotate(90deg);
+        }
+
+        .section-caret {
+          width: 0;
+          height: 0;
+          border-top: 7px solid transparent;
+          border-bottom: 7px solid transparent;
+          border-left: 10px solid #020617;
+          display: inline-block;
+          transition: transform 160ms ease;
+          transform-origin: center;
+          flex: 0 0 auto;
+        }
+
+        .section-caret-open {
+          transform: rotate(90deg);
+        }
+      `}
+    </style>
+    <TopRightCasesCapsule />
+    <div className="max-w-3xl mx-auto">
       <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          {suggestedIntervention && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
-                {suggestedInterventionRank
-                  ? `Suggested next move #${suggestedInterventionRank}`
-                  : "Suggested next move"}
-              </p>
-              <p className="mt-1 text-sm text-amber-900">
-                {suggestedIntervention}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {suggestedIntervention && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                    {suggestedInterventionRank
+                      ? `Suggested next move #${suggestedInterventionRank}`
+                      : "Suggested next move"}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-900">
+                    {suggestedIntervention}
+                  </p>
+                </div>
+              )}
+              <h1 className="text-3xl font-bold mb-3">
+                {isWeeklySummaryFlow
+                  ? "7-Day Pilot Summary"
+                  : "Structural Pilot Interpretation"}
+              </h1>
+
+              <p className="text-slate-700 leading-7">
+                {isWeeklySummaryFlow
+                  ? "This page summarizes the pilot window and prepares it for final receipt generation and verification."
+                  : resolvedWeakestDimension
+                  ? `This event is first interpreted through your weakest dimension: ${resolvedWeakestDimension}.`
+                  : "This page explains how the current event is being interpreted structurally."}
               </p>
             </div>
-          )}
-          <p className="text-sm font-medium text-slate-500 mb-2">
-            {isWeeklySummaryFlow
-              ? "7-Day Summary"
-              : "Structural Interpretation"}
-          </p>
 
-          <h1 className="text-3xl font-bold mb-3">
-            {isWeeklySummaryFlow
-              ? "7-Day Pilot Summary"
-              : "Structural Pilot Interpretation"}
-          </h1>
-
-          <p className="text-slate-700 leading-7">
-            {isWeeklySummaryFlow
-              ? "This page summarizes the pilot window and prepares it for final receipt generation and verification."
-              : resolvedWeakestDimension
-              ? `This event is first interpreted through your weakest dimension: ${resolvedWeakestDimension}.`
-              : "This page explains how the current event is being interpreted structurally."}
-          </p>
+            
+          </div>
         </header>
+
+        {!hasEventBackedBaseline ? (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+            <h2 className="text-lg font-semibold text-amber-900">
+              No real events recorded yet
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-amber-800">
+              This result is still based on diagnostic input. Capture one real event to activate a grounded baseline.
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                navigate(ROUTES.RECEIPT, {
+                  state: {
+                    ...(location.state || {}),
+                    openQuickCapture: true,
+                    quickCaptureIntent: "first_event_from_pilot_result",
+                  },
+                })
+              }
+              className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              Capture first real event
+            </button>
+          </section>
+        ) : null}
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
           <div className="space-y-4">
@@ -1865,63 +2392,268 @@ return (
                 <div className="px-5 pt-2 pb-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-500">
+                      <p className="text-xs font-medium text-slate-400">
                         Main judgment path
                       </p>
-                      <h2 className="mt-1 text-xl font-semibold text-slate-950">
+                      <h2 className="mt-1 text-2xl md:text-3xl font-semibold leading-tight text-slate-950">
                         {mainPathSummary.title}
                       </h2>
                     </div>
-
-                    <div>
-                      <span
-                        className="inline-flex rounded-full px-3 py-1 text-sm font-semibold"
-                        style={
-                          resolvedStructureStatus === "ready"
-                            ? {
-                                backgroundColor: "#DCFCE7",
-                                color: "#15803D",
-                              }
-                            : resolvedStructureStatus === "building"
-                            ? {
-                                backgroundColor: "#FEF9C3",
-                                color: "#A16207",
-                              }
-                            : resolvedStructureStatus === "weak"
-                            ? {
-                                backgroundColor: "#FEE2E2",
-                                color: "#B91C1C",
-                              }
-                            : {
-                                backgroundColor: "#F1F5F9",
-                                color: "#475569",
-                              }
-                        }
-                      >
-                        {resolvedStructureStatus === "ready"
-                          ? "Ready"
-                          : resolvedStructureStatus === "building"
-                          ? "Building"
-                          : resolvedStructureStatus === "weak"
-                          ? "Weak"
-                          : "Not set"}
-                      </span>
-                    </div>
                   </div>
 
-                  <p className="mt-4 text-sm leading-7 text-slate-700">
+                  <p className="mt-4 text-xs leading-6 text-slate-700">
                     {mainPathSummary.body}
                   </p>
+
+                  <div className="mt-4">
+                    {hasCapturedEvents ? (
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-white">
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setSubmittedExpanded((prev) => !prev)}
+                            className="flex cursor-pointer items-center gap-3 text-left text-sm font-medium text-slate-900"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`section-caret ${
+                                submittedExpanded ? "section-caret-open" : ""
+                              }`}
+                            />
+                            <span>{summaryTitle}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+
+                              const summaryText =
+                                resolvedSummaryText ||
+                                sourceInput?.summaryText ||
+                                "No structured summary available.";
+                              const firstRawText =
+                                getRawEventText(customerRecordEvents[0]) ||
+                                "No original event text was captured.";
+
+                              const lines = [
+                                summaryTitle,
+                                "",
+                                "[Summary]",
+                                summaryText,
+                                "",
+                                "[You described]",
+                                firstRawText,
+                                "",
+                                "[Captured Events]",
+                                ...(customerRecordEvents.length > 0
+                                  ? customerRecordEvents.map((event, index) => {
+                                      const timeText = event?.time
+                                        ? new Date(event.time).toLocaleString()
+                                        : "No timestamp";
+
+                                      return `Event ${index + 1} - ${timeText}\n"${getRawEventText(event)}"`;
+                                    })
+                                  : ["No original event text was captured."]),
+                              ];
+
+                              const blob = new Blob([lines.join("\n\n")], {
+                                type: "text/plain;charset=utf-8",
+                              });
+                              const url = URL.createObjectURL(blob);
+                              const anchor = document.createElement("a");
+
+                              anchor.href = url;
+                              anchor.download = "nimclea-draft-record.txt";
+                              anchor.click();
+
+                              URL.revokeObjectURL(url);
+                            }}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                          >
+                            Export Summary
+                          </button>
+                        </div>
+
+                        {submittedExpanded ? (
+                          <div className="border-t border-slate-100 px-4 pb-4 pt-3 text-sm text-slate-700">
+                            <div
+                              className="px-1 py-2"
+                              style={{
+                                height: "360px",
+                                overflowY: "auto",
+                                overflowX: "hidden",
+                              }}
+                            >
+                              <div className="space-y-5">
+                                <div>
+                                  <p className="text-xs font-medium text-slate-500">
+                                    Summary
+                                  </p>
+                                  <p
+                                    className="mt-1 italic text-slate-700"
+                                    style={{
+                                      lineHeight: "1.45",
+                                      wordBreak: "break-word",
+                                      overflowWrap: "anywhere",
+                                    }}
+                                  >
+                                    {resolvedSummaryText ||
+                                      sourceInput?.summaryText ||
+                                      "No structured summary available."}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <p className="text-xs font-medium text-slate-500">
+                                    Captured Events
+                                  </p>
+
+                                  <div className="mt-2 space-y-3">
+                                    {customerRecordEvents.length > 0 ? (
+                                      customerRecordEvents.map((event, index) => (
+                                        <div key={index} className="text-sm">
+                                          <p className="text-xs text-slate-500">
+                                            Event {index + 1}:
+                                            {event?.time ? (
+                                              <span className="ml-2 text-slate-400">
+                                                {new Date(event.time).toLocaleString()}
+                                              </span>
+                                            ) : null}
+                                          </p>
+
+                                          <p
+                                            className="mt-1 italic text-slate-700"
+                                            style={{
+                                              lineHeight: "1.45",
+                                              wordBreak: "break-word",
+                                              overflowWrap: "anywhere",
+                                            }}
+                                          >
+                                            {getRawEventText(event)}
+                                          </p>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <p className="text-sm italic text-slate-700">
+                                        No original event text was captured.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        No captured events yet.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                      <p className="text-xs font-medium text-slate-900">
+                        Structure: Locked • Accepted
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowDetails(!showDetails)}
+                        className="text-[11px] font-medium text-slate-400 hover:text-slate-600 transition cursor-pointer !bg-transparent !border-0 !shadow-none !p-0"
+                      >
+                        {showDetails ? "Hide" : "View"}
+                      </button>
+                    </div>
+
+                    {showDetails && (
+                      <div>
+                        <p className="mt-3 text-xs font-medium text-slate-900">
+                          Case lock & acceptance
+                        </p>
+                        <div className="mt-2 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+                          <div>
+                            <span className="text-slate-900">Scope status: </span>
+                            <span className="font-medium text-slate-900">
+                              {hardenedScopeLock?.status || "not locked"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-900">Workflow: </span>
+                            <span className="font-medium text-slate-900">
+                              {hardenedScopeLock?.workflow ||
+                                sourceInput?.workflow ||
+                                "Selected workflow"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-900">Acceptance status: </span>
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${acceptanceStatusClass}`}
+                            >
+                              {acceptanceStatus}
+                            </span>
+                            <p className="text-sm text-slate-500 mt-1">
+                              Acceptance means the required structure exists. Receipt readiness depends on the score threshold below.
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-slate-900">Receipt-ready: </span>
+                            <span className="font-medium text-slate-900">
+                              {isReceiptReady ? "Ready" : "Locked"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-slate-900">
+                            Acceptance Checklist
+                          </p>
+                          <div className="mt-2 grid gap-1.5 text-xs text-slate-700">
+                            {resolvedChecklistItems.length > 0 ? (
+                              resolvedChecklistItems.map((item) => (
+                                <div
+                                  key={item?.key || item?.label}
+                                  className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
+                                >
+                                  <span>
+                                    {item?.key === "receiptReadyCandidate"
+                                      ? "Structure accepted"
+                                      : item?.label || "Checklist item"}
+                                  </span>
+                                  <span
+                                    className={
+                                      item?.passed
+                                        ? "font-medium text-emerald-700"
+                                        : "font-medium text-slate-500"
+                                    }
+                                  >
+                                    {item?.passed ? "Passed" : "Missing"}
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-slate-500">
+                                No acceptance checklist recorded yet.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {(enhancedSourceInput.caseInput ||
                   enhancedSourceInput.summaryText ||
                   enhancedSourceInput.latestEvent) && (
-                  <div className="mx-5 mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm font-medium text-slate-500">
+                  <div className="mx-5 mb-5 bg-white p-4">
+                    <p className="text-xs font-medium text-slate-400">
                       Observed context
                     </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                    <p className="mt-1 text-xs leading-6 text-slate-700">
                       {getCaseSummary(enhancedSourceInput.latestEvent) ||
                         getCaseContext(enhancedSourceInput.latestEvent) ||
                         getCaseSummary(enhancedSourceInput) ||
@@ -1931,517 +2663,50 @@ return (
                   </div>
                 )}
 
-                <div className="mx-5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="text-sm font-medium text-emerald-700">
-                    Minimal intervention point
+                <div className="mx-5 mb-3 bg-transparent p-4">
+                  <p className="text-xs font-medium text-emerald-700">
+                    Next best action
                   </p>
 
-                  <p className="mt-1 text-base font-semibold text-emerald-900">
+                  <p className="mt-1 text-sm font-medium text-emerald-900">
                     {primaryRecommendation} 
                   </p>
 
-                  <p className="mt-1 text-sm font-normal text-emerald-900">
+                  <p className="mt-1 text-sm text-gray-500">
                     This is the smallest next action most likely to change the outcome without rebuilding the entire path.
                   </p>
                 </div>
 
-                <div className="mx-5 mb-6 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                <div className="mx-6 mb-6 rounded-xl border border-slate-200 bg-white overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setBackupPathExpanded((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left text-xs font-medium text-slate-900"
                   >
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">
-                        Backup path
-                      </p>
-                      <p className="text-sm font-semibold text-slate-900">
-                        Collapsed alternative
-                      </p>
-                    </div>
-
-                    <span className="text-sm font-medium text-slate-500">
-                      {backupPathExpanded ? "Hide" : "View"}
-                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={`backup-path-caret ${
+                        backupPathExpanded ? "backup-path-caret-open" : ""
+                      }`}
+                    />
+                    <span>Backup path</span>
                   </button>
 
                   {backupPathExpanded && (
-                    <div className="border-t border-slate-200 bg-white px-4 py-4">
-                      <p className="text-sm leading-6 text-slate-700">
+                    <div className="px-4 pb-4">
+                      <p className="text-xs leading-6 text-slate-700">
                         {backupRecommendation}
                       </p>
                     </div>
                   )}
                 </div>
+
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
-            <button
-              type="button"
-              onClick={() => setStructuralTraceExpanded((prev) => !prev)}
-              className="w-full flex items-center justify-between px-4 py-4 text-left"
-            >
-              <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Structural trace
-                </p>
-                <p className="text-base font-semibold text-slate-900">
-                  {primaryRunLabel || sourceInput.runId || "RUN000"} ·{" "}
-                  {sourceInput.pattern || "PAT-00"}
-                </p>
-              </div>
-
-              <span className="text-sm font-medium text-slate-500">
-                {structuralTraceExpanded ? "Hide" : "View"}
-              </span>
-            </button>
-
-            {structuralTraceExpanded && (
-              <div className="border-t border-slate-200 bg-slate-50">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: "0px",
-                  }}
-                >
-                  <div className="bg-white p-4 border-r border-slate-200">
-                    <p className="text-sm text-slate-500">Resolved RUN</p>
-                    <p className="text-lg font-semibold text-slate-900">
-                      {primaryRunLabel || sourceInput.runId || "RUN000"}
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-4">
-                    <p className="text-sm text-slate-500">Resolved Pattern</p>
-                    <p className="text-lg font-semibold text-slate-900">
-                      {sourceInput.pattern || "PAT-00"}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {sourceInput.patternLabel || "Unresolved Pattern"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {canShowProgressSummary && (
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={
-                weeklySummaryDue || isWeeklySummaryFlow
-                  ? {
-                      backgroundColor: "#FEF2F2",
-                      border: "1px solid #FECACA",
-                    }
-                  : {
-                      backgroundColor: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                    }
-              }
-            >
-              <button
-                type="button"
-                onClick={() => setWeeklySummaryExpanded((prev) => !prev)}
-                className="w-full flex items-center justify-between px-4 py-4 text-left"
-              >
-                <div>
-                  <p
-                    className="text-sm font-medium"
-                    style={
-                      weeklySummaryDue || isWeeklySummaryFlow
-                        ? { color: "#B91C1C" }
-                        : { color: "#64748B" }
-                    }
-                  >
-                    {weeklySummaryDue || isWeeklySummaryFlow
-                      ? "Weekly Summary"
-                      : "Progress Summary"}
-                  </p>
-
-                  <p
-                    className="text-base font-semibold"
-                    style={
-                      weeklySummaryDue || isWeeklySummaryFlow
-                        ? { color: "#991B1B" }
-                        : { color: "#0F172A" }
-                    }
-                  >
-                    {weeklySummaryDue || isWeeklySummaryFlow
-                      ? isWeeklySummaryFlow
-                        ? "7-Day review is active"
-                        : "7-Day review is now due"
-                      : "Current pilot accumulation"}
-                  </p>
-                </div>
-
-                <span
-                  className="text-sm font-medium"
-                  style={
-                    weeklySummaryDue || isWeeklySummaryFlow
-                      ? { color: "#B91C1C" }
-                      : { color: "#475569" }
-                  }
-                >
-                  {weeklySummaryExpanded ? "Hide" : "View"}
-                </span>
-              </button>
-
-              {weeklySummaryExpanded && (
-                <div
-                  className="border-t px-4 py-4 space-y-4"
-                  style={
-                    weeklySummaryDue || isWeeklySummaryFlow
-                      ? {
-                          borderColor: "#FECACA",
-                          backgroundColor: "#FFF7F7",
-                        }
-                      : {
-                          borderColor: "#E2E8F0",
-                          backgroundColor: "#F8FAFC",
-                        }
-                  }
-                >
-                  <div>
-                    <p
-                      className="text-sm mb-1"
-                      style={
-                        weeklySummaryDue || isWeeklySummaryFlow
-                          ? { color: "#B91C1C" }
-                          : { color: "#64748B" }
-                      }
-                    >
-                      Pilot summary
-                    </p>
-
-                    <p className="text-sm leading-6 text-slate-700">
-                      {weeklySummaryText}
-                    </p>
-                  </div>
-
-                  {weeklySummaryDue || isWeeklySummaryFlow ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="inline-flex rounded-xl px-3 py-2 text-sm font-medium bg-red-100 text-red-800 border border-red-200">
-                        {weeklyReceiptEligible
-                          ? "Weekly review complete enough for receipt evaluation"
-                          : "Weekly review is due, but materials are still incomplete"}
-                      </div>
-
-                      <div className="text-sm text-slate-600">
-                        The 7-day pilot window has reached its weekly review point.
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
-            <button
-              type="button"
-              onClick={() => setReceiptEligibilityExpanded((prev) => !prev)}
-              className="w-full flex items-center justify-between px-4 py-4 text-left"
-            >
-              <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Receipt eligibility
-                </p>
-
-                <p className="text-base font-semibold text-slate-900">
-                  {canProceedToReceipt
-                    ? "Your formal receipt is ready to unlock"
-                    : "Your formal receipt is still locked"}
-                </p>
-              </div>
-
-              <span className="text-sm font-medium text-slate-500">
-                {receiptEligibilityExpanded ? "Hide" : "View"}
-              </span>
-            </button>
-
-            {receiptEligibilityExpanded && (
-              <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
-                <p className="text-sm text-slate-700">
-                  {canProceedToReceipt
-                    ? "You can now unlock the formal receipt and move this case into verification."
-                    : `Your formal receipt stays locked until the structure is strong enough to pass ${scoringDisplay.receiptThreshold.toFixed(1)} / 4.`}
-                </p>
-
-                {!scopeGatePassed && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-sm text-red-600">
-                      Structure is incomplete. Receipt is locked until checklist is passed.
-                    </p>
-                    <div className="space-y-3">
-                      <div className="text-sm text-amber-700">
-                        <p className="font-medium">Unlock path:</p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          logEvent("suggested_intervention_clicked", {
-                            eventName: "suggested_intervention_clicked",
-                            rank: 1,
-                            intervention: topInterventions[0] || "",
-                            page: "PilotResultPage",
-                            weakestDimension: resolvedWeakestDimension,
-                            runId: primaryRunLabel || sourceInput.runId || "RUN000",
-                            pattern: sourceInput.pattern || "PAT-00",
-                          });
-
-                          const session =
-                            location.state?.trialSession ||
-                            getTrialSession() ||
-                            null;
-
-                          logTrialEvent(
-                            {
-                              userId:
-                                session?.userId ||
-                                location.state?.stableUserId ||
-                                localStorage.getItem("nimclea_user_id") ||
-                                "anonymous_user",
-                              trialId:
-                                session?.trialId ||
-                                session?.trialSessionId ||
-                                "pilot_result",
-                              sessionId:
-                                location.state?.session_id ||
-                                location.state?.sessionId ||
-                                session?.trialSessionId ||
-                                session?.trialId ||
-                                "pilot_result",
-                              caseId:
-                                location.state?.caseId ||
-                                location.state?.case_id ||
-                                "pilot_result",
-                              eventType: "intervention_started",
-                              page: "PilotResultPage",
-                              meta: {
-                                rank: 1,
-                                intervention: topInterventions[0] || "",
-                                weakestDimension: resolvedWeakestDimension || "",
-                                runId: primaryRunLabel || sourceInput.runId || "RUN000",
-                                pattern: sourceInput.pattern || "PAT-00",
-                              },
-                            },
-                            { once: true }
-                          ).catch((error) => {
-                            console.error("intervention_started log error:", error);
-                          });
-                        
-                          navigate(
-                            location.state?.session_id
-                              ? `${ROUTES.PILOT_SETUP}?session_id=${location.state.session_id}`
-                              : ROUTES.PILOT_SETUP,
-                            {
-                              state: {
-                                ...location.state,
-                                pcMeta,
-                                suggestedIntervention: topInterventions[0] || "",
-                                suggestedInterventionRank: 1,
-                              },
-                            }
-                          );
-                        }}
-                        className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
-                      >
-                        <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
-                          Start here
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-amber-900">
-                          {topInterventions[0] || "Take the next smallest intervention."}
-                        </p>
-                      </button>
-
-                      {topInterventions[1] && (
-                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                            Backup option
-                          </p>
-                          <p className="mt-1 text-sm text-slate-700">
-                            {topInterventions[1]}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="px-3 py-2 space-y-2 text-sm text-slate-800">
-                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
-                    <span>Evidence</span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedTriggerKey((prev) =>
-                          prev === "evidence" ? null : "evidence"
-                        )
-                      }
-                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
-                    >
-                      <span>{scoreTriggerTags.evidence}</span>
-                      <span className="text-[11px]">
-                        {expandedTriggerKey === "evidence" ? "⌃" : "⌄"}
-                      </span>
-                    </button>
-                
-                    <span className="text-right">
-                      {scoringDisplay.evidenceWeighted.toFixed(2)}
-                    </span>
-                  </div>
-                
-                  {expandedTriggerKey === "evidence" && (
-                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
-                      {triggerEvidenceMap.evidence.map((item) => (
-                        <div key={item.id} className="text-xs text-slate-600">
-                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
-                          {item.detail}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                
-                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
-                    <span>Structure</span>
-                
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedTriggerKey((prev) =>
-                          prev === "structure" ? null : "structure"
-                        )
-                      }
-                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
-                    >
-                      <span>{scoreTriggerTags.structure}</span>
-                      <span className="text-[11px]">
-                        {expandedTriggerKey === "structure" ? "⌃" : "⌄"}
-                      </span>
-                    </button>
-                
-                    <span className="text-right">
-                      {scoringDisplay.structureWeighted.toFixed(2)}
-                    </span>
-                  </div>
-                
-                  {expandedTriggerKey === "structure" && (
-                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
-                      {triggerEvidenceMap.structure.map((item) => (
-                        <div key={item.id} className="text-xs text-slate-600">
-                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
-                          {item.detail}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                
-                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
-                    <span>Consistency</span>
-                
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedTriggerKey((prev) =>
-                          prev === "consistency" ? null : "consistency"
-                        )
-                      }
-                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
-                    >
-                      <span>{scoreTriggerTags.consistency}</span>
-                      <span className="text-[11px]">
-                        {expandedTriggerKey === "consistency" ? "⌃" : "⌄"}
-                      </span>
-                    </button>
-                
-                    <span className="text-right">
-                      {scoringDisplay.consistencyWeighted.toFixed(2)}
-                    </span>
-                  </div>
-                
-                  {expandedTriggerKey === "consistency" && (
-                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
-                      {triggerEvidenceMap.consistency.map((item) => (
-                        <div key={item.id} className="text-xs text-slate-600">
-                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
-                          {item.detail}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                
-                  <div className="grid grid-cols-[100px_1fr_70px] items-center gap-2">
-                    <span>Continuity</span>
-                
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedTriggerKey((prev) =>
-                          prev === "continuity" ? null : "continuity"
-                        )
-                      }
-                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-700 transition whitespace-nowrap justify-self-center"
-                    >
-                      <span>{scoreTriggerTags.continuity}</span>
-                      <span className="text-[11px]">
-                        {expandedTriggerKey === "continuity" ? "⌃" : "⌄"}
-                      </span>
-                    </button>
-                
-                    <span className="text-right">
-                      {scoringDisplay.continuityWeighted.toFixed(2)}
-                    </span>
-                  </div>
-                
-                  {expandedTriggerKey === "continuity" && (
-                    <div className="ml-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
-                      {triggerEvidenceMap.continuity.map((item) => (
-                        <div key={item.id} className="text-xs text-slate-600">
-                          <span className="font-medium text-slate-800">{item.title}:</span>{" "}
-                          {item.detail}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                
-                  <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-medium text-slate-900">
-                    <span>Total score</span>
-                    <span>{scoringDisplay.totalScore.toFixed(2)} / 4</span>
-                  </div>
-                
-                  <div className="flex justify-between text-sm text-slate-700">
-                    <span>Complexity</span>
-                    <span>{complexityLabel}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <p className="text-sm text-slate-600">{complexityNote}</p>
-
-                  {canProceedToReceipt ? (
-                    <p className="text-sm text-emerald-700">
-                      Receipt eligibility is based on four checks: Evidence,
-                      Structure, Consistency, and Continuity.
-                    </p>
-                  ) : (
-                    <p className="text-sm text-amber-700">
-                      Receipt eligibility is based on four checks: Evidence,
-                      Structure, Consistency, and Continuity.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="pt-2">
-            {hasPilotEntries ? (
+            {hasCapturedEvents ? (
               <div
                 style={{
                   width: "100%",
@@ -2460,17 +2725,18 @@ return (
                     margin: "0 auto",
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      scoring.receiptEligible && scopeGatePassed
+                  <div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        access.receiptEligible && scopeGatePassed
 
-                      const routeDecision = {
-                        mode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
-                        reason: resolvedSummaryMode
-                          ? "Weekly review has reached receipt evaluation."
-                          : "Current case is ready for receipt evaluation.",
-                      };
+                        const routeDecision = {
+                          mode: resolvedSummaryMode ? "final_receipt" : "case_receipt",
+                          reason: resolvedSummaryMode
+                            ? "Weekly review has reached receipt evaluation."
+                            : "Current case is ready for receipt evaluation.",
+                        };
                     
                       const receiptSource = resolvedSummaryMode
                         ? "pilot_weekly_summary"
@@ -2501,12 +2767,50 @@ return (
                       };
                     
                       const receiptPageData = buildReceiptPageData(receiptSourceInput);
-                      const finalReceiptHash = createReceiptHash({
+                      const finalReceiptHash = await createReceiptHash({
                         ...receiptPageData,
                         runEntries,
                         totalRunHits,
                       });
-                    
+
+                      try {
+                        if (!currentCase?.receipt?.hash) {
+                          upsertCase({
+                            caseId: resolvedCaseId,
+                            receipt: {
+                              eligible: canProceedToReceipt,
+                              score: scoring.totalScore,
+                              generatedAt: new Date().toISOString(),
+                              hash: finalReceiptHash,
+                            },
+                          });
+                        }
+                      } catch (error) {
+                        console.warn("Failed to persist receipt on case", error);
+                      }
+
+                      try {
+                        if (resolvedCaseId) {
+                          updateCase(resolvedCaseId, {
+                            scopeLock: {
+                              summary: {
+                                receiptEligible: scoring.receiptEligible,
+                                scopeGatePassed,
+                                totalScore: scoring.totalScore,
+                                threshold: scoring.receiptThreshold,
+                                weakestDimension: resolvedWeakestDimension || "",
+                                reason: routeDecision.reason || "",
+                              },
+                              lockedAt: new Date().toISOString(),
+                              sourcePage: "PilotResultPage",
+                            },
+                            updatedAt: new Date().toISOString(),
+                          });
+                        }
+                      } catch (error) {
+                        console.warn("Failed to save scopeLock to case", error);
+                      }
+                     
                       const receiptPageDataWithHash = {
                         ...receiptPageData,
                         receiptHash: finalReceiptHash,
@@ -2597,6 +2901,9 @@ return (
                           ? {
                               totalEvents: executionSummary.totalEvents ?? 0,
                               structuredEventsCount: executionSummary.structuredEventsCount ?? 0,
+                              structuredEvents: Array.isArray(executionSummary.structuredEvents)
+                                ? executionSummary.structuredEvents
+                                : [],
                               latestEventType: executionSummary.latestEventType || "other",
                               latestEventLabel: executionSummary.latestEventLabel || "",
                               mainObservedShift: executionSummary.mainObservedShift || "",
@@ -2681,8 +2988,7 @@ return (
                             receiptSourceInput.caseData?.id ||
                             location.state?.caseId ||
                             location.state?.case_id ||
-                            receiptPageDataWithHash.receiptId ||
-                            "pilot_result",
+                            resolvedCaseId,
                           eventType: "pilot_to_receipt_clicked",
                           page: "PilotResultPage",
                           meta: {
@@ -2706,63 +3012,62 @@ return (
 
                       navigate(ROUTES.RECEIPT, {
                         state: {
-                          ...location.state,
+                          session_id:
+                            location.state?.session_id ||
+                            location.state?.sessionId ||
+                            receiptPageDataWithHash.receiptId ||
+                            "pilot_result",
+
+                          sessionId:
+                            location.state?.sessionId ||
+                            location.state?.session_id ||
+                            receiptPageDataWithHash.receiptId ||
+                            "pilot_result",
+
+                          caseId:
+                            receiptSourceInput.caseData?.caseId ||
+                            receiptSourceInput.caseData?.id ||
+                            resolvedCaseId,
+
                           pcMeta,
-                          receiptPageData: receiptPageDataWithHash,
-                          verificationPageData,
-                          routeDecision,
-                          receiptSource,
-                          evidenceLock: finalEvidenceLock,
-                          sharedReceiptVerificationContract: sharedReceiptVerificationContractForStorage,
-                          flattenedSharedReceiptVerificationContract,
-                          caseData:
-                            receiptSourceInput.caseData ||
-                            enhancedSourceInput.caseData ||
-                            null,
-                          eventHistory: entries,
+                          receiptReady: true,
+                        },
+                      });
+                      }}
+                      className="w-full inline-flex items-center justify-center rounded-full border border-slate-950 bg-slate-950 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-900 active:bg-black transition cursor-pointer"
+                    >
+                      Receipt
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log("[BACK_TO_RESULT_TARGET]", {
+                        resultCaseId,
+                        resolvedCaseId,
+                        diagnosticResultPath,
+                      });
+
+                      navigate(diagnosticResultPath, {
+                        state: {
+                          ...(location.state || {}),
+                          caseId: resultCaseId || resolvedCaseId,
+                          case_id: resultCaseId || resolvedCaseId,
+                          from: "case",
+                          pcMeta,
                         },
                       });
                     }}
                     style={{
                       display: "inline-flex",
                       width: "100%",
-                      minHeight: "62px",
+                      minHeight: "38px",
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: "999px",
-                      padding: "12px 20px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      boxShadow: canProceedToReceipt
-                        ? "0 2px 8px rgba(15, 23, 42, 0.12)"
-                        : "none",
-                      backgroundColor: canProceedToReceipt
-                        ? "#0F172A"
-                        : "#FFFFFF",
-                      color: canProceedToReceipt ? "#FFFFFF" : "#cbd5e1",
-                      border: canProceedToReceipt
-                        ? "1px solid #0F172A"
-                        : "1px solid #E2E8F0",
-                      cursor: canProceedToReceipt ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    {canProceedToReceipt
-                      ? "Continue to Receipt Review →"
-                      : "Receipt locked"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    style={{
-                      display: "inline-flex",
-                      width: "100%",
-                      minHeight: "62px",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: "999px",
-                      padding: "12px 20px",
-                      fontSize: "14px",
+                      padding: "7px 12px",
+                      fontSize: "10px",
                       fontWeight: 600,
                       backgroundColor: "#FFFFFF",
                       color: "#0F172A",
@@ -2770,248 +3075,23 @@ return (
                       boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
                       cursor: "pointer",
                     }}
-                  >
-                    Back to Pilot
+                    >
+                    Back to Result
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowPilotRulesModal(true)}
-                    style={{
-                      display: "inline-flex",
-                      width: "100%",
-                      minHeight: "62px",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: "999px",
-                      padding: "12px 20px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      backgroundColor: "#fffae6",
-                      color: "#dd8a2c",
-                      border: "1px solid #ffeda3",
-                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    View Pilot Rules
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log("OPEN SUBSCRIPTION MODAL");
-                      setShowSubscriptionModal(true);
-                    }}
-                    style={{
-                      display: "inline-flex",
-                      width: "100%",
-                      minHeight: "62px",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: "999px",
-                      padding: "12px 20px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.06)",
-                      backgroundColor: "#FEF6D2",
-                      color: "#D97706",
-                      border: "1px solid #ffeda3",
-                      cursor: "pointer",
-                    }}
-                  >
-                    View Subscription Options
-                  </button>
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-slate-500">
-                No pilot data yet. Complete at least one pilot entry first.
+              <div className="text-xs text-slate-500">
+                <p>No events recorded yet.</p>
+                <p className="mt-1">
+                  Add your first event to start building a real case record.
+                </p>
               </div>
             )}
           </div>
         </section>
       </div>
-
-      {showPilotRulesModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            zIndex: 99998,
-            backgroundColor: "rgba(15, 23, 42, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: "560px",
-              backgroundColor: "#FFFFFF",
-              borderRadius: "24px",
-              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.24)",
-              border: "1px solid #E2E8F0",
-              padding: "20px",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                alignItems: "center",
-                columnGap: "12px",
-                marginBottom: "16px",
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  color: "#0F172A",
-                  margin: 0,
-                }}
-              >
-                Pilot access rules
-              </h2>
-
-              <button
-                type="button"
-                onClick={() => setShowPilotRulesModal(false)}
-                aria-label="Close"
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "999px",
-                  border: "1px solid #E2E8F0",
-                  backgroundColor: "#FFFFFF",
-                  color: "#64748B",
-                  fontSize: "20px",
-                  lineHeight: 1,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  border: "1px solid #A7F3D0",
-                  backgroundColor: "#ECFDF5",
-                  borderRadius: "16px",
-                  padding: "14px 16px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "#047857",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Event logging
-                </div>
-                <div
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    color: "#064E3B",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Unlimited during the 7-day pilot window
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid #BAE6FD",
-                  backgroundColor: "#F0F9FF",
-                  borderRadius: "16px",
-                  padding: "14px 16px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "#0369A1",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Structured reviews
-                </div>
-                <div
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    color: "#0C4A6E",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Up to 5 during this pilot
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid #FDE68A",
-                  backgroundColor: "#FFFBEB",
-                  borderRadius: "16px",
-                  padding: "14px 16px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "#B45309",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Receipt readiness
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "14px",
-                    lineHeight: 1.6,
-                    color: "#92400E",
-                  }}
-                >
-                  The diagnostic can be revisited during the pilot window, but
-                  receipt readiness is determined by structured pilot evidence,
-                  not by repeating the diagnostic alone.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showSubscriptionModal && (
         <div
@@ -3081,7 +3161,7 @@ return (
                   padding: 0,
                 }}
               >
-                ×
+                鑴?
               </button>
             </div>
       
@@ -3112,7 +3192,7 @@ return (
                     color: "#0F172A",
                   }}
                 >
-                  Pilot Workspace
+                  {workspaceCopy.workspaceTitle}
                 </h3>
       
                 <p
@@ -3157,11 +3237,11 @@ return (
                   }}
                 >
                   <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                  <div>· Unlimited pilot sessions</div>
-                  <div>· Unlimited result access</div>
-                  <div>· Internal case tracking</div>
-                  <div>· Analytics and history</div>
-                  <div>· Preview of receipt & verification states</div>
+                  <div>Unlimited pilot sessions</div>
+                  <div>Unlimited result access</div>
+                  <div>Internal case tracking</div>
+                  <div>Analytics and history</div>
+                  <div>Preview of receipt & verification states</div>
                 </div>
       
                 <div
@@ -3173,18 +3253,18 @@ return (
                   }}
                 >
                   <div style={{ fontWeight: 700, marginBottom: "4px" }}>Does not include</div>
-                  <div>· Formal Receipt issuance</div>
-                  <div>· Formal Verification packages</div>
-                  <div>· Exportable proof</div>
+                  <div>Formal Receipt issuance</div>
+                  <div>Formal Verification packages</div>
+                  <div>Exportable proof</div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowSubscriptionModal(false)}
-                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                   style={{ marginTop: "16px" }}
                 >
-                  Start Workspace →
+                  {workspaceCopy.workspaceCta}
                 </button>
               </div>
 
@@ -3251,10 +3331,10 @@ return (
                   }}
                 >
                   <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                  <div>· Official receipt issuance</div>
-                  <div>· Locked case snapshot</div>
-                  <div>· Persistent storage</div>
-                  <div>· Internal documentation use</div>
+                  <div>Official receipt issuance</div>
+                  <div>Locked case snapshot</div>
+                  <div>Persistent storage</div>
+                  <div>Internal documentation use</div>
                 </div>
 
                 <div
@@ -3266,18 +3346,18 @@ return (
                   }}
                 >
                   <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
-                  <div>· Recording key decisions</div>
-                  <div>· Internal audits</div>
-                  <div>· Case archiving</div>
+              <div>Recording key decisions</div>
+                    <div>Internal audits</div>
+                  <div>Case archiving</div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowSubscriptionModal(false)}
-                  className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
+                  className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
                   style={{ marginTop: "16px" }}
                 >
-                  Activate Receipt →
+                  {workspaceCopy.receiptCta}
                 </button>
               </div>
             </div>

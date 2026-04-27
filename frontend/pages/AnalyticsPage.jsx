@@ -822,82 +822,95 @@ export default function AnalyticsPage() {
             {summary.funnel.recommendedAction}
           </p>
 
-        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
-          <div className="font-medium text-neutral-900">
-            {summary.funnel.passToCtaInsight.title}
-          </div>
-          <div className="mt-1 text-neutral-600">
-            {summary.funnel.passToCtaInsight.reason}
-          </div>
-          <div className="mt-1 text-green-700">
-            Action: {summary.funnel.passToCtaInsight.action}
-          </div>
-        </div>
+        <details className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2">
+          <summary
+            className="cursor-pointer text-sm font-medium text-neutral-800 py-2"
+            style={{ listStyle: "none" }}
+          >
+            ▶ Optimization Insights
+          </summary>
 
-        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
-          <div className="font-medium text-neutral-900">
-            {summary.funnel.blockToPassInsight.title}
-          </div>
-          <div className="mt-1 text-neutral-600">
-            {summary.funnel.blockToPassInsight.reason}
-          </div>
-          <div className="mt-1 text-green-700">
-            Action: {summary.funnel.blockToPassInsight.action}
-          </div>
-        </div>
+          <div className="space-y-4 pt-2 pb-2">
 
-        {summary.funnel.optimizationInsight ? (
-            <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+            <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm">
               <div className="font-medium text-neutral-900">
-                Focus Step: {summary.funnel.optimizationInsight.step}
-              </div>
-              <div className="mt-1">
-                Problem: {summary.funnel.optimizationInsight.problem}
-              </div>
-              <div className="mt-1">
-                Why: {summary.funnel.optimizationInsight.hypothesis}
-              </div>
-              <div className="mt-1 text-green-700">
-                Action: {summary.funnel.optimizationInsight.action}
-              </div>
-
-              <div className="mt-1">
-                Likely Issue Type: {summary.funnel.optimizationInsight.likelyIssueType}
+                {summary.funnel.passToCtaInsight.title}
               </div>
               <div className="mt-1 text-neutral-600">
-                Signal: {summary.funnel.optimizationInsight.issueReason}
+                {summary.funnel.passToCtaInsight.reason}
               </div>
-
-              <div className="mt-2 font-medium text-neutral-900">
-                Strategy: {summary.funnel.optimizationInsight.strategyPrimary}
-              </div>
-
-              {summary.funnel.optimizationInsight.strategySecondary ? (
-                <div className="text-sm text-neutral-600">
-                  Next: {summary.funnel.optimizationInsight.strategySecondary}
-                </div>
-              ) : null}
-
-              <div className="mt-1 text-xs text-neutral-500">
-                {summary.funnel.optimizationInsight.strategyNote}
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
-                  Drop · {summary.funnel.optimizationInsight.drop}
-                </span>
-                <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
-                  Drop Rate · {summary.funnel.optimizationInsight.dropRate}
-                </span>
-                <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
-                  Confidence · {summary.funnel.optimizationInsight.confidence}
-                </span>
-                <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-900">
-                  Priority Score · {summary.funnel.optimizationInsight.score}
-                </span>
+              <div className="mt-1 text-green-700">
+                Action: {summary.funnel.passToCtaInsight.action}
               </div>
             </div>
-          ) : null}
+
+            <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm">
+              <div className="font-medium text-neutral-900">
+                {summary.funnel.blockToPassInsight.title}
+              </div>
+              <div className="mt-1 text-neutral-600">
+                {summary.funnel.blockToPassInsight.reason}
+              </div>
+              <div className="mt-1 text-green-700">
+                Action: {summary.funnel.blockToPassInsight.action}
+              </div>
+            </div>
+        
+            {summary.funnel.optimizationInsight ? (
+              <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+                <div className="font-medium text-neutral-900">
+                  Focus Step: {summary.funnel.optimizationInsight.step}
+                </div>
+                <div className="mt-1">
+                  Problem: {summary.funnel.optimizationInsight.problem}
+                </div>
+                <div className="mt-1">
+                  Why: {summary.funnel.optimizationInsight.hypothesis}
+                </div>
+                <div className="mt-1 text-green-700">
+                  Action: {summary.funnel.optimizationInsight.action}
+                </div>
+
+                <div className="mt-1">
+                  Likely Issue Type: {summary.funnel.optimizationInsight.likelyIssueType}
+                </div>
+                <div className="mt-1 text-neutral-600">
+                  Signal: {summary.funnel.optimizationInsight.issueReason}
+                </div>
+        
+                <div className="mt-2 font-medium text-neutral-900">
+                  Strategy: {summary.funnel.optimizationInsight.strategyPrimary}
+                </div>
+        
+                {summary.funnel.optimizationInsight.strategySecondary ? (
+                  <div className="text-sm text-neutral-600">
+                    Next: {summary.funnel.optimizationInsight.strategySecondary}
+                  </div>
+                ) : null}
+        
+                <div className="mt-1 text-xs text-neutral-500">
+                  {summary.funnel.optimizationInsight.strategyNote}
+                </div>
+        
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                    Drop · {summary.funnel.optimizationInsight.drop}
+                  </span>
+                  <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                    Drop Rate · {summary.funnel.optimizationInsight.dropRate}
+                  </span>
+                  <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                    Confidence · {summary.funnel.optimizationInsight.confidence}
+                  </span>
+                  <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-900">
+                    Priority Score · {summary.funnel.optimizationInsight.score}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+          </div>
+        </details>
         </div>
 
         {summary.funnel.estimatedRanking?.length > 0 ? (
@@ -1322,7 +1335,7 @@ export default function AnalyticsPage() {
                             {eventType === "pilot_setup_confirmed"
                               ? "User confirmed Pilot Setup"
                               : eventType === "trial_started"
-                              ? "User started the 7-day trial"
+                              ? "User started workspace preview"
                               : eventType === "pilot_workflow_selected"
                               ? "User selected a pilot workflow"
                               : eventType === "pilot_entered"

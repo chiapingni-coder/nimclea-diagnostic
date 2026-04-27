@@ -6,6 +6,13 @@ import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput } from "../utils/caseSchema";
 import { logTrialEvent } from "../lib/trialApi";
 import { getStableUserId } from "../utils/eventLogger";
+import { readSummaryBuffer } from "../lib/summaryBuffer";
+import { resolveAccessMode } from "../lib/accessMode";
+import { getAccessMode } from "../utils/accessMode";
+import VerificationTraceBlock from "./components/VerificationTraceBlock";
+import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
+import { getCaseById, getCurrentCaseId, resolveCaseId, upsertCase } from "../utils/caseRegistry.js";
+import { calculateDeterministicScore } from "../utils/deterministicScore";
 
 import {
   getCaseSummary,
@@ -19,6 +26,15 @@ import {
   flattenSharedReceiptVerificationContract,
 } from "../utils/sharedReceiptVerificationContract";
 
+function updateCase(caseId = "", patch = {}) {
+  if (!caseId) return null;
+
+  return upsertCase({
+    caseId,
+    ...patch,
+  });
+}
+
 function getStoredVerificationData() {
   try {
     const raw = localStorage.getItem("verificationPageData");
@@ -27,6 +43,93 @@ function getStoredVerificationData() {
     console.error("Failed to read verificationPageData from localStorage:", error);
     return null;
   }
+}
+
+function getStoredStableHash(key = "") {
+  if (!key) return "";
+
+  try {
+    return localStorage.getItem(key) || "";
+  } catch (error) {
+    console.warn("Failed to read stored hash:", error);
+    return "";
+  }
+}
+
+function saveStoredStableHash(key = "", hash = "") {
+  if (!key || !hash) return;
+
+  try {
+    localStorage.setItem(key, hash);
+  } catch (error) {
+    console.warn("Failed to save stored hash:", error);
+  }
+}
+
+function getStableHashValue(value) {
+  return typeof value === "string" && value.trim() ? value : "";
+}
+
+function saveStoredVerificationHash(caseId = "", receiptHash = "", verificationHash = "") {
+  if (!verificationHash) return;
+
+  const hashKey = caseId || receiptHash;
+  saveStoredStableHash(
+    hashKey ? `verificationHash:${hashKey}:${receiptHash || "no-receipt"}` : "",
+    verificationHash
+  );
+
+  try {
+    const raw = localStorage.getItem("verificationPageData");
+    const current = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(
+      "verificationPageData",
+      JSON.stringify({
+        ...current,
+        verificationHash,
+      })
+    );
+  } catch (error) {
+    console.warn("Failed to persist verification hash in verificationPageData:", error);
+  }
+
+  try {
+    if (caseId) {
+      upsertCase({
+        caseId,
+        verificationHash,
+      });
+    }
+  } catch (error) {
+    console.warn("Failed to persist verification hash in case registry:", error);
+  }
+}
+
+async function fetchReceiptLedgerRecord(caseId) {
+  if (!caseId) return null;
+
+  const response = await fetch(
+    `http://localhost:3000/hash-ledger/receipt?caseId=${encodeURIComponent(caseId)}`
+  );
+
+  if (response.status === 404) return null;
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch receipt ledger: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data?.record || data || null;
+}
+
+function getReceiptLedgerRecordHash(record) {
+  return (
+    record?.hash ||
+    record?.receiptHash ||
+    record?.data?.receiptHash ||
+    record?.payload?.receiptHash ||
+    ""
+  );
 }
 
 function getStoredReceiptCaseData() {
@@ -46,6 +149,50 @@ function getStoredSharedReceiptVerificationContract() {
   } catch (error) {
     console.error("Failed to read sharedReceiptVerificationContract from localStorage:", error);
     return null;
+  }
+}
+
+function generateVerificationHash({
+  receiptHash,
+  overallStatus,
+  weakestDimension,
+  checks = [],
+}) {
+  try {
+    const base = JSON.stringify({
+      receiptHash,
+      overallStatus,
+      weakestDimension,
+      checks: checks.map((c) => ({
+        label: c.label,
+        status: c.status,
+      })),
+    });
+
+    let h1 = 0x811c9dc5;
+    let h2 = 0x01000193;
+    let h3 = 0x9e3779b9;
+
+    for (let i = 0; i < base.length; i++) {
+      const code = base.charCodeAt(i);
+
+      h1 ^= code;
+      h1 = Math.imul(h1, 16777619);
+
+      h2 ^= code + i;
+      h2 = Math.imul(h2, 2166136261);
+
+      h3 ^= code * (i + 1);
+      h3 = Math.imul(h3, 2654435761);
+    }
+
+    const part1 = (h1 >>> 0).toString(16).toUpperCase().padStart(8, "0");
+    const part2 = (h2 >>> 0).toString(16).toUpperCase().padStart(8, "0");
+    const part3 = (h3 >>> 0).toString(16).toUpperCase().padStart(8, "0");
+
+    return `VH-${part1}${part2}${part3}`;
+  } catch (e) {
+    return "VH-UNAVAILABLE";
   }
 }
 
@@ -234,7 +381,7 @@ function resolveVerificationPayload(
   };
 }
 
-function normalizeVerificationData(input = {}) {
+function normalizeVerificationData(input = {}, summaryBuffer = null) {
   const normalizedCaseData = input.schema
     ? normalizeCaseInput(input.schema, { source: "verification" })
     : null;
@@ -249,7 +396,7 @@ function normalizeVerificationData(input = {}) {
     input.behavioralGroundingSummary || {};
 
   return {
-    verificationTitle: input.verificationTitle || "Structure Proof Verification",
+    verificationTitle: input.verificationTitle || "Formal Verification Review Record",
     overallStatus: input.overallStatus || "Ready for Review",
     receiptId: input.receiptId || "RCPT-DEMO-001",
     verifiedAt: input.verifiedAt || "",
@@ -258,12 +405,17 @@ function normalizeVerificationData(input = {}) {
       caseData: normalizedCaseData,
     }),
 
-    summaryContext: getCaseSummary({
-      ...input,
-      caseData: normalizedCaseData,
-    }),
+    summaryContext:
+      summaryBuffer?.summaryContext ||
+      getCaseSummary({
+        ...input,
+        caseData: normalizedCaseData,
+      }) ||
+      "",
 
     displayContext:
+      summaryBuffer?.displayContext ||
+      summaryBuffer?.summaryContext ||
       getCaseSummary({
         ...input,
         caseData: normalizedCaseData,
@@ -338,7 +490,7 @@ function normalizeVerificationData(input = {}) {
 
     introText:
       input.introText ||
-      "This page shows whether this receipt is now strong enough to be reviewed, trusted, and carried into real decisions. It confirms that the structure, proof chain, and supporting record can be checked together.",
+      "This record reviews whether the issued receipt baseline is sufficient to support a formal verification outcome. It does not replace legal, compliance, or professional judgment.",
     checks: Array.isArray(input.checks)
       ? input.checks
       : [
@@ -419,7 +571,7 @@ function getStatusStyles(status) {
 function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) {
   if (status === "Verification Ready") {
     return {
-      title: "This proof is ready to carry forward",
+      title: "This verification result ready to carry forward",
       message:
         "This record is now stable enough to be reviewed, shared, and relied on outside the pilot flow.",
       actions: [
@@ -458,8 +610,8 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
     if (normalizedWeakestDimension) {
       if (normalizedWeakestDimension === "authority") {
         return {
-          title: "Authority gap detected",
-          message: "This proof is structurally weak in decision authority.",
+          title: "Authority condition not yet sufficient",
+          message: "Formal verification cannot be issued yet because decision authority is still too weak.",
           actions: [
             "Clarify who has decision authority before treating this proof as externally valid."
           ],
@@ -480,7 +632,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
       if (normalizedWeakestDimension === "evidence") {
         return {
           title: "Evidence weakness detected",
-          message: "This proof is not externally valid due to insufficient supporting evidence.",
+          message: "This verification result not externally valid due to insufficient supporting evidence.",
           actions: [
             "Strengthen supporting signals and proof artifacts before external use."
           ],
@@ -502,7 +654,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
       if (normalizedWeakestDimension === "boundary") {
         return {
           title: "Boundary weakness detected",
-          message: "This proof is internally reviewable but unstable because role or responsibility boundaries are not structurally clear.",
+          message: "This verification result internally reviewable but unstable because role or responsibility boundaries are not structurally clear.",
           actions: [
             "Re-establish one clear boundary of role, ownership, or approval before relying on this proof."
           ],
@@ -562,7 +714,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
     })();
 
     return {
-      title: "Structure reviewable, but not stable yet",
+      title: "Formal verification not yet issuable",
       message:
         "This record can be reviewed internally, but is not strong enough for external use.",
       actions: [primaryAction],
@@ -586,10 +738,10 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
 
     if (normalizedWeakestDimension === "authority") {
       return {
-       title: "Authority failure detected",
-        message: "This proof is not externally valid due to unresolved decision authority.",
+        title: "Decisive failure condition: Authority validation not satisfied",
+        message: "A formal negative determination has been issued because decision authority remains unresolved under the current baseline.",
         actions: [
-          "Clarify who owns approval, override, or final decision authority before reissuing this proof."
+          "Establish and document clear approval authority, override authority, and final decision ownership before re-submission."
         ],
         alternatives: [
           {
@@ -609,7 +761,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
     if (normalizedWeakestDimension === "evidence") {
       return {
         title: "Evidence failure detected",
-        message: "This proof is not externally valid due to weakness in supporting evidence.",
+        message: "This verification result not externally valid due to weakness in supporting evidence.",
         actions: [
           "Add stronger supporting signals, proof artifacts, or traceable evidence before reissuing this proof.",
         ],
@@ -653,7 +805,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
     if (normalizedWeakestDimension === "coordination") {
       return {
         title: "Pressure failure detected",
-        message: "This proof is not reliable because external pressure is distorting the structural record.",
+        message: "This verification result not reliable because external pressure is distorting the structural record.",
         actions: [
           "Stabilize the record against pressure-driven distortion before relying on this proof."
         ],
@@ -673,7 +825,7 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
     }
 
     return {
-      title: "Structure not eligible for verification",
+      title: "Formal verification cannot be issued",
       message:
         "This record cannot support reliable review. The issue is structural, not formatting.",
       actions: [
@@ -701,22 +853,160 @@ function getCalibrationGuidance({ status, checks = [], weakestDimension = "" }) 
 
 function getVerificationVerdictLine({ overallStatus, weakestDimension = "" }) {
   const normalizedWeakestDimension = String(weakestDimension || "").trim();
-  const raw = normalizedWeakestDimension || "structural";
-  const dimensionLabel =
-    raw.charAt(0).toUpperCase() + raw.slice(1);
+  const raw = normalizedWeakestDimension || "structural condition";
+  const dimensionLabel = raw.charAt(0).toUpperCase() + raw.slice(1);
 
   if (overallStatus === "Verification Ready") {
-    return "✓ This proof meets the criteria for external use.";
+    return "Formal verification is issuable under the current record.";
   }
 
   if (overallStatus === "Verification Warning") {
-    return `⚠ This proof is internally reviewable but unstable due to: ${dimensionLabel}`;
+    return `Formal verification is not yet issuable. One structural condition remains weak: ${dimensionLabel}.`;
   }
 
-  return `✕ This proof is not externally valid due to weakness in: ${dimensionLabel}`;
+  return `Formal negative determination issued. This record is not issuable for formal verification under the current baseline. Decisive failure condition: ${dimensionLabel}.`;
+}
+
+function getConsistencyCheckFromData(data = {}) {
+  const conflicts = [];
+
+  const weakestDimension = String(
+    data?.weakestDimension ||
+      data?.caseData?.weakestDimension ||
+      ""
+  ).toLowerCase();
+
+  const hasReceiptHash = !!data?.receiptHash;
+
+  const structureScore =
+    typeof data?.structureScoreFromCase === "number"
+      ? data.structureScoreFromCase
+      : typeof data?.caseData?.structureScore === "number"
+      ? data.caseData.structureScore
+      : null;
+
+  const routeDecision = String(
+    data?.routeDecisionFromCase ||
+      data?.caseData?.routeDecision ||
+      ""
+  ).toLowerCase();
+
+  const groundingStatus = String(
+    data?.behavioralGroundingSummary?.groundingStatus || ""
+  ).toLowerCase();
+
+  if (weakestDimension === "authority" && routeDecision.includes("verification")) {
+    conflicts.push({
+      code: "authority_action_mismatch",
+      label: "Authority does not yet support the current verification scope.",
+      severity: "high",
+      fix: "Clarify decision authority or reduce the current action scope before re-submission.",
+    });
   }
 
-function getMinimalInterventionPoint({ status, weakestDimension = "", checks = [], isEvidenceLockedConsistent = true }) {
+  if (weakestDimension === "evidence" && !hasReceiptHash) {
+    conflicts.push({
+      code: "evidence_chain_gap",
+      label: "Evidence support is not strong enough for formal verification.",
+      severity: "high",
+      fix: "Add one traceable proof item or restore the missing receipt proof chain.",
+    });
+  }
+
+  if (
+    structureScore !== null &&
+    structureScore < 3 &&
+    routeDecision.includes("verification")
+  ) {
+    conflicts.push({
+      code: "structure_outcome_gap",
+      label: "The current structural baseline is too weak for the requested verification outcome.",
+      severity: "medium",
+      fix: "Repair the weakest structural segment before requesting formal verification again.",
+    });
+  }
+
+  if (
+    groundingStatus &&
+    groundingStatus !== "grounded" &&
+    groundingStatus !== "passed"
+  ) {
+    conflicts.push({
+      code: "behavioral_grounding_gap",
+      label: "Behavioral grounding is not yet stable enough to support this record.",
+      severity: "medium",
+      fix: "Add one real behavioral event or grounding signal before re-running verification.",
+    });
+  }
+
+  return {
+    passed: conflicts.length === 0,
+    conflicts,
+    minimalRepair: conflicts[0]
+      ? {
+          code: conflicts[0].code,
+          label: conflicts[0].label,
+          action: conflicts[0].fix,
+        }
+      : null,
+  };
+}
+
+function getConsistencyRepairCardData({
+  consistencyCheck,
+  isEvidenceLockedConsistent = true,
+}) {
+  if (!isEvidenceLockedConsistent) {
+    return {
+      title: "Structural consistency repair",
+      intro:
+        "A narrow structural repair is required before this record can be re-submitted for formal verification.",
+      conflicts: [
+        {
+          code: "evidence_lock_broken",
+          label: "The current verification view is no longer aligned with the issued receipt chain.",
+          fix: "Return to the receipt and restore the correct proof chain.",
+        },
+      ],
+      minimalRepair: {
+        code: "evidence_lock_broken",
+        label: "Restore receipt-proof alignment",
+        action: "Return to the receipt and restore the correct proof chain.",
+      },
+    };
+  }
+
+  if (!consistencyCheck || consistencyCheck.passed) {
+    return null;
+  }
+
+  return {
+    title: "Structural consistency repair",
+    intro:
+      "A narrow structural repair is required before this record can be re-submitted for formal verification.",
+    conflicts: consistencyCheck.conflicts || [],
+    minimalRepair: consistencyCheck.minimalRepair || null,
+  };
+}
+
+function getMinimalInterventionPoint({
+  status,
+  weakestDimension = "",
+  checks = [],
+  isEvidenceLockedConsistent = true,
+  consistencyRepairCard = null,
+}) {
+  if (
+    consistencyRepairCard?.minimalRepair &&
+    isEvidenceLockedConsistent
+  ) {
+    return {
+      title: "Minimal intervention point",
+      action: consistencyRepairCard.minimalRepair.action,
+      note: "Repair the narrowest structural inconsistency first before changing anything else.",
+    };
+  }
+
   if (!isEvidenceLockedConsistent) {
     return {
       title: "Minimal intervention point",
@@ -724,6 +1014,7 @@ function getMinimalInterventionPoint({ status, weakestDimension = "", checks = [
       note: "This failure is caused by a broken evidence lock, not by the structure itself.",
     };
   }
+
   const normalizedWeakestDimension = String(weakestDimension || "").toLowerCase();
 
   if (status === "Verification Ready") {
@@ -736,9 +1027,9 @@ function getMinimalInterventionPoint({ status, weakestDimension = "", checks = [
 
   if (status === "Verification Failed") {
     return {
-      title: "Minimal intervention point",
+      title: "Minimum repair required for re-submission",
       action: "Return to the last valid structural stage and repair only the broken segment.",
-      note: "This is a structural failure. Do not optimize forward. Repair backward from the break point.",
+      note: "This is a formal failure condition. Forward optimization is not sufficient. Repair backward from the break point before re-submission.",
     };
   }
 
@@ -811,7 +1102,14 @@ function getMinimalInterventionPoint({ status, weakestDimension = "", checks = [
   };
 }
 
-function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEvidenceLockedConsistent }) {
+function CalibrationCard({
+  guidance,
+  status,
+  weakestDimension,
+  checks = [],
+  isEvidenceLockedConsistent,
+  consistencyRepairCard = null,
+}) {
   const [showAlternatives, setShowAlternatives] = useState(false);
 
   if (!guidance) return null;
@@ -825,22 +1123,23 @@ function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEv
     weakestDimension,
     checks,
     isEvidenceLockedConsistent,
+    consistencyRepairCard,
   });
 
   return (
     <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
       <h2 className="text-lg font-semibold mb-2">
-        🔧 {guidance.title}
+        {status === "Verification Failed" ? "Required remediation order" : guidance.title}
       </h2>
 
       <p className="text-slate-700 mb-4">{guidance.message}</p>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-semibold text-slate-900 mb-3">
-          Main recommendation
+        <p className="text-xs font-semibold text-slate-900 mb-3">
+          {status === "Verification Failed" ? "Required remediation" : "Main recommendation"}
         </p>
 
-        <ul className="list-disc pl-5 space-y-2 text-sm text-slate-700">
+        <ul className="list-disc pl-5 space-y-2 text-xs text-slate-700">
           {guidance.actions.map((action, index) => (
             <li key={index}>{action}</li>
           ))}
@@ -849,15 +1148,15 @@ function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEv
 
       {minimalIntervention && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900 mb-2">
+          <p className="text-xs font-semibold text-amber-900 mb-2">
             {minimalIntervention.title}
           </p>
 
-          <p className="text-sm font-semibold text-slate-900 leading-6">
+          <p className="text-xs font-semibold text-slate-900 leading-6">
             {minimalIntervention.action}
           </p>
 
-          <p className="mt-2 text-sm text-amber-800 leading-6">
+          <p className="mt-2 text-xs text-amber-800 leading-6">
             {minimalIntervention.note}
           </p>
         </div>
@@ -868,14 +1167,14 @@ function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEv
           <button
             type="button"
             onClick={() => setShowAlternatives((prev) => !prev)}
-            className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-100"
           >
             {showAlternatives ? "Hide alternative paths" : "Show alternative paths"}
           </button>
 
           {showAlternatives && (
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900 mb-3">
+              <p className="text-xs font-semibold text-slate-900 mb-3">
                 Alternative paths
               </p>
 
@@ -888,7 +1187,7 @@ function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEv
                     <p className="font-semibold text-slate-900 mb-1">
                       {item.label}
                     </p>
-                    <p className="text-sm text-slate-700 leading-6">
+                    <p className="text-xs text-slate-700 leading-6">
                       {item.detail}
                     </p>
                   </div>
@@ -899,6 +1198,118 @@ function CalibrationCard({ guidance, status, weakestDimension, checks = [], isEv
         </div>
       )}
     </section>
+  );
+}
+
+function StatusCircleIcon({ status }) {
+  const stroke =
+    status === "Verification Ready"
+      ? "#047857"
+      : status === "Verification Warning"
+      ? "#B45309"
+      : "#C2410C";
+
+  return (
+    <svg width="18" height="18" viewBox="0 0 34 34" aria-hidden="true">
+      <circle cx="17" cy="17" r="14" fill="#FFFFFF" stroke={stroke} strokeWidth="2.5" />
+      {status === "Verification Ready" ? (
+        <path
+          d="M11 17.5l4 4 8-9"
+          fill="none"
+          stroke={stroke}
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : status === "Verification Warning" ? (
+        <>
+          <path
+            d="M17 9.5v9"
+            fill="none"
+            stroke={stroke}
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
+          <circle cx="17" cy="23.5" r="1.7" fill={stroke} />
+        </>
+      ) : (
+        <>
+          <path
+            d="M13 13l8 8"
+            fill="none"
+            stroke={stroke}
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
+          <path
+            d="M21 13l-8 8"
+            fill="none"
+            stroke={stroke}
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function StatusShieldIcon({ status }) {
+  const color =
+    status === "Verification Ready"
+      ? "#047857"
+      : status === "Verification Warning"
+      ? "#B45309"
+      : "#C2410C";
+
+  return (
+    <svg width="40" height="50" viewBox="0 0 44 52" aria-hidden="true">
+      <path
+        d="M22 4L36 9V22c0 9.5-6.2 17.3-14 21C14.2 39.3 8 31.5 8 22V9l14-5z"
+        fill={color}
+        stroke={color}
+        strokeWidth="2.8"
+        strokeLinejoin="round"
+      />
+      {status === "Verification Ready" ? (
+        <path
+          d="M16.5 24.5l4.2 4.2 7.8-8.7"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : status === "Verification Warning" ? (
+        <>
+          <path
+            d="M22 15.5v10"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="2.8"
+            strokeLinecap="round"
+          />
+          <circle cx="22" cy="30.5" r="1.9" fill="#FFFFFF" />
+        </>
+      ) : (
+        <>
+          <path
+            d="M17 18l10 10"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M27 18L17 28"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -917,6 +1328,13 @@ export default function VerificationPage() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showRecoveryPanel, setShowRecoveryPanel] = useState(false);
+  const [verificationHashCopied, setVerificationHashCopied] = useState(false);
+  const [receiptHashCopied, setReceiptHashCopied] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [caseBillingOverride, setCaseBillingOverride] = useState(null);
+  const [receiptLedgerRecord, setReceiptLedgerRecord] = useState(null);
+  const [receiptLedgerLoading, setReceiptLedgerLoading] = useState(false);
+  const [receiptLedgerError, setReceiptLedgerError] = useState(null);
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
@@ -939,29 +1357,272 @@ export default function VerificationPage() {
     null;
   const evidenceLock = routeEnvelope?.evidenceLock || null;
 
+  const summaryBufferFromRoute = location.state?.summaryBuffer || null;
+
+  const inferredCaseId =
+    resolveCaseId({
+      caseId:
+        location.state?.caseId ||
+        location.state?.case_id ||
+        location.state?.caseData?.caseId ||
+        location.state?.caseData?.id ||
+        receiptContext?.caseData?.caseId ||
+        receiptContext?.caseData?.id ||
+        getCurrentCaseId() ||
+        "",
+    });
+  const caseId = inferredCaseId;
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadReceiptLedgerForVerification() {
+      if (!caseId) return;
+
+      setReceiptLedgerLoading(true);
+      setReceiptLedgerError(null);
+
+      try {
+        const record = await fetchReceiptLedgerRecord(caseId);
+
+        if (cancelled) return;
+
+        if (record) {
+          setReceiptLedgerRecord(record);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[verification receipt ledger read failed]", error);
+          setReceiptLedgerError(error);
+        }
+      } finally {
+        if (!cancelled) {
+          setReceiptLedgerLoading(false);
+        }
+      }
+    }
+
+    loadReceiptLedgerForVerification();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  const summaryBufferFromStorage =
+    !summaryBufferFromRoute ? readSummaryBuffer(inferredCaseId) : null;
+
+  let currentCase = null;
+
+  try {
+    currentCase = inferredCaseId ? getCaseById(inferredCaseId) : null;
+  } catch (error) {
+    console.warn("Failed to read case registry for verification gate", error);
+  }
+
+  const verificationFlat =
+    sharedContract
+      ? flattenSharedReceiptVerificationContract(sharedContract)
+      : {};
+
+  const accessMode = getAccessMode(
+    verificationFlat?.caseData || receiptContext?.caseData || currentCase
+  );
+  const isPaid = accessMode === "paid";
+
+  const activeCaseBilling = caseBillingOverride || currentCase?.caseBilling || {};
+  const verificationActivated =
+    activeCaseBilling?.verificationActivated === true ||
+    currentCase?.payment?.verificationActivated === true ||
+    currentCase?.isPaid === true;
+  const deterministicScoreSource = {
+    ...(currentCase ||
+      receiptContext?.caseData ||
+      verificationFlat?.caseData ||
+      routeData?.caseData ||
+      storedData?.caseData ||
+      {}),
+    caseId:
+      inferredCaseId ||
+      currentCase?.caseId ||
+      receiptContext?.caseData?.caseId ||
+      verificationFlat?.caseData?.caseId ||
+      routeData?.caseData?.caseId ||
+      storedData?.caseData?.caseId ||
+      "",
+    events:
+      Array.isArray(currentCase?.events) && currentCase.events.length > 0
+        ? currentCase.events
+        : Array.isArray(verificationFlat?.eventTimeline) && verificationFlat.eventTimeline.length > 0
+        ? verificationFlat.eventTimeline
+        : Array.isArray(receiptContext?.eventTimeline) && receiptContext.eventTimeline.length > 0
+        ? receiptContext.eventTimeline
+        : [],
+    capturedEvents:
+      Array.isArray(currentCase?.events) && currentCase.events.length > 0
+        ? currentCase.events
+        : Array.isArray(verificationFlat?.eventTimeline) && verificationFlat.eventTimeline.length > 0
+        ? verificationFlat.eventTimeline
+        : Array.isArray(receiptContext?.eventTimeline) && receiptContext.eventTimeline.length > 0
+        ? receiptContext.eventTimeline
+        : [],
+    entries:
+      Array.isArray(currentCase?.events) && currentCase.events.length > 0
+        ? currentCase.events
+        : Array.isArray(verificationFlat?.eventTimeline) && verificationFlat.eventTimeline.length > 0
+        ? verificationFlat.eventTimeline
+        : Array.isArray(receiptContext?.eventTimeline) && receiptContext.eventTimeline.length > 0
+        ? receiptContext.eventTimeline
+        : [],
+    scopeLock:
+      currentCase?.scopeLock ||
+      receiptContext?.caseData?.scopeLock ||
+      verificationFlat?.caseData?.scopeLock ||
+      routeData?.caseData?.scopeLock ||
+      storedData?.caseData?.scopeLock ||
+      {},
+    scope:
+      currentCase?.scope ||
+      receiptContext?.caseData?.scope ||
+      verificationFlat?.caseData?.scope ||
+      routeData?.caseData?.scope ||
+      storedData?.caseData?.scope ||
+      {},
+    acceptanceChecklist:
+      currentCase?.acceptanceChecklist ||
+      receiptContext?.caseData?.acceptanceChecklist ||
+      verificationFlat?.caseData?.acceptanceChecklist ||
+      routeData?.caseData?.acceptanceChecklist ||
+      storedData?.caseData?.acceptanceChecklist ||
+      {},
+    checklist:
+      currentCase?.checklist ||
+      receiptContext?.caseData?.checklist ||
+      verificationFlat?.caseData?.checklist ||
+      routeData?.caseData?.checklist ||
+      storedData?.caseData?.checklist ||
+      {},
+  };
+  {
+    const scoringSource = deterministicScoreSource;
+    console.log("[SCORE_INPUT_SOURCE]", {
+      page: "VerificationPage",
+      caseId: inferredCaseId,
+      sourceKeys: scoringSource ? Object.keys(scoringSource) : [],
+      source: scoringSource,
+    });
+  }
+  const deterministicScore = calculateDeterministicScore(
+    deterministicScoreSource
+  );
+
+  console.log("[DETERMINISTIC_SCORE]", {
+    page: "VerificationPage",
+    caseId: inferredCaseId,
+    score: deterministicScore,
+    eventCount: deterministicScore.eventCount,
+  });
+
+  const access = resolveAccessMode({
+    ...(currentCase || {}),
+    ...(receiptContext?.caseData || {}),
+    ...(verificationFlat?.caseData || {}),
+    normalizedScore: deterministicScore.totalScore,
+    score: deterministicScore.totalScore,
+    eventCount: deterministicScore.eventCount,
+    events: deterministicScore.events,
+    receiptPaid:
+      activeCaseBilling?.receiptActivated === true ||
+      currentCase?.payment?.receiptActivated === true ||
+      currentCase?.payment?.receiptPaid === true ||
+      currentCase?.isPaid === true,
+    verificationPaid:
+      verificationActivated ||
+      currentCase?.payment?.verificationPaid === true,
+  });
+  const formalWorkspaceCopy = verificationActivated
+    ? {
+        modalTitle: "Formal workspace active",
+        workspaceTitle: "Active workspace",
+        workspaceCta: "Continue workspace",
+        receiptCta: "Open formal workspace",
+        verificationCta: "Open formal workspace",
+      }
+    : {
+        modalTitle: "Preview access",
+        workspaceTitle: "Free workspace preview",
+        workspaceCta: "Start workspace preview",
+        receiptCta: "Activate formal workspace",
+        verificationCta: "Activate formal workspace",
+      };
+
+  const currentCaseEvents = Array.isArray(currentCase?.events)
+    ? currentCase.events
+    : [];
+
+  const submittedEvents = currentCaseEvents.length;
+
+  const decisionPathEvents = currentCaseEvents.length;
+
+  const hasEventBackedBaseline =
+    Number(submittedEvents || 0) > 0 ||
+    Number(decisionPathEvents || 0) > 0;
+
+  const activeSummaryBuffer =
+    summaryBufferFromRoute ||
+    summaryBufferFromStorage ||
+    null;
+
+  const ledgerReceiptHash = getReceiptLedgerRecordHash(receiptLedgerRecord);
+  const hasLedgerReceipt = Boolean(ledgerReceiptHash);
+  const receiptSourceData =
+    receiptLedgerRecord?.data ||
+    receiptLedgerRecord?.payload ||
+    receiptContext ||
+    {};
+  const receiptBackedContext = receiptLedgerRecord
+    ? {
+        ...(receiptContext || {}),
+        ...(receiptSourceData || {}),
+        receiptHash:
+          ledgerReceiptHash ||
+          receiptSourceData?.receiptHash ||
+          receiptContext?.receiptHash ||
+          "",
+        caseData:
+          receiptSourceData?.caseData ||
+          receiptContext?.caseData ||
+          currentCase ||
+          null,
+      }
+    : receiptContext;
+
   const receiptDecisionStatus = receiptContext?.decisionStatus || "";
 
-  const receiptAllowsVerification =
+const receiptAllowsVerification =
+  deterministicScore.receiptEligible ||
+  access.verificationEligible ||
+  currentCase?.receipt?.eligible === true ||
   receiptDecisionStatus === "Eligible for Verification" ||
-  receiptDecisionStatus === "Verified" ||
-  receiptContext?.overallStatus === "Ready for Review" ||
-  receiptContext?.overallStatus === "Verified" ||
-  sharedContract?.scoring?.receiptEligible === true ||
-  sharedContract?.overallStatus === "Ready for Review" ||
-  sharedContract?.overallStatus === "Verified";
+  receiptDecisionStatus === "READY FOR FORMAL DETERMINATION" ||
+  receiptDecisionStatus === "Verified";
 
   const cameFromIssuedReceipt =
-    !!receiptContext &&
-    (
-      (receiptMode === "case_receipt" && receiptSource === "pilot_case_result") ||
-      (receiptMode === "final_receipt" && receiptSource === "pilot_weekly_summary")
-    );
-  if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
+    caseId ||
+    receiptLedgerLoading ||
+    hasLedgerReceipt ||
+    !!currentCase?.receipt ||
+    !!receiptContext ||
+    !!routeEnvelope?.receiptPageData ||
+    !!routeEnvelope?.sharedReceiptVerificationContract ||
+    !!sharedContract;
+    if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto">
+        <TopRightCasesCapsule />
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-sm font-medium text-slate-500 mb-2">
+          <p className="text-xs font-medium text-slate-400 mb-2">
             Verification not available
           </p>
           <h1 className="text-2xl font-bold mb-3">
@@ -975,7 +1636,7 @@ export default function VerificationPage() {
             <Link
               to={ROUTES.RECEIPT}
               state={routeEnvelope || {}}
-              className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black border border-black shadow-sm hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
             >
               Back to Receipt
             </Link>
@@ -986,19 +1647,59 @@ export default function VerificationPage() {
   );
 }
 
+  if (!hasEventBackedBaseline) {
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+        <div className="max-w-3xl mx-auto">
+          <TopRightCasesCapsule />
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <p className="text-xs font-medium text-slate-400 mb-2">
+              Verification blocked
+            </p>
+            <h1 className="text-2xl font-bold mb-3">
+              Verification not activated
+            </h1>
+            <p className="text-slate-700 leading-7">
+              This record has no event-backed baseline yet. Capture at least one real event before requesting formal verification.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(ROUTES.RECEIPT, {
+                    state: {
+                      ...(routeEnvelope || {}),
+                      openQuickCapture: true,
+                      quickCaptureIntent: "first_event_from_verification",
+                      returnToVerification: true,
+                      returnToVerificationState: routeEnvelope || {},
+                    },
+                  })
+                }
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-[12px] font-medium text-white shadow-sm transition hover:bg-slate-800"
+              >
+                Capture first event
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const resolvedPayload = resolveVerificationPayload(
     routeEnvelope || {},
-    receiptContext,
+    receiptBackedContext,
     routeData,
     storedData,
     sharedContract
   );
-  const baseData = normalizeVerificationData(resolvedPayload);
 
-  const verificationFlat =
-    sharedContract
-      ? flattenSharedReceiptVerificationContract(sharedContract)
-      : {};
+  const baseData = normalizeVerificationData(
+    resolvedPayload,
+    activeSummaryBuffer
+  );
 
   const evaluated = evaluateCaseRecordStatus({
     ...baseData,
@@ -1035,20 +1736,33 @@ export default function VerificationPage() {
   const data = {
     ...baseData,
     ...verificationFlat,
+    receiptHash:
+      ledgerReceiptHash ||
+      verificationFlat.receiptHash ||
+      baseData.receiptHash ||
+      resolvedPayload.receiptHash ||
+      "",
     caseData: verificationFlat.caseData || baseData.caseData || resolvedPayload.schema || null,
     weakestDimension:
       shouldPromoteVerificationReady &&
       evaluated.verificationStatus === "Verification Failed"
         ? ""
         : verificationFlat.weakestDimension || baseData.weakestDimension || "",
+
     displayContext:
+      activeSummaryBuffer?.displayContext ||
+      activeSummaryBuffer?.summaryContext ||
+      baseData.displayContext ||
       getCaseSummary(verificationFlat) ||
-      getCaseContext(verificationFlat) ||
-      getCaseSummary(baseData) ||
-      getCaseContext(baseData),
-    overallStatus: hasVerificationPayload
-      ? evaluated.verificationStatus
-      : "Verification Warning",
+      getCaseContext(verificationFlat),
+    overallStatus:
+      hasVerificationPayload && verificationFlat?.resolvedVerificationEligible
+        ? "Verification Ready"
+        : hasVerificationPayload
+        ? access.verificationEligible
+          ? "Verification Ready"
+          : evaluated.verificationStatus
+        : "Verification Warning",
     checks: hasVerificationPayload
       ? evaluated.checks
       : [
@@ -1096,8 +1810,35 @@ export default function VerificationPage() {
             title: "Ready for live verification",
             detail: "Return to the recorded flow to load a live verification record.",
           },
-        ],
+    ],
   };
+
+  const caseData = data.caseData || null;
+  const verificationCaseSummary =
+    receiptLedgerRecord?.payload?.workspace_summary ||
+    receiptLedgerRecord?.payload?.workspaceSummary ||
+    receiptLedgerRecord?.payload?.baselineSummary ||
+    receiptLedgerRecord?.data?.workspace_summary ||
+    receiptLedgerRecord?.data?.workspaceSummary ||
+    receiptLedgerRecord?.data?.baselineSummary ||
+    currentCase?.workspace_summary ||
+    currentCase?.workspaceSummary ||
+    caseData?.workspace_summary ||
+    caseData?.workspaceSummary ||
+    null;
+
+  const verificationEventCount =
+    Number(
+      verificationCaseSummary?.eventCount ??
+        verificationCaseSummary?.events?.length ??
+        receiptLedgerRecord?.payload?.eventCount ??
+        receiptLedgerRecord?.data?.eventCount ??
+        currentCase?.events?.length ??
+        caseData?.events?.length ??
+        0
+    );
+
+  const hasVerificationSummary = Boolean(verificationCaseSummary);
 
 const isEvidenceLockedConsistent =
   !evidenceLock
@@ -1113,10 +1854,23 @@ const isEvidenceLockedConsistent =
         evidenceLock.receiptMode === receiptMode
       );
 
+const consistencyCheck = verificationFlat?.consistencyCheck || {
+  passed: true,
+  conflicts: [],
+  minimalRepair: null,
+};
+
 const finalOverallStatus =
-  !isEvidenceLockedConsistent
-    ? "Verification Failed"
-    : data.overallStatus;
+  verificationFlat?.resolvedVerificationEligible === true
+    ? "Verification Ready"
+    : hasVerificationPayload
+    ? "Verification Warning"
+    : "Verification Failed";
+
+const consistencyRepairCard = getConsistencyRepairCardData({
+  consistencyCheck,
+  isEvidenceLockedConsistent,
+});
 
   const guidance = !isEvidenceLockedConsistent
     ? {
@@ -1158,15 +1912,110 @@ const finalOverallStatus =
     "Not recorded yet";
 
   const proofReceiptHash =
-    data.receiptHash ||
+    getStableHashValue(ledgerReceiptHash) ||
+    (!caseId ? getStableHashValue(data.receiptHash) : "") ||
     "Unavailable";
+
+  const resolvedVerificationCaseId =
+    resolveCaseId({
+      caseId:
+        location.state?.caseId ||
+        location.state?.case_id ||
+        location.state?.caseData?.caseId ||
+        location.state?.caseData?.id ||
+        data.caseData?.caseId ||
+        data.caseData?.id ||
+        getCurrentCaseId() ||
+        "",
+    });
+
+  const handleActivateVerificationForCase = () => {
+    const caseIdToActivate = resolvedVerificationCaseId || inferredCaseId;
+    if (!caseIdToActivate) return;
+
+    const nextCaseBilling = {
+      ...activeCaseBilling,
+      receiptActivated: activeCaseBilling?.receiptActivated === true,
+      verificationActivated: true,
+      activatedAt: new Date().toISOString(),
+      source: "local_test",
+    };
+
+    try {
+      upsertCase({
+        caseId: caseIdToActivate,
+        caseBilling: nextCaseBilling,
+      });
+      setCaseBillingOverride(nextCaseBilling);
+    } catch (error) {
+      console.warn("Failed to activate verification for case", error);
+    }
+  };
+
+  let persistedCaseVerificationHash = "";
+
+  try {
+    persistedCaseVerificationHash = resolvedVerificationCaseId
+      ? getCaseById(resolvedVerificationCaseId)?.verification?.verificationHash ||
+        getCaseById(resolvedVerificationCaseId)?.verificationHash ||
+        ""
+      : "";
+  } catch (error) {
+    console.warn("Failed to read verification hash from case registry:", error);
+  }
+
+  const persistedVerificationHash =
+    getStableHashValue(persistedCaseVerificationHash) ||
+    getStableHashValue(data.verificationHash) ||
+    getStoredStableHash(
+      resolvedVerificationCaseId || proofReceiptHash
+        ? `verificationHash:${resolvedVerificationCaseId || proofReceiptHash}:${proofReceiptHash || "no-receipt"}`
+        : ""
+    );
+
+  const generatedVerificationHash = generateVerificationHash({
+    receiptHash: proofReceiptHash,
+    overallStatus: finalOverallStatus,
+    weakestDimension: data.weakestDimension,
+    checks: data.checks,
+  });
+
+  const verificationHash =
+    persistedVerificationHash || generatedVerificationHash;
+
+  React.useEffect(() => {
+    saveStoredVerificationHash(
+      resolvedVerificationCaseId,
+      proofReceiptHash,
+      verificationHash
+    );
+    try {
+      if (
+        resolvedVerificationCaseId &&
+        !currentCase?.verification?.verificationHash
+      ) {
+        upsertCase({
+          caseId: resolvedVerificationCaseId,
+          verification: {
+            eligible: verificationFlat?.resolvedVerificationEligible === true,
+            verifiedAt: new Date().toISOString(),
+            verificationHash,
+          },
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to persist verification on case", error);
+    }
+  }, [resolvedVerificationCaseId, proofReceiptHash, verificationHash]);
 
   const displayReceiptHash =
     proofReceiptHash && proofReceiptHash !== "Unavailable"
-      ? `${proofReceiptHash.slice(0, 10)}…${proofReceiptHash.slice(-6)}`
+      ? `${proofReceiptHash.slice(0, 10)}闁?{proofReceiptHash.slice(-6)}`
       : proofReceiptHash;
 
-  const hasReceiptHash = hasVerificationPayload ? evaluated.hasReceiptHash : false;
+  const hasReceiptHash = hasVerificationPayload
+    ? Boolean(ledgerReceiptHash) && (evaluated.hasReceiptHash || Boolean(data.receiptHash))
+    : false;
   const hasCompleteStructure = hasVerificationPayload ? evaluated.hasCompleteStructure : false;
 
   const verdictLine = getVerificationVerdictLine({
@@ -1236,26 +2085,22 @@ const finalOverallStatus =
     (item) => item.passed
   ).length;
 
+  const contractVerificationReady =
+    currentCase?.verification?.eligible === true ||
+    verificationFlat?.resolvedVerificationEligible === true;
+
   const acceptanceReady =
-    acceptanceChecklist.every((item) => item.passed) &&
     finalOverallStatus === "Verification Ready";
 
   const verificationPass =
-    finalOverallStatus === "Verification Ready" &&
-    isEvidenceLockedConsistent &&
-    acceptanceReady;
-
+    contractVerificationReady && access.verificationEligible;
   const verificationBlock = !verificationPass;
-
-  const canActivateFormalVerification = verificationPass;
-
-  const canShowSubscriptionOptions =
-    canActivateFormalVerification &&
-    isEvidenceLockedConsistent &&
-    hasVerificationPayload;
+  const canActivateFormalVerification =
+    hasLedgerReceipt && verificationPass && access.canRunVerification;
+  const canShowSubscriptionOptions = verificationPass;
   
   const verdictTheme =
-  finalOverallStatus === "Verification Failed"
+    finalOverallStatus === "Verification Failed"
     ? {
         cardBg: "#FEF2F2",
         cardBorder: "#FCA5A5",
@@ -1281,7 +2126,13 @@ const finalOverallStatus =
 
   React.useEffect(() => {
     try {
-      localStorage.setItem("verificationPageData", JSON.stringify(data));
+      localStorage.setItem(
+        "verificationPageData",
+        JSON.stringify({
+          ...data,
+          verificationHash,
+        })
+      );
       localStorage.setItem(
         "sharedReceiptVerificationContract",
         JSON.stringify(sharedContract || {})
@@ -1293,14 +2144,23 @@ const finalOverallStatus =
     } catch (error) {
       console.error("Failed to persist verification payload:", error);
     }
-  }, [data, sharedContract]);
+  }, [data, sharedContract, verificationHash]);
 
   React.useEffect(() => {
   const session =
     location.state?.trialSession || getTrialSession() || {};
   const resolvedUserId = session.userId || getStableUserId();
+  const stableUserId =
+    location.state?.stableUserId ||
+    session?.stableUserId ||
+    resolvedUserId ||
+    "";
+  const caseId =
+    data.caseData?.caseId ||
+    data.caseData?.id ||
+    resolvedVerificationCaseId;
 
-    if (!session?.userId || !session?.trialId) return;
+    if (!caseId) return;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
     if (verificationViewedLoggedRef.current) return;
 
@@ -1309,21 +2169,20 @@ const finalOverallStatus =
   logTrialEvent(
     {
       userId: resolvedUserId,
-      trialId: session.trialId,
+      trialId: session?.trialId || session?.trialSessionId || "",
       sessionId:
         location.state?.session_id ||
         location.state?.sessionId ||
         data.caseData?.sessionId ||
         data.receiptId ||
         "verification_entry",
-      caseId:
-        data.caseData?.caseId ||
-        data.caseData?.id ||
-        data.receiptId ||
-        "verification_entry",
+      caseId,
       eventType: "verification_viewed",
       page: "VerificationPage",
+      stableUserId,
       meta: {
+        stableUserId,
+        source: "funnel_event",
         overallStatus: finalOverallStatus,
         receiptMode,
         receiptSource,
@@ -1348,6 +2207,7 @@ const finalOverallStatus =
     data.caseData,
     data.receiptId,
     data.weakestDimension,
+    resolvedVerificationCaseId,
     finalOverallStatus,
     receiptMode,
     receiptSource,
@@ -1390,8 +2250,7 @@ const finalOverallStatus =
         caseId:
           data.caseData?.caseId ||
           data.caseData?.id ||
-          data.receiptId ||
-          "verification_entry",
+          resolvedVerificationCaseId,
         eventType: finalEventType,
         page: "VerificationPage",
         meta: {
@@ -1427,7 +2286,7 @@ const finalOverallStatus =
     isEvidenceLockedConsistent,
   ]);
 
-  const recommendedPathLabel =
+const recommendedPathLabel =
     finalOverallStatus === "Verification Ready"
       ? "Recommended next step"
       : finalOverallStatus === "Verification Warning"
@@ -1438,40 +2297,63 @@ const finalOverallStatus =
     finalOverallStatus === "Verification Ready";
 
   const recommendWeeklyAccess =
-    finalOverallStatus === "Verification Warning" ||
     finalOverallStatus === "Verification Failed";
 
   const [modalSource, setModalSource] = useState("verification_cta");
 
   const handleOpenSubscriptionModal = async (source = "verification_cta") => {
-  const session =
-    location.state?.trialSession || getTrialSession() || {};
-  const resolvedUserId = session.userId || getStableUserId();
-
-    if (resolvedUserId) {
-      try {
-        await logTrialEvent({
-          userId: resolvedUserId,
-          trialId: session.trialId,
-          caseId: data.receiptId || "verification_entry",
-          eventType: "pricing_modal_opened",
-          page: "VerificationPage",
-          meta: {
-            source,
-            overallStatus: finalOverallStatus,
-            canActivateFormalVerification,
-            canShowSubscriptionOptions,
-            weakestDimension:
-              data.weakestDimension || data.caseData?.weakestDimension || "",
+    try {
+      if (resolvedVerificationCaseId) {
+        updateCase(resolvedVerificationCaseId, {
+          acceptanceChecklist: {
+            items: acceptanceChecklist || [],
+            checkedAt: new Date().toISOString(),
+            sourcePage: "VerificationPage",
           },
+          updatedAt: new Date().toISOString(),
         });
-      } catch (error) {
-        console.error("pricing_modal_opened log error:", error);
       }
+    } catch (error) {
+      console.warn("Failed to save acceptanceChecklist to case", error);
     }
 
     setModalSource(source);
     setShowSubscriptionModal(true);
+
+    const session = location.state?.trialSession || getTrialSession() || {};
+    const resolvedUserId = session.userId || getStableUserId();
+
+    if (!resolvedUserId) return;
+
+    try {
+      await logTrialEvent({
+        userId: resolvedUserId,
+        trialId: session.trialId || "trial_unknown",
+        caseId: resolvedVerificationCaseId,
+        eventType: "pricing_modal_opened",
+        page: "VerificationPage",
+        meta: {
+          source,
+          overallStatus: finalOverallStatus,
+          canActivateFormalVerification,
+          canShowSubscriptionOptions,
+          weakestDimension:
+            data.weakestDimension || data.caseData?.weakestDimension || "",
+        },
+      });
+    } catch (error) {
+      console.error("pricing_modal_opened log error:", error);
+    }
+  };
+
+  const handleFileUpload = (event) => {
+    if (!access.canUploadFiles) {
+      handleOpenSubscriptionModal("evidence_upload_locked");
+      return;
+    }
+
+    const files = Array.from(event.target.files || []);
+    setUploadedFiles((prev) => [...prev, ...files]);
   };
 
   const handleRecoveryPath = async (source = "recovery_cta") => {
@@ -1486,7 +2368,7 @@ const finalOverallStatus =
         await logTrialEvent({
           userId: resolvedUserId,
           trialId: session.trialId,
-          caseId: data.receiptId || "verification_entry",
+          caseId: resolvedVerificationCaseId,
           eventType: nextOpen
             ? "verification_recovery_cta_clicked"
             : "verification_recovery_cta_closed",
@@ -1507,23 +2389,47 @@ const finalOverallStatus =
   };
 
   return (
-  <div className="min-h-screen bg-slate-50 text-slate-900 px-4 py-8">
-    <div className="max-w-5xl mx-auto">
-      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-7 md:p-10 space-y-9">
-        <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-7">
-          <h1 className="text-3xl font-bold mb-3">{data.verificationTitle}</h1>
+  <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+    <div className="max-w-3xl mx-auto">
+      <TopRightCasesCapsule />
+      <div className="space-y-9">
+        <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-7 md:p-10 space-y-6 overflow-hidden">
+          <header className="bg-white p-0">
+          <h1 className="text-3xl font-bold mb-3">
+            {isPaid ? "Verification Ready" : "Verification Not Activated"}
+          </h1>
 
-          <p className="text-slate-700 leading-7 mb-5">
+          <p
+            style={{
+              margin: "0 0 10px 0",
+              fontSize: "13px",
+              lineHeight: "1.45",
+              color: "#64748B",
+              fontWeight: 400,
+            }}
+          >
             {data.introText ||
-               "This page is the verification layer. It does not repeat receipt eligibility. It determines whether the issued record is externally ready, internally reviewable, or still structurally incomplete."}
+              "This page is the verification layer. It does not repeat receipt eligibility. It determines whether the issued record is externally ready, internally reviewable, or still structurally incomplete."}
           </p>
 
-          <p className="text-sm text-slate-500 leading-6 mb-6">
+          <div className="text-sm text-slate-500 mt-2">
+            Receipt records the decision. Verification checks that the record holds under review.
+          </div>
+
+          <p
+            style={{
+              margin: "0 0 14px 0",
+              fontSize: "12px",
+              lineHeight: "1.35",
+              color: "#94A3B8",
+              fontWeight: 400,
+            }}
+          >
             {data.weakestDimension
-              ? `This proof is first interpreted through your weakest dimension: ${data.weakestDimension}.`
+              ? `Primary review dimension: ${data.weakestDimension}.`
               : data.caseData
-              ? "This proof is being interpreted through the current case schema, but no dominant weakest dimension is available."
-              : "This proof is interpreted through the structural weak point currently exposed in the record."}
+              ? "Primary review dimension not separately identified under the current case schema."
+              : "Primary review dimension not available in the current record."}
           </p>
 
           <div className="mt-3">
@@ -1535,11 +2441,11 @@ const finalOverallStatus =
                 backgroundColor: "#F8FAFC",
               }}
             >
-              {/* 上排 */}
+              {/* 缂佹鍏涚粩鎾箳閹虹偟绐桰ssuance Status / Receipt ID */}
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                   alignItems: "start",
                   columnGap: "0",
                 }}
@@ -1553,30 +2459,43 @@ const finalOverallStatus =
                       lineHeight: 1.2,
                     }}
                   >
-                    Verification Status
+                    Issuance Status
                   </p>
-                  <p
+              
+                  <div
                     style={{
-                      margin: 0,
-                      fontSize: "15px",
-                      lineHeight: 1.3,
-                      fontWeight: 600,
-                      color:
-                        finalOverallStatus === "Verification Ready"
-                          ? "#047857"
-                          : finalOverallStatus === "Verification Warning"
-                          ? "#B45309"
-                          : "#991B1B",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
                     }}
                   >
-                    {finalOverallStatus === "Verification Ready"
-                      ? "READY · Reviewable and externally usable"
-                      : finalOverallStatus === "Verification Warning"
-                      ? "WARNING · Internally reviewable only"
-                      : "FAILED · Correction required"}
-                  </p>
+                    <div style={{ flexShrink: 0, lineHeight: 0 }}>
+                      <StatusCircleIcon status={finalOverallStatus} />
+                    </div>
+              
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "12px",
+                        lineHeight: 1.3,
+                        fontWeight: 600,
+                        color:
+                          finalOverallStatus === "Verification Ready"
+                            ? "#047857"
+                            : finalOverallStatus === "Verification Warning"
+                            ? "#B45309"
+                            : "#991B1B",
+                      }}
+                    >
+                      {finalOverallStatus === "Verification Ready"
+                        ? "FORMAL VERIFICATION ISSUABLE"
+                        : finalOverallStatus === "Verification Warning"
+                        ? "FORMAL VERIFICATION NOT YET ISSUABLE"
+                        : "FORMAL VERIFICATION BLOCKED"}
+                    </p>
+                  </div>
                 </div>
-
+              
                 <div
                   style={{
                     padding: "2px 16px 4px 16px",
@@ -1596,7 +2515,7 @@ const finalOverallStatus =
                   <p
                     style={{
                       margin: 0,
-                      fontSize: "15px",
+                      fontSize: "12px",
                       lineHeight: 1.3,
                       fontWeight: 600,
                       wordBreak: "break-all",
@@ -1606,7 +2525,107 @@ const finalOverallStatus =
                     {hasVerificationPayload ? data.receiptId : "No live receipt attached"}
                   </p>
                 </div>
-          
+              </div>
+
+              {/* 缂佹鍏涚粩鎾箳閹烘垶瀚茬紒妤婂厸缁ㄢ晠骞掗幒宥囶吅闂傚倸顕▓鎴澪熼鍡楁疇 */}
+              <div
+                style={{
+                  margin: "10px 0",
+                  height: "1px",
+                  backgroundColor: "#CBD5E1",
+                }}
+              />
+
+              {/* 缂佹鍏涚花鈺呭箳閹虹偟绐梀erification Hash / Verified At */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  alignItems: "start",
+                  columnGap: "0",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "2px 16px 4px 6px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      margin: "0 0 6px 0",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Verification Hash
+                  </p>
+              
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "12px",
+                        lineHeight: 1.3,
+                        fontWeight: 600,
+                        color: "#0F172A",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {`${verificationHash.slice(0, 10)}...${verificationHash.slice(-6)}`}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(verificationHash);
+                          setVerificationHashCopied(true);
+                          window.setTimeout(() => {
+                            setVerificationHashCopied(false);
+                          }, 1200);
+                        } catch (error) {
+                          console.error("Failed to copy verification hash:", error);
+                        }
+                      }}
+                      style={{
+                        border: verificationHashCopied
+                          ? "1px solid #10B981"
+                          : "1px solid #CBD5E1",
+                        background: verificationHashCopied ? "#ECFDF5" : "#FFFFFF",
+                        borderRadius: "999px",
+                        padding: "4px 10px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: verificationHashCopied ? "#047857" : "#334155",
+                        cursor: "pointer",
+                        transition: "all 160ms ease",
+                      }}
+                    >
+                      {verificationHashCopied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+
+                  <p
+                    style={{
+                      margin: "4px 0 0 0",
+                      fontSize: "10.5px",
+                      lineHeight: 1.35,
+                      color: "#94A3B8",
+                      fontWeight: 400,
+                    }}
+                  >
+                    Derived from the receipt baseline and current verification outcome.
+                  </p>
+                </div>
+
                 <div
                   style={{
                     padding: "2px 6px 4px 16px",
@@ -1626,7 +2645,7 @@ const finalOverallStatus =
                   <p
                     style={{
                       margin: 0,
-                      fontSize: "15px",
+                      fontSize: "12px",
                       lineHeight: 1.3,
                       fontWeight: 600,
                       color: "#0F172A",
@@ -1635,118 +2654,67 @@ const finalOverallStatus =
                     {data.verifiedAt || "Not recorded yet"}
                   </p>
                 </div>
-              </div>
-          
-              {/* 中间只保留长横线，不要极短线 */}
-              <div
-                style={{
-                  margin: "10px 0 10px 0",
-                  height: "1px",
-                  backgroundColor: "#CBD5E1",
-                }}
-              />
-          
-              {/* 下排 */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  alignItems: "start",
-                  columnGap: "0",
-                }}
-              >
-                <div style={{ padding: "2px 16px 2px 6px" }}>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      color: "#64748B",
-                      margin: "0 0 6px 0",
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    Case Schema
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "14px",
-                      lineHeight: 1.3,
-                      fontWeight: 600,
-                      color: "#0F172A",
-                    }}
-                  >
-                    {data.schemaVersion || "Not attached"}
-                  </p>
-          
-                  {typeof data.structureScoreFromCase === "number" ? (
-                    <p
-                      style={{
-                        margin: "8px 0 0 0",
-                        fontSize: "11px",
-                        lineHeight: 1.25,
-                        color: "#64748B",
-                      }}
-                    >
-                      Structure score: {data.structureScoreFromCase.toFixed(2)}
-                    </p>
-                  ) : null}
-          
-                  {data.structureStatusFromCase ? (
-                    <p
-                      style={{
-                        margin: "3px 0 0 0",
-                        fontSize: "11px",
-                        lineHeight: 1.25,
-                        color: "#64748B",
-                      }}
-                    >
-                      Structure status: {data.structureStatusFromCase}
-                    </p>
-                  ) : null}
                 </div>
-          
+
                 <div
                   style={{
-                    padding: "2px 6px 2px 16px",
-                    borderLeft: "1px solid #CBD5E1",
-                    minHeight: "72px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
+                    margin: "10px 0",
+                    height: "1px",
+                    backgroundColor: "#CBD5E1",
+                  }}
+                />
+
+                <div
+                  style={{
+                    position: "relative",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    alignItems: "start",
+                    columnGap: "0",
                   }}
                 >
-                  <p
+                  {/* 鐎归潻璁ｇ槐鐧坅se Schema */}
+                  <div style={{ padding: "2px 16px 4px 6px" }}>
+                    <p style={{ fontSize: "12px", color: "#64748B", margin: "0 0 6px 0" }}>
+                      Case Schema
+                    </p>
+                    <p style={{ fontSize: "12.5px", fontWeight: 600 }}>
+                      {data.caseData ? "Attached" : "Not attached"}
+                    </p>
+                  </div>
+
+                  {/* 闁告瑧顒茬槐鐧坅se tested */}
+                  <div
                     style={{
-                      fontSize: "12px",
-                      color: "#64748B",
-                      margin: "0 0 6px 0",
-                      lineHeight: 1.2,
+                      padding: "2px 6px 4px 16px",
+                      borderLeft: "1px solid #CBD5E1",
                     }}
                   >
-                    Case tested
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "14px",
-                      lineHeight: 1.3,
-                      fontWeight: 600,
-                      color: "#0F172A",
-                    }}
-                  >
-                    {data.displayContext || "No structured summary available."}
-                  </p>
+                    <p style={{ fontSize: "12px", color: "#64748B", margin: "0 0 6px 0" }}>
+                      Case tested
+                    </p>
+                    {hasVerificationSummary ? (
+                      <div className="text-sm leading-6 text-slate-900">
+                        <div>鉁?Baseline summary loaded</div>
+                        <div>鉁?Events: {verificationEventCount || "recorded"}</div>
+                        <div>鉁?Decision path reconstructed</div>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: "12.5px", fontWeight: 500 }}>
+                        {data.displayContext || "No structured summary available."}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
         </header>
         <section
           className="mt-3 p-6 md:p-7 shadow-sm"
           style={{
-            width: "calc(100% - 48px)",
-            marginLeft: "24px",
-            marginRight: "24px",
+            width: "100%",
+            marginLeft: "0",
+  marginRight: "0",
             backgroundColor: verdictTheme.cardBg,
             border:
               finalOverallStatus === "Verification Failed"
@@ -1762,22 +2730,81 @@ const finalOverallStatus =
           }}
         >
           <div className="space-y-5">
-            <div
+            <p
               style={{
-                color: verdictTheme.titleColor,
-                fontSize: "22px",
-                lineHeight: "1.25",
-                fontWeight: 700,
+                margin: 0,
+                fontSize: "12px",
+                lineHeight: 1.2,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "#64748B",
               }}
             >
-              {verdictLine}
+              Verification conclusion
+            </p>
+
+            <VerificationTraceBlock
+              caseData={data.displayContext}
+              events={data.eventTimeline}
+              correction={guidance?.actions?.[0]}
+              verificationHash={verificationHash}
+              weakestDimension={data.weakestDimension}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+              }}
+            >
+              <div style={{ flexShrink: 0, lineHeight: 0, marginTop: "2px" }}>
+                <StatusShieldIcon status={finalOverallStatus} />
+              </div>
+
+              <div
+                style={{
+                  maxWidth: "640px",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    color: verdictTheme.titleColor,
+                    fontSize: "15px",
+                    lineHeight: "1.4",
+                    fontWeight: 600,
+                  }}
+                >
+                  {verdictLine}
+                </div>
+
+                <div
+                  style={{
+                    margin: "8px 0 0 0",
+                    fontSize: "12px",
+                    lineHeight: "1.45",
+                    color: "#64748B",
+                    fontWeight: 400,
+                  }}
+                >
+                  This determination may be used for internal review, escalation, or audit reference.
+                </div>
+              </div>
             </div>
 
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                border: "1px solid #FCA5A5",       // 淡红框（比底色深一点）
+                border:
+                  finalOverallStatus === "Verification Ready"
+                    ? "1px solid rgba(4,120,87,0.18)"
+                    : finalOverallStatus === "Verification Warning"
+                    ? "1px solid rgba(180,83,9,0.18)"
+                    : "1px solid rgba(153,27,27,0.18)",
                 borderRadius: "12px",
                 overflow: "hidden",
                 width: "fit-content",
@@ -1786,43 +2813,57 @@ const finalOverallStatus =
             >
               {[
                 hasReceiptHash
-                  ? "✓ Receipt Hash verified"
-                  : "• Receipt Hash unavailable",
+                  ? "闁?Receipt baseline attached"
+                  : "闁?Receipt baseline missing",
 
-                hasCompleteStructure
-                  ? "✓ Structure consistent"
-                  : "• Structure sufficient",
+                finalOverallStatus === "Verification Ready"
+                  ? "闁?Structural sufficiency confirmed"
+                  : hasCompleteStructure
+                  ? "闁?Structural sufficiency met"
+                  : "闁?Structural sufficiency not met",
 
                 auditReady
-                  ? "✓ Ready for review"
-                  : "• Review pending",
+                  ? "闁?Review condition satisfied"
+                  : "闁?Review condition pending",
 
                 isEvidenceLockedConsistent
-                  ? "✓ Evidence lock consistent"
-                  : "• Evidence lock broken",
+                  ? "闁?Record chain consistent"
+                  : "闁?Record chain inconsistent",
               ].map((text, index, arr) => (
                 <React.Fragment key={text}>
       
-                  {/* 每一块 */}
+                  {/* 婵絽绻嬬粩鎾锤?*/}
                   <div
                     style={{
-                      padding: "6px 14px",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "#991B1B", // 深红字（跟标题一致）
+                      padding: "3px 8px",     // 妫ｅ啯鍟?闁告劕绉甸弫瑙勭▔閳ь剟宕烽崼顒傜闂傚牏鍋涢悥鍫曞礂閹惰姤鏆涢柨?
+                      fontSize: "10px",     // 妫ｅ啯鍟?闁告劕绉瑰閿嬬▔閳ь剟鎮欓崷顓炰化闁挎稑鐗呯粭澶屾啺娴ｇ儤绾柟?0闁挎稑濂旂槐鐗堝緞椤忓嫬鍙￠柨?
+                      lineHeight: "1.2",      // 妫ｅ啯鍟?闁告ê顑囬幓?
+                      fontWeight: 500,
+                      letterSpacing: "0.01em", // 妫ｅ啯鍟?闁告梻濮崇粩鎾倷閸︻厼浠紒顔藉礃閸ぱ囧箛?
+                      color:
+                        finalOverallStatus === "Verification Ready"
+                          ? "#047857"
+                          : finalOverallStatus === "Verification Warning"
+                          ? "#B45309"
+                          : "#991B1B",
                       whiteSpace: "nowrap",
                     }}
                   >
                     {text}
                   </div>
             
-                  {/* 中间竖线（关键） */}
+                  {/* 濞戞搩鍙冨Λ璺ㄧ博閺嶎偄娈犻柨娑樼墕閸櫻囨煥椤曞棛绀?*/}
                   {index < arr.length - 1 && (
                     <div
                       style={{
                         width: "1px",
-                        height: "18px",
-                        backgroundColor: "#FCA5A5",
+                        height: "14px",                         // 妫ｅ啯鍟?闁哄洤顕悡?
+                        backgroundColor:
+                          finalOverallStatus === "Verification Ready"
+                            ? "rgba(4,120,87,0.25)"
+                            : finalOverallStatus === "Verification Warning"
+                            ? "rgba(180,83,9,0.25)"
+                            : "rgba(153,27,27,0.25)",
                       }}
                     />
                   )}
@@ -1832,9 +2873,62 @@ const finalOverallStatus =
           </div>
         </section>
 
-        <section className="mt-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        {/* 妫ｅ啯鏉?Supporting Evidence Upload */}
+        <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-6">
+            <div className="max-w-[300px]">
+              <p className="text-[10px] font-medium tracking-[0.08em] uppercase text-slate-400 mb-1">
+                Evidence-based verification
+              </p>
+
+              <h3 className="text-[12px] font-medium text-slate-800 mb-1 leading-[1.35]">
+                File upload is available after verification activation
+              </h3>
+
+              <p className="text-[11px] text-slate-500 leading-[1.5]">
+                Text-only verification can be previewed from the current record. File-based review requires activation before documents are uploaded or processed.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!access.canUploadFiles) {
+                  handleOpenSubscriptionModal("evidence_upload_locked");
+                  return;
+                }
+              }}
+              style={{
+                flexShrink: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "999px",
+                backgroundColor: "#ECFDF5",
+                color: "#047857",
+                border: "1px solid #A7F3D0",
+                padding: "8px 20px",
+                fontSize: "11px",
+                fontWeight: 500,
+                lineHeight: 1.2,
+                boxShadow: "0 2px 6px rgba(4, 120, 87, 0.08)",
+                cursor: "pointer",
+              }}
+            >
+              {access.canUploadFiles ? "File upload unlocked" : "Activate file-based"}
+              <br />
+              verification
+            </button>
+          </div>
+        </section>
+        
+        <section className="mt-3 p-0">
+          <p className="text-xs font-medium tracking-[0.08em] uppercase text-slate-400 mb-2">
+            Next procedural step
+          </p>
+
           <h2
-            className={`text-lg font-semibold mb-2 ${
+            className={`text-[17px] font-medium mb-2 ${
               finalOverallStatus === "Verification Failed"
                 ? "text-red-800"
                 : finalOverallStatus === "Verification Warning"
@@ -1842,119 +2936,179 @@ const finalOverallStatus =
                 : "text-emerald-800"
             }`}
           >
-            {canActivateFormalVerification
-              ? "Externally usable version"
-              : finalOverallStatus === "Verification Warning"
-              ? "Fastest path to verification pass"
-              : "Fastest recovery path"}
-          </h2>
-
-          <p
-            className={`leading-7 ${
-              finalOverallStatus === "Verification Failed"
-               ? "text-red-700"
-                : finalOverallStatus === "Verification Warning"
-                ? "text-amber-700"
-                : "text-emerald-700"
-            }`}
-          >
-            {canActivateFormalVerification
-              ? "This proof is now strong enough to be used outside your system. Activate the formal version when this decision needs to travel beyond the workspace."
+            {access.needsEvent
+              ? "Capture event before verification"
+              : !hasLedgerReceipt
+              ? "Receipt ledger required"
+              : access.needsScore
+              ? "Score not ready for verification"
+              : access.verificationEligible && !access.canRunVerification
+              ? "Formal verification activation required"
+              : canActivateFormalVerification
+              ? "Record eligible for formal issuance"
               : !isEvidenceLockedConsistent
-              ? "This proof is blocked by a broken evidence chain. Return to the receipt and recover the source of truth before trying to activate anything."
+              ? "Record chain recovery required"
               : finalOverallStatus === "Verification Warning"
-              ? "One focused structural fix may be enough to move this result into a fully usable state."
-              : "This result is still recoverable, but the next move should be a narrow structural repair instead of a full rewrite."}
+              ? "Pre-issuance correction required"
+              : "Re-submission blocked until required remediation is completed"}
+          </h2>
+        
+          <p
+            style={{
+              margin: 0,
+              fontSize: "11.5px",
+              lineHeight: "1.45",
+              fontWeight: 400,
+              color: "#64748B",
+            }}
+          >
+            {access.needsEvent
+              ? "Verification requires at least one captured event before this record can move into formal review."
+              : !hasLedgerReceipt
+              ? receiptLedgerLoading
+                ? "Verification is checking for the issued receipt baseline before loading formal controls."
+                : receiptLedgerError
+                ? "Receipt ledger not found. Generate the case receipt before activating verification."
+                : "Receipt ledger not found. Generate the case receipt before activating verification."
+              : access.needsScore
+              ? "The current score is not high enough for verification eligibility yet."
+              : access.verificationEligible && !access.canRunVerification
+              ? "The current record is eligible for verification preview. Formal activation is required before verification can run."
+              : canActivateFormalVerification
+              ? "The current record is sufficient for formal verification issuance when this decision must be carried forward outside the workspace."
+              : !isEvidenceLockedConsistent
+              ? "The current verification record is no longer aligned with the issued receipt baseline. Restore the source record before further review."
+              : finalOverallStatus === "Verification Warning"
+              ? "One focused structural correction is required before formal verification can be issued."
+              : "This record has received a formal negative determination. Required remediation must be completed before the case can be re-submitted for formal verification."}
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            {canActivateFormalVerification ? (
+            {verificationPass && hasLedgerReceipt ? (
               <button
                 type="button"
-                onClick={async () => {
-                  const session =
-                    location.state?.trialSession || getTrialSession();
-
-                  const resolvedUserId =
-                    session?.userId || getStableUserId();
-
-                  if (resolvedUserId) {
-                    try {
-                      await logTrialEvent({
-                        userId: resolvedUserId,
-                        trialId: session?.trialId,
-                        eventType: "verification_cta_clicked",
-                        page: "VerificationPage",
-                        caseId: data.receiptId || "verification_entry",
-                        meta: {
-                          overallStatus: finalOverallStatus,
-                          canActivateFormalVerification,
-                        },
-                      });
-                    } catch (e) {}
+                onClick={() => {
+                  if (!access.canRunVerification) {
+                    handleOpenSubscriptionModal("verification_activation_locked");
+                    return;
                   }
 
-                  handleOpenSubscriptionModal("formal_verification_cta");
+                  if (!verificationActivated) {
+                    handleActivateVerificationForCase();
+                    return;
+                  }
+
+                  handleOpenSubscriptionModal("verification_success_cta");
                 }}
-                className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#047857";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#059669";
+                }}
+                className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold shadow-sm transition"
+                style={{
+                  backgroundColor: "#059669",
+                  color: "#FFFFFF",
+                  boxShadow: "0 6px 16px rgba(5,150,105,0.35)",
+                }}
               >
-                Activate Formal Verification →
-              </button>
-            ) : finalOverallStatus === "Verification Warning" ? (
-              <button
-                type="button"
-                onClick={() => handleRecoveryPath("warning_cta")}
-                className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
-              >
-                Improve Before Activation →
+                {isPaid ? "Verify Record" : "Activate Verification"}
               </button>
             ) : (
               <button
                 type="button"
-                onClick={() => handleRecoveryPath("failed_cta")}
-                className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold transition"
+                onClick={() => handleRecoveryPath("verification_failed_cta")}
+                className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
                 style={{
-                  backgroundColor: "#991B1B",
-                  color: "#FFFFFF",
-                  borderRadius: "9999px",
-                  padding: "10px 18px",
-                  boxShadow: "0 4px 10px rgba(153,27,27,0.25)"
+                  boxShadow: "0 3px 8px rgba(245, 158, 11, 0.18)"
                 }}
               >
-                Recover This Proof Path →
+                <span className="flex items-center gap-2">
+                  <span>Show recovery path</span>
+
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "0",
+                      height: "0",
+                      borderLeft: "5px solid transparent",
+                      borderRight: "5px solid transparent",
+                      borderTop: "6px solid #B45309", // amber-700
+                      transform: showRecoveryPanel ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease",
+                    }}
+                  />
+                </span>
               </button>
             )}
           </div>
 
           {showRecoveryPanel && !canActivateFormalVerification && (
-            <div className="mt-6" ref={recoverySectionRef}>
+            <div className="mt-6 space-y-4" ref={recoverySectionRef}>
+              {consistencyRepairCard ? (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 sm:px-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700/80">
+                    {consistencyRepairCard.title}
+                  </div>
+
+                  <h3 className="mt-2 text-xs font-semibold text-neutral-900 sm:text-[15px] leading-6">
+                    {consistencyRepairCard.intro}
+                  </h3>
+
+                  {Array.isArray(consistencyRepairCard.conflicts) &&
+                  consistencyRepairCard.conflicts.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {consistencyRepairCard.conflicts.slice(0, 2).map((item) => (
+                        <div
+                          key={item.code}
+                          className="rounded-xl border border-amber-200/80 bg-white px-3 py-3"
+                        >
+                          <div className="text-xs font-medium text-neutral-900 leading-6">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-[13px] leading-5 text-neutral-600">
+                            Recommended repair: {item.fix}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {consistencyRepairCard.minimalRepair ? (
+                    <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        Minimal repair path
+                      </div>
+                      <div className="mt-1 text-xs font-medium text-neutral-900 leading-6">
+                        {consistencyRepairCard.minimalRepair.label}
+                      </div>
+                      <div className="mt-1 text-[13px] leading-5 text-neutral-600">
+                        {consistencyRepairCard.minimalRepair.action}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
               <CalibrationCard
                 guidance={guidance}
                 status={finalOverallStatus}
                 weakestDimension={data.weakestDimension || data.caseData?.weakestDimension || ""}
                 checks={data.checks}
                 isEvidenceLockedConsistent={isEvidenceLockedConsistent}
+                consistencyRepairCard={consistencyRepairCard}
               />
             </div>
           )}
-        </section>
-
-        {!isEvidenceLockedConsistent && (
-          <section className="bg-red-50 rounded-2xl border border-red-200 p-6">
-            <h2 className="text-lg font-semibold mb-2 text-red-800">
-              Verification locked to receipt recovery
-            </h2>
-            <p className="text-red-700 leading-7">
-              This verification view has been downgraded because the evidence lock no longer matches the issued receipt chain.
-            </p>
-            <p className="mt-3 text-red-700 leading-7">
-              Return to the receipt layer to recover the current source of truth before using this proof further.
-            </p>
           </section>
-        )}
-      
+
+        </div>
+
         <section className="mt-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">Aggregated RUN Record</h2>
+          <h2 className="text-lg font-semibold mb-4">Aggregated RUN Record</h2>
 
           <div
             style={{
@@ -1971,24 +3125,24 @@ const finalOverallStatus =
                 alignItems: "center",
               }}
             >
-              {/* 左：Summary */}
+              {/* 鐎归潻璁ｇ槐鐧漸mmary */}
               <div
                 style={{
                   padding: "2px 18px",
                   borderRight: "1px solid #CBD5E1",
                 }}
               >
-                <p style={{ fontSize: "15px", color: "#64748B", marginBottom: "10px" }}>
+                <p style={{ fontSize: "10px",   color: "#64748B", marginBottom: "10px" }}>
                   RUN Summary
                 </p>
-                <p style={{ fontSize: "18px", fontWeight: 600 }}>
+                <p style={{ fontSize: "15px",  fontWeight: 600 }}>
                   {data.runSummaryText || "No aggregated RUN summary available."}
                 </p>
               </div>
 
-              {/* 右：RUN entries */}
+              {/* 闁告瑧顒茬槐鐧沀N entries */}
               <div style={{ padding: "2px 18px" }}>
-                <p style={{ fontSize: "15px", color: "#64748B", marginBottom: "10px" }}>
+                <p style={{ fontSize: "10px",   color: "#64748B", marginBottom: "10px" }}>
                   RUN Signals
                 </p>
 
@@ -2005,7 +3159,7 @@ const finalOverallStatus =
                           fontWeight: 500,
                         }}
                       >
-                        {entry.runLabel} × {entry.count}
+                        {entry.runLabel} 閼?{entry.count}
                       </span>
                     ))}
                   </div>
@@ -2021,7 +3175,7 @@ const finalOverallStatus =
 
         {data.caseData ? (
           <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-xl font-semibold mb-4">Case Schema Snapshot</h2>
+            <h2 className="text-lg font-semibold mb-4">Case Schema Snapshot</h2>
 
             <div
               style={{
@@ -2046,7 +3200,7 @@ const finalOverallStatus =
                 >
                   <p
                     style={{
-                      fontSize: "15px",
+                      fontSize: "12px",  
                       color: "#64748B",
                       margin: "0 0 10px 0",
                     }}
@@ -2055,7 +3209,7 @@ const finalOverallStatus =
                   </p>
                   <p
                     style={{
-                      fontSize: "18px",
+                      fontSize: "15px", 
                       fontWeight: 600,
                       lineHeight: 1,
                       margin: 0,
@@ -2073,7 +3227,7 @@ const finalOverallStatus =
                 >
                   <p
                     style={{
-                      fontSize: "15px",
+                      fontSize: "10px",  
                       color: "#64748B",
                       margin: "0 0 10px 0",
                     }}
@@ -2100,7 +3254,7 @@ const finalOverallStatus =
                 >
                   <p
                     style={{
-                      fontSize: "15px",
+                      fontSize: "10px",  
                       color: "#64748B",
                       margin: "0 0 10px 0",
                     }}
@@ -2109,7 +3263,7 @@ const finalOverallStatus =
                   </p>
                   <p
                     style={{
-                      fontSize: "18px",
+                      fontSize: "15px", 
                       fontWeight: 600,
                       lineHeight: 1,
                       margin: 0,
@@ -2126,7 +3280,7 @@ const finalOverallStatus =
                 >
                   <p
                     style={{
-                      fontSize: "15px",
+                      fontSize: "10px",  
                       color: "#64748B",
                       margin: "0 0 10px 0",
                     }}
@@ -2135,7 +3289,7 @@ const finalOverallStatus =
                   </p>
                   <p
                     style={{
-                      fontSize: "18px",
+                      fontSize: "15px", 
                       fontWeight: 600,
                       lineHeight: 1,
                       margin: 0,
@@ -2150,7 +3304,7 @@ const finalOverallStatus =
         ) : null}  
 
         <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold mb-4">What was checked</h2>
+          <h2 className="text-lg font-semibold mb-4">What was checked</h2>
 
           <div
             style={{
@@ -2164,7 +3318,7 @@ const finalOverallStatus =
             <p
               style={{
                 margin: 0,
-                fontSize: "15px",
+                fontSize: "10px",  
                 fontWeight: 600,
                 color: "#0F172A",
               }}
@@ -2174,14 +3328,14 @@ const finalOverallStatus =
                 const failedCount = data.checks.filter((c) => c.status === "failed").length;
 
                 if (failedCount > 0) {
-                  return `✕ ${failedCount} failure${failedCount > 1 ? "s" : ""} detected. Structural issues must be corrected.`;
+                  return `闁?${failedCount} failure${failedCount > 1 ? "s" : ""} detected. Structural issues must be corrected.`;
                 }
 
                 if (warningCount > 0) {
-                  return `⚠ ${warningCount} warning${warningCount > 1 ? "s" : ""} detected. Structure is partially complete.`;
+                  return `闁?${warningCount} warning${warningCount > 1 ? "s" : ""} detected. Structure is partially complete.`;
                 }
 
-                return "✓ All checks passed. Structure is consistent and reviewable.";
+                return "闁?All checks passed. Structure is consistent and reviewable.";
               })()}
             </p>
 
@@ -2208,7 +3362,7 @@ const finalOverallStatus =
             {data.checks.map((check, index) => (
               <div key={`${check.label}-${index}`} style={{ padding: "12px 16px" }}>
       
-                {/* 标题行 */}
+                {/* 闁哄秴娲。鐣屾偘?*/}
                 <div
                   style={{
                     display: "flex",
@@ -2249,12 +3403,12 @@ const finalOverallStatus =
                   </span>
                 </div>
 
-                {/* 描述 */}
+                {/* 闁硅绻楅崼?*/}
                 <p style={{ color: "#475569", lineHeight: 1.6 }}>
                   {check.detail}
                 </p>
 
-                {/* 断开横线（关键） */}
+                {/* 闁哄偆鍘肩槐鎴澪熼鍡楁疇闁挎稑鐗嗛崣褔鏌ㄩ鍡欑 */}
                 {index < data.checks.length - 1 && (
                   <div
                     style={{
@@ -2272,12 +3426,12 @@ const finalOverallStatus =
         <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
   
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Verification timeline</h2>
+            <h2 className="text-lg font-semibold">Verification timeline</h2>
 
             <button
               type="button"
               onClick={() => setShowTimeline(prev => !prev)}
-              className="text-sm font-medium text-slate-600 hover:text-slate-900"
+              className="text-xs font-medium text-slate-600 hover:text-slate-900"
             >
               {showTimeline ? "Hide" : "View"}
             </button>
@@ -2290,7 +3444,7 @@ const finalOverallStatus =
                   key={`${item.time}-${item.title}-${index}`}
                   className="rounded-xl border border-slate-200 p-4 bg-slate-50"
                 >
-                  <p className="text-sm text-slate-500 mb-1">{item.time}</p>
+                  <p className="text-xs text-slate-500 mb-1">{item.time}</p>
                   <h3 className="font-semibold mb-2">{item.title}</h3>
                   <p className="text-slate-700 leading-7">{item.detail}</p>
                 </div>
@@ -2303,8 +3457,8 @@ const finalOverallStatus =
         <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 mb-5 pr-4">
             <div>
-              <h2 className="text-xl font-semibold">Ledger-backed proof</h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <h2 className="text-lg font-semibold">Ledger-backed proof</h2>
+              <p className="mt-1 text-xs text-slate-600">
                 This receipt is supported by a backend verification record for traceability and audit readiness.
               </p>
             </div>
@@ -2410,7 +3564,7 @@ const finalOverallStatus =
                 </p>
                 <p
                   style={{
-                    fontSize: "18px",
+                    fontSize: "15px", 
                     fontWeight: 600,
                     lineHeight: 1.2,
                     margin: 0,
@@ -2438,7 +3592,19 @@ const finalOverallStatus =
                 >
                   Receipt hash
                 </p>
-          
+           
+                <p
+                  style={{
+                    margin: "4px 0 0 0",
+                    fontSize: "10.5px",
+                    lineHeight: 1.35,
+                    color: "#94A3B8",
+                    fontWeight: 400,
+                  }}
+                >
+                  Source baseline for this verification chain.
+                </p>
+
                 <div
                   style={{
                     display: "flex",
@@ -2463,30 +3629,45 @@ const finalOverallStatus =
 
                   <button
                     type="button"
-                    onClick={() => navigator.clipboard.writeText(proofReceiptHash)}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(proofReceiptHash);
+                        setReceiptHashCopied(true);
+                        window.setTimeout(() => {
+                          setReceiptHashCopied(false);
+                        }, 1200);
+                      } catch (error) {
+                        console.error("Failed to copy receipt hash:", error);
+                      }
+                    }}
                     style={{
+                      marginLeft: "18px",
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      borderRadius: "10px",
-                      border: "1px solid #CBD5E1",
-                      backgroundColor: "#FFFFFF",
-                      padding: "6px 12px",
-                      fontSize: "12px",
+                      borderRadius: "999px",
+                      border: receiptHashCopied ? "1px solid #10B981" : "1px solid #CBD5E1",
+                      backgroundColor: receiptHashCopied ? "#ECFDF5" : "#FFFFFF",
+                      padding: "5px 14px",
+                      fontSize: "11px",
                       fontWeight: 600,
-                      color: "#334155",
+                      color: receiptHashCopied ? "#047857" : "#334155",
                       whiteSpace: "nowrap",
                       cursor: "pointer",
+                      boxShadow: receiptHashCopied
+                        ? "0 0 0 3px rgba(16, 185, 129, 0.14)"
+                        : "none",
+                      transition: "all 160ms ease",
                     }}
                   >
-                    Copy full hash
+                    {receiptHashCopied ? "Copied" : "Copy"}
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <p className="mt-4 text-sm text-slate-500 leading-6">
+          <p className="mt-4 text-xs text-slate-500 leading-6">
             This page does not expose the full ledger. It shows the proof layer linked to the current receipt.
           </p>
         </section>
@@ -2514,13 +3695,13 @@ const finalOverallStatus =
               ...(routeEnvelope || {}),
               pcMeta,
             }}
-            className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 border border-slate-300 shadow-sm transition hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-[12px] font-medium text-slate-900 border border-slate-300 shadow-sm transition hover:bg-slate-100"
           >
             Back to Receipt
           </Link>
         </div>
 
-        {showSubscriptionModal && canActivateFormalVerification && (
+        {showSubscriptionModal && (
           <div
             style={{
               position: "fixed",
@@ -2569,11 +3750,13 @@ const finalOverallStatus =
                     flex: 1,
                   }}
                 >
-                  {modalSource === "failed_cta"
+                  {verificationActivated
+                    ? formalWorkspaceCopy.modalTitle
+                    : modalSource === "failed_cta"
                     ? "Choose the fastest recovery path"
                     : modalSource === "warning_cta"
                     ? "Choose the fastest path to verification pass"
-                    : "Choose how to continue"}
+                    : "Preview access"}
                 </h2>
         
                 <button
@@ -2598,7 +3781,7 @@ const finalOverallStatus =
                     padding: 0,
                   }}
                 >
-                  ×
+                  閼?
                 </button>
               </div>
 
@@ -2622,7 +3805,7 @@ const finalOverallStatus =
                   }}
                 >
                   <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    Pilot Workspace
+                    {formalWorkspaceCopy.workspaceTitle}
                   </h3>
 
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
@@ -2646,26 +3829,26 @@ const finalOverallStatus =
               
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>· Unlimited pilot sessions</div>
-                    <div>· Unlimited result access</div>
-                    <div>· Internal case tracking</div>
-                    <div>· Analytics and history</div>
-                    <div>· Preview of receipt & verification states</div>
+                    <div>鐠?Unlimited pilot sessions</div>
+                    <div>鐠?Unlimited result access</div>
+                    <div>鐠?Internal case tracking</div>
+                    <div>鐠?Analytics and history</div>
+                    <div>鐠?Preview of receipt & verification states</div>
                   </div>
               
                   <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Does not include</div>
-                    <div>· Formal Receipt issuance</div>
-                    <div>· Formal Verification packages</div>
-                    <div>· Exportable proof</div>
+                    <div>鐠?Formal Receipt issuance</div>
+                    <div>鐠?Formal Verification packages</div>
+                    <div>鐠?Exportable proof</div>
                   </div>
 
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-700 shadow-sm transition hover:bg-green-100"
+                    className="inline-flex items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-xs font-semibold text-green-700 shadow-sm transition hover:bg-green-100"
                     style={{ marginTop: "16px" }}
                   >
-                    Start Workspace →
+                    {formalWorkspaceCopy.workspaceCta} 闁?
                   </button>
                 </div>
 
@@ -2704,25 +3887,25 @@ const finalOverallStatus =
 
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>· Official receipt issuance</div>
-                    <div>· Locked case snapshot</div>
-                    <div>· Persistent storage</div>
-                    <div>· Internal documentation use</div>
+                    <div>鐠?Official receipt issuance</div>
+                    <div>鐠?Locked case snapshot</div>
+                    <div>鐠?Persistent storage</div>
+                    <div>鐠?Internal documentation use</div>
                   </div>
               
                   <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
-              <div>· Recording key decisions</div>
-                    <div>· Internal audits</div>
-                    <div>· Case archiving</div>
+              <div>鐠?Recording key decisions</div>
+                    <div>鐠?Internal audits</div>
+                    <div>鐠?Case archiving</div>
                   </div>
 
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 hover:border-amber-400"
+                    className="inline-flex items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 hover:border-amber-400"
                     style={{ marginTop: "16px" }}
                   >
-                    Activate Receipt →
+                    {formalWorkspaceCopy.receiptCta} 闁?
                   </button>
                 </div>
 
@@ -2741,7 +3924,7 @@ const finalOverallStatus =
                   </h3>
 
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
-                    Unlock the full verified proof package.
+                    Issue a formal verification outcome based on the locked receipt baseline.
                   </p>
 
                   <p style={{ margin: "12px 0 0 0", fontSize: "28px", fontWeight: 700, color: "#0F172A" }}>
@@ -2761,25 +3944,25 @@ const finalOverallStatus =
 
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>· Verified outcome</div>
-                    <div>· Full proof package</div>
-                    <div>· External-use ready result</div>
-                    <div>· Portable and shareable format</div>
+                    <div>鐠?Formal verification outcome</div>
+                    <div>鐠?Rule-consistency judgment</div>
+                    <div>鐠?Externally usable decision result</div>
+                    <div>鐠?Portable verification record</div>
                   </div>
 
                   <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
-                    <div>· External validation</div>
-                    <div>· Compliance / risk proof</div>
-                    <div>· High-stakes decisions</div>
+                    <div>鐠?Formal decision confirmation</div>
+                    <div>鐠?Compliance / risk review</div>
+                    <div>鐠?Decisions that must travel outside the workspace</div>
                   </div>
 
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
                     style={{ marginTop: "16px" }}
                   >
-                    Activate Verification →
+                    {formalWorkspaceCopy.verificationCta} 闁?
                   </button>
                 </div>
               </div>

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPilotFocusBySignal } from "./pilotFocusMap";
+import { updateCaseStatus } from "./utils/caseRegistry.js";
+import { resolveAccessMode } from "./lib/accessMode";
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
@@ -90,10 +92,10 @@ function SectionTitle({ title, hint }) {
   );
 }
 
-function EmptyState({ onBack }) {
+function EmptyState({ goBackToResult }) {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-16">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
             No pilot context found
@@ -107,7 +109,7 @@ function EmptyState({ onBack }) {
           <div className="mt-6">
             <button
               type="button"
-              onClick={onBack}
+              onClick={goBackToResult}
               className="rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
             >
               Back to Result
@@ -122,7 +124,7 @@ function EmptyState({ onBack }) {
 function LoadingState() {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="space-y-5">
           <div className="h-48 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />
           <div className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />
@@ -133,7 +135,7 @@ function LoadingState() {
   );
 }
 
-function PilotHero({ preview, sessionId }) {
+function PilotHero({ preview, sessionId, onViewAllCases }) {
   const pilotId = useMemo(() => createPilotId(sessionId), [sessionId]);
 
   const strongestSignal = preview?.top_signals?.[0] || null;
@@ -162,9 +164,19 @@ function PilotHero({ preview, sessionId }) {
           ) : null}
         </div>
 
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          Start Your 7-Day Pilot
-        </h1>
+        <div className="mt-5 flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+            Pilot
+          </h1>
+
+          <button
+            type="button"
+            onClick={onViewAllCases}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900 transition"
+          >
+            View all cases
+          </button>
+        </div>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
           This 7-day pilot turns your diagnostic result into one real test. You will use one workflow to see whether Nimclea can reduce friction, sharpen boundaries, and make the decision path easier to verify.
@@ -409,7 +421,7 @@ function CarryOverSection({ preview }) {
   );
 }
 
-function PilotActions({ onBack, onStart }) {
+function PilotActions({ goBackToResult, onStart }) {
   return (
     <div className="flex flex-wrap gap-3">
       <button
@@ -417,12 +429,12 @@ function PilotActions({ onBack, onStart }) {
         onClick={onStart}
         className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
-        Start 7-Day Pilot →
+        Start 7-Day Pilot
       </button>
 
       <button
         type="button"
-        onClick={onBack}
+        onClick={goBackToResult}
         className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
       >
         Back to Result
@@ -452,6 +464,13 @@ export default function PilotPage() {
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
   const [customWorkflow, setCustomWorkflow] = useState("");
+  const access = resolveAccessMode(preview || location.state || {});
+
+  const resolvedCaseId =
+    location.state?.caseId ||
+    preview?.caseId ||
+    preview?.case_id ||
+    "";
 
   useEffect(() => {
     const source =
@@ -469,19 +488,36 @@ export default function PilotPage() {
     setLoading(false);
   }, [previewFromLocation, resolvedSessionId]);
 
+  useEffect(() => {
+    if (!resolvedCaseId) return;
+
+    try {
+      updateCaseStatus(resolvedCaseId, "workspace_active");
+    } catch (error) {
+      console.warn("Failed to update case status", error);
+    }
+  }, [resolvedCaseId]);
+
   const handleBack = useCallback(() => {
-    navigate(
-      resolvedSessionId
-        ? `/result?session_id=${resolvedSessionId}`
-        : "/result",
-      {
-        state: {
-          session_id: resolvedSessionId,
-          preview,
-        },
-      }
-    );
-  }, [navigate, preview, resolvedSessionId]);
+    const params = new URLSearchParams(location.search || "");
+    const isFromCase = params.get("from") === "case";
+
+    navigate(isFromCase ? "/result?from=case" : "/result", {
+      state: {
+        session_id: resolvedSessionId,
+        from: isFromCase ? "case" : undefined,
+        preview,
+      },
+    });
+  }, [location.search, navigate, preview, resolvedSessionId]);
+
+  const goBackToResult = useCallback(() => {
+    navigate("/result?from=case");
+  }, [navigate]);
+
+  const handleViewAllCases = useCallback(() => {
+    navigate("/cases");
+  }, [navigate]);
 
   const handleStart = useCallback(() => {
     const workflow =
@@ -511,14 +547,18 @@ export default function PilotPage() {
   }
 
   if (!preview || !isValidPreview(preview)) {
-    return <EmptyState onBack={handleBack} />;
+    return <EmptyState goBackToResult={goBackToResult} />;
   }
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="space-y-6">
-          <PilotHero preview={preview} sessionId={resolvedSessionId} />
+          <PilotHero
+            preview={preview}
+            sessionId={resolvedSessionId}
+            onViewAllCases={handleViewAllCases}
+          />
 
           <PilotPlanCard
             preview={preview}
@@ -535,7 +575,7 @@ export default function PilotPage() {
 
           <CarryOverSection preview={preview} />
 
-          <PilotActions onBack={handleBack} onStart={handleStart} />
+          <PilotActions goBackToResult={goBackToResult} onStart={handleStart} />
         </div>
       </div>
     </main>

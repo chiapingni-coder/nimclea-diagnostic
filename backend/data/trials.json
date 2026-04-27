@@ -4,10 +4,101 @@
     "userId": "usr_1776323696872_m0wxct",
     "status": "active",
     "createdAt": "2026-04-16T07:14:56.872Z",
-    "startedAt": "2026-04-21T18:19:36.409Z",
-    "expiresAt": "2026-04-28T18:19:36.409Z",
+    "startedAt": "2026-04-22T19:54:01.746Z",
+    "expiresAt": "2026-04-29T19:54:01.746Z",
     "trialSessionId": "ts_1776323696884_eu60t4",
     "entryPoint": "pilot_setup_page",
     "pcCode": "PC-001"
+  },
+  {
+    "trialId": "trial_1776891453174_yucid6",
+    "userId": "usr_1776891453174_e4gip4",
+    "status": "active",
+    "createdAt": "2026-04-22T20:57:33.174Z",
+    "startedAt": "2026-04-23T01:41:25.520Z",
+    "expiresAt": "2026-04-30T01:41:25.520Z",
+    "trialSessionId": "ts_1776891479513_6nmfv6",
+    "entryPoint": "pilot_setup_page",
+    "pcCode": "PC-001"
+  },
+  {
+    "trialId": "trial_1776923796578_3mazy9",
+    "userId": "usr_1776923796577_tkjw7m",
+    "status": "active",
+    "createdAt": "2026-04-23T05:56:36.577Z",
+    "startedAt": "2026-04-26T15:29:53.417Z",
+    "expiresAt": "2026-05-03T15:29:53.417Z",
+    "trialSessionId": "ts_1776985366119_0v8n2n",
+    "entryPoint": "pilot_setup_page",
+    "pcCode": "PC-001"
+  },
+  {
+    "trialId": "trial_1777245916464_114z1c",
+    "userId": "usr_1777245916464_2n1k26",
+    "status": "active",
+    "createdAt": "2026-04-26T23:25:16.464Z",
+    "startedAt": "2026-04-27T01:59:08.019Z",
+    "expiresAt": "2026-05-04T01:59:08.019Z",
+    "trialSessionId": "ts_1777248810364_ald3fl",
+    "entryPoint": "pilot_setup_page",
+    "pcCode": "PC-001"
+  },
+  {
+    "trialId": "trial_1777252674459_h1fd0c",
+    "userId": "usr_1777252674458_w75oj4",
+    "status": "registered",
+    "createdAt": "2026-04-27T01:17:54.458Z",
+    "startedAt": null,
+    "expiresAt": null,
+    "trialSessionId": null
+  },
+  {
+    "trialId": "trial_1777255148013_s38l3r",
+    "userId": "usr_1777252674458_w75oj4",
+    "status": "registered",
+    "createdAt": "2026-04-27T01:59:08.013Z",
+    "startedAt": null,
+    "expiresAt": null,
+    "trialSessionId": null
+  },
+  {
+    "trialId": "trial_1777261366643_kjvgx4",
+    "userId": "usr_1777261366642_wgtoee",
+    "status": "active",
+    "createdAt": "2026-04-27T03:42:46.642Z",
+    "startedAt": "2026-04-27T03:43:40.746Z",
+    "expiresAt": "2026-05-04T03:43:40.746Z",
+    "trialSessionId": "ts_1777261420746_xprg55",
+    "entryPoint": "pilot_setup_page",
+    "pcCode": "PC-001"
+  },
+  {
+    "trialId": "trial_1777261420740_c197f2",
+    "userId": "usr_1777252674458_w75oj4",
+    "status": "registered",
+    "createdAt": "2026-04-27T03:43:40.740Z",
+    "startedAt": null,
+    "expiresAt": null,
+    "trialSessionId": null
+  },
+  {
+    "trialId": "trial_1777264484247_mf43gk",
+    "userId": "usr_1777264484247_b8j4yf",
+    "status": "active",
+    "createdAt": "2026-04-27T04:34:44.247Z",
+    "startedAt": "2026-04-27T04:35:27.523Z",
+    "expiresAt": "2026-05-04T04:35:27.523Z",
+    "trialSessionId": "ts_1777264527523_hbe7e8",
+    "entryPoint": "pilot_setup_page",
+    "pcCode": "PC-001"
+  },
+  {
+    "trialId": "trial_1777264527517_h0vhjv",
+    "userId": "usr_1777252674458_w75oj4",
+    "status": "registered",
+    "createdAt": "2026-04-27T04:35:27.517Z",
+    "startedAt": null,
+    "expiresAt": null,
+    "trialSessionId": null
   }
 ]

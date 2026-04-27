@@ -29,7 +29,7 @@ export default function PilotTriggerCard({ pilotData }) {
       </div>
 
       <button style={styles.button} onClick={handleStart}>
-        Start My 7-Day Pilot
+        Start workspace preview
       </button>
     </div>
   );

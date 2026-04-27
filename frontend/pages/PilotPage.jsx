@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import ROUTES from "../routes";
 import { getPilotFocusBySignal } from "../pilotFocusMap.js";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
 import { getStableUserId } from "../utils/eventLogger";
@@ -9,7 +10,10 @@ import {
   saveCaseSnapshot,
   logTrialEvent,
 } from "../lib/trialApi";
+import { resolveAccessMode } from "../lib/accessMode";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
+import { resolveCaseId, upsertCase } from "../utils/caseRegistry.js";
+import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 
 const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
@@ -144,7 +148,8 @@ function SectionTitle({ title, hint }) {
 function EmptyState({ onBack }) {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-16">
+      <div className="relative mx-auto max-w-3xl px-6 py-10">
+        <TopRightCasesCapsule />
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
             No pilot context available
@@ -172,7 +177,8 @@ function EmptyState({ onBack }) {
 function LoadingState() {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="relative mx-auto max-w-3xl px-6 py-10">
+        <TopRightCasesCapsule />
         <div className="space-y-5">
           <div className="h-48 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />
           <div className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />
@@ -252,12 +258,17 @@ function PilotHero({
             </div>
           ) : null}
 
-          <h1 className="mt-2 max-w-[820px] text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-            Prepare your decision path for a real 7-day pilot
-          </h1>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h1 className="max-w-[820px] text-2xl font-semibold tracking-tight text-slate-950">
+              Prepare your decision path for a real 7-day pilot
+            </h1>
+          </div>
         </>
 
-        <p className="mt-4 max-w-[820px] text-lg leading-8 text-slate-800">
+        <p
+          className="mt-4 max-w-[820px] text-slate-800"
+          style={{ fontSize: "14px", lineHeight: "22px" }}
+        >
           This 7-day pilot is not about improvement. It is about proof.
           You will take one real workflow and see whether your path actually works under real conditions.
         </p>
@@ -331,7 +342,14 @@ function WorkflowPicker({
             id="workflow-select"
             value={selectedWorkflow}
             onChange={(e) => onSelect(e.target.value)}
-           className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-5 pr-14 py-4 text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+            style={{
+              height: "40px",
+              minHeight: "40px",
+              lineHeight: "40px",
+              paddingTop: "0px",
+              paddingBottom: "0px",
+            }}
+           className="w-full appearance-none rounded-full border border-slate-200 bg-white px-4 pr-14 text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
           >
             {workflowOptions.map((option) => (
               <option key={option} value={option}>
@@ -368,21 +386,25 @@ function WorkflowPicker({
     type="button"
     onClick={onStart}
     style={{
+      height: "40px",
+      minHeight: "40px",
+      padding: "0 20px",
+      borderRadius: "9999px",
+      border: "1px solid #047857",
       backgroundColor: "#047857",
       color: "#FFFFFF",
-      border: "none",
-      borderRadius: "9999px",
-      padding: "18px 32px",
-      fontSize: "16px",
+      fontSize: "14px",
       fontWeight: 600,
-      lineHeight: 1,
-      cursor: "pointer",
+      lineHeight: "40px",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
       whiteSpace: "nowrap",
-      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+      cursor: "pointer",
+      boxShadow: "0 4px 10px rgba(15, 23, 42, 0.12)",
     }}
-    className="inline-flex items-center justify-center"
   >
-    Start My 7-Day Pilot →
+    Create new case
   </button>
 </div>
 </div>
@@ -511,7 +533,7 @@ function PilotPlanCard({
         </p>
       )}
 
-      {/* 第一层：永远显示 */}
+      {/* 缁楊兛绔寸仦鍌︾窗濮樻瓕绻欓弰鍓с仛 */}
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         {/* Focus */}
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -532,7 +554,7 @@ function PilotPlanCard({
         </div>
       </div>
 
-      {/* 第二层：折叠 */}
+      {/* 缁楊兛绨╃仦鍌︾窗閹舵ê褰?*/}
       {open && (
         <>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -726,7 +748,7 @@ export default function PilotPage() {
       ? normalizeCaseInput(location.state.caseSchema)
       : null;
 
-  console.log("🧠 location.state:", location.state);
+  console.log("棣冾潵 location.state:", location.state);
 
   const resolvedChainId =
     incomingCaseSchema?.chainId ||
@@ -756,6 +778,18 @@ export default function PilotPage() {
       : "") ||
     "";
 
+  const resolvedCaseId = useMemo(
+    () =>
+      resolveCaseId({
+        caseId:
+          location.state?.caseId ||
+          location.state?.case_id ||
+          incomingCaseSchema?.caseId ||
+          "",
+      }),
+    [incomingCaseSchema, location.state]
+  );
+
   const weakestDimension =
     incomingCaseSchema?.weakestDimension ||
     location.state?.weakestDimension ||
@@ -780,6 +814,11 @@ export default function PilotPage() {
     location.state?.result?.firstStepLabel ||
     location.state?.preview?.firstStepLabel ||
     "";
+
+  const summarySeed =
+    location.state?.summarySeed ||
+    location.state?.result?.summarySeed ||
+    null;
 
   const incomingEventWindow =
     location.state?.routeMeta?.eventWindow || "";
@@ -863,6 +902,7 @@ export default function PilotPage() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
+  const access = resolveAccessMode(incomingCaseSchema || preview || location.state || {});
 
   const stableUserId = useMemo(() => getStableUserId(), []);
   const startInFlightRef = useRef(false);
@@ -902,6 +942,52 @@ export default function PilotPage() {
   const handleStart = useCallback(async () => {
     const workflow = selectedWorkflow || "Audit preparation";
 
+    const scopeLock = {
+      scopeStatement: `This case evaluates whether the selected workflow "${workflow}" can be executed, explained, and carried forward under a 7-day pilot record.`,
+      lockedAt: new Date().toISOString(),
+      source: "pilot_page",
+      caseId: "",
+      workflow,
+    };
+
+    const acceptanceChecklist = [
+      {
+        id: "acceptance_scope_defined",
+        label: "The case has a clearly selected workflow scope.",
+        status: workflow ? "met" : "missing",
+      },
+      {
+        id: "acceptance_focus_defined",
+        label: "The pilot has a defined structural focus.",
+        status:
+          incomingFirstStepLabel || incomingPilotFocusKey || weakestDimension
+            ? "met"
+            : "partial",
+      },
+      {
+        id: "acceptance_event_capture_required",
+        label: "At least one real event must be captured before formal carry-forward.",
+        status: "partial",
+      },
+    ];
+
+    const normalizedChecklist = acceptanceChecklist.map(item => {
+      let decision = "NEEDS_INPUT";
+
+      if (item.status === "met") {
+        decision = "PASS";
+      } else if (item.status === "missing") {
+        decision = "BLOCK";
+      } else {
+        decision = "NEEDS_INPUT";
+      }
+
+      return {
+        ...item,
+        decision,
+      };
+    });
+
     const resolvedEventWindowForStart = incomingEventWindow;
     const resolvedProgressLabelForStart = incomingProgressLabel;
     const resolvedNextActionForStart = incomingNextAction;
@@ -926,12 +1012,15 @@ export default function PilotPage() {
       }
 
       if (!trialSession?.userId || !trialSession?.trialId) {
-        const registerRes = await registerTrialUser({
+        const leadPayload = {
           email: buildPilotRegisterEmail(stableUserId),
           name: "",
           company: "",
           stableUserId,
-        });
+          caseId: resolvedCaseId || null,
+        };
+
+        const registerRes = await registerTrialUser(leadPayload);
 
         trialSession = {
           userId:
@@ -951,7 +1040,7 @@ export default function PilotPage() {
       }
     } catch (error) {
       console.error("PilotPage registerTrialUser error:", error);
-      alert(error?.message || "Failed to create trial session.");
+      alert(error?.message || "Failed to create workspace session.");
       startInFlightRef.current = false;
       return;
     }
@@ -960,7 +1049,7 @@ export default function PilotPage() {
       console.error("PilotPage trialSession missing after register", {
         trialSession,
       });
-      alert("Trial session was not created. Stop here and check registerTrialUser response.");
+      alert("Workspace session was not created. Stop here and check registerTrialUser response.");
       startInFlightRef.current = false;
       return;
     }
@@ -994,12 +1083,43 @@ export default function PilotPage() {
         },
       });
 
+    const incomingCaseId =
+      location.state?.caseId ||
+      location.state?.case_id ||
+      incomingCaseSchema?.caseId ||
+      "";
+
+    let caseIdForPilot = incomingCaseId || resolvedCaseId;
+
+    const scopedScopeLock = {
+      ...scopeLock,
+      caseId: caseIdForPilot,
+    };
+
+    if (!incomingCaseId) {
+      const createdCase = upsertCase({
+        caseId: resolvedCaseId,
+        source: "pilot",
+        currentStep: "pilot",
+        summary: getSafeCaseSummary(fallbackCaseSchema),
+        weakestDimension:
+          weakestDimension ||
+          fallbackCaseSchema?.weakestDimension ||
+          "",
+        stageLabel: resolvedStage,
+        scopeLock: scopedScopeLock,
+        acceptanceChecklist: normalizedChecklist,
+      });
+
+      caseIdForPilot = createdCase?.caseId || resolvedCaseId;
+    }
+
     if (trialSession?.userId && trialSession?.trialId) {
       try {          
         await saveCaseSnapshot({
           userId: resolvedUserId,
           trialId: trialSession.trialId,
-          caseId: resolvedSessionId || "case_result_entry",
+          caseId: caseIdForPilot,
           stage: "pilot",
           score:
             typeof preview?.intensity?.level === "number"
@@ -1011,6 +1131,8 @@ export default function PilotPage() {
             sessionId: resolvedSessionId,
             stableUserId,
             workflow,
+            scopeLock: scopedScopeLock,
+            acceptanceChecklist: normalizedChecklist,
             scenarioCode:
               preview?.scenario?.code ||
               fallbackCaseSchema?.scenarioCode ||
@@ -1035,6 +1157,8 @@ export default function PilotPage() {
       pcMeta,
       session_id: resolvedSessionId,
       sessionId: resolvedSessionId,
+      caseId: caseIdForPilot,
+      case_id: caseIdForPilot,
       preview,
       result: preview,
       sourceInput: preview,
@@ -1048,12 +1172,17 @@ export default function PilotPage() {
       primaryRunLabel: "",
       runSummaryText: "",
       stableUserId,
-  
+      summarySeed,
+      scopeLock: scopedScopeLock,
+      acceptanceChecklist: normalizedChecklist,
+
       pilot_setup: {
         workflow,
         created_from: "pilot_starter_page",
+        scopeLock: scopedScopeLock,
+        acceptanceChecklist: normalizedChecklist,
       },
-  
+
       weakestDimension,
       pilotFocusKey: incomingPilotFocusKey,
       firstGuidedAction: incomingFirstGuidedAction,
@@ -1063,65 +1192,73 @@ export default function PilotPage() {
       nextAction: resolvedNextActionForStart,
     };
   
-    try {
-      await logTrialEvent(
-        {
-          userId: resolvedUserId,
-          trialId: trialSession.trialId,
-          caseId: resolvedSessionId || "case_result_entry",
-          eventType: "pilot_entered",
-          page: "PilotPage",
-          meta: {
+    if (caseIdForPilot) {
+      try {
+        await logTrialEvent(
+          {
+            userId: resolvedUserId,
+            trialId: trialSession.trialId,
+            caseId: caseIdForPilot,
+            eventType: "pilot_entered",
+            page: "PilotPage",
             stableUserId,
-            workflow,
-            scenarioCode:
-              preview?.scenario?.code ||
-              fallbackCaseSchema?.scenarioCode ||
-              "",
-            weakestDimension:
-              weakestDimension ||
-              fallbackCaseSchema?.weakestDimension ||
-              "",
-            chainId: resolvedChainId,
-            stage: resolvedStage,
-          }
-        },
-        { once: true }
-      );
-    } catch (eventError) {
-      console.error("pilot_entered log failed:", eventError);
-    }
-
-    try {
-      await logTrialEvent(
-        {
-          userId: resolvedUserId,
-          trialId: trialSession.trialId,
-          caseId: resolvedSessionId || "case_result_entry",
-          eventType: "pilot_workflow_selected",
-          page: "PilotPage",
-          meta: {
-            stableUserId,
-            workflow,
-            scenarioCode:
-              preview?.scenario?.code ||
-              fallbackCaseSchema?.scenarioCode ||
-              "",
-            weakestDimension:
-              weakestDimension ||
-              fallbackCaseSchema?.weakestDimension ||
-              "",
-            chainId: resolvedChainId,
-            stage: resolvedStage,
+            meta: {
+              stableUserId,
+              source: "funnel_event",
+              workflow,
+              scenarioCode:
+                preview?.scenario?.code ||
+                fallbackCaseSchema?.scenarioCode ||
+                "",
+              weakestDimension:
+                weakestDimension ||
+                fallbackCaseSchema?.weakestDimension ||
+                "",
+              chainId: resolvedChainId,
+              stage: resolvedStage,
+            }
           },
-        },
-        { once: true }
-      );
-    } catch (eventError) {
-      console.error("pilot_workflow_selected log failed:", eventError);
+          { once: true }
+        );
+      } catch (eventError) {
+        console.error("pilot_entered log failed:", eventError);
+      }
+
+      try {
+        await logTrialEvent(
+          {
+            userId: resolvedUserId,
+            trialId: trialSession.trialId,
+            caseId: caseIdForPilot,
+            eventType: "pilot_workflow_selected",
+            page: "PilotPage",
+            stableUserId,
+            meta: {
+              stableUserId,
+              source: "funnel_event",
+              workflow,
+              scenarioCode:
+                preview?.scenario?.code ||
+                fallbackCaseSchema?.scenarioCode ||
+                "",
+              weakestDimension:
+                weakestDimension ||
+                fallbackCaseSchema?.weakestDimension ||
+                "",
+              chainId: resolvedChainId,
+              stage: resolvedStage,
+            },
+          },
+          { once: true }
+        );
+      } catch (eventError) {
+        console.error("pilot_workflow_selected log failed:", eventError);
+      }
     }
 
     startInFlightRef.current = false;
+
+    console.log("PILOT_PAGE_OUTBOUND_STATE", pilotState);
     
     navigate(
       resolvedSessionId
@@ -1134,6 +1271,7 @@ export default function PilotPage() {
     location.state,
     preview,
     resolvedSessionId,
+    resolvedCaseId,
     resolvedChainId,
     resolvedStage,
     selectedWorkflow,
@@ -1157,7 +1295,8 @@ export default function PilotPage() {
   }
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
+      <div className="relative mx-auto max-w-3xl px-6 py-10">
+        <TopRightCasesCapsule />
         <div className="space-y-6">
           <PilotHero
             preview={preview}

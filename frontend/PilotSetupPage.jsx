@@ -1,12 +1,26 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "./routes";
 import { buildPilotNavigationState } from "./utils/pilotRouting";
 import { appendPilotEntry } from "./utils/pilotEntries";
 import { normalizeCaseInput } from "./utils/caseSchema";
+
+import {
+  resolveCaseId,
+  updateCaseStatus,
+  addCaseEvent,
+  getAllCases,
+  createCaseFromRoutedInput,
+  attachRoutedEventToCase,
+  saveStandaloneRoutedEvent,
+  updateCaseScopeLock,
+} from "./utils/caseRegistry.js";
+
 import { registerTrialUser, startTrial, logTrialEvent } from "./lib/trialApi";
 import { getTrialSession, setTrialSession } from "./lib/trialSession";
 import { logEvent } from "./utils/eventLogger";
+import { routeInput } from "./lib/inputRouter";
+import { matchExistingCase } from "./utils/matchExistingCase";
 
 import {
   getCaseSummary,
@@ -20,6 +34,50 @@ const SCENARIO_LABEL_MAP = {
   barely_functional: "Barely Functional",
   boundary_blur: "Boundary Blur",
   fully_ready: "Fully Ready",
+};
+
+const styles = {
+  caseMatchHint: {
+    marginTop: "12px",
+    padding: "10px 12px",
+    borderRadius: "12px",
+    background: "#eef6ff",
+    border: "1px solid #b6d4fe",
+    color: "#1d4ed8",
+    fontSize: "13px",
+  },
+  caseMatchActions: {
+    marginTop: "10px",
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  caseMatchPrimaryButton: {
+    border: "1px solid #1d4ed8",
+    background: "#1d4ed8",
+    color: "#ffffff",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  caseMatchSecondaryButton: {
+    border: "1px solid #b6d4fe",
+    background: "#ffffff",
+    color: "#1d4ed8",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  caseMatchSelectedText: {
+    marginTop: "8px",
+    fontSize: "12px",
+    color: "#1d4ed8",
+    fontWeight: 600,
+  },
 };
 
 const EVENT_ROUTE_MAP = {
@@ -98,7 +156,7 @@ function resolveByWeakestDimension(weakestDimension, eventType, preview) {
     return resolveEventRoute(eventType, preview);
   }
 
-  // 🧠 核心映射（你可以后面升级成 registry）
+  // 馃 鏍稿績鏄犲皠锛堜綘鍙互鍚庨潰鍗囩骇鎴?registry锛?
   const DIMENSION_ROUTE_MAP = {
     authority: {
       pattern: "PAT-02",
@@ -223,8 +281,8 @@ function SectionTitle({ title, hint }) {
 
 function EmptyState({ onBack }) {
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-16">
+    <main className="pilot-setup-page pilot-setup-compact min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
             No pilot setup context found
@@ -284,52 +342,29 @@ function SetupHero({
           ) : null}
         </div>
 
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950 md:text-4xl">
           Lock in your execution path
         </h1>
 
-        <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-800">
+        <p className="mt-3 max-w-2xl text-base leading-7 text-slate-700">
           This 7-day pilot lets you log real events as they happen, without forcing them
           into a daily schedule. You can record unlimited event activity during the pilot
           window, with up to 5 structured reviews generated from those inputs.
         </p>
 
-        <div className="mt-8 grid grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-full flex flex-col justify-center">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Scenario
-            </div>
-            <p className="mt-2 text-sm text-slate-900">
-              {scenarioLabel}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-full flex flex-col justify-center">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Progress
-            </div>
-            <p className="mt-2 text-sm text-slate-900">
-              {progressLabel || "Pilot access opened"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 h-full flex flex-col justify-center">
+        <div className="mt-7 max-w-xl">
+          <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
               Weakest dimension
             </div>
             <p className="mt-2 text-sm text-amber-900">
               {weakestDimension || "Not specified"}
             </p>
-            <p className="mt-2 text-sm leading-6 text-amber-900">
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               This dimension will shape the cost of your pilot path.
             </p>
           </div>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-8 py-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        <span>Pilot ID: {pilotId}</span>
-        <span>{eventWindow || "7-Day Event Window"}</span>
       </div>
     </Card>
   );
@@ -370,7 +405,7 @@ function buildContextForSubmission(raw = "") {
   if (!cleaned) return "";
 
   const sentenceParts = cleaned
-    .split(/(?<=[.!?。！？])\s+/)
+    .split(/[.!?。！？]\s+/)
     .filter(Boolean);
 
   const shortened = sentenceParts.slice(0, 2).join(" ").trim();
@@ -686,7 +721,7 @@ function PilotEventInputSection({
 
         <div>
           <div className="text-sm font-semibold text-slate-900">
-            3. Describe what happened (optional)
+            3. Describe the event
           </div>
 
           <textarea
@@ -709,21 +744,25 @@ function PilotEventInputSection({
   );
 }
 
-function ActionBar({ onBack, onConfirm }) {
+function ActionBar({ onBack, onConfirm, eventType }) {
   return (
     <div className="flex flex-wrap gap-3">
       <button
         type="button"
-        onClick={onConfirm}
-        className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onConfirm();
+        }}
+        className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
       >
-        Start Logging Events →
+        {eventType ? "Start Logging Events →" : "Fill in the event to continue"}
       </button>
 
       <button
         type="button"
         onClick={onBack}
-        className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-100"
       >
         Back to Pilot
       </button>
@@ -806,6 +845,16 @@ export default function PilotSetupPage() {
   const [description, setDescription] = useState(
     location.state?.suggestedIntervention || ""
   );
+  const [lead, setLead] = useState({
+    name: "",
+    email: "",
+    company: "",
+  });
+  const [leadCaptured, setLeadCaptured] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [caseMatchHint, setCaseMatchHint] = useState(null);
+  const [selectedCaseOverrideId, setSelectedCaseOverrideId] = useState("");
+  const [routingDecision, setRoutingDecision] = useState(null);
 
   useEffect(() => {
     if (!suggestedIntervention) return;
@@ -813,8 +862,9 @@ export default function PilotSetupPage() {
   }, [suggestedIntervention]);
 
   const confirmLockedRef = useRef(false);
+  const hasWrittenRoutingDecisionRef = useRef(false);
 
-  const pilotSetup = location.state?.pilot_setup || null;
+  const summarySeed = location.state?.summarySeed || null;
 
   const preview =
     location.state?.preview ||
@@ -857,13 +907,130 @@ export default function PilotSetupPage() {
         }
       : null);
 
+  const pilotSetup = useMemo(() => {
+    const fromState =
+      location.state?.pilotSetup &&
+      typeof location.state.pilotSetup === "object"
+        ? location.state.pilotSetup
+        : null;
+
+    if (fromState) return fromState;
+
+    const lockedWorkflow =
+      incomingLockedScopeSnapshot?.workflow ||
+      trialSession?.lockedScopeSnapshot?.workflow ||
+      fallbackLockedScopeSnapshot?.workflow ||
+      preview?.workflow ||
+      location.state?.workflow ||
+      "Selected workflow";
+
+    return {
+      workflow: lockedWorkflow,
+    };
+  }, [
+    location.state,
+    incomingLockedScopeSnapshot,
+    trialSession,
+    fallbackLockedScopeSnapshot,
+    preview,
+  ]);
+
   const sessionId =
     location.state?.session_id ||
     location.state?.sessionId ||
     "";
 
+  const resolvedCaseId =
+    resolveCaseId({
+      caseId:
+        location.state?.caseId ||
+        location.state?.case_id ||
+        location.state?.trialSession?.caseId ||
+        location.state?.trialSession?.case_id ||
+        pilotSetup?.caseId ||
+        pilotSetup?.case_id ||
+        trialSession?.caseId ||
+        trialSession?.case_id ||
+        "",
+    });
+
+  const effectiveCaseId =
+    selectedCaseOverrideId === "STANDALONE"
+      ? null
+      : selectedCaseOverrideId || resolvedCaseId;
+
+  const STRONG_MATCH_THRESHOLD = 0.5;
+  const WEAK_MATCH_THRESHOLD = 0.3;
+
+  useEffect(() => {
+    const trimmedDescription = buildContextForSubmission(description);
+
+    if (!trimmedDescription) {
+      hasWrittenRoutingDecisionRef.current = false;
+      setCaseMatchHint(null);
+      setRoutingDecision(null);
+      return;
+    }
+
+    if (!routingDecision && !selectedCaseOverrideId) {
+      hasWrittenRoutingDecisionRef.current = false;
+    }
+
+    const existingCases = getAllCases();
+    const caseRegistry = Array.isArray(existingCases) ? existingCases : [];
+    const hasExistingCases = caseRegistry && caseRegistry.length > 0;
+    const caseMatch = matchExistingCase(trimmedDescription, caseRegistry, {
+      threshold: 0.35,
+      limit: 3,
+    });
+
+    console.log("[CaseMatch][PilotSetup][typing]", caseMatch);
+
+    const score = caseMatch?.bestMatch?.score || 0;
+
+    if (
+      hasExistingCases &&
+      score >= STRONG_MATCH_THRESHOLD &&
+      caseMatch.bestMatch?.caseId &&
+      caseMatch.bestMatch.caseId !== resolvedCaseId
+    ) {
+      setCaseMatchHint(caseMatch.bestMatch);
+    } else {
+      setCaseMatchHint(null);
+    }
+
+    setRoutingDecision({
+      route: routeInput(trimmedDescription, {
+        caseId: resolvedCaseId,
+        hasActiveCase: Boolean(resolvedCaseId),
+      }),
+      match: caseMatch,
+      inputText: trimmedDescription,
+    });
+  }, [description, resolvedCaseId]);
+
   const workflow =
     pilotSetup?.workflow || "Selected workflow";
+
+  const handleLeadSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!lead.email.includes("@")) return;
+
+    try {
+      await registerTrialUser({
+        name: lead.name,
+        email: lead.email,
+        company: lead.company,
+        workflow: location.state?.pilot_setup?.workflow || workflow || "",
+        caseId: location.state?.caseId,
+        stableUserId: location.state?.stableUserId || stableUserId,
+      });
+      setLeadCaptured(true);
+    } catch (error) {
+      console.error("PilotSetupPage lead capture error:", error);
+    }
+  };
 
   const weakestDimension =
     incomingCaseSchema?.weakestDimension ||
@@ -901,14 +1068,21 @@ export default function PilotSetupPage() {
 
   useEffect(() => {
     if (!suggestedIntervention) return;
+    if (!resolvedCaseId) return;
 
     logEvent("suggested_intervention_started", {
       eventName: "suggested_intervention_started",
       rank: suggestedInterventionRank || 1,
       intervention: suggestedIntervention,
       page: "PilotSetupPage",
+      caseId: resolvedCaseId,
+      stableUserId,
+      meta: {
+        stableUserId,
+        source: "funnel_event",
+      },
     });
-  }, [suggestedIntervention, suggestedInterventionRank]);
+  }, [suggestedIntervention, suggestedInterventionRank, resolvedCaseId, stableUserId]);
 
   useEffect(() => {
     if (!stableUserId) {
@@ -941,25 +1115,27 @@ export default function PilotSetupPage() {
 
   useEffect(() => {
     if (!hasRequiredContext) return;
+    if (!resolvedCaseId) return;
 
     const session =
-      location.state?.trialSession || getTrialSession();
+      location.state?.trialSession || getTrialSession() || {};
 
-    if (!session?.userId || !session?.trialId) return;
-
-    const pageViewKey = `pilot_setup_page_viewed_${sessionId || "no_session"}`;
+    const pageViewKey = `pilot_setup_viewed_${resolvedCaseId}`;
 
     if (sessionStorage.getItem(pageViewKey)) return;
 
     sessionStorage.setItem(pageViewKey, "1");
 
     logTrialEvent({
-      userId: session.userId,
-      trialId: session.trialId,
-      caseId: sessionId || "case_result_entry",
-      eventType: "pilot_setup_page_viewed",
+      userId: session?.userId || stableUserId || "",
+      trialId: session?.trialId || "",
+      caseId: resolvedCaseId,
+      eventType: "pilot_setup_viewed",
       page: "PilotSetupPage",
+      stableUserId,
       meta: {
+        stableUserId,
+        source: "funnel_event",
         workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
         scenarioCode:
           incomingCaseSchema?.scenarioCode ||
@@ -969,12 +1145,14 @@ export default function PilotSetupPage() {
         pilotFocusKey,
       },
     }).catch((error) => {
-      console.error("pilot_setup_page_viewed log error:", error);
+      console.error("pilot_setup_viewed log error:", error);
       sessionStorage.removeItem(pageViewKey);
     });
   }, [
     hasRequiredContext,
+    resolvedCaseId,
     sessionId,
+    stableUserId,
     pilotSetup,
     preview,
     incomingCaseSchema,
@@ -1017,15 +1195,62 @@ export default function PilotSetupPage() {
   };
 
 const handleConfirm = async () => {
-  if (!eventType) {
+  const trimmedDescription = buildContextForSubmission(description);
+
+  if (!eventType || !trimmedDescription) {
     setShowEventRequired(true);
     return;
   }
 
+  if (hasWrittenRoutingDecisionRef.current) return;
   if (confirmLockedRef.current) return;
   confirmLockedRef.current = true;
 
-  const trimmedDescription = buildContextForSubmission(description);
+  const route = routeInput(trimmedDescription, {
+    caseId: resolvedCaseId,
+    hasActiveCase: Boolean(resolvedCaseId),
+  });
+
+  const existingCases = getAllCases();
+  const caseRegistry = Array.isArray(existingCases) ? existingCases : [];
+  const hasExistingCases = caseRegistry && caseRegistry.length > 0;
+
+  const match = matchExistingCase(trimmedDescription, caseRegistry, {
+    threshold: 0.35,
+    limit: 3,
+  });
+
+  const decision = {
+    route,
+    match,
+    inputText: trimmedDescription,
+  };
+
+  console.log("馃 ROUTING DECISION:", decision);
+
+  // 馃敶 鍏抽敭锛氬厛涓嶇户缁墽琛?
+  let finalSelectedCaseId = selectedCaseOverrideId;
+
+  if (!finalSelectedCaseId && !hasExistingCases) {
+    finalSelectedCaseId = "__CREATE_NEW_CASE__";
+  } else if (!finalSelectedCaseId) {
+    finalSelectedCaseId = "__CREATE_NEW_CASE__";
+  }
+  
+  const caseMatch = matchExistingCase(trimmedDescription, caseRegistry, {
+    threshold: 0.35,
+    limit: 3,
+  });
+
+  console.log("[CaseMatch][PilotSetup]", caseMatch);
+
+  const inputRoute = routeInput(trimmedDescription, {
+    caseId: resolvedCaseId,
+    hasActiveCase: Boolean(resolvedCaseId),
+  });
+
+  console.log("[InputRouter][PilotSetup]", inputRoute);
+
   let summarizedDescription = "";
 
   if (trimmedDescription) {
@@ -1072,7 +1297,7 @@ const handleConfirm = async () => {
           registerRes,
        });
         confirmLockedRef.current = false;
-        alert("Trial session was not created.");
+        alert("Workspace session was not created.");
         return;
       }
   
@@ -1080,12 +1305,15 @@ const handleConfirm = async () => {
     } catch (error) {
       console.error("PilotSetupPage registerTrialUser error:", error);
       confirmLockedRef.current = false;
-      alert(error?.message || "Failed to create trial session.");
+      alert(error?.message || "Failed to create workspace session.");
       return;
     }
   }
 
   let mergedTrialSession = existingTrialSession;
+
+  let didWriteRoutingDecision = false;
+  let writtenRoutingCaseId = "";
 
   try {
     const startRes = await startTrial({
@@ -1157,7 +1385,7 @@ const handleConfirm = async () => {
     await logTrialEvent({
       userId: mergedTrialSession.userId,
       trialId: mergedTrialSession.trialId,
-      caseId: sessionId || "case_result_entry",
+      caseId: resolvedCaseId,
       eventType: "trial_started",
       page: "PilotSetupPage",
       meta: {
@@ -1171,7 +1399,7 @@ const handleConfirm = async () => {
     await logTrialEvent({
       userId: mergedTrialSession.userId,
       trialId: mergedTrialSession.trialId,
-      caseId: sessionId || "case_result_entry",
+      caseId: resolvedCaseId,
       eventType: "pilot_setup_confirmed",
       page: "PilotSetupPage",
       meta: {
@@ -1188,7 +1416,7 @@ const handleConfirm = async () => {
   }
 
   const entryTimestamp = new Date().toISOString();
-  // 🧷 Scope Lock v0.1
+  // 馃Х Scope Lock v0.1
   const scopeLock = resolvedLockedScopeSnapshot
     ? {
         ...resolvedLockedScopeSnapshot,
@@ -1210,14 +1438,121 @@ const handleConfirm = async () => {
       authorityBoundary: signalLevels.authorityBoundary,
       dependency: signalLevels.dependency,
     },
+    rawText: trimmedDescription,
+    userInput: trimmedDescription,
     description: trimmedDescription,
-    summaryContext: summarizedDescription,
-    evidenceText: summarizedDescription || trimmedDescription || "",
-    evidenceState,
-    responseState,
-    boundaryState,
-    timestamp: entryTimestamp,
-  };
+    summaryContext:
+      summarizedDescription ||
+      summarySeed?.summaryContext ||
+      "",
+    evidenceText:
+      summarizedDescription ||
+      trimmedDescription ||
+      summarySeed?.summaryContext ||
+      "",
+        evidenceState,
+        responseState,
+        boundaryState,
+        timestamp: entryTimestamp,
+      };
+
+  try {
+    // 馃 1锔忊儯 Standalone
+    if (finalSelectedCaseId === "STANDALONE") {
+      const result = saveStandaloneRoutedEvent(trimmedDescription, {
+        routeType: inputRoute?.type || "",
+        routeReason: inputRoute?.reason || "",
+      });
+
+      console.log("STANDALONE EVENT:", result);
+      didWriteRoutingDecision = true;
+    }
+
+    // 馃 2锔忊儯 Attach to matched case
+    else if (finalSelectedCaseId === "__CREATE_NEW_CASE__") {
+      const result = createCaseFromRoutedInput(trimmedDescription, {
+        routeType: inputRoute?.type || "",
+        routeReason: inputRoute?.reason || "",
+      });
+
+      console.log("NEW CASE CREATED BY USER CHOICE:", result);
+      writtenRoutingCaseId = result?.caseId || "";
+      didWriteRoutingDecision = true;
+    }
+
+    else if (finalSelectedCaseId) {
+      const result = attachRoutedEventToCase(
+        finalSelectedCaseId,
+        trimmedDescription,
+        {
+          routeType: inputRoute?.type || "",
+          routeReason: inputRoute?.reason || "",
+        }
+      );
+
+      console.log("ATTACHED TO MATCHED CASE:", result);
+      writtenRoutingCaseId = result?.caseId || finalSelectedCaseId;
+      didWriteRoutingDecision = true;
+    }
+
+    // 馃 3锔忊儯 Create new case锛堟渶鍏抽敭锛?
+    else if (inputRoute?.type === "case") {
+      const result = createCaseFromRoutedInput(trimmedDescription, {
+        routeType: inputRoute?.type || "",
+        routeReason: inputRoute?.reason || "",
+      });
+
+      console.log("NEW CASE CREATED:", result);
+      writtenRoutingCaseId = result?.caseId || "";
+      didWriteRoutingDecision = true;
+    }
+
+    // 馃 4锔忊儯 fallback锛堝師閫昏緫锛?
+    else if (effectiveCaseId) {
+      const result = attachRoutedEventToCase(
+        effectiveCaseId,
+        trimmedDescription,
+        {
+          routeType: inputRoute?.type || "",
+          routeReason: inputRoute?.reason || "",
+        }
+      );
+  
+     console.log("FALLBACK ATTACH:", result);
+      writtenRoutingCaseId = result?.caseId || effectiveCaseId;
+      didWriteRoutingDecision = true;
+    }
+
+  } catch (error) {
+    console.error("[ROUTING WRITE ERROR]:", error);
+    confirmLockedRef.current = false;
+    return;
+  }
+
+  const caseIdToUpdate =
+    writtenRoutingCaseId ||
+    (finalSelectedCaseId &&
+    finalSelectedCaseId !== "__CREATE_NEW_CASE__" &&
+    finalSelectedCaseId !== "STANDALONE"
+      ? finalSelectedCaseId
+      : resolvedCaseId);
+
+  if (didWriteRoutingDecision) {
+    try {
+      if (caseIdToUpdate) {
+        updateCaseStatus(caseIdToUpdate, "workspace_active", {
+          currentStep: "pilot_result",
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to update case status to workspace_active", error);
+    }
+
+    setRoutingDecision(null);
+    setSelectedCaseOverrideId("");
+    setCaseMatchHint(null);
+    hasWrittenRoutingDecisionRef.current = true;
+  }
 
   const strongestSignal = Array.isArray(preview?.top_signals)
     ? preview.top_signals[0]
@@ -1241,11 +1576,19 @@ const handleConfirm = async () => {
     {
       ...(incomingCaseSchema || {}),
       source: "pilot",
-      summary: summarizedDescription || trimmedDescription || "",
+      summary:
+        summarizedDescription ||
+        trimmedDescription ||
+        summarySeed?.summaryContext ||
+        "",
       description: trimmedDescription || "",
       eventType,
       eventContext: trimmedDescription || "",
-      evidenceText: summarizedDescription || trimmedDescription || "",
+      evidenceText:
+        summarizedDescription ||
+        trimmedDescription ||
+        summarySeed?.summaryContext ||
+        "",
       evidenceState,
       responseState,
       boundaryState,
@@ -1282,12 +1625,21 @@ const handleConfirm = async () => {
     workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
 
     eventInput: {
+      rawText: trimmedDescription,
+      userInput: trimmedDescription,
       description: trimmedDescription || "",
-      summaryContext: summarizedDescription || "",
+      summaryContext:
+        summarizedDescription ||
+        summarySeed?.summaryContext ||
+        "",
       externalPressure: signalLevels.externalPressure,
       authorityBoundary: signalLevels.authorityBoundary,
       dependency: signalLevels.dependency,
-      evidenceText: summarizedDescription || trimmedDescription || "",
+      evidenceText:
+        summarizedDescription ||
+        trimmedDescription ||
+        summarySeed?.summaryContext ||
+        "",
       evidenceState,
       responseState,
       boundaryState,
@@ -1389,10 +1741,15 @@ const handleConfirm = async () => {
     caseSchema: entryCaseData,
     eventHistory: [structuredEvent],
   
-    // legacy fallback，先留
+    // legacy fallback锛屽厛鐣?
     judgmentFocus: weakestDimension || "event_based",
+    rawText: trimmedDescription,
+    userInput: trimmedDescription,
     description: trimmedDescription,
-    summaryContext: summarizedDescription,
+    summaryContext:
+      summarizedDescription ||
+      summarySeed?.summaryContext ||
+      "",
     externalPressure: signalLevels.externalPressure,
     authorityBoundary: signalLevels.authorityBoundary,
     dependency: signalLevels.dependency,
@@ -1409,7 +1766,11 @@ const handleConfirm = async () => {
           preview?.scenario?.code ||
           "unknown_scenario",
       }) || "unknown_scenario",
-    evidenceText: summarizedDescription || trimmedDescription || "",
+    evidenceText:
+      summarizedDescription ||
+      trimmedDescription ||
+      summarySeed?.summaryContext ||
+      "",
     evidenceState,
     responseState,
     boundaryState,
@@ -1419,6 +1780,17 @@ const handleConfirm = async () => {
   };
   
   const allPilotEntries = appendPilotEntry(pilotEntry);
+
+  try {
+    if (resolvedCaseId) {
+      updateCaseStatus(resolvedCaseId, "workspace_active", {
+        currentStep: "pilot_capture",
+        events: Array.isArray(allPilotEntries) ? allPilotEntries : [],
+      });
+    }
+  } catch (error) {
+    console.warn("Failed to activate case after event capture", error);
+  }
 
   const structuredEventCount = Array.isArray(allPilotEntries)
     ? allPilotEntries.length
@@ -1447,7 +1819,7 @@ const handleConfirm = async () => {
       ? 0.5
       : 0;
 
-  // ✅ Acceptance Checklist v0.1
+  // 鉁?Acceptance Checklist v0.1
   const acceptanceChecklist = {
     hasEvent: Boolean(eventType),
     hasSignals: hasCoreSignals,
@@ -1458,6 +1830,93 @@ const handleConfirm = async () => {
       hasCoreSignals &&
       hasResolvedStructure,
   };
+
+  const hardenedScopeLock = {
+    workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
+    lockedScopeSummary:
+      trimmedDescription ||
+      summarizedDescription ||
+      firstStepLabel ||
+      "This case is locked to the selected workflow and first recorded event.",
+    outOfScopeNote:
+      "Inputs outside this selected workflow should be started as a separate case.",
+    acceptanceTarget:
+      "This case is ready when at least one real event, core structural signals, and a stable interpretation path are present.",
+    lockedAt: entryTimestamp,
+    sourcePage: "PilotSetupPage",
+    status: "locked",
+  };
+
+  const checklistItems = [
+    {
+      key: "workflowSelected",
+      label: "Workflow selected",
+      passed: Boolean(pilotSetup?.workflow || preview?.workflow),
+    },
+    {
+      key: "scopeLocked",
+      label: "Scope lock present",
+      passed: Boolean(scopeLock),
+    },
+    {
+      key: "realEventCaptured",
+      label: "Real event captured",
+      passed: Boolean(eventType),
+    },
+    {
+      key: "structuralSignalsPresent",
+      label: "Structural signals present",
+      passed:
+        Boolean(eventType) &&
+        Boolean(signalLevels.externalPressure) &&
+        Boolean(signalLevels.authorityBoundary) &&
+        Boolean(signalLevels.dependency),
+    },
+    {
+      key: "receiptReadyCandidate",
+      label: "Receipt-ready candidate",
+      passed:
+        Boolean(eventType) &&
+        Boolean(signalLevels.externalPressure) &&
+        Boolean(signalLevels.authorityBoundary) &&
+        Boolean(signalLevels.dependency) &&
+        Boolean(resolvedRoute?.runId) &&
+        Boolean(resolvedRoute?.pattern),
+    },
+  ];
+
+  const passedCount = checklistItems.filter((item) => item.passed).length;
+
+  const hardenedAcceptanceChecklist = {
+    status:
+      passedCount === checklistItems.length
+        ? "PASS"
+        : passedCount >= 3
+        ? "NEEDS_INPUT"
+        : "BLOCK",
+    checkedAt: entryTimestamp,
+    sourcePage: "PilotSetupPage",
+    items: checklistItems,
+  };
+
+  const hardenedCaseId =
+    writtenRoutingCaseId ||
+    (finalSelectedCaseId &&
+    finalSelectedCaseId !== "__CREATE_NEW_CASE__" &&
+    finalSelectedCaseId !== "STANDALONE"
+      ? finalSelectedCaseId
+      : resolvedCaseId);
+
+  try {
+    if (hardenedCaseId) {
+      updateCaseScopeLock(hardenedCaseId, hardenedScopeLock);
+      updateCaseStatus(hardenedCaseId, "workspace_active", {
+        acceptanceChecklist: hardenedAcceptanceChecklist,
+      });
+    }
+  } catch (error) {
+    console.warn("Failed to save hardened case lock/checklist", error);
+  }
 
   const currentReviewMode =
     structuredEventCount >= 1 ? "event_review" : "pilot_setup";
@@ -1576,6 +2035,7 @@ const handleConfirm = async () => {
     ...location.state,
     caseSchema: entryCaseData,
     acceptanceChecklist,
+    scopeLock: hardenedScopeLock,
 
     session_id: sessionId,
     sessionId,
@@ -1641,6 +2101,7 @@ const handleConfirm = async () => {
       "S0",
 
     caseId:
+      caseIdToUpdate ||
       location.state?.caseId ||
       location.state?.case_id ||
       preview?.caseId ||
@@ -1659,7 +2120,7 @@ const handleConfirm = async () => {
 
     pilot_setup: {
       ...pilotSetup,
-      scopeLock,
+      scopeLock: hardenedScopeLock,
       lockedScopeSnapshot: resolvedLockedScopeSnapshot || scopeLock,
       eventType,
       signalLevels,
@@ -1677,6 +2138,7 @@ const handleConfirm = async () => {
     latest_pilot_entry: pilotEntry,
     pilot_result: {
       ...pilotResult,
+      acceptanceChecklist: hardenedAcceptanceChecklist,
       caseData: entryCaseData,
       caseInput: getCaseContext({
         caseData: entryCaseData,
@@ -1702,9 +2164,10 @@ const handleConfirm = async () => {
     firstStepLabel,
   });
 
-  console.log("🧾 final pilot_entries =", allPilotEntries);
+  console.log("馃Ь final pilot_entries =", allPilotEntries);
 
   confirmLockedRef.current = false;
+  setRoutingDecision(null);
 
   navigate(
     sessionId
@@ -1714,11 +2177,14 @@ const handleConfirm = async () => {
       state: {
         ...location.state,
         ...navState,
-        acceptanceChecklist,
+        scopeLock: hardenedScopeLock,
+        acceptanceChecklist: hardenedAcceptanceChecklist,
         pcMeta,
         trialSession: mergedTrialSession,
         lockedScopeSnapshot: resolvedLockedScopeSnapshot || scopeLock,
         caseSchema: entryCaseData,
+        caseId: caseIdToUpdate || navState.caseId,
+        case_id: caseIdToUpdate || navState.caseId,
         stableUserId:
           stableUserId ||
           mergedTrialSession?.userId ||
@@ -1797,7 +2263,7 @@ const handleConfirm = async () => {
 
         pilot_setup: {
           ...navState.pilot_setup,
-          scopeLock,
+          scopeLock: hardenedScopeLock,
           lockedScopeSnapshot: resolvedLockedScopeSnapshot || scopeLock,
           workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
           eventType,
@@ -1818,6 +2284,7 @@ const handleConfirm = async () => {
         pilot_result: {
           ...pilotResult,
           ...navState.pilot_result,
+          acceptanceChecklist: hardenedAcceptanceChecklist,
           caseData: entryCaseData,
           caseInput: getCaseContext({
             caseData: entryCaseData,
@@ -1856,13 +2323,68 @@ const handleConfirm = async () => {
   );
 };
 
+const handlePrimarySubmit = async () => {
+  const trimmedDescription = buildContextForSubmission(description);
+
+  if (!eventType || !trimmedDescription) {
+    await handleConfirm();
+    return;
+  }
+
+  if (!leadCaptured) {
+    setShowContactModal(true);
+    return;
+  }
+
+  await handleConfirm();
+};
+
+const handleContactModalSubmit = async (event) => {
+  event.preventDefault();
+
+  if (!lead.email.includes("@")) return;
+
+  try {
+    await registerTrialUser({
+      name: lead.name,
+      email: lead.email,
+      company: lead.company,
+      workflow: location.state?.pilot_setup?.workflow || workflow || "",
+      caseId: location.state?.caseId,
+      stableUserId: location.state?.stableUserId || stableUserId,
+    });
+    setLeadCaptured(true);
+    setShowContactModal(false);
+    await handleConfirm();
+  } catch (error) {
+    console.error("PilotSetupPage lead capture error:", error);
+  }
+};
+
 if (!hasRequiredContext) {
   return <EmptyState onBack={handleBack} />;
 }
 
+const caseRegistry = (() => {
+  try {
+    const cases = getAllCases();
+    return Array.isArray(cases) ? cases : [];
+  } catch {
+    return [];
+  }
+})();
+const hasExistingCases = caseRegistry && caseRegistry.length > 0;
+const strongMatchedCase =
+  hasExistingCases &&
+  routingDecision?.match?.matched &&
+  routingDecision.match?.bestMatch?.caseId &&
+  (routingDecision.match?.bestMatch?.score || 0) >= STRONG_MATCH_THRESHOLD
+    ? routingDecision.match.bestMatch
+    : null;
+
 return (
-  <main className="min-h-screen bg-slate-50">
-    <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
+  <main className="pilot-setup-page pilot-setup-compact min-h-screen bg-slate-50">
+    <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="space-y-6">
         <SetupHero
           preview={preview}
@@ -1886,7 +2408,121 @@ return (
           setDescription={setDescription}
         />
 
-        <ActionBar onBack={handleBack} onConfirm={handleConfirm} />
+        {strongMatchedCase ? (
+          <div style={styles.caseMatchHint}>
+            <div>
+              This event looks related to an existing case. You can attach it there or continue as a new case.
+              <strong style={{ marginLeft: "6px" }}>
+                {strongMatchedCase.caseId || "an existing case"}
+              </strong>
+              {routingDecision.match?.bestMatch?.matchedTokens?.length > 0 ? (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginTop: "6px",
+                  }}
+                >
+                  Matched on:{" "}
+                  {routingDecision.match.bestMatch.matchedTokens
+                    .slice(0, 3)
+                    .join(", ")}
+                </div>
+              ) : null}
+            </div>
+
+            <div style={styles.caseMatchActions}>
+              <button
+                type="button"
+                style={styles.caseMatchPrimaryButton}
+                onClick={() => {
+                  if (!strongMatchedCase?.caseId) return;
+                  if (confirmLockedRef.current) return;
+
+                  setSelectedCaseOverrideId(strongMatchedCase.caseId);
+                  setRoutingDecision(null);
+                }}
+              >
+                Attach to matched case
+              </button>
+
+              <button
+                type="button"
+                style={styles.caseMatchSecondaryButton}
+                onClick={() => {
+                  if (confirmLockedRef.current) return;
+
+                  setSelectedCaseOverrideId("__CREATE_NEW_CASE__");
+                  setRoutingDecision(null);
+                }}
+              >
+                Continue as new case
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <ActionBar
+          onBack={handleBack}
+          onConfirm={handlePrimarySubmit}
+          eventType={eventType && buildContextForSubmission(description)}
+        />
+
+        {showContactModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+            <form
+              onSubmit={handleContactModalSubmit}
+              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+            >
+              <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+                Save this case before viewing your pilot result
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Add your contact details so this case can be saved and linked to your result.
+              </p>
+
+              <div className="mt-5 space-y-3">
+                <input
+                  type="text"
+                  value={lead.name}
+                  onChange={(event) =>
+                    setLead((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  placeholder="Name"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-slate-400"
+                />
+                <input
+                  type="email"
+                  value={lead.email}
+                  onChange={(event) =>
+                    setLead((prev) => ({ ...prev, email: event.target.value }))
+                  }
+                  placeholder="Work Email"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-slate-400"
+                />
+                <input
+                  type="text"
+                  value={lead.company}
+                  onChange={(event) =>
+                    setLead((prev) => ({ ...prev, company: event.target.value }))
+                  }
+                  placeholder="Company / Team"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-slate-400"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+              >
+                Save and view result
+              </button>
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                We only use this to keep this case connected to your pilot result.
+              </p>
+            </form>
+          </div>
+        ) : null}
       </div>
     </div>
   </main>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { enrichSignals } from "../signalContentMap.js";
 import { getSignalAction } from "../signalActionMap.js";
@@ -13,12 +13,22 @@ import { getRun } from "../data/stageRunMap";
 import { resultStageCopy } from "../data/resultStageCopy";
 import { mapResultToCaseSchema } from "../utils/schemaMapper";
 import { getStableUserId } from "../utils/eventLogger";
+import {
+  CASE_STATUS,
+  upsertCase,
+  buildCaseTitle,
+  createCaseId,
+  getDraftCase,
+  isValidCaseId,
+} from "../utils/caseRegistry";
+import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 
 import {
   registerTrialUser,
   saveCaseSnapshot,
   logTrialEvent,
 } from "../lib/trialApi";
+import { resolveAccessMode } from "../lib/accessMode";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
 
 function getEntrySource(location) {
@@ -133,22 +143,22 @@ function getHeroSupportLine({
 function getPilotCtaLabel({ scenarioCode = "", stage = "", weakestDimension = "authority" }) {
 
   if (weakestDimension === "evidence") {
-    return "Test evidence flow in a 7-day pilot →";
+    return "Test evidence flow in a 7-day pilot ->";
   }
 
   if (weakestDimension === "coordination") {
-    return "Test coordination path in a 7-day pilot →";
+    return "Test coordination path in a 7-day pilot ->";
   }
 
   if (weakestDimension === "boundary") {
-    return "Test boundary clarity in a 7-day pilot →";
+    return "Test boundary clarity in a 7-day pilot ->";
   }
 
   if (weakestDimension === "authority") {
-    return "Test decision authority in a 7-day pilot →";
+    return "Test decision authority in a 7-day pilot ->";
   }
 
-  return "Start this path in a 7-day pilot →";
+  return "Start this path in a 7-day pilot ->";
 }
 
 function inferWeakestDimension({
@@ -272,9 +282,9 @@ function resolveRun({ scenarioCode = "", primarySignalKey = "", intensityLevel =
     return "RUN042";
   }
 
-  // ===== Pre-audit collapse（你当前场景）=====
+  // ===== Pre-audit collapse闂佹寧绋戦悧鍛礊濡￥浜归柟鎯у暱椤ゅ懘鏌涢敂鎯у妺婵炲懏鐟╅弫?====
   if (scenario === "pre_audit_collapse") {
-    if (level >= 5) return "RUN065"; // ⭐ S5
+    if (level >= 5) return "RUN065"; // 闁?S5
     if (level >= 4) return "RUN064";
     if (level >= 3) return "RUN063";
     if (level >= 2) return "RUN044";
@@ -410,8 +420,8 @@ function normalizeSignal(signal, index, context = {}) {
     insight:
       signal?.insight ||
       (normalizedScore === 0
-        ? "→ This appears to be a relative structural strength in your current workflow."
-        : "→ This is likely contributing to your current scenario classification."),
+        ? "闂?This appears to be a relative structural strength in your current workflow."
+        : "闂?This is likely contributing to your current scenario classification."),
     source: signal?.source || "Diagnostic Engine",
     score: normalizedScore,
   };
@@ -421,7 +431,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
   const isPressureSensitive =
     pressureProfile?.code === "pressure_sensitive";
 
-  // ===== S1：审计前崩溃型 =====
+  // ===== S1闂佹寧绋掗懝楣冾敇閸濄儲濯奸柍銉ュ暱椤ゅ懐鈧娲嶉弲婊呰姳濠靛鍨?=====
   if (scenarioCode === "pre_audit_collapse") {
     return [
       "Your workflow shows signs of structural breakdown when evidence needs to be retrieved or explained under pressure.",
@@ -430,7 +440,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
     ];
   }
 
-  // ===== S2：勉强能用型 =====
+  // ===== S2闂佹寧绋掗懝鐐垔閸濆嫷鍤曞Δ锕€鐏濋崢鎾煟椤剙濡奸柣?=====
   if (scenarioCode === "barely_functional") {
     return [
       "Your workflow is functional, but still relies on manual effort and hidden coordination to hold together.",
@@ -439,7 +449,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
     ];
   }
 
-  // ===== S3 / S4：boundary_blur（分 subtype）=====
+  // ===== S3 / S4闂佹寧绋掗悺鐞絬ndary_blur闂佹寧绋戦悧鍡涘垂?subtype闂?====
   if (scenarioCode === "boundary_blur") {
     if (subtype === "pressure_fragile") {
       return [
@@ -456,7 +466,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
   ];
 }
 
-  // ===== S5：完全准备好型 =====
+  // ===== S5闂佹寧绋掗懝楣冩偩椤掑嫬绀傞柕濞垮劚濞呮瑥顭跨捄鐑樻悙闁靛牅绮欏畷?=====
   if (scenarioCode === "fully_ready") {
     if (isPressureSensitive) {
       return [
@@ -596,17 +606,17 @@ function generatePressureLine({ scenarioCode, pressureProfile }) {
     pressureProfile?.code === "pressure_sensitive" ||
     pressureProfile?.code === "pressure_fragile";
 
-  // ===== C1 / 崩溃型 =====
+  // ===== C1 / 閻庤娲嶉弲婊呰姳濠靛鍨?=====
   if (scenarioCode === "pre_audit_collapse" || scenarioCode === "C1") {
     return "When someone asks for proof, things can quickly turn into a scramble.";
   }
 
-  // ===== C2 / 勉强能用 =====
+  // ===== C2 / 闂佸憡娲栭ˇ顖氼啅闁秵鍤勯柣锝呮湰閺?=====
   if (scenarioCode === "barely_functional" || scenarioCode === "C2") {
     return "Things work, but explaining them often takes more effort than it should.";
   }
 
-  // ===== C3 / 边界模糊 =====
+  // ===== C3 / 闁哄鐗嗗﹢閬嶅疾椤愨懡鐔兼晬閸曨厔?=====
   if (scenarioCode === "boundary_blur" || scenarioCode === "C3") {
     return isPressureSensitive
       ? "It works day to day, but under pressure, small gaps start to show."
@@ -617,7 +627,7 @@ function generatePressureLine({ scenarioCode, pressureProfile }) {
   if (scenarioCode === "fully_ready" || scenarioCode === "C4") {
     return isPressureSensitive
       ? "Most things are clear, but a few edge cases may still get messy under pressure."
-      : "Things are generally clear, and explanations don’t rely on guesswork.";
+      : "Things are generally clear, and explanations don闂佺偨鍎查悰?rely on guesswork.";
   }
 
   // ===== fallback =====
@@ -921,7 +931,7 @@ const fallbackSignals =
           label: "Evidence Fragmentation",
           description:
             "Critical evidence appears difficult to retrieve, reconstruct, or verify quickly under pressure.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 5,
         },
@@ -931,7 +941,7 @@ const fallbackSignals =
           label: "Evidence Search Chaos",
           description:
             "Teams may not share a reliable first place to look when evidence is needed, increasing reconstruction effort.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 5,
         },
@@ -941,7 +951,7 @@ const fallbackSignals =
           label: "Retrieval Friction",
           description:
             "Key evidence may be slow to locate when verification or audit pressure increases.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 4,
         },
@@ -954,7 +964,7 @@ const fallbackSignals =
           label: "Evidence Fragmentation",
           description:
             "Supporting evidence is still usable, but remains harder to retrieve and align than it should be.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -964,7 +974,7 @@ const fallbackSignals =
           label: "Retrieval Friction",
           description:
             "Verification and explanation still require avoidable manual effort in day-to-day work.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -974,7 +984,7 @@ const fallbackSignals =
           label: "Hidden Process Debt",
           description:
             "Manual workarounds may be masking structural debt in how results are assembled and reviewed.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -987,7 +997,7 @@ const fallbackSignals =
           label: "Boundary Clarity Weakness",
           description:
             "Team boundaries and responsibilities may be contributing to coordination ambiguity.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -997,7 +1007,7 @@ const fallbackSignals =
           label: "Definition Conflict",
           description:
             "Shared meaning around important outputs may be less stable than it appears.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -1007,7 +1017,7 @@ const fallbackSignals =
           label: "Handoff Integrity Risk",
           description:
             "The way work moves across teams may not be clear enough to prevent drift.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -1020,7 +1030,7 @@ const fallbackSignals =
           label: "Operational Clarity",
           description:
             "The current structure appears relatively clear, traceable, and easier to verify across normal operating conditions.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: 1,
         },
@@ -1030,7 +1040,7 @@ const fallbackSignals =
           label: "Stable Ownership Paths",
           description:
             "Responsibilities and handoffs appear more stable and explicit than average.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: 1,
         },
@@ -1040,7 +1050,7 @@ const fallbackSignals =
           label: "Low Structural Friction",
           description:
             "The current workflow appears to require less manual reconstruction and fewer corrective loops.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: 1,
         },
@@ -1052,7 +1062,7 @@ const fallbackSignals =
           label: "Structural Friction",
           description:
             "Some part of the current operating structure may be creating avoidable effort, delay, or uncertainty when results need to be explained or verified.",
-          insight: "→ This is likely contributing to your current scenario classification.",
+          insight: "闂?This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 3,
         },
@@ -1116,7 +1126,7 @@ const actionReadySignals = normalizedSignals.map((signal) => {
             "Identify one workflow with the highest operational friction",
           ],
 
-    cta_label: source.pilot_preview?.cta_label || "Start my 7-Day Pilot →",
+    cta_label: source.pilot_preview?.cta_label || "Start my 7-Day Pilot ->",
   };
 
   return {
@@ -1131,7 +1141,7 @@ const actionReadySignals = normalizedSignals.map((signal) => {
 
     extraction,
 
-    // ⭐ Day 5.1 核心（保留链路）
+    // 闁?Day 5.1 闂佸搫绉堕…鍫㈢紦妤ｅ啯鏅柛顐ｇ矌缁犱粙鏌ｉ敐鍡欐噰闁瑰€熷亹閹瑰嫰顢涢妶鍥╊槴
     stage: raw?.stage || source?.stage || null,
     chainId: raw?.chainId || source?.chainId || null,
   };
@@ -1186,7 +1196,7 @@ function CollapsibleCard({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <Card className="p-6 md:p-7">
+    <Card className="p-5 md:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-slate-950">
@@ -1259,6 +1269,11 @@ function ReportHero({
   pilotCtaMicrocopy,
   weakestDimension,
   pcMeta,
+  isCaseReview = false,
+  showPilotCtas = !isCaseReview,
+  reviewCaseId = "",
+  onViewCases,
+  showViewAllCases = false,
 }) {
 
   const reportId = useMemo(() => createReportId(sessionId), [sessionId]);
@@ -1293,38 +1308,35 @@ function ReportHero({
   const primarySignalLabel =
     result?.top_signals?.[0]?.label || "Structural Signal";
 
-  const ctaLabel = pilotCtaLabel || result?.pilot_preview?.cta_label || "Start my 7-Day Pilot →";
+  const ctaLabel = pilotCtaLabel || result?.pilot_preview?.cta_label || "Start my 7-Day Pilot ->";
 
   return (
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
-        <div className="flex flex-wrap items-center gap-2">
-          <Pill success>Nimclea Diagnostic Preview</Pill>
-
-          {pcMeta?.pc_id || pcMeta?.pc_name ? (
-            <Pill>
-              {[pcMeta?.pc_id, pcMeta?.pc_name].filter(Boolean).join(" · ")}
-            </Pill>
-          ) : null}
-
-          {result.scenario?.label ? <Pill>{result.scenario.label}</Pill> : null}
-
-          {result.pressureProfile?.label ? (
-            <Pill dark>{result.pressureProfile.label}</Pill>
-          ) : result.intensity?.label ? (
-            <Pill dark>{result.intensity.label}</Pill>
-          ) : null}
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700">
+            Nimclea Diagnostic
+          </div>
+          {showViewAllCases && (
+            <button
+              type="button"
+              onClick={onViewCases}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+            >
+              View all cases
+            </button>
+          )}
         </div>
 
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+        <h1 className="mt-5 mb-6 md:mb-8 !text-[44px] md:!text-[58px] leading-[1.06] font-semibold tracking-tight text-slate-950">
           {heroTitle}
         </h1>
 
-        <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-800">
+        <p className="mt-2 md:mt-3 mb-3 max-w-3xl text-base md:text-lg leading-relaxed text-slate-800">
           {heroSupportLine}
         </p>
 
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mb-2 text-sm md:text-base text-gray-600 leading-relaxed">
           This path is first interpreted through your weakest dimension: {weakestDimension}.
         </p>
 
@@ -1332,30 +1344,34 @@ function ReportHero({
           {pressureLine}
         </p>
 
-        <p className="mt-4 max-w-2xl text-sm text-slate-600">
-          {pilotCtaMicrocopy}
-        </p>
+        {showPilotCtas ? (
+          <p className="mt-4 max-w-2xl text-sm text-slate-600">
+            {pilotCtaMicrocopy}
+          </p>
+        ) : null}
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 min-h-[92px] flex flex-col justify-center">
+            <div className="text-xs font-medium tracking-wide text-slate-400 mb-2">
               Dominant Scenario
             </div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">
+            <div className="text-lg font-semibold leading-snug text-slate-900">
               {result?.scenario?.label || "No Dominant Scenario"}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 min-h-[92px] flex flex-col justify-center">
+            <div className="text-xs font-medium tracking-wide text-slate-400 mb-2">
               Primary Signal
             </div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">
+            <div className="text-lg font-semibold leading-snug text-slate-900">
               {primarySignalLabel}
             </div>
           </div>
+        </div>
 
-          <div className="flex flex-col items-start justify-center p-2">
+        {showPilotCtas && onStartPilot ? (
+          <div className="mt-6 flex flex-col items-start justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               NEXT STEP
             </div>
@@ -1363,15 +1379,13 @@ function ReportHero({
             <button
               type="button"
               onClick={onStartPilot}
-              className="mt-3 inline-flex items-center justify-center"
+              className="mt-3 inline-flex items-center justify-center text-xs md:text-sm font-medium"
               style={{
                 backgroundColor: "#047857",
                 color: "#ffffff",
                 border: "none",
                 borderRadius: "9999px",
                 padding: "14px 28px",
-                fontSize: "16px",
-                fontWeight: 600,
                 lineHeight: 1,
                 boxShadow: "0 4px 12px rgba(5, 150, 105, 0.22)",
                 cursor: "pointer",
@@ -1382,23 +1396,19 @@ function ReportHero({
               {ctaLabel}
             </button>
           </div>
-        </div>
+        ) : null}
 
         <div className="mt-8">
           <IntensityBars level={result.intensity?.level} />
           <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             Intensity Level{" "}
             <span className="text-slate-900">
-              {result.intensity?.level || "—"} / 5
+              {result.intensity?.level || "0"} / 5
             </span>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-8 py-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        <span>Report ID: {reportId}</span>
-        <span>Generated on {dateText}</span>
-      </div>
     </Card>
   );
 }
@@ -1683,7 +1693,7 @@ function PilotTriggerCard({
   const copy = getPilotTriggerCopy(scenarioCode, weakestDimension);
 
   return (
-    <Card className="border-amber-200 bg-amber-50 p-6 md:p-7">
+    <Card className="border-amber-200 bg-amber-50 p-5 md:p-7">
       <div className="space-y-4">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
@@ -1725,7 +1735,7 @@ function PilotTriggerCard({
             onClick={onStartPilot}
             className="mt-5 inline-flex items-center justify-center rounded-full bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
           >
-            {ctaLabel || "Test this path in a 7-day pilot →"}
+            {ctaLabel || "Test this path in a 7-day pilot ->"}
           </button>
         </div>
       </div>
@@ -1768,13 +1778,13 @@ function PilotSection({ pilotPreview, pilotFocus }) {
 
             <ul className="mt-3 space-y-1.5 text-sm leading-6 text-emerald-900">
               {pilotFocus.bullets?.slice(0, 3).map((item, index) => (
-                <li key={index}>• {item}</li>
+                <li key={index}>闂?{item}</li>
               ))}
             </ul>
           </div>
         )}
 
-        <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="min-w-0">
             <div className="h-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -1809,7 +1819,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="min-w-0">
             <div className="h-full rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -1828,7 +1838,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
               </div>
               <ul className="mt-2 space-y-2 text-sm leading-7 text-slate-700">
                 {pilotPreview.actions.map((step, i) => (
-                  <li key={i}>• {step}</li>
+                  <li key={i}>闂?{step}</li>
                 ))}
               </ul>
             </div>
@@ -1864,7 +1874,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
           </ul>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <div className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-600">
             Suggested Next Steps
           </div>
@@ -1888,7 +1898,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
 function LoadingState() {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="space-y-5">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="h-5 w-44 animate-pulse rounded bg-slate-200" />
@@ -1921,10 +1931,10 @@ function LoadingState() {
 function ErrorState({ message, onRetry, onRestart }) {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-16">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
-            We couldn’t load the diagnostic preview
+            We couldn闂佺偨鍎查悰?load the diagnostic preview
           </h1>
 
           <p className="mt-3 text-sm leading-7 text-slate-600">{message}</p>
@@ -1955,7 +1965,7 @@ function ErrorState({ message, onRetry, onRestart }) {
 function EmptyState({ onRestart }) {
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-16">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
             No diagnostic result yet
@@ -1991,44 +2001,52 @@ export default function ResultPage({
 
   const navigate = useNavigate();
   const location = useLocation();
-
-  const trialSession = useMemo(() => {
-    const existing = getTrialSession();
-
-    if (existing?.sessionId || existing?.trialId) {
-      return existing;
+  const searchParams = new URLSearchParams(location.search);
+  const fromCase = searchParams.get("from") === "case";
+  const hasCaseIdInUrl = Boolean(searchParams.get("caseId"));
+  const showViewAllCases = fromCase || location.state?.from === "case";
+  const isCaseReview = useMemo(() => {
+    try {
+      const params = new URLSearchParams(location.search || "");
+      return (
+        params.get("from") === "case" ||
+        Boolean(params.get("caseId")) ||
+        location.state?.from === "case" ||
+        Boolean(location.state?.caseItem)
+      );
+    } catch {
+      return location.state?.from === "case" || Boolean(location.state?.caseItem);
     }
-
-    const stableUserId = getStableUserId();
-    userId: session?.userId || stableUserId
-
-    const nextSession = {
-      sessionId: `sess_${Date.now()}`,
-      trialId: `trial_${Date.now()}`,
-      userId: stableUserId,
-      startedAt: new Date().toISOString(),
-      entrySource: getEntrySource(location),
-    };
-
-    setTrialSession(nextSession);
-    return nextSession;
-  }, [location]);
+  }, [location.search, location.state]);
+  const reviewCaseId = useMemo(() => {
+    try {
+      const params = new URLSearchParams(location.search || "");
+      return (
+        params.get("caseId") ||
+        location.state?.caseId ||
+        location.state?.case_id ||
+        ""
+      );
+    } catch {
+      return location.state?.caseId || location.state?.case_id || "";
+    }
+  }, [location.search, location.state]);
+  const showPilotCtas = !isCaseReview && !reviewCaseId;
 
   useEffect(() => {
-  const session = getTrialSession();
+    const session = getTrialSession() || null;
 
-  if (!session?.userId) {
-    const stableUserId = getStableUserId();
-    userId: session?.userId || stableUserId
+    if (!session?.userId) {
+      const stableUserId = getStableUserId();
 
-    setTrialSession({
-      ...session,
-      userId: stableUserId,
-    });
+      setTrialSession({
+        ...(session || {}),
+        userId: stableUserId,
+      });
 
-    console.log("SESSION USER LOCKED:", stableUserId);
-  }
-}, []);
+      console.log("SESSION USER LOCKED:", stableUserId);
+    }
+  }, []);
 
   const stableUserId = useMemo(() => getStableUserId(), []);
   const entrySource = useMemo(() => getEntrySource(location), [location]);
@@ -2080,6 +2098,33 @@ export default function ResultPage({
         : "") ||
       "";
 
+  const resolvedCaseId = useMemo(() => {
+    let routeCaseId = "";
+
+    try {
+      const params = new URLSearchParams(location.search || "");
+      routeCaseId = params.get("caseId") || "";
+    } catch {
+      routeCaseId = "";
+    }
+
+    const explicitCaseId =
+      routeCaseId ||
+      location.state?.caseId ||
+      location.state?.case_id ||
+      resultProp?.caseId ||
+      resultProp?.case_id ||
+      location.state?.result?.caseId ||
+      location.state?.result?.case_id ||
+      "";
+
+    if (isValidCaseId(explicitCaseId)) {
+      return explicitCaseId;
+    }
+
+    return getDraftCase()?.caseId || createCaseId();
+  }, [location.search, location.state, resultProp, resolvedSessionId]);
+
   const resultFromLocation =
     isLikelyResultPayload(location.state?.result)
       ? location.state.result
@@ -2111,11 +2156,11 @@ export default function ResultPage({
       rawFromStoragePreview ||
       null;
 
-    console.log("🔥 raw before normalize:", raw);
+    console.log("濡絽鍟弳?raw before normalize:", raw);
 
     const normalized = normalizePreview(raw);
 
-    console.log("🧠 extraction after normalize:", normalized?.extraction);
+    console.log("濡絽鍠氬?extraction after normalize:", normalized?.extraction);
 
     return normalized;
   }, [resultProp, resultFromLocation, previewFromLocation, resolvedSessionId]);
@@ -2131,6 +2176,8 @@ export default function ResultPage({
       if (!result) return null;
       return buildResultSeed({ preview: result, result });
     }, [result]);
+
+    const access = resolveAccessMode(result || resultSeed || location.state || {});
 
   const displayResult = useMemo(() => {
     if (!result && !resultSeed) return null;
@@ -2225,7 +2272,7 @@ export default function ResultPage({
           "Choose one workflow",
           "Start the pilot",
         ],
-        cta_label: "Test This Path in Reality →",
+        cta_label: "Test This Path in Reality ->",
       },
 
     extraction: safeResult.extraction || safeSeed,
@@ -2233,26 +2280,25 @@ export default function ResultPage({
 }, [result, resultSeed, resolvedPcMeta]);
 
 useEffect(() => {
-  const existing = getTrialSession();
+  const existing = getTrialSession() || null;
 
   if (!existing?.userId) {
     const stableUserId = getStableUserId();
-    userId: session?.userId || stableUserId
 
     setTrialSession({
-      ...existing,
+      ...(existing || {}),
       userId: stableUserId,
     });
   }
 }, []);
 
 useEffect(() => {
-  // 20秒后 → warm
+  // 20缂備礁顦扮敮鎺楀箖?闂?warm
   const t1 = setTimeout(() => {
     setCtaState("warm");
   }, 20000);
 
-  // 45秒后 → ready
+  // 45缂備礁顦扮敮鎺楀箖?闂?ready
   const t2 = setTimeout(() => {
     setCtaState("ready");
   }, 45000);
@@ -2348,7 +2394,9 @@ useEffect(() => {
   if (error) return;
   if (!enrichedResult && !result) return;
 
-  const caseId = resolvedSessionId || "case_result_view";
+  const caseId = resolvedCaseId;
+  if (!caseId) return;
+
   const userId = stableUserId;
 
   const weakestDimensionForView =
@@ -2366,11 +2414,14 @@ useEffect(() => {
     page: "ResultPage",
     caseId,
     userId,
+    stableUserId,
     meta: {
+      stableUserId,
       weakestDimension: weakestDimensionForView,
       scenarioCode,
       sessionId: resolvedSessionId || "",
-      source: entrySource,
+      source: "funnel_event",
+      entrySource,
     },
   };
 
@@ -2386,7 +2437,7 @@ useEffect(() => {
       console.error("result_viewed log failed:", err);
       resultViewedLoggedRef.current = false;
     });
-}, [result, loading, error, resolvedSessionId, stableUserId, entrySource]);
+}, [result, loading, error, resolvedCaseId, resolvedSessionId, stableUserId, entrySource]);
 
 const startPilotButtonViewedRef = useRef(false);
 
@@ -2484,7 +2535,9 @@ useEffect(() => {
   if (error) return;
   if (!result || !isValidPreview(result)) return;
 
-  const caseId = resolvedSessionId || "case_result_view";
+  const caseId = resolvedCaseId;
+  if (!caseId) return;
+
   const userId = getTrialSession()?.userId || "anonymous";
   const weakestDimension =
     result?.extraction?.weakestDimension ||
@@ -2504,17 +2557,20 @@ useEffect(() => {
       page: "ResultPage",
       caseId,
       userId,
+      stableUserId,
       meta: {
+        stableUserId,
         weakestDimension,
         scenario: scenarioCode,
         sessionId: resolvedSessionId || "",
+        source: "funnel_event",
       },
     })
   ).catch((err) => {
     console.error("result_viewed log failed:", err);
     resultViewedLoggedRef.current = false;
   });
-}, [result, loading, error, resolvedSessionId, stableUserId, entrySource]);
+}, [result, loading, error, resolvedCaseId, resolvedSessionId, stableUserId, entrySource]);
 
 useEffect(() => {
   if (startPilotButtonViewedRef.current) return;
@@ -2522,7 +2578,9 @@ useEffect(() => {
   if (error) return;
   if (!result || !isValidPreview(result)) return;
 
-  const caseId = resolvedSessionId || "case_result_view";
+  const caseId = resolvedCaseId;
+  if (!caseId) return;
+
   const userId =
     getTrialSession()?.userId ||
     stableUserId;
@@ -2547,7 +2605,7 @@ useEffect(() => {
 
   console.log("BUTTON_VIEWED_FIRED", {
     sessionId: resolvedSessionId || "",
-    buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot →",
+    buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot ->",
     scenarioCode,
     entrySource,
   });
@@ -2558,14 +2616,16 @@ useEffect(() => {
       page: "ResultPage",
       caseId,
       userId,
+      stableUserId,
       meta: {
+        stableUserId,
         buttonId: "start_pilot_result_hero",
-        buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot →",
+        buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot ->",
         placement: "result_hero",
         weakestDimension,
         scenarioCode,
         sessionId: resolvedSessionId || "",
-        source: entrySource,
+        source: "funnel_event",
         entrySource,
       },
     })
@@ -2573,20 +2633,22 @@ useEffect(() => {
     console.error("button_viewed log failed:", err);
     startPilotButtonViewedRef.current = false;
   });
-}, [result, loading, error, resolvedSessionId, stableUserId, entrySource]);
+}, [result, loading, error, resolvedCaseId, resolvedSessionId, stableUserId, entrySource]);
 
-const runMeta = useMemo(() => {
-  const runCode =
+const runCode = useMemo(() => {
+  return (
     resolvedPath?.runCode ||
     resolvedPath?.run ||
     displayResult?.runCode ||
     displayResult?.run ||
-    "";
-
-  if (!runCode) return null;
-
-  return getRunRouteMeta(runCode) || null;
+    ""
+  );
 }, [resolvedPath, displayResult]);
+
+const runMeta = useMemo(() => {
+  if (!runCode) return null;
+  return getRunRouteMeta(runCode) || null;
+}, [runCode]);
 
 const pilotRouting = useMemo(() => {
   return getPilotRoutingByWeakestDimension(weakestDimension);
@@ -2680,7 +2742,7 @@ const lockedScopeSnapshot = useMemo(() => {
     status: "locked",
     lockedAt: new Date().toISOString(),
     source: "result_page",
-    caseId: resolvedSessionId || "case_result_entry",
+    caseId: resolvedCaseId,
     sessionId: resolvedSessionId || "",
     scenarioCode,
     weakestDimension: effectiveWeakestDimension,
@@ -2721,8 +2783,219 @@ const lockedScopeSnapshot = useMemo(() => {
   };
 }, [enrichedResult, resolvedSessionId, resolvedPath, pilotRouting]);
 
+const caseSchema = useMemo(() => {
+  if (!enrichedResult || !isValidPreview(enrichedResult)) return null;
+
+  try {
+    return mapResultToCaseSchema({
+      result: enrichedResult,
+      preview: enrichedResult,
+      sessionId: resolvedSessionId || "",
+      caseId: resolvedCaseId,
+
+      stage:
+        enrichedResult?.stage ||
+        resolvedPath?.stage ||
+        "S1",
+
+      chainId:
+        enrichedResult?.chainId ||
+        resolvedPath?.chainId ||
+        "CHAIN-001",
+
+      patternId:
+        enrichedResult?.patternId ||
+        resolvedPath?.patternId ||
+        "",
+
+      runId:
+        enrichedResult?.fallbackRunCode ||
+        enrichedResult?.runId ||
+        resolvedPath?.runCode ||
+        "",
+
+      weakestDimension:
+        enrichedResult?.extraction?.weakestDimension ||
+        weakestDimension ||
+        "authority",
+
+      lockedScopeSnapshot,
+    });
+  } catch (error) {
+    console.error("failed to build caseSchema:", error);
+
+    return {
+      caseId: resolvedCaseId,
+      id: resolvedCaseId,
+      sessionId: resolvedSessionId || "",
+      stage:
+        enrichedResult?.stage ||
+        resolvedPath?.stage ||
+        "S1",
+      chainId:
+        enrichedResult?.chainId ||
+        resolvedPath?.chainId ||
+        "CHAIN-001",
+      patternId:
+        enrichedResult?.patternId ||
+        resolvedPath?.patternId ||
+        "",
+      runId:
+        enrichedResult?.fallbackRunCode ||
+        enrichedResult?.runId ||
+        resolvedPath?.runCode ||
+        "",
+      scenarioCode: enrichedResult?.scenario?.code || "",
+      weakestDimension:
+        enrichedResult?.extraction?.weakestDimension ||
+        weakestDimension ||
+        "authority",
+      summary: Array.isArray(enrichedResult?.summary)
+        ? enrichedResult.summary.slice(0, 3)
+        : [],
+    };
+  }
+}, [
+  enrichedResult,
+  resolvedSessionId,
+  resolvedCaseId,
+  resolvedPath,
+  weakestDimension,
+  lockedScopeSnapshot,
+]);
+
+const summarySeed = useMemo(() => {
+  if (!result || !isValidPreview(result)) return null;
+
+  const summaryLines = Array.isArray(result.summary)
+    ? result.summary.filter(Boolean)
+    : [];
+
+  const summaryText = summaryLines.join(" ");
+
+  const primarySignalLabel =
+    result?.top_signals?.[0]?.label || "";
+
+  const resolvedCaseId =
+    caseSchema?.caseId ||
+    caseSchema?.id ||
+    resolvedSessionId ||
+    createCaseId();
+
+  return {
+    version: "seed.v0.1",
+    caseId: resolvedCaseId,
+    sourceHash: "",
+    rawInput:
+      summaryText ||
+      heroSupportLine ||
+      heroTitle ||
+      "",
+    summaryContext:
+      summaryText ||
+      heroSupportLine ||
+      "",
+    displayContext:
+      heroSupportLine ||
+      summaryText ||
+      heroTitle ||
+      "",
+    weakestDimension: weakestDimension || "authority",
+    scenarioLabel: result?.scenario?.label || "",
+    stageLabel: result?.stage || "",
+    runLabel: runCode || "",
+    primarySignalLabel,
+  };
+}, [
+  result,
+  caseSchema,
+  resolvedSessionId,
+  heroSupportLine,
+  heroTitle,
+  weakestDimension,
+  runCode,
+]);
+
+useEffect(() => {
+  if (error && !result) return;
+  if (!result || !isValidPreview(result)) return;
+
+  const summaryLines = Array.isArray(result?.summary)
+    ? result.summary.filter(Boolean)
+    : [];
+
+  const summaryText = summaryLines.join(" ");
+  const primarySignal =
+    result?.top_signals?.[0] ||
+    result?.topSignals?.[0] ||
+    null;
+  const dominantScenario =
+    result?.scenario?.label ||
+    result?.scenario?.code ||
+    "";
+
+  upsertCase({
+    caseId: resolvedCaseId,
+    title: buildCaseTitle({
+      workflowName: location.state?.workflowName || "",
+      summaryTitle: result?.title || "",
+      summary: summaryText,
+      summaryContext: summaryText,
+      displayContext: heroSupportLine || heroTitle || "",
+    }),
+    status: CASE_STATUS.DRAFT,
+    currentStep: "result",
+    score:
+      typeof result?.intensity?.level === "number"
+        ? result.intensity.level
+        : null,
+    weakestDimension: weakestDimension || "",
+    scenarioLabel: result?.scenario?.label || "",
+    dominantScenario,
+    primarySignal:
+      primarySignal?.label ||
+      primarySignal?.key ||
+      primarySignal?.signalKey ||
+      "",
+    signals: Array.isArray(result?.top_signals)
+      ? result.top_signals
+      : Array.isArray(result?.topSignals)
+      ? result.topSignals
+      : [],
+    stageLabel:
+      result?.stage ||
+      resolvedPath?.stage ||
+      "",
+    runLabel: runCode || "",
+    summary:
+      summaryText ||
+      heroSupportLine ||
+      heroTitle ||
+      "",
+    result,
+    resultData: result,
+    resultSeed,
+    caseSchema,
+    source: "ResultPage",
+  });
+}, [
+  error,
+  result,
+  resolvedCaseId,
+  location.state,
+  heroSupportLine,
+  heroTitle,
+  weakestDimension,
+  resolvedPath,
+  runCode,
+  resultSeed,
+  caseSchema,
+]);
+
 const handleStartPilot = useCallback(
   (signal = null) => {
+    let trialSession = getTrialSession() || null;
+
     if (!enrichedResult || !isValidPreview(enrichedResult)) {
       console.error("invalid result, pilot not started");
       return;
@@ -2839,7 +3112,7 @@ if (typeof window !== "undefined") {
       logTrialEvent({
         eventType: "button_clicked",
         page: "ResultPage",
-        caseId: resolvedSessionId || "case_result_entry",
+        caseId: resolvedCaseId,
         userId:
           getTrialSession()?.userId ||
           stableUserId,
@@ -2852,7 +3125,7 @@ if (typeof window !== "undefined") {
               weakestDimension: effectiveWeakestDimension,
             }) ||
             enrichedResult?.pilot_preview?.cta_label ||
-            "Start my 7-Day Pilot →",
+            "Start my 7-Day Pilot ->",
       source: "result_page_start_pilot",
       entrySource,
           placement: "result_hero",
@@ -2875,7 +3148,7 @@ if (typeof window !== "undefined") {
       logTrialEvent({
         eventType: "pilot_started",
         page: "ResultPage",
-        caseId: resolvedSessionId || "case_result_entry",
+        caseId: resolvedCaseId,
         userId:
           getTrialSession()?.userId ||
           stableUserId,
@@ -2919,6 +3192,8 @@ if (typeof window !== "undefined") {
 
     navigate(ROUTES.PILOT, {
       state: {
+        caseId: resolvedCaseId,
+        case_id: resolvedCaseId,
         sessionId: resolvedSessionId,
         session_id: resolvedSessionId,
 
@@ -2944,6 +3219,7 @@ if (typeof window !== "undefined") {
           enrichedResult?.resultSeed ||
           enrichedResult?.extraction ||
           {},
+        summarySeed,
 
         scenarioCode: enrichedResult?.scenario?.code || "",
         primarySignalKey,
@@ -2960,6 +3236,7 @@ if (typeof window !== "undefined") {
     onStartPilotProp,
     enrichedResult,
     resolvedSessionId,
+    resolvedCaseId,
     weakestDimension,
     pilotRouting,
     resolvedPath,
@@ -2985,19 +3262,25 @@ if (!isValidPreview(result)) {
 }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-6 py-10 md:py-12">
+    <main className="relative min-h-screen bg-slate-50">
+      <TopRightCasesCapsule />
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="space-y-6">
           <ReportHero
             result={enrichedResult}
             sessionId={resolvedSessionId}
-            onStartPilot={handleStartPilot}
+            onStartPilot={showPilotCtas ? handleStartPilot : null}
             heroTitle={heroTitle}
             heroSupportLine={heroSupportLine}
             pilotCtaLabel={pilotCtaLabel}
             pilotCtaMicrocopy={pilotCtaMicrocopy}
             weakestDimension={weakestDimension}
             pcMeta={enrichedResult?.pcMeta || resolvedPcMeta}
+            isCaseReview={isCaseReview}
+            showPilotCtas={showPilotCtas}
+            reviewCaseId={reviewCaseId}
+            onViewCases={() => navigate(ROUTES.CASES || "/cases")}
+            showViewAllCases={showViewAllCases}
           />
 
           {runMeta?.microNote && (
@@ -3008,174 +3291,21 @@ if (!isValidPreview(result)) {
 
           <StructurePathSection data={resolvedPath} />
 
-          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">
-              Current Stage
-            </div>
-            <h3 className="mt-2 text-lg font-semibold text-slate-900">
-              {stageCopy.title}
-            </h3>
-            <p className="mt-2 text-sm leading-7 text-slate-800">
-              {stageCopy.description}
-            </p>
-            <p className="mt-2 text-sm leading-7 text-slate-700">
-              {stageCopy.action}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-              Why act now
-            </div>
-            <p className="mt-2 text-sm leading-7 text-slate-800">
-              Most teams stop here. The ones who move next are the ones who actually reduce cost.
-            </p>
-            <p className="mt-2 text-sm leading-7 text-slate-700">
-              If this structure is already showing pressure, the cheapest moment to test it is now, before the next real deadline, audit, or review forces the issue.
-            </p>
-          </div>
-          
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-              Scope Lock
-            </div>
-
-            <h3 className="mt-2 text-lg font-semibold text-slate-900">
-              This pilot is locked to one structural point.
-            </h3>
-
-            <p className="mt-2 text-sm leading-7 text-slate-800">
-              Instead of testing everything, Nimclea is locking this 7-day pilot to the
-              single structural point most likely to change the outcome.
-            </p>
-
-            <p className="mt-2 text-sm leading-7 text-slate-700">
-              A clear scope makes the judgment defensible. Verification makes it trusted.
-            </p>
-
-            <p className="mt-2 text-sm leading-7 text-slate-700">
-              A clear scope makes the judgment defensible. Verification makes it trusted.
-            </p>
-          
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                  Locked Dimension
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {weakestDimension || "authority"}
-                </div>
-              </div>
-          
-              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                  Locked Focus
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {pilotRouting?.pilotFocusKey || "authority_gap"}
-                </div>
-              </div>
-          
-              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4 md:col-span-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                  First Guided Action
-                </div>
-                <div className="mt-1 text-sm text-slate-800">
-                  {pilotRouting?.firstGuidedAction || "Clarify the weakest structural point first."}
-                </div>
-              </div>
-            </div>
-          
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
-                Acceptance Checklist v0.1
-              </div>
-          
-              <p className="mt-4 text-sm leading-6 text-slate-700">
-                For decisions that need to hold under scrutiny, proceed to Verification.
-              </p>
-
-              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                <div className="flex gap-2">
-                  <span className="font-semibold text-emerald-700">✓</span>
-                  <span>
-                    One real workflow is selected around{" "}
-                    <span className="font-semibold text-slate-900">
-                      {enrichedResult?.top_signals?.[0]?.label || "the primary structural signal"}
-                    </span>.
-                  </span>
-                </div>
-          
-                <div className="flex gap-2">
-                  <span className="font-semibold text-emerald-700">✓</span>
-                  <span>
-                    The pilot starts from{" "}
-                    <span className="font-semibold text-slate-900">
-                      {pilotRouting?.firstStepLabel || "the weakest structural point"}
-                    </span>.
-                  </span>
-                </div>
-          
-                <div className="flex gap-2">
-                  <span className="font-semibold text-emerald-700">✓</span>
-                  <span>
-                    Success means this path becomes easier to explain, verify, or control
-                    in one real workflow.
-                  </span>
-                </div>
-          
-                <div className="flex gap-2">
-                  <span className="font-semibold text-emerald-700">✓</span>
-                  <span>
-                    This is a scoped validation for{" "}
-                    <span className="font-semibold text-slate-900">
-                      {enrichedResult?.scenario?.label || "the current scenario"}
-                    </span>,
-                    not a full rollout.
-                  </span>
-                </div>
-                
-                <p className="mt-4 text-sm leading-6 text-slate-700">
-                  For decisions that need to hold under scrutiny, proceed to Verification.
-                </p>
-
-                <p className="mt-4 text-sm leading-6 text-slate-700">
-                  For decisions that need to hold under scrutiny, proceed to Verification.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <SummarySection summary={enrichedResult.summary} />
-
-          <SynthesisSection items={enrichedResult.synthesis || []} />
-
           <SignalsSection
             signals={enrichedResult.top_signals}
-            onStartPilot={handleStartPilot}
+            onStartPilot={showPilotCtas ? handleStartPilot : null}
           />
 
-          <PilotTriggerCard
-            onStartPilot={handleStartPilot}
-            scenarioCode={enrichedResult?.scenario?.code || ""}
-            ctaState={ctaState}
-            ctaLabel={pilotCtaLabel}
-            weakestDimension={weakestDimension}
-          />
+          {showPilotCtas && (
+            <PilotTriggerCard
+              onStartPilot={handleStartPilot}
+              scenarioCode={enrichedResult?.scenario?.code || ""}
+              ctaState={ctaState}
+              ctaLabel={pilotCtaLabel}
+              weakestDimension={weakestDimension}
+            />
+          )}
 
-          <PilotSection
-            pilotPreview={{
-              ...(enrichedResult?.pilot_preview || {}),
-              firstGuidedAction: pilotRouting?.firstGuidedAction || "",
-              firstStepLabel: pilotRouting?.firstStepLabel || "",
-              weakestDimension,
-            }}
-            pilotFocus={pilotFocus}
-          />
-        <div className="mt-10 text-center text-sm text-slate-500">
-          End of diagnostic preview · The next useful step is to test one real workflow
-        </div>
-        
         </div>
       </div>
     </main>

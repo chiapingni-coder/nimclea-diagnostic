@@ -156,8 +156,25 @@ export function mapPilotInputToCaseSchema(input = {}, prevSchema = {}) {
       ...(prevSchema.meta || {}),
       rawInput: input,
     },
-  });
-}
+
+    structure: {
+      hasActor: Array.isArray(input.parties) && input.parties.length > 0,
+      hasAction: Array.isArray(input.actions) && input.actions.length > 0,
+      hasEvidence: Array.isArray(input.evidenceItems) && input.evidenceItems.length > 0,
+    },
+
+    structureScore:
+      (Array.isArray(input.parties) && input.parties.length > 0 ? 1 : 0) +
+      (Array.isArray(input.actions) && input.actions.length > 0 ? 1 : 0) +
+      (Array.isArray(input.evidenceItems) && input.evidenceItems.length > 0 ? 1 : 0),
+
+    structureStatus:
+      (Array.isArray(input.parties) && input.parties.length > 0) ||
+      (Array.isArray(input.actions) && input.actions.length > 0)
+        ? "partial"
+        : "empty",
+      });
+    }
 
 export function appendEventToSchema(schema = {}, eventEntry = {}) {
   const normalized = normalizeCaseInput(schema);

@@ -1,4039 +1,966 @@
 [
   {
-    "eventId": "evt_1776446106284_pejo2q",
+    "eventId": "evt_1777239349694_njowau",
     "userId": "",
     "trialId": "",
-    "caseId": "",
-    "eventType": "diagnostic_completed",
-    "page": "",
-    "meta": {},
-    "createdAt": "2026-04-17T17:15:06.285Z"
-  },
-  {
-    "eventId": "evt_1776446448581_9jxvzf",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T17:20:48.582Z"
-  },
-  {
-    "eventId": "evt_1776446448586_ab0kh0",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T17:20:48.586Z"
-  },
-  {
-    "eventId": "evt_1776446813259_4kggtp",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_entered",
-    "page": "PilotPage",
-    "meta": {
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "chainId": "CHAIN-001",
-      "stage": "S1"
-    },
-    "createdAt": "2026-04-17T17:26:53.259Z"
-  },
-  {
-    "eventId": "evt_1776446813263_jyrblx",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_workflow_selected",
-    "page": "PilotPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "chainId": "CHAIN-001",
-      "stage": "S1"
-    },
-    "createdAt": "2026-04-17T17:26:53.263Z"
-  },
-  {
-    "eventId": "evt_1776446813286_njixnt",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T17:26:53.286Z"
-  },
-  {
-    "eventId": "evt_1776446820928_oym8nm",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T17:27:00.928Z"
-  },
-  {
-    "eventId": "evt_1776446860720_bd34ff",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-17T17:27:40.720Z"
-  },
-  {
-    "eventId": "evt_1776446860723_ecltfy",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T17:27:40.723Z"
-  },
-  {
-    "eventId": "evt_1776448131558_zdpekl",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T17:48:51.558Z"
-  },
-  {
-    "eventId": "evt_1776448133547_jjgw3k",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T17:48:53.547Z"
-  },
-  {
-    "eventId": "evt_1776448452931_17wnvi",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T17:54:12.931Z"
-  },
-  {
-    "eventId": "evt_1776448462748_3h3n6n",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T17:54:22.748Z"
-  },
-  {
-    "eventId": "evt_1776454271820_e68oiw",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T19:31:11.820Z"
-  },
-  {
-    "eventId": "evt_1776454299150_18ggvj",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T19:31:39.150Z"
-  },
-  {
-    "eventId": "evt_1776454299155_uijmbd",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T19:31:39.155Z"
-  },
-  {
-    "eventId": "evt_1776454306708_b50hwb",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T19:31:46.708Z"
-  },
-  {
-    "eventId": "evt_1776454323279_hpvhzd",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-17T19:32:03.279Z"
-  },
-  {
-    "eventId": "evt_1776454323284_b04xqq",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T19:32:03.284Z"
-  },
-  {
-    "eventId": "evt_1776454418117_8yoeh6",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T19:33:38.117Z"
-  },
-  {
-    "eventId": "evt_1776454419401_0herxt",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T19:33:39.401Z"
-  },
-  {
-    "eventId": "evt_1776454911020_ku46sq",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T19:41:51.020Z"
-  },
-  {
-    "eventId": "evt_1776455052923_eghum1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T19:44:12.923Z"
-  },
-  {
-    "eventId": "evt_1776457218912_v5cq5g",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_viewed",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-17T20:20:18.912Z"
-  },
-  {
-    "eventId": "evt_1776457231766_6rmp13",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:20:31.766Z"
-  },
-  {
-    "eventId": "evt_1776457231769_2vn4w4",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:20:31.769Z"
-  },
-  {
-    "eventId": "evt_1776457868881_awluyu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:31:08.881Z"
-  },
-  {
-    "eventId": "evt_1776458724819_ltptno",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:45:24.819Z"
-  },
-  {
-    "eventId": "evt_1776458727514_dd0wmv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:45:27.514Z"
-  },
-  {
-    "eventId": "evt_1776458878695_wg9npu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:47:58.695Z"
-  },
-  {
-    "eventId": "evt_1776458913705_dv9rdb",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:48:33.705Z"
-  },
-  {
-    "eventId": "evt_1776458993626_o60dr8",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:49:53.626Z"
-  },
-  {
-    "eventId": "evt_1776459101631_cvs6u8",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:51:41.631Z"
-  },
-  {
-    "eventId": "evt_1776459316693_s00hhg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:55:16.693Z"
-  },
-  {
-    "eventId": "evt_1776459398743_y904lp",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:56:38.743Z"
-  },
-  {
-    "eventId": "evt_1776459455568_wc2rq7",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T20:57:35.568Z"
-  },
-  {
-    "eventId": "evt_1776459661639_x7l80t",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:01:01.639Z"
-  },
-  {
-    "eventId": "evt_1776459821684_0zxiqe",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:03:41.684Z"
-  },
-  {
-    "eventId": "evt_1776459901634_1d4p6x",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:05:01.634Z"
-  },
-  {
-    "eventId": "evt_1776459965617_l0cl3k",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:06:05.617Z"
-  },
-  {
-    "eventId": "evt_1776459990560_8lgvaa",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:06:30.560Z"
-  },
-  {
-    "eventId": "evt_1776460098673_gb24w5",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:08:18.673Z"
-  },
-  {
-    "eventId": "evt_1776460381920_9zgcfj",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:13:01.920Z"
-  },
-  {
-    "eventId": "evt_1776460407389_9u3fa1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:13:27.389Z"
-  },
-  {
-    "eventId": "evt_1776460601991_31jpy3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:16:41.991Z"
-  },
-  {
-    "eventId": "evt_1776460627325_tfx5m8",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:17:07.325Z"
-  },
-  {
-    "eventId": "evt_1776460800907_2coicg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:20:00.907Z"
-  },
-  {
-    "eventId": "evt_1776460895693_t6jftc",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T21:21:35.693Z"
-  },
-  {
-    "eventId": "evt_1776466002000_d4wmrg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T22:46:42.000Z"
-  },
-  {
-    "eventId": "evt_1776466379938_gkncpv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T22:52:59.938Z"
-  },
-  {
-    "eventId": "evt_1776466845024_qcar9r",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:00:45.024Z"
-  },
-  {
-    "eventId": "evt_1776466875962_yzpr7c",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:01:15.962Z"
-  },
-  {
-    "eventId": "evt_1776466931852_g9b274",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:02:11.853Z"
-  },
-  {
-    "eventId": "evt_1776466973064_f6sxux",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:02:53.064Z"
-  },
-  {
-    "eventId": "evt_1776467001849_o2q79f",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:03:21.849Z"
-  },
-  {
-    "eventId": "evt_1776467031936_jmi56d",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:03:51.936Z"
-  },
-  {
-    "eventId": "evt_1776467084743_l3iijo",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:04:44.743Z"
-  },
-  {
-    "eventId": "evt_1776467241940_6v5cwe",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Audit preparation",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-17T23:07:21.940Z"
-  },
-  {
-    "eventId": "evt_1776473022352_7yn8y1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "trial_1776323696873_yehd2y",
-    "eventType": "diagnostic_started",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_start_button"
-    },
-    "createdAt": "2026-04-18T00:43:42.352Z"
-  },
-  {
-    "eventId": "evt_1776473403425_rxe6b9",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T00:50:03.426Z"
-  },
-  {
-    "eventId": "evt_1776473403431_76i60u",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T00:50:03.431Z"
-  },
-  {
-    "eventId": "evt_1776473427358_o57bt9",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T00:50:27.358Z"
-  },
-  {
-    "eventId": "evt_1776473427361_f8sods",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T00:50:27.361Z"
-  },
-  {
-    "eventId": "evt_1776474577546_uaagx6",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T01:09:37.546Z"
-  },
-  {
-    "eventId": "evt_1776478010411_1p1990",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T02:06:50.411Z"
-  },
-  {
-    "eventId": "evt_1776478010761_0bwty9",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T02:06:50.761Z"
-  },
-  {
-    "eventId": "evt_1776478015636_6rfnvu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T02:06:55.636Z"
-  },
-  {
-    "eventId": "evt_1776478035559_z90lwx",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T02:07:15.559Z"
-  },
-  {
-    "eventId": "evt_1776478035562_kud83u",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T02:07:15.562Z"
-  },
-  {
-    "eventId": "evt_1776479628633_j27amg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "diagnostic_entry",
-    "eventType": "diagnostic_entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view"
-    },
-    "createdAt": "2026-04-18T02:33:48.633Z"
-  },
-  {
-    "eventId": "evt_1776479628637_cq6pef",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "diagnostic_entry",
-    "eventType": "diagnostic_entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view"
-    },
-    "createdAt": "2026-04-18T02:33:48.637Z"
-  },
-  {
-    "eventId": "evt_1776480022613_sm7iwi",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T02:40:22.613Z"
-  },
-  {
-    "eventId": "evt_1776480022616_3jud6g",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T02:40:22.616Z"
-  },
-  {
-    "eventId": "evt_1776480026088_gj34zi",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T02:40:26.088Z"
-  },
-  {
-    "eventId": "evt_1776480042346_60ooe1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T02:40:42.346Z"
-  },
-  {
-    "eventId": "evt_1776480042348_x4uoyu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T02:40:42.349Z"
-  },
-  {
-    "eventId": "evt_1776480404082_96w8kv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "diagnostic_entry",
-    "eventType": "entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view"
-    },
-    "createdAt": "2026-04-18T02:46:44.082Z"
-  },
-  {
-    "eventId": "evt_1776480404083_hovy4h",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "diagnostic_entry",
-    "eventType": "entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view"
-    },
-    "createdAt": "2026-04-18T02:46:44.083Z"
-  },
-  {
-    "eventId": "evt_1776480410483_vc76wc",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "trial_1776323696873_yehd2y",
+    "caseId": "CASE-1777238963536-0W9FOS",
     "eventType": "entry_clicked",
     "page": "DiagnosticPage",
     "meta": {
       "pcId": "PC-001",
-      "source": "landing_start_button"
+      "source": "landing_start_button",
+      "caseId": "CASE-1777238963536-0W9FOS"
     },
-    "createdAt": "2026-04-18T02:46:50.483Z"
+    "createdAt": "2026-04-26T21:35:49.694Z"
   },
   {
-    "eventId": "evt_1776480433369_h0h7nc",
-    "userId": "usr_1776323696872_m0wxct",
+    "eventId": "evt_1777239364633_xdl8d9",
+    "userId": "anonymous_user",
     "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T02:47:13.369Z"
-  },
-  {
-    "eventId": "evt_1776480433372_plhwzp",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T02:47:13.372Z"
-  },
-  {
-    "eventId": "evt_1776480462093_x9d995",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T02:47:42.093Z"
-  },
-  {
-    "eventId": "evt_1776480462096_jkq6vt",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T02:47:42.096Z"
-  },
-  {
-    "eventId": "evt_1776482011934_oxwqwd",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "trial_1776323696873_yehd2y",
+    "caseId": "diagnostic_result",
     "eventType": "diagnostic_completed",
     "page": "DiagnosticPage",
     "meta": {
       "pcId": "PC-001",
-      "scenarioCode": "basically_stable"
+      "scenarioCode": "pre_audit_collapse",
+      "caseId": "diagnostic_result"
     },
-    "createdAt": "2026-04-18T03:13:31.934Z"
+    "createdAt": "2026-04-26T21:36:04.633Z"
   },
   {
-    "eventId": "evt_1776482046800_0wls8g",
-    "userId": "usr_1776323696872_m0wxct",
+    "eventId": "evt_1777240006679_st12k7",
+    "userId": "u_mogafi8v_4bm5y5np",
     "trialId": "",
-    "caseId": "case_result_entry",
+    "caseId": "CASE-1777239868765-3KXDE8",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_mogafi8v_4bm5y5np",
+      "source": "funnel_event",
+      "caseId": "CASE-1777239868765-3KXDE8"
+    },
+    "createdAt": "2026-04-26T21:46:46.679Z"
+  },
+  {
+    "eventId": "evt_1777240006809_4g6v04",
+    "userId": "u_mogafi8v_4bm5y5np",
+    "trialId": "",
+    "caseId": "CASE-1777239868765-3KXDE8",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_mogafi8v_4bm5y5np",
+      "source": "funnel_event",
+      "caseId": "CASE-1777239868765-3KXDE8"
+    },
+    "createdAt": "2026-04-26T21:46:46.809Z"
+  },
+  {
+    "eventId": "evt_1777242721522_en09or",
+    "userId": "u_mogafi8v_4bm5y5np",
+    "trialId": "",
+    "caseId": "CASE-1777239565927-VTAANB",
     "eventType": "button_clicked",
     "page": "ResultPage",
     "meta": {
       "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
       "source": "result_page_start_pilot",
       "entrySource": "result",
       "placement": "result_hero",
       "sessionId": "",
       "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
+      "chain": "CHAIN-003",
+      "stage": "S4",
       "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777239565927-VTAANB"
     },
-    "createdAt": "2026-04-18T03:14:06.800Z"
+    "createdAt": "2026-04-26T22:32:01.522Z"
   },
   {
-    "eventId": "evt_1776482046803_9zqifa",
-    "userId": "usr_1776323696872_m0wxct",
+    "eventId": "evt_1777242721526_ib89lu",
+    "userId": "u_mogafi8v_4bm5y5np",
     "trialId": "",
-    "caseId": "case_result_entry",
+    "caseId": "CASE-1777239565927-VTAANB",
     "eventType": "pilot_started",
     "page": "ResultPage",
     "meta": {
       "sessionId": "",
       "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
+      "chain": "CHAIN-003",
+      "stage": "S4",
       "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
       "source": "result_page_start_pilot",
-      "entrySource": "result"
+      "entrySource": "result",
+      "caseId": "CASE-1777239565927-VTAANB"
     },
-    "createdAt": "2026-04-18T03:14:06.803Z"
+    "createdAt": "2026-04-26T22:32:01.526Z"
   },
   {
-    "eventId": "evt_1776482077250_yqczfi",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
+    "eventId": "evt_1777243053243_iwblbw",
+    "userId": "u_mogafi8v_4bm5y5np",
+    "trialId": "",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T22:37:33.243Z"
+  },
+  {
+    "eventId": "evt_1777243053246_wdje2s",
+    "userId": "u_mogafi8v_4bm5y5np",
+    "trialId": "",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T22:37:33.246Z"
+  },
+  {
+    "eventId": "evt_1777243224369_fp0mwx",
+    "userId": "u_mogafi8v_4bm5y5np",
+    "trialId": "",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T22:40:24.369Z"
+  },
+  {
+    "eventId": "evt_1777243224372_ubhxqw",
+    "userId": "u_mogafi8v_4bm5y5np",
+    "trialId": "",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T22:40:24.372Z"
+  },
+  {
+    "eventId": "evt_1777245916576_ca8nor",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_entered",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_mogafi8v_4bm5y5np",
+      "source": "funnel_event",
+      "workflow": "Audit preparation",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-001",
+      "stage": "S3",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T23:25:16.576Z"
+  },
+  {
+    "eventId": "evt_1777245916601_ckfexm",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_workflow_selected",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_mogafi8v_4bm5y5np",
+      "source": "funnel_event",
+      "workflow": "Audit preparation",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-001",
+      "stage": "S3",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T23:25:16.601Z"
+  },
+  {
+    "eventId": "evt_1777245916629_zeiosj",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_setup_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "stableUserId": "u_mogafi8v_4bm5y5np",
+      "source": "funnel_event",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-26T23:25:16.629Z"
+  },
+  {
+    "eventId": "evt_1777248810369_5pbwgf",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
     "eventType": "trial_started",
     "page": "PilotSetupPage",
     "meta": {
-      "workflow": "Decision trace reconstruction",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
       "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777239565927-VTAANB"
     },
-    "createdAt": "2026-04-18T03:14:37.250Z"
+    "createdAt": "2026-04-27T00:13:30.369Z"
   },
   {
-    "eventId": "evt_1776482077253_zmr1hr",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
+    "eventId": "evt_1777248810410_cod1bm",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
     "eventType": "pilot_setup_confirmed",
     "page": "PilotSetupPage",
     "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "unclear",
+      "dependency": "high",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T00:13:30.410Z"
+  },
+  {
+    "eventId": "evt_1777249031026_1mjvhc",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T00:17:11.026Z"
+  },
+  {
+    "eventId": "evt_1777249031029_5dtrey",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "medium",
+      "authorityBoundary": "slightly_unclear",
+      "dependency": "medium",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T00:17:11.029Z"
+  },
+  {
+    "eventId": "evt_1777252674474_z3927j",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T01:17:54.474Z"
+  },
+  {
+    "eventId": "evt_1777252674478_i0hsit",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "medium",
+      "authorityBoundary": "slightly_unclear",
+      "dependency": "medium",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T01:17:54.478Z"
+  },
+  {
+    "eventId": "evt_1777255148023_1r2zvb",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T01:59:08.023Z"
+  },
+  {
+    "eventId": "evt_1777255148027_wqiip1",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "unclear",
+      "dependency": "high",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777239565927-VTAANB"
+    },
+    "createdAt": "2026-04-27T01:59:08.027Z"
+  },
+  {
+    "eventId": "evt_1777261315949_058gty",
+    "userId": "u_mognhpqo_l0h8wg9x",
+    "trialId": "",
+    "caseId": "CASE-1777261315918-R7BTEY",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777261315918-R7BTEY"
+    },
+    "createdAt": "2026-04-27T03:41:55.949Z"
+  },
+  {
+    "eventId": "evt_1777261316277_vjictb",
+    "userId": "u_mognhpqo_l0h8wg9x",
+    "trialId": "",
+    "caseId": "CASE-1777261315918-R7BTEY",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777261315918-R7BTEY"
+    },
+    "createdAt": "2026-04-27T03:41:56.277Z"
+  },
+  {
+    "eventId": "evt_1777261320518_n3b0zx",
+    "userId": "u_mognhpqo_l0h8wg9x",
+    "trialId": "",
+    "caseId": "CASE-1777261315918-R7BTEY",
+    "eventType": "entry_clicked",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_start_button",
+      "caseId": "CASE-1777261315918-R7BTEY"
+    },
+    "createdAt": "2026-04-27T03:42:00.518Z"
+  },
+  {
+    "eventId": "evt_1777261332995_hpxrxr",
+    "userId": "u_mognhpqo_l0h8wg9x",
+    "trialId": "",
+    "caseId": "diagnostic_result",
+    "eventType": "diagnostic_completed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "scenarioCode": "pre_audit_collapse",
+      "caseId": "diagnostic_result"
+    },
+    "createdAt": "2026-04-27T03:42:12.995Z"
+  },
+  {
+    "eventId": "evt_1777261357274_scz7eo",
+    "userId": "u_mognhpqo_l0h8wg9x",
+    "trialId": "",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:42:37.274Z"
+  },
+  {
+    "eventId": "evt_1777261357278_bxep97",
+    "userId": "u_mognhpqo_l0h8wg9x",
+    "trialId": "",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:42:37.278Z"
+  },
+  {
+    "eventId": "evt_1777261366691_zxru1x",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_entered",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_mognhpqo_l0h8wg9x",
+      "source": "funnel_event",
+      "workflow": "Audit preparation",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:42:46.691Z"
+  },
+  {
+    "eventId": "evt_1777261366694_q3zqdn",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_workflow_selected",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_mognhpqo_l0h8wg9x",
+      "source": "funnel_event",
+      "workflow": "Audit preparation",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:42:46.694Z"
+  },
+  {
+    "eventId": "evt_1777261366709_gzka6s",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_setup_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "stableUserId": "u_mognhpqo_l0h8wg9x",
+      "source": "funnel_event",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:42:46.709Z"
+  },
+  {
+    "eventId": "evt_1777261420750_h86k36",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:43:40.750Z"
+  },
+  {
+    "eventId": "evt_1777261420754_cwkpfz",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "unclear",
+      "dependency": "high",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:43:40.754Z"
+  },
+  {
+    "eventId": "evt_1777261420812_lcjr5h",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_mognhpqo_l0h8wg9x",
+      "source": "funnel_event",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:43:40.812Z"
+  },
+  {
+    "eventId": "evt_1777261420815_k54ueh",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_mognhpqo_l0h8wg9x",
+      "source": "funnel_event",
+      "caseId": "CASE-1777261332999-YAOE9X"
+    },
+    "createdAt": "2026-04-27T03:43:40.815Z"
+  },
+  {
+    "eventId": "evt_1777264019600_mooeb0",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "",
+    "caseId": "CASE-1777264013053-44BPP1",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777264013053-44BPP1"
+    },
+    "createdAt": "2026-04-27T04:26:59.600Z"
+  },
+  {
+    "eventId": "evt_1777264019990_q808ea",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "",
+    "caseId": "CASE-1777264013053-44BPP1",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777264013053-44BPP1"
+    },
+    "createdAt": "2026-04-27T04:26:59.990Z"
+  },
+  {
+    "eventId": "evt_1777264133123_ltaxsu",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777264133094-KXDBAG",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777264133094-KXDBAG"
+    },
+    "createdAt": "2026-04-27T04:28:53.123Z"
+  },
+  {
+    "eventId": "evt_1777264133139_zev2h2",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777264133094-KXDBAG",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777264133094-KXDBAG"
+    },
+    "createdAt": "2026-04-27T04:28:53.139Z"
+  },
+  {
+    "eventId": "evt_1777264140773_0kylin",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777264133094-KXDBAG",
+    "eventType": "entry_clicked",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_start_button",
+      "caseId": "CASE-1777264133094-KXDBAG"
+    },
+    "createdAt": "2026-04-27T04:29:00.773Z"
+  },
+  {
+    "eventId": "evt_1777264162903_urakzp",
+    "userId": "anonymous_user",
+    "trialId": "",
+    "caseId": "diagnostic_result",
+    "eventType": "diagnostic_completed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "scenarioCode": "pre_audit_collapse",
+      "caseId": "diagnostic_result"
+    },
+    "createdAt": "2026-04-27T04:29:22.903Z"
+  },
+  {
+    "eventId": "evt_1777264477099_t29dcz",
+    "userId": "u_mogp6986_ohzhzvbu",
+    "trialId": "",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:34:37.099Z"
+  },
+  {
+    "eventId": "evt_1777264477111_pj70xu",
+    "userId": "u_mogp6986_ohzhzvbu",
+    "trialId": "",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:34:37.111Z"
+  },
+  {
+    "eventId": "evt_1777264484290_o837nk",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_entered",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "source": "funnel_event",
       "workflow": "Decision trace reconstruction",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:34:44.290Z"
+  },
+  {
+    "eventId": "evt_1777264484293_t6ctxl",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_workflow_selected",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "source": "funnel_event",
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:34:44.293Z"
+  },
+  {
+    "eventId": "evt_1777264484309_sw8nvv",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_setup_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "source": "funnel_event",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:34:44.309Z"
+  },
+  {
+    "eventId": "evt_1777264527527_mbd9tp",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:35:27.527Z"
+  },
+  {
+    "eventId": "evt_1777264527532_8za1w9",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
       "selectedEventType": "resource_control_request",
       "externalPressure": "high",
       "authorityBoundary": "clear",
       "dependency": "high",
-      "weakestDimension": "authority"
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777264162910-DUXZX9"
     },
-    "createdAt": "2026-04-18T03:14:37.253Z"
+    "createdAt": "2026-04-27T04:35:27.532Z"
   },
   {
-    "eventId": "evt_1776486459549_wvhuix",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "pilot_result",
+    "eventId": "evt_1777264527594_3j2boe",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "source": "funnel_event",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:35:27.594Z"
+  },
+  {
+    "eventId": "evt_1777264527598_xiyzf6",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "source": "funnel_event",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T04:35:27.598Z"
+  },
+  {
+    "eventId": "evt_1777268501523_za6ph7",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
     "eventType": "pilot_to_receipt_clicked",
     "page": "PilotResultPage",
     "meta": {
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "receiptEligible": true,
-      "totalScore": 3.55,
-      "weakestDimension": "authority",
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "receiptEligible": false,
+      "totalScore": 2.45,
+      "weakestDimension": "evidence",
       "receiptId": "RCPT-DEMO-001",
-      "receiptHash": "H-6F8D4EC2"
+      "receiptHash": "H-81AEA90C2121ED35DE4564C5",
+      "caseId": "CASE-1777264162910-DUXZX9"
     },
-    "createdAt": "2026-04-18T04:27:39.549Z"
+    "createdAt": "2026-04-27T05:41:41.523Z"
   },
   {
-    "eventId": "evt_1776486569850_wo42r7",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
+    "eventId": "evt_1777271151758_i6sd8m",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "intervention_started",
+    "page": "PilotResultPage",
     "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "source": "funnel_event",
+      "rank": 1,
+      "intervention": "Log one real event before continuing.",
+      "weakestDimension": "evidence",
+      "runId": "RUN030",
+      "pattern": "PAT-00",
+      "caseId": "CASE-1777264162910-DUXZX9"
     },
-    "createdAt": "2026-04-18T04:29:29.850Z"
+    "createdAt": "2026-04-27T06:25:51.758Z"
   },
   {
-    "eventId": "evt_1776486569853_98gumm",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T04:29:29.853Z"
-  },
-  {
-    "eventId": "evt_1776486588391_o6ik9b",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T04:29:48.391Z"
-  },
-  {
-    "eventId": "evt_1776486588394_y0hfa8",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T04:29:48.394Z"
-  },
-  {
-    "eventId": "evt_1776486806553_yayjb2",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T04:33:26.553Z"
-  },
-  {
-    "eventId": "evt_1776486806556_x5eyfj",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T04:33:26.556Z"
-  },
-  {
-    "eventId": "evt_1776486826867_2kpmbs",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T04:33:46.867Z"
-  },
-  {
-    "eventId": "evt_1776486826871_kzzpqn",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T04:33:46.871Z"
-  },
-  {
-    "eventId": "evt_1776488164985_0guv7a",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S2",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T04:56:04.985Z"
-  },
-  {
-    "eventId": "evt_1776488164991_xh3trg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S2",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T04:56:04.991Z"
-  },
-  {
-    "eventId": "evt_1776488185533_tahq11",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T04:56:25.533Z"
-  },
-  {
-    "eventId": "evt_1776488185536_q2d3je",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T04:56:25.536Z"
-  },
-  {
-    "eventId": "evt_1776489116072_7ef4b1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "receipt_viewed",
-    "page": "ReceiptPage",
-    "meta": {
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "decisionStatus": "Ready for Verification",
-      "canEnterVerification": true,
-      "isVerified": false,
-      "evidenceLockStatus": "consistent"
-    },
-    "createdAt": "2026-04-18T05:11:56.072Z"
-  },
-  {
-    "eventId": "evt_1776489304856_8zzapl",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T05:15:04.856Z"
-  },
-  {
-    "eventId": "evt_1776489304860_sh47xj",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T05:15:04.860Z"
-  },
-  {
-    "eventId": "evt_1776489327815_jpmr6n",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T05:15:27.815Z"
-  },
-  {
-    "eventId": "evt_1776489327820_twcfu8",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:15:27.820Z"
-  },
-  {
-    "eventId": "evt_1776489335487_pda7cv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
+    "eventId": "evt_1777272413449_um19sw",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
     "eventType": "receipt_to_verification_clicked",
     "page": "ReceiptPage",
     "meta": {
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "decisionStatus": "Ready for Verification",
-      "canEnterVerification": true,
-      "evidenceLockStatus": "consistent"
-    },
-    "createdAt": "2026-04-18T05:15:35.487Z"
-  },
-  {
-    "eventId": "evt_1776489492957_ndv94y",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_viewed",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Ready",
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "canActivateFormalVerification": true,
-      "canShowSubscriptionOptions": true,
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "decisionStatus": "Receipt Failed",
+      "canEnterVerification": false,
       "evidenceLockStatus": "consistent",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:18:12.957Z"
-  },
-  {
-    "eventId": "evt_1776489693818_dlrrsv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_passed",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Ready",
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "canActivateFormalVerification": true,
-      "canShowSubscriptionOptions": true,
-      "evidenceLockStatus": "consistent",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:21:33.818Z"
-  },
-  {
-    "eventId": "evt_1776489693822_mswgm3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_passed",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Ready",
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "canActivateFormalVerification": true,
-      "canShowSubscriptionOptions": true,
-      "evidenceLockStatus": "consistent",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:21:33.822Z"
-  },
-  {
-    "eventId": "evt_1776489693826_pfvtnz",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_passed",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Ready",
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "canActivateFormalVerification": true,
-      "canShowSubscriptionOptions": true,
-      "evidenceLockStatus": "consistent",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:21:33.826Z"
-  },
-  {
-    "eventId": "evt_1776489693831_ic6sxl",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_passed",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Ready",
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "canActivateFormalVerification": true,
-      "canShowSubscriptionOptions": true,
-      "evidenceLockStatus": "consistent",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:21:33.831Z"
-  },
-  {
-    "eventId": "evt_1776490867187_vivn1v",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-18T05:41:07.187Z"
-  },
-  {
-    "eventId": "evt_1776490867191_tme6x0",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-18T05:41:07.191Z"
-  },
-  {
-    "eventId": "evt_1776490889011_kxr0ia",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-18T05:41:29.011Z"
-  },
-  {
-    "eventId": "evt_1776490889016_jjrrol",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-18T05:41:29.016Z"
-  },
-  {
-    "eventId": "evt_1776558723533_watnrh",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T00:32:03.533Z"
-  },
-  {
-    "eventId": "evt_1776558723654_xe3czx",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T00:32:03.654Z"
-  },
-  {
-    "eventId": "evt_1776558734134_2ek7ck",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "basically_stable",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T00:32:14.134Z"
-  },
-  {
-    "eventId": "evt_1776558747466_xxcrp6",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-19T00:32:27.466Z"
-  },
-  {
-    "eventId": "evt_1776558747469_c226f5",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T00:32:27.469Z"
-  },
-  {
-    "eventId": "evt_1776575879816_zlvsmv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T05:17:59.816Z"
-  },
-  {
-    "eventId": "evt_1776575879827_2l94uv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T05:17:59.827Z"
-  },
-  {
-    "eventId": "evt_1776575900022_pthhbo",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-19T05:18:20.022Z"
-  },
-  {
-    "eventId": "evt_1776575900026_63li3p",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T05:18:20.026Z"
-  },
-  {
-    "eventId": "evt_1776576617894_aa4x7f",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Ready",
-      "canActivateFormalVerification": true
-    },
-    "createdAt": "2026-04-19T05:30:17.894Z"
-  },
-  {
-    "eventId": "evt_1776576618416_9luqrv",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "formal_verification_cta",
-      "overallStatus": "Verification Ready",
-      "canActivateFormalVerification": true,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T05:30:18.416Z"
-  },
-  {
-    "eventId": "evt_1776636557328_rr36gz",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:09:17.328Z"
-  },
-  {
-    "eventId": "evt_1776636557440_lmzvfh",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T22:09:17.440Z"
-  },
-  {
-    "eventId": "evt_1776636558414_o1pm10",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:09:18.414Z"
-  },
-  {
-    "eventId": "evt_1776636558416_b020f9",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T22:09:18.416Z"
-  },
-  {
-    "eventId": "evt_1776636558902_svqynu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:09:18.902Z"
-  },
-  {
-    "eventId": "evt_1776636558903_antz0k",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T22:09:18.903Z"
-  },
-  {
-    "eventId": "evt_1776636561877_n4xfxx",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:09:21.877Z"
-  },
-  {
-    "eventId": "evt_1776636561879_l5dblz",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T22:09:21.879Z"
-  },
-  {
-    "eventId": "evt_1776636969633_kr1pb1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:16:09.634Z"
-  },
-  {
-    "eventId": "evt_1776636969640_omjwfl",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T22:16:09.640Z"
-  },
-  {
-    "eventId": "evt_1776636977396_zu1snk",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "boundary_blur",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:16:17.396Z"
-  },
-  {
-    "eventId": "evt_1776637239390_glis1m",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-19T22:20:39.390Z"
-  },
-  {
-    "eventId": "evt_1776637239396_q04q09",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T22:20:39.396Z"
-  },
-  {
-    "eventId": "evt_1776637318952_ca28ht",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "support_options_cta",
-      "overallStatus": "Verification Ready",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T22:21:58.952Z"
-  },
-  {
-    "eventId": "evt_1776637706604_96ybat",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-19T22:28:26.604Z"
-  },
-  {
-    "eventId": "evt_1776637706608_unbgba",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-001",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "basically_stable",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-19T22:28:26.608Z"
-  },
-  {
-    "eventId": "evt_1776637740804_kp2li2",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-19T22:29:00.804Z"
-  },
-  {
-    "eventId": "evt_1776637740808_jo37zg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T22:29:00.808Z"
-  },
-  {
-    "eventId": "evt_1776637844209_9a2zt3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-19T22:30:44.209Z"
-  },
-  {
-    "eventId": "evt_1776637844212_urm7nc",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T22:30:44.212Z"
-  },
-  {
-    "eventId": "evt_1776638157763_q0dpd1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_failed",
-    "page": "VerificationPage",
-    "meta": {
-      "overallStatus": "Verification Failed",
-      "receiptMode": "final_receipt",
-      "receiptSource": "pilot_weekly_summary",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "evidenceLockStatus": "consistent",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T22:35:57.763Z"
-  },
-  {
-    "eventId": "evt_1776643036420_eerihu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "support_options_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-19T23:57:16.420Z"
-  },
-  {
-    "eventId": "evt_1776648421612_bcgus3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T01:27:01.612Z"
-  },
-  {
-    "eventId": "evt_1776648708713_v5dsqp",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T01:31:48.713Z"
-  },
-  {
-    "eventId": "evt_1776648924273_r6r9xr",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T01:35:24.273Z"
-  },
-  {
-    "eventId": "evt_1776648935064_8prsob",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T01:35:35.064Z"
-  },
-  {
-    "eventId": "evt_1776648941801_vq0148",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T01:35:41.801Z"
-  },
-  {
-    "eventId": "evt_1776651730195_lna4ya",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:22:10.195Z"
-  },
-  {
-    "eventId": "evt_1776651912880_egdnh6",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:25:12.880Z"
-  },
-  {
-    "eventId": "evt_1776652244721_5lnkqf",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:30:44.721Z"
-  },
-  {
-    "eventId": "evt_1776652596606_ofqhip",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:36:36.606Z"
-  },
-  {
-    "eventId": "evt_1776652720304_fmcmkz",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:38:40.304Z"
-  },
-  {
-    "eventId": "evt_1776652856943_5en3ow",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:40:56.943Z"
-  },
-  {
-    "eventId": "evt_1776653066213_reohrm",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:44:26.213Z"
-  },
-  {
-    "eventId": "evt_1776653312776_2ccsam",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:48:32.776Z"
-  },
-  {
-    "eventId": "evt_1776653429915_90oqx3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:50:29.915Z"
-  },
-  {
-    "eventId": "evt_1776653551973_tz0oqj",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:52:31.973Z"
-  },
-  {
-    "eventId": "evt_1776653890035_l7do21",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:58:10.035Z"
-  },
-  {
-    "eventId": "evt_1776653910571_7jqqpf",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:58:30.571Z"
-  },
-  {
-    "eventId": "evt_1776653950201_itz31m",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T02:59:10.201Z"
-  },
-  {
-    "eventId": "evt_1776654085479_0aais7",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:01:25.479Z"
-  },
-  {
-    "eventId": "evt_1776654247637_swvjxq",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:04:07.637Z"
-  },
-  {
-    "eventId": "evt_1776654304256_abwvxw",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:05:04.256Z"
-  },
-  {
-    "eventId": "evt_1776654469237_9xkg0o",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:07:49.237Z"
-  },
-  {
-    "eventId": "evt_1776654503333_7scafd",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "pricing_modal_opened",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "canActivateFormalVerification": false,
-      "canShowSubscriptionOptions": true,
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:08:23.333Z"
-  },
-  {
-    "eventId": "evt_1776655262187_72k9jy",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:21:02.187Z"
-  },
-  {
-    "eventId": "evt_1776655280129_ruv6gx",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:21:20.129Z"
-  },
-  {
-    "eventId": "evt_1776655560523_0omf6h",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:26:00.523Z"
-  },
-  {
-    "eventId": "evt_1776655838513_n7d55o",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:30:38.513Z"
-  },
-  {
-    "eventId": "evt_1776656128723_9ni5c3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:35:28.723Z"
-  },
-  {
-    "eventId": "evt_1776656132810_rqd8kk",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:35:32.810Z"
-  },
-  {
-    "eventId": "evt_1776656314528_e696mt",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:38:34.528Z"
-  },
-  {
-    "eventId": "evt_1776656352785_czltpm",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:39:12.785Z"
-  },
-  {
-    "eventId": "evt_1776656514173_fhzh39",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:41:54.173Z"
-  },
-  {
-    "eventId": "evt_1776656515386_n5t6q0",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:41:55.386Z"
-  },
-  {
-    "eventId": "evt_1776656515855_gvtdln",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:41:55.855Z"
-  },
-  {
-    "eventId": "evt_1776656590067_fh4qwx",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:10.067Z"
-  },
-  {
-    "eventId": "evt_1776656600782_g471d7",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:20.782Z"
-  },
-  {
-    "eventId": "evt_1776656606884_la5q84",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:26.884Z"
-  },
-  {
-    "eventId": "evt_1776656607742_o1420s",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:27.742Z"
-  },
-  {
-    "eventId": "evt_1776656612458_x7hkn4",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:32.458Z"
-  },
-  {
-    "eventId": "evt_1776656612896_c1w61s",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:32.896Z"
-  },
-  {
-    "eventId": "evt_1776656613150_6qkd2z",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:33.150Z"
-  },
-  {
-    "eventId": "evt_1776656617063_646xxb",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:37.063Z"
-  },
-  {
-    "eventId": "evt_1776656617604_lbknpi",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:43:37.604Z"
-  },
-  {
-    "eventId": "evt_1776656665474_ecflw6",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:44:25.474Z"
-  },
-  {
-    "eventId": "evt_1776656665856_7pv4bg",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:44:25.856Z"
-  },
-  {
-    "eventId": "evt_1776656666284_i9goe9",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:44:26.284Z"
-  },
-  {
-    "eventId": "evt_1776656789118_qkbq3i",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:29.118Z"
-  },
-  {
-    "eventId": "evt_1776656789957_qqag3x",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:29.957Z"
-  },
-  {
-    "eventId": "evt_1776656790573_wii54z",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:30.573Z"
-  },
-  {
-    "eventId": "evt_1776656790993_vpaytk",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:30.993Z"
-  },
-  {
-    "eventId": "evt_1776656791494_o2iec7",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:31.494Z"
-  },
-  {
-    "eventId": "evt_1776656791929_wenhnw",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:31.929Z"
-  },
-  {
-    "eventId": "evt_1776656800732_8kcd7b",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:40.732Z"
-  },
-  {
-    "eventId": "evt_1776656801231_3k9j1h",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T03:46:41.231Z"
-  },
-  {
-    "eventId": "evt_1776660426675_yrzj12",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-20T04:47:06.675Z"
-  },
-  {
-    "eventId": "evt_1776660427051_7ws9ug",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "low",
-      "authorityBoundary": "unclear",
-      "dependency": "low",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T04:47:07.051Z"
-  },
-  {
-    "eventId": "evt_1776662416812_mtlb12",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T05:20:16.812Z"
-  },
-  {
-    "eventId": "evt_1776665235945_ycdhxh",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T06:07:15.945Z"
-  },
-  {
-    "eventId": "evt_1776665244230_9w6xgw",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T06:07:24.230Z"
-  },
-  {
-    "eventId": "evt_1776665245629_jyth61",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T06:07:25.629Z"
-  },
-  {
-    "eventId": "evt_1776665249239_7848td",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T06:07:29.239Z"
-  },
-  {
-    "eventId": "evt_1776665638698_h8aq26",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T06:13:58.698Z"
-  },
-  {
-    "eventId": "evt_1776671533006_lyqd03",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T07:52:13.006Z"
-  },
-  {
-    "eventId": "evt_1776713788403_uio5t3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-20T19:36:28.403Z"
-  },
-  {
-    "eventId": "evt_1776713788442_awhiwh",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-20T19:36:28.442Z"
-  },
-  {
-    "eventId": "evt_1776713796619_waijki",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "boundary_blur",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-20T19:36:36.619Z"
-  },
-  {
-    "eventId": "evt_1776713808449_3phjv1",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-20T19:36:48.449Z"
-  },
-  {
-    "eventId": "evt_1776713808453_h23xkd",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:36:48.453Z"
-  },
-  {
-    "eventId": "evt_1776713859328_k2zwt8",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:37:39.328Z"
-  },
-  {
-    "eventId": "evt_1776713862315_ygzy06",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:37:42.315Z"
-  },
-  {
-    "eventId": "evt_1776713863106_mwwfcm",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:37:43.106Z"
-  },
-  {
-    "eventId": "evt_1776713866533_3o40dd",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:37:46.533Z"
-  },
-  {
-    "eventId": "evt_1776713867892_a0xvli",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:37:47.892Z"
-  },
-  {
-    "eventId": "evt_1776713875088_0gva4q",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:37:55.088Z"
-  },
-  {
-    "eventId": "evt_1776713885742_jfhd7p",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:38:05.742Z"
-  },
-  {
-    "eventId": "evt_1776713887507_jgm9x0",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T19:38:07.507Z"
-  },
-  {
-    "eventId": "evt_1776718546460_q7nuiu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T20:55:46.460Z"
-  },
-  {
-    "eventId": "evt_1776718547040_vwxulq",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T20:55:47.040Z"
-  },
-  {
-    "eventId": "evt_1776720849098_m9jlzu",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T21:34:09.098Z"
-  },
-  {
-    "eventId": "evt_1776720850291_stwg2g",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T21:34:10.291Z"
-  },
-  {
-    "eventId": "evt_1776724422484_il08h2",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T22:33:42.484Z"
-  },
-  {
-    "eventId": "evt_1776724423385_60ojt3",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T22:33:43.385Z"
-  },
-  {
-    "eventId": "evt_1776726362848_869vgr",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T23:06:02.848Z"
-  },
-  {
-    "eventId": "evt_1776726364895_jpb754",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-20T23:06:04.895Z"
-  },
-  {
-    "eventId": "evt_1776731027948_pxjq7d",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-21T00:23:47.948Z"
-  },
-  {
-    "eventId": "evt_1776731028962_pgju1s",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-21T00:23:48.962Z"
-  },
-  {
-    "eventId": "evt_1776731029694_ecfdk5",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_clicked",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-21T00:23:49.694Z"
-  },
-  {
-    "eventId": "evt_1776731031297_74zlmh",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "RCPT-DEMO-001",
-    "eventType": "verification_recovery_cta_closed",
-    "page": "VerificationPage",
-    "meta": {
-      "source": "failed_cta",
-      "overallStatus": "Verification Failed",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-21T00:23:51.297Z"
-  },
-  {
-    "eventId": "evt_1776795524217_pkmzx2",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test decision authority in a 7-day pilot →",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-21T18:18:44.217Z"
-  },
-  {
-    "eventId": "evt_1776795524553_04x063",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-002",
-      "stage": "S1",
-      "run": "",
-      "scenarioCode": "boundary_blur",
-      "primarySignalKey": "dominant_failure_mode",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap",
-      "source": "result_page_start_pilot",
-      "entrySource": "result"
-    },
-    "createdAt": "2026-04-21T18:18:44.553Z"
-  },
-  {
-    "eventId": "evt_1776795567150_6xpb3n",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_page_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "boundary_blur",
-      "weakestDimension": "authority",
-      "pilotFocusKey": "authority_gap"
-    },
-    "createdAt": "2026-04-21T18:19:27.150Z"
-  },
-  {
-    "eventId": "evt_1776795576413_dfkbxc",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "eventType": "resource_control_request",
-      "weakestDimension": "authority",
-      "pcId": "PC-001"
-    },
-    "createdAt": "2026-04-21T18:19:36.413Z"
-  },
-  {
-    "eventId": "evt_1776795576418_6h7e4t",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
-    "caseId": "case_result_entry",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Decision trace reconstruction",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "clear",
-      "dependency": "high",
-      "weakestDimension": "authority"
-    },
-    "createdAt": "2026-04-21T18:19:36.418Z"
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T06:46:53.449Z"
+  },
+  {
+    "eventId": "evt_1777274488352_j4gv4m",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventType": "pilot_to_receipt_clicked",
+    "page": "PilotResultPage",
+    "meta": {
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "receiptEligible": false,
+      "totalScore": 2.05,
+      "weakestDimension": "evidence",
+      "receiptId": "RCPT-DEMO-001",
+      "receiptHash": "H-F43A136162E83CDE7D7A9E46",
+      "caseId": "CASE-1777264162910-DUXZX9"
+    },
+    "createdAt": "2026-04-27T07:21:28.352Z"
   }
 ]

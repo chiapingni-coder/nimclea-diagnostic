@@ -1,25 +1,152 @@
 [
   {
-    "caseId": "case_result_entry",
-    "userId": "usr_1776323696872_m0wxct",
-    "trialId": "trial_1776323696873_yehd2y",
+    "caseId": "CASE-1777239565927-VTAANB",
+    "userId": "usr_1777245916464_2n1k26",
+    "trialId": "trial_1777245916464_114z1c",
     "stage": "pilot",
-    "score": 1,
+    "score": 4,
     "receiptEligible": false,
     "verificationEligible": false,
     "caseData": {
       "sessionId": "",
-      "stableUserId": "u_mo3m625q_ne9xvrv3",
-      "workflow": "Decision trace reconstruction",
-      "scenarioCode": "boundary_blur",
-      "weakestDimension": "authority",
-      "chainId": "CHAIN-002",
-      "stage": "S1",
-      "pilotFocusKey": "authority_gap",
-      "firstGuidedAction": "Clarify who has the authority to decide, approve, or finalize the next structural step.",
-      "firstStepLabel": "Start with authority clarity"
+      "stableUserId": "u_mogafi8v_4bm5y5np",
+      "workflow": "Audit preparation",
+      "scopeLock": {
+        "scopeStatement": "This case evaluates whether the selected workflow \"Audit preparation\" can be executed, explained, and carried forward under a 7-day pilot record.",
+        "lockedAt": "2026-04-26T23:48:55.361Z",
+        "source": "pilot_page",
+        "caseId": "CASE-1777239565927-VTAANB",
+        "workflow": "Audit preparation"
+      },
+      "acceptanceChecklist": [
+        {
+          "id": "acceptance_scope_defined",
+          "label": "The case has a clearly selected workflow scope.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_focus_defined",
+          "label": "The pilot has a defined structural focus.",
+          "status": "partial",
+          "decision": "NEEDS_INPUT"
+        },
+        {
+          "id": "acceptance_event_capture_required",
+          "label": "At least one real event must be captured before formal carry-forward.",
+          "status": "partial",
+          "decision": "NEEDS_INPUT"
+        }
+      ],
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-001",
+      "stage": "S3",
+      "pilotFocusKey": "",
+      "firstGuidedAction": "",
+      "firstStepLabel": ""
     },
-    "version": 31,
-    "savedAt": "2026-04-21T18:19:27.105Z"
+    "version": 3,
+    "savedAt": "2026-04-26T23:48:55.370Z"
+  },
+  {
+    "caseId": "CASE-1777261332999-YAOE9X",
+    "userId": "usr_1777261366642_wgtoee",
+    "trialId": "trial_1777261366643_kjvgx4",
+    "stage": "pilot",
+    "score": 4,
+    "receiptEligible": false,
+    "verificationEligible": false,
+    "caseData": {
+      "sessionId": "",
+      "stableUserId": "u_mognhpqo_l0h8wg9x",
+      "workflow": "Audit preparation",
+      "scopeLock": {
+        "scopeStatement": "This case evaluates whether the selected workflow \"Audit preparation\" can be executed, explained, and carried forward under a 7-day pilot record.",
+        "lockedAt": "2026-04-27T03:42:46.534Z",
+        "source": "pilot_page",
+        "caseId": "CASE-1777261332999-YAOE9X",
+        "workflow": "Audit preparation"
+      },
+      "acceptanceChecklist": [
+        {
+          "id": "acceptance_scope_defined",
+          "label": "The case has a clearly selected workflow scope.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_focus_defined",
+          "label": "The pilot has a defined structural focus.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_event_capture_required",
+          "label": "At least one real event must be captured before formal carry-forward.",
+          "status": "partial",
+          "decision": "NEEDS_INPUT"
+        }
+      ],
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "pilotFocusKey": "evidence_fragmentation",
+      "firstGuidedAction": "Trace where evidence currently lives, and make one proof path visible end to end.",
+      "firstStepLabel": "Start with evidence retrieval"
+    },
+    "version": 1,
+    "savedAt": "2026-04-27T03:42:46.686Z"
+  },
+  {
+    "caseId": "CASE-1777264162910-DUXZX9",
+    "userId": "usr_1777264484247_b8j4yf",
+    "trialId": "trial_1777264484247_mf43gk",
+    "stage": "pilot",
+    "score": 4,
+    "receiptEligible": false,
+    "verificationEligible": false,
+    "caseData": {
+      "sessionId": "",
+      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "workflow": "Decision trace reconstruction",
+      "scopeLock": {
+        "scopeStatement": "This case evaluates whether the selected workflow \"Decision trace reconstruction\" can be executed, explained, and carried forward under a 7-day pilot record.",
+        "lockedAt": "2026-04-27T04:34:44.135Z",
+        "source": "pilot_page",
+        "caseId": "CASE-1777264162910-DUXZX9",
+        "workflow": "Decision trace reconstruction"
+      },
+      "acceptanceChecklist": [
+        {
+          "id": "acceptance_scope_defined",
+          "label": "The case has a clearly selected workflow scope.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_focus_defined",
+          "label": "The pilot has a defined structural focus.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_event_capture_required",
+          "label": "At least one real event must be captured before formal carry-forward.",
+          "status": "partial",
+          "decision": "NEEDS_INPUT"
+        }
+      ],
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "pilotFocusKey": "evidence_fragmentation",
+      "firstGuidedAction": "Trace where evidence currently lives, and make one proof path visible end to end.",
+      "firstStepLabel": "Start with evidence retrieval"
+    },
+    "version": 1,
+    "savedAt": "2026-04-27T04:34:44.285Z"
   }
 ]

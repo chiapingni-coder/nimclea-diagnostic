@@ -182,6 +182,23 @@ export function buildPilotPageData(resultData = {}) {
 
     workflowName,
     weakestDimension,
+
+    caseData: resultData?.caseData || resultData?.caseSchema || null,
+    schemaVersion:
+      resultData?.schemaVersion ||
+      resultData?.caseSchema?.schemaVersion ||
+      "case_schema_v0.1",
+    structureScoreFromCase:
+      resultData?.structureScoreFromCase ??
+      resultData?.caseData?.structureScore ??
+      resultData?.caseSchema?.structureScore ??
+      0,
+    structureStatusFromCase:
+      resultData?.structureStatusFromCase ||
+      resultData?.caseData?.structureStatus ||
+      resultData?.caseSchema?.structureStatus ||
+      "empty",
+
     structuredEventCount,
     eventHistory,
     windowStatus,

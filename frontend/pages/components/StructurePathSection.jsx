@@ -8,7 +8,7 @@ export default function StructurePathSection({ data }) {
   if (!data) return null;
 
 function getRunActionLabel() {
-  return "Start My 7-Day Pilot →";
+  return "Start workspace preview";
 }
 
   const {
