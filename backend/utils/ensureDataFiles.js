@@ -18,7 +18,7 @@ export function ensureDataFiles() {
     const filePath = path.join(DATA_DIR, fileName);
 
     if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify(initialValue, null, 2), "utf-8");
+      fs.writeFileSync(filePath, JSON.stringify(initialValue, null, 2), "utf8");
       console.log(`[data] created ${fileName}`);
     }
   }

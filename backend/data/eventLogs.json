@@ -1,20 +1,48 @@
 [
   {
-    "eventId": "evt_1777239349694_njowau",
+    "eventId": "evt_1777395846455_yds1wn",
     "userId": "",
     "trialId": "",
-    "caseId": "CASE-1777238963536-0W9FOS",
+    "caseId": "CASE-1777395846415-7MNJTX",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777395846415-7MNJTX"
+    },
+    "createdAt": "2026-04-28T17:04:06.455Z"
+  },
+  {
+    "eventId": "evt_1777395846457_wow8ak",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777395846415-7MNJTX",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777395846415-7MNJTX"
+    },
+    "createdAt": "2026-04-28T17:04:06.457Z"
+  },
+  {
+    "eventId": "evt_1777396022611_kq6vfu",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777395846415-7MNJTX",
     "eventType": "entry_clicked",
     "page": "DiagnosticPage",
     "meta": {
       "pcId": "PC-001",
       "source": "landing_start_button",
-      "caseId": "CASE-1777238963536-0W9FOS"
+      "caseId": "CASE-1777395846415-7MNJTX"
     },
-    "createdAt": "2026-04-26T21:35:49.694Z"
+    "createdAt": "2026-04-28T17:07:02.612Z"
   },
   {
-    "eventId": "evt_1777239364633_xdl8d9",
+    "eventId": "evt_1777396036613_o3wwf0",
     "userId": "anonymous_user",
     "trialId": "",
     "caseId": "diagnostic_result",
@@ -25,41 +53,13 @@
       "scenarioCode": "pre_audit_collapse",
       "caseId": "diagnostic_result"
     },
-    "createdAt": "2026-04-26T21:36:04.633Z"
+    "createdAt": "2026-04-28T17:07:16.613Z"
   },
   {
-    "eventId": "evt_1777240006679_st12k7",
-    "userId": "u_mogafi8v_4bm5y5np",
+    "eventId": "evt_1777396245377_zjtmb1",
+    "userId": "u_moivpj4c_vus47v2u",
     "trialId": "",
-    "caseId": "CASE-1777239868765-3KXDE8",
-    "eventType": "pilot_result_viewed",
-    "page": "PilotResultPage",
-    "meta": {
-      "stableUserId": "u_mogafi8v_4bm5y5np",
-      "source": "funnel_event",
-      "caseId": "CASE-1777239868765-3KXDE8"
-    },
-    "createdAt": "2026-04-26T21:46:46.679Z"
-  },
-  {
-    "eventId": "evt_1777240006809_4g6v04",
-    "userId": "u_mogafi8v_4bm5y5np",
-    "trialId": "",
-    "caseId": "CASE-1777239868765-3KXDE8",
-    "eventType": "pilot_result_viewed",
-    "page": "PilotResultPage",
-    "meta": {
-      "stableUserId": "u_mogafi8v_4bm5y5np",
-      "source": "funnel_event",
-      "caseId": "CASE-1777239868765-3KXDE8"
-    },
-    "createdAt": "2026-04-26T21:46:46.809Z"
-  },
-  {
-    "eventId": "evt_1777242721522_en09or",
-    "userId": "u_mogafi8v_4bm5y5np",
-    "trialId": "",
-    "caseId": "CASE-1777239565927-VTAANB",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "button_clicked",
     "page": "ResultPage",
     "meta": {
@@ -77,15 +77,15 @@
       "primarySignalKey": "evidence_fragmentation",
       "weakestDimension": "evidence",
       "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777239565927-VTAANB"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-26T22:32:01.522Z"
+    "createdAt": "2026-04-28T17:10:45.377Z"
   },
   {
-    "eventId": "evt_1777242721526_ib89lu",
-    "userId": "u_mogafi8v_4bm5y5np",
+    "eventId": "evt_1777396245383_dyr0xc",
+    "userId": "u_moivpj4c_vus47v2u",
     "trialId": "",
-    "caseId": "CASE-1777239565927-VTAANB",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_started",
     "page": "ResultPage",
     "meta": {
@@ -100,738 +100,71 @@
       "pilotFocusKey": "evidence_fragmentation",
       "source": "result_page_start_pilot",
       "entrySource": "result",
-      "caseId": "CASE-1777239565927-VTAANB"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-26T22:32:01.526Z"
+    "createdAt": "2026-04-28T17:10:45.383Z"
   },
   {
-    "eventId": "evt_1777243053243_iwblbw",
-    "userId": "u_mogafi8v_4bm5y5np",
-    "trialId": "",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T22:37:33.243Z"
-  },
-  {
-    "eventId": "evt_1777243053246_wdje2s",
-    "userId": "u_mogafi8v_4bm5y5np",
-    "trialId": "",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T22:37:33.246Z"
-  },
-  {
-    "eventId": "evt_1777243224369_fp0mwx",
-    "userId": "u_mogafi8v_4bm5y5np",
-    "trialId": "",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T22:40:24.369Z"
-  },
-  {
-    "eventId": "evt_1777243224372_ubhxqw",
-    "userId": "u_mogafi8v_4bm5y5np",
-    "trialId": "",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T22:40:24.372Z"
-  },
-  {
-    "eventId": "evt_1777245916576_ca8nor",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
+    "eventId": "evt_1777396251455_248itb",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_entered",
     "page": "PilotPage",
     "meta": {
-      "stableUserId": "u_mogafi8v_4bm5y5np",
-      "source": "funnel_event",
-      "workflow": "Audit preparation",
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "chainId": "CHAIN-001",
-      "stage": "S3",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T23:25:16.576Z"
-  },
-  {
-    "eventId": "evt_1777245916601_ckfexm",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_workflow_selected",
-    "page": "PilotPage",
-    "meta": {
-      "stableUserId": "u_mogafi8v_4bm5y5np",
-      "source": "funnel_event",
-      "workflow": "Audit preparation",
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "chainId": "CHAIN-001",
-      "stage": "S3",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T23:25:16.601Z"
-  },
-  {
-    "eventId": "evt_1777245916629_zeiosj",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_setup_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "stableUserId": "u_mogafi8v_4bm5y5np",
-      "source": "funnel_event",
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-26T23:25:16.629Z"
-  },
-  {
-    "eventId": "evt_1777248810369_5pbwgf",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "eventType": "resource_control_request",
-      "weakestDimension": "evidence",
-      "pcId": "PC-001",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T00:13:30.369Z"
-  },
-  {
-    "eventId": "evt_1777248810410_cod1bm",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "unclear",
-      "dependency": "high",
-      "weakestDimension": "evidence",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T00:13:30.410Z"
-  },
-  {
-    "eventId": "evt_1777249031026_1mjvhc",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "eventType": "resource_control_request",
-      "weakestDimension": "evidence",
-      "pcId": "PC-001",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T00:17:11.026Z"
-  },
-  {
-    "eventId": "evt_1777249031029_5dtrey",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "medium",
-      "authorityBoundary": "slightly_unclear",
-      "dependency": "medium",
-      "weakestDimension": "evidence",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T00:17:11.029Z"
-  },
-  {
-    "eventId": "evt_1777252674474_z3927j",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "eventType": "resource_control_request",
-      "weakestDimension": "evidence",
-      "pcId": "PC-001",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T01:17:54.474Z"
-  },
-  {
-    "eventId": "evt_1777252674478_i0hsit",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "medium",
-      "authorityBoundary": "slightly_unclear",
-      "dependency": "medium",
-      "weakestDimension": "evidence",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T01:17:54.478Z"
-  },
-  {
-    "eventId": "evt_1777255148023_1r2zvb",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "eventType": "resource_control_request",
-      "weakestDimension": "evidence",
-      "pcId": "PC-001",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T01:59:08.023Z"
-  },
-  {
-    "eventId": "evt_1777255148027_wqiip1",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
-    "caseId": "CASE-1777239565927-VTAANB",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "unclear",
-      "dependency": "high",
-      "weakestDimension": "evidence",
-      "caseId": "CASE-1777239565927-VTAANB"
-    },
-    "createdAt": "2026-04-27T01:59:08.027Z"
-  },
-  {
-    "eventId": "evt_1777261315949_058gty",
-    "userId": "u_mognhpqo_l0h8wg9x",
-    "trialId": "",
-    "caseId": "CASE-1777261315918-R7BTEY",
-    "eventType": "entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view",
-      "caseId": "CASE-1777261315918-R7BTEY"
-    },
-    "createdAt": "2026-04-27T03:41:55.949Z"
-  },
-  {
-    "eventId": "evt_1777261316277_vjictb",
-    "userId": "u_mognhpqo_l0h8wg9x",
-    "trialId": "",
-    "caseId": "CASE-1777261315918-R7BTEY",
-    "eventType": "entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view",
-      "caseId": "CASE-1777261315918-R7BTEY"
-    },
-    "createdAt": "2026-04-27T03:41:56.277Z"
-  },
-  {
-    "eventId": "evt_1777261320518_n3b0zx",
-    "userId": "u_mognhpqo_l0h8wg9x",
-    "trialId": "",
-    "caseId": "CASE-1777261315918-R7BTEY",
-    "eventType": "entry_clicked",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_start_button",
-      "caseId": "CASE-1777261315918-R7BTEY"
-    },
-    "createdAt": "2026-04-27T03:42:00.518Z"
-  },
-  {
-    "eventId": "evt_1777261332995_hpxrxr",
-    "userId": "u_mognhpqo_l0h8wg9x",
-    "trialId": "",
-    "caseId": "diagnostic_result",
-    "eventType": "diagnostic_completed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "scenarioCode": "pre_audit_collapse",
-      "caseId": "diagnostic_result"
-    },
-    "createdAt": "2026-04-27T03:42:12.995Z"
-  },
-  {
-    "eventId": "evt_1777261357274_scz7eo",
-    "userId": "u_mognhpqo_l0h8wg9x",
-    "trialId": "",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:42:37.274Z"
-  },
-  {
-    "eventId": "evt_1777261357278_bxep97",
-    "userId": "u_mognhpqo_l0h8wg9x",
-    "trialId": "",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:42:37.278Z"
-  },
-  {
-    "eventId": "evt_1777261366691_zxru1x",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_entered",
-    "page": "PilotPage",
-    "meta": {
-      "stableUserId": "u_mognhpqo_l0h8wg9x",
-      "source": "funnel_event",
-      "workflow": "Audit preparation",
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "chainId": "CHAIN-003",
-      "stage": "S4",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:42:46.691Z"
-  },
-  {
-    "eventId": "evt_1777261366694_q3zqdn",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_workflow_selected",
-    "page": "PilotPage",
-    "meta": {
-      "stableUserId": "u_mognhpqo_l0h8wg9x",
-      "source": "funnel_event",
-      "workflow": "Audit preparation",
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "chainId": "CHAIN-003",
-      "stage": "S4",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:42:46.694Z"
-  },
-  {
-    "eventId": "evt_1777261366709_gzka6s",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_setup_viewed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "stableUserId": "u_mognhpqo_l0h8wg9x",
-      "source": "funnel_event",
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:42:46.709Z"
-  },
-  {
-    "eventId": "evt_1777261420750_h86k36",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "trial_started",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "eventType": "resource_control_request",
-      "weakestDimension": "evidence",
-      "pcId": "PC-001",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:43:40.750Z"
-  },
-  {
-    "eventId": "evt_1777261420754_cwkpfz",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_setup_confirmed",
-    "page": "PilotSetupPage",
-    "meta": {
-      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
-      "selectedEventType": "resource_control_request",
-      "externalPressure": "high",
-      "authorityBoundary": "unclear",
-      "dependency": "high",
-      "weakestDimension": "evidence",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:43:40.754Z"
-  },
-  {
-    "eventId": "evt_1777261420812_lcjr5h",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_result_viewed",
-    "page": "PilotResultPage",
-    "meta": {
-      "stableUserId": "u_mognhpqo_l0h8wg9x",
-      "source": "funnel_event",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:43:40.812Z"
-  },
-  {
-    "eventId": "evt_1777261420815_k54ueh",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "eventType": "pilot_result_viewed",
-    "page": "PilotResultPage",
-    "meta": {
-      "stableUserId": "u_mognhpqo_l0h8wg9x",
-      "source": "funnel_event",
-      "caseId": "CASE-1777261332999-YAOE9X"
-    },
-    "createdAt": "2026-04-27T03:43:40.815Z"
-  },
-  {
-    "eventId": "evt_1777264019600_mooeb0",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "",
-    "caseId": "CASE-1777264013053-44BPP1",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777264013053-44BPP1"
-    },
-    "createdAt": "2026-04-27T04:26:59.600Z"
-  },
-  {
-    "eventId": "evt_1777264019990_q808ea",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "",
-    "caseId": "CASE-1777264013053-44BPP1",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "caseId": "CASE-1777264013053-44BPP1"
-    },
-    "createdAt": "2026-04-27T04:26:59.990Z"
-  },
-  {
-    "eventId": "evt_1777264133123_ltaxsu",
-    "userId": "",
-    "trialId": "",
-    "caseId": "CASE-1777264133094-KXDBAG",
-    "eventType": "entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view",
-      "caseId": "CASE-1777264133094-KXDBAG"
-    },
-    "createdAt": "2026-04-27T04:28:53.123Z"
-  },
-  {
-    "eventId": "evt_1777264133139_zev2h2",
-    "userId": "",
-    "trialId": "",
-    "caseId": "CASE-1777264133094-KXDBAG",
-    "eventType": "entry_viewed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_view",
-      "caseId": "CASE-1777264133094-KXDBAG"
-    },
-    "createdAt": "2026-04-27T04:28:53.139Z"
-  },
-  {
-    "eventId": "evt_1777264140773_0kylin",
-    "userId": "",
-    "trialId": "",
-    "caseId": "CASE-1777264133094-KXDBAG",
-    "eventType": "entry_clicked",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "source": "landing_start_button",
-      "caseId": "CASE-1777264133094-KXDBAG"
-    },
-    "createdAt": "2026-04-27T04:29:00.773Z"
-  },
-  {
-    "eventId": "evt_1777264162903_urakzp",
-    "userId": "anonymous_user",
-    "trialId": "",
-    "caseId": "diagnostic_result",
-    "eventType": "diagnostic_completed",
-    "page": "DiagnosticPage",
-    "meta": {
-      "pcId": "PC-001",
-      "scenarioCode": "pre_audit_collapse",
-      "caseId": "diagnostic_result"
-    },
-    "createdAt": "2026-04-27T04:29:22.903Z"
-  },
-  {
-    "eventId": "evt_1777264477099_t29dcz",
-    "userId": "u_mogp6986_ohzhzvbu",
-    "trialId": "",
-    "caseId": "CASE-1777264162910-DUXZX9",
-    "eventType": "button_clicked",
-    "page": "ResultPage",
-    "meta": {
-      "buttonId": "start_pilot_result_hero",
-      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "placement": "result_hero",
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777264162910-DUXZX9"
-    },
-    "createdAt": "2026-04-27T04:34:37.099Z"
-  },
-  {
-    "eventId": "evt_1777264477111_pj70xu",
-    "userId": "u_mogp6986_ohzhzvbu",
-    "trialId": "",
-    "caseId": "CASE-1777264162910-DUXZX9",
-    "eventType": "pilot_started",
-    "page": "ResultPage",
-    "meta": {
-      "sessionId": "",
-      "pattern": "",
-      "chain": "CHAIN-003",
-      "stage": "S4",
-      "run": "",
-      "scenarioCode": "pre_audit_collapse",
-      "primarySignalKey": "evidence_fragmentation",
-      "weakestDimension": "evidence",
-      "pilotFocusKey": "evidence_fragmentation",
-      "source": "result_page_start_pilot",
-      "entrySource": "result",
-      "caseId": "CASE-1777264162910-DUXZX9"
-    },
-    "createdAt": "2026-04-27T04:34:37.111Z"
-  },
-  {
-    "eventId": "evt_1777264484290_o837nk",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
-    "eventType": "pilot_entered",
-    "page": "PilotPage",
-    "meta": {
-      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "stableUserId": "u_moivpj4c_vus47v2u",
       "source": "funnel_event",
       "workflow": "Decision trace reconstruction",
       "scenarioCode": "pre_audit_collapse",
       "weakestDimension": "evidence",
       "chainId": "CHAIN-003",
       "stage": "S4",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:34:44.290Z"
+    "createdAt": "2026-04-28T17:10:51.455Z"
   },
   {
-    "eventId": "evt_1777264484293_t6ctxl",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396251458_z7xymx",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_workflow_selected",
     "page": "PilotPage",
     "meta": {
-      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "stableUserId": "u_moivpj4c_vus47v2u",
       "source": "funnel_event",
       "workflow": "Decision trace reconstruction",
       "scenarioCode": "pre_audit_collapse",
       "weakestDimension": "evidence",
       "chainId": "CHAIN-003",
       "stage": "S4",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:34:44.293Z"
+    "createdAt": "2026-04-28T17:10:51.458Z"
   },
   {
-    "eventId": "evt_1777264484309_sw8nvv",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396251480_3fs9iw",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_setup_viewed",
     "page": "PilotSetupPage",
     "meta": {
-      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "stableUserId": "u_moivpj4c_vus47v2u",
       "source": "funnel_event",
       "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
       "scenarioCode": "pre_audit_collapse",
       "weakestDimension": "evidence",
       "pilotFocusKey": "evidence_fragmentation",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:34:44.309Z"
+    "createdAt": "2026-04-28T17:10:51.481Z"
   },
   {
-    "eventId": "evt_1777264527527_mbd9tp",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396309141_wkvs8p",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "trial_started",
     "page": "PilotSetupPage",
     "meta": {
@@ -839,128 +172,969 @@
       "eventType": "resource_control_request",
       "weakestDimension": "evidence",
       "pcId": "PC-001",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:35:27.527Z"
+    "createdAt": "2026-04-28T17:11:49.141Z"
   },
   {
-    "eventId": "evt_1777264527532_8za1w9",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396309146_f3q4s8",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_setup_confirmed",
     "page": "PilotSetupPage",
     "meta": {
       "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
       "selectedEventType": "resource_control_request",
       "externalPressure": "high",
-      "authorityBoundary": "clear",
+      "authorityBoundary": "unclear",
       "dependency": "high",
       "weakestDimension": "evidence",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:35:27.532Z"
+    "createdAt": "2026-04-28T17:11:49.146Z"
   },
   {
-    "eventId": "evt_1777264527594_3j2boe",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396309195_aam9hx",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_result_viewed",
     "page": "PilotResultPage",
     "meta": {
-      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "stableUserId": "u_moivpj4c_vus47v2u",
       "source": "funnel_event",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:35:27.594Z"
+    "createdAt": "2026-04-28T17:11:49.195Z"
   },
   {
-    "eventId": "evt_1777264527598_xiyzf6",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396309198_ud2iyo",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_result_viewed",
     "page": "PilotResultPage",
     "meta": {
-      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "stableUserId": "u_moivpj4c_vus47v2u",
       "source": "funnel_event",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T04:35:27.598Z"
+    "createdAt": "2026-04-28T17:11:49.198Z"
   },
   {
-    "eventId": "evt_1777268501523_za6ph7",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777396861961_7bd3hz",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "",
+    "caseId": "CASE-1777396861907-7CGD68",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777396861907-7CGD68"
+    },
+    "createdAt": "2026-04-28T17:21:01.961Z"
+  },
+  {
+    "eventId": "evt_1777396861963_atsrim",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "",
+    "caseId": "CASE-1777396861907-7CGD68",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777396861907-7CGD68"
+    },
+    "createdAt": "2026-04-28T17:21:01.963Z"
+  },
+  {
+    "eventId": "evt_1777400989254_rh8pnx",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "pilot_to_receipt_clicked",
     "page": "PilotResultPage",
     "meta": {
       "receiptMode": "case_receipt",
       "receiptSource": "pilot_case_result",
-      "receiptEligible": false,
-      "totalScore": 2.45,
+      "receiptEligible": true,
+      "totalScore": 3.1,
       "weakestDimension": "evidence",
-      "receiptId": "RCPT-DEMO-001",
-      "receiptHash": "H-81AEA90C2121ED35DE4564C5",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "receiptHash": "H-82A55232006354D1272E2C03",
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T05:41:41.523Z"
+    "createdAt": "2026-04-28T18:29:49.254Z"
   },
   {
-    "eventId": "evt_1777271151758_i6sd8m",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
-    "eventType": "intervention_started",
-    "page": "PilotResultPage",
-    "meta": {
-      "stableUserId": "u_mogp6986_ohzhzvbu",
-      "source": "funnel_event",
-      "rank": 1,
-      "intervention": "Log one real event before continuing.",
-      "weakestDimension": "evidence",
-      "runId": "RUN030",
-      "pattern": "PAT-00",
-      "caseId": "CASE-1777264162910-DUXZX9"
-    },
-    "createdAt": "2026-04-27T06:25:51.758Z"
-  },
-  {
-    "eventId": "evt_1777272413449_um19sw",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777401091634_qp4ucl",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "eventType": "receipt_to_verification_clicked",
     "page": "ReceiptPage",
     "meta": {
       "receiptMode": "case_receipt",
       "receiptSource": "pilot_case_result",
-      "decisionStatus": "Receipt Failed",
-      "canEnterVerification": false,
+      "decisionStatus": "READY FOR FORMAL DETERMINATION",
+      "canEnterVerification": true,
       "evidenceLockStatus": "consistent",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "caseId": "CASE-1777396036624-5AKHA7"
     },
-    "createdAt": "2026-04-27T06:46:53.449Z"
+    "createdAt": "2026-04-28T18:31:31.634Z"
   },
   {
-    "eventId": "evt_1777274488352_j4gv4m",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
-    "caseId": "CASE-1777264162910-DUXZX9",
+    "eventId": "evt_1777401091655_ac7zqa",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
+    "eventType": "verification_viewed",
+    "page": "VerificationPage",
+    "meta": {
+      "stableUserId": "u_moivpj4c_vus47v2u",
+      "source": "funnel_event",
+      "overallStatus": "Verification Failed",
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": false,
+      "evidenceLockStatus": "broken",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777396036624-5AKHA7"
+    },
+    "createdAt": "2026-04-28T18:31:31.655Z"
+  },
+  {
+    "eventId": "evt_1777401091657_cfblzx",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
+    "eventType": "verification_failed",
+    "page": "VerificationPage",
+    "meta": {
+      "overallStatus": "Verification Failed",
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": false,
+      "evidenceLockStatus": "broken",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777396036624-5AKHA7"
+    },
+    "createdAt": "2026-04-28T18:31:31.657Z"
+  },
+  {
+    "eventId": "evt_1777405832542_ythcgb",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777405832508-IS05E6",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777405832508-IS05E6"
+    },
+    "createdAt": "2026-04-28T19:50:32.542Z"
+  },
+  {
+    "eventId": "evt_1777405832544_c51ndp",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777405832508-IS05E6",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777405832508-IS05E6"
+    },
+    "createdAt": "2026-04-28T19:50:32.544Z"
+  },
+  {
+    "eventId": "evt_1777407319769_udnlq0",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777407319733-ARRY0F",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777407319733-ARRY0F"
+    },
+    "createdAt": "2026-04-28T20:15:19.769Z"
+  },
+  {
+    "eventId": "evt_1777407319771_m0rcew",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777407319733-ARRY0F",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777407319733-ARRY0F"
+    },
+    "createdAt": "2026-04-28T20:15:19.771Z"
+  },
+  {
+    "eventId": "evt_1777408824009_5fm7m5",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777408787035-0X9VW4",
+    "eventType": "entry_clicked",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_start_button",
+      "caseId": "CASE-1777408787035-0X9VW4"
+    },
+    "createdAt": "2026-04-28T20:40:24.009Z"
+  },
+  {
+    "eventId": "evt_1777408838772_kz7yyr",
+    "userId": "anonymous_user",
+    "trialId": "",
+    "caseId": "diagnostic_result",
+    "eventType": "diagnostic_completed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "scenarioCode": "pre_audit_collapse",
+      "caseId": "diagnostic_result"
+    },
+    "createdAt": "2026-04-28T20:40:38.772Z"
+  },
+  {
+    "eventId": "evt_1777408842365_ip48rb",
+    "userId": "u_moj3bxbu_1qqocv7b",
+    "trialId": "",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T20:40:42.365Z"
+  },
+  {
+    "eventId": "evt_1777408842370_7ppd5q",
+    "userId": "u_moj3bxbu_1qqocv7b",
+    "trialId": "",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T20:40:42.370Z"
+  },
+  {
+    "eventId": "evt_1777408846167_rggvwu",
+    "userId": "usr_1777408846136_lm90tp",
+    "trialId": "trial_1777408846136_eqkz4g",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "pilot_entered",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_moj3bxbu_1qqocv7b",
+      "source": "funnel_event",
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T20:40:46.167Z"
+  },
+  {
+    "eventId": "evt_1777408846170_dghgz5",
+    "userId": "usr_1777408846136_lm90tp",
+    "trialId": "trial_1777408846136_eqkz4g",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "pilot_workflow_selected",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_moj3bxbu_1qqocv7b",
+      "source": "funnel_event",
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T20:40:46.170Z"
+  },
+  {
+    "eventId": "evt_1777408846193_5fojs2",
+    "userId": "usr_1777408846136_lm90tp",
+    "trialId": "trial_1777408846136_eqkz4g",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "pilot_setup_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "stableUserId": "u_moj3bxbu_1qqocv7b",
+      "source": "funnel_event",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T20:40:46.193Z"
+  },
+  {
+    "eventId": "evt_1777408872989_is8mwe",
+    "userId": "usr_1777408846136_lm90tp",
+    "trialId": "",
+    "caseId": "CASE-1777408872968-78HZJH",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777408872968-78HZJH"
+    },
+    "createdAt": "2026-04-28T20:41:12.989Z"
+  },
+  {
+    "eventId": "evt_1777408872991_x831po",
+    "userId": "usr_1777408846136_lm90tp",
+    "trialId": "",
+    "caseId": "CASE-1777408872968-78HZJH",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777408872968-78HZJH"
+    },
+    "createdAt": "2026-04-28T20:41:12.991Z"
+  },
+  {
+    "eventId": "evt_1777409146413_hdpcyl",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777409146373-MU4HK1",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777409146373-MU4HK1"
+    },
+    "createdAt": "2026-04-28T20:45:46.413Z"
+  },
+  {
+    "eventId": "evt_1777409146416_ooptcm",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777409146373-MU4HK1",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777409146373-MU4HK1"
+    },
+    "createdAt": "2026-04-28T20:45:46.416Z"
+  },
+  {
+    "eventId": "evt_1777409190146_pzpzgf",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777409190107-6LRF77",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777409190107-6LRF77"
+    },
+    "createdAt": "2026-04-28T20:46:30.146Z"
+  },
+  {
+    "eventId": "evt_1777409190149_ns688o",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777409190107-6LRF77",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777409190107-6LRF77"
+    },
+    "createdAt": "2026-04-28T20:46:30.149Z"
+  },
+  {
+    "eventId": "evt_1777409234167_opjr0z",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777409231813-IDD3W8",
+    "eventType": "entry_clicked",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_start_button",
+      "caseId": "CASE-1777409231813-IDD3W8"
+    },
+    "createdAt": "2026-04-28T20:47:14.167Z"
+  },
+  {
+    "eventId": "evt_1777409246290_kgiypy",
+    "userId": "anonymous_user",
+    "trialId": "",
+    "caseId": "diagnostic_result",
+    "eventType": "diagnostic_completed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "scenarioCode": "pre_audit_collapse",
+      "caseId": "diagnostic_result"
+    },
+    "createdAt": "2026-04-28T20:47:26.290Z"
+  },
+  {
+    "eventId": "evt_1777409247306_0ugg5w",
+    "userId": "u_moj3knrr_084vp4i5",
+    "trialId": "",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:27.306Z"
+  },
+  {
+    "eventId": "evt_1777409247315_99y13s",
+    "userId": "u_moj3knrr_084vp4i5",
+    "trialId": "",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:27.315Z"
+  },
+  {
+    "eventId": "evt_1777409250517_2hdk2y",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_entered",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_moj3knrr_084vp4i5",
+      "source": "funnel_event",
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:30.517Z"
+  },
+  {
+    "eventId": "evt_1777409250522_mssqki",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_workflow_selected",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_moj3knrr_084vp4i5",
+      "source": "funnel_event",
+      "workflow": "Decision trace reconstruction",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:30.522Z"
+  },
+  {
+    "eventId": "evt_1777409250541_c7r5s3",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_setup_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "stableUserId": "u_moj3knrr_084vp4i5",
+      "source": "funnel_event",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:30.541Z"
+  },
+  {
+    "eventId": "evt_1777409276599_qj227t",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:56.599Z"
+  },
+  {
+    "eventId": "evt_1777409276602_5amre1",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "unclear",
+      "dependency": "high",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:56.602Z"
+  },
+  {
+    "eventId": "evt_1777409276655_4i3jad",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_moj3knrr_084vp4i5",
+      "source": "funnel_event",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:56.655Z"
+  },
+  {
+    "eventId": "evt_1777409276659_yzpyyv",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_moj3knrr_084vp4i5",
+      "source": "funnel_event",
+      "caseId": "CASE-1777409246297-3OO2A7"
+    },
+    "createdAt": "2026-04-28T20:47:56.659Z"
+  },
+  {
+    "eventId": "evt_1777409282422_79xso0",
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
     "eventType": "pilot_to_receipt_clicked",
     "page": "PilotResultPage",
     "meta": {
       "receiptMode": "case_receipt",
       "receiptSource": "pilot_case_result",
-      "receiptEligible": false,
-      "totalScore": 2.05,
+      "receiptEligible": true,
+      "totalScore": 3.1,
       "weakestDimension": "evidence",
-      "receiptId": "RCPT-DEMO-001",
-      "receiptHash": "H-F43A136162E83CDE7D7A9E46",
-      "caseId": "CASE-1777264162910-DUXZX9"
+      "receiptHash": "H-81AEA90C2121ED35DE4564C5",
+      "caseId": "CASE-1777409246297-3OO2A7"
     },
-    "createdAt": "2026-04-27T07:21:28.352Z"
+    "createdAt": "2026-04-28T20:48:02.422Z"
+  },
+  {
+    "eventId": "evt_1777410408546_1hlyql",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777410408509-PYRTBF",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777410408509-PYRTBF"
+    },
+    "createdAt": "2026-04-28T21:06:48.546Z"
+  },
+  {
+    "eventId": "evt_1777410408862_zv8trh",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777410408509-PYRTBF",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777410408509-PYRTBF"
+    },
+    "createdAt": "2026-04-28T21:06:48.862Z"
+  },
+  {
+    "eventId": "evt_1777410492049_udswa0",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777410490024-L1O9BJ",
+    "eventType": "entry_clicked",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_start_button",
+      "caseId": "CASE-1777410490024-L1O9BJ"
+    },
+    "createdAt": "2026-04-28T21:08:12.049Z"
+  },
+  {
+    "eventId": "evt_1777410503936_9b5ue8",
+    "userId": "anonymous_user",
+    "trialId": "",
+    "caseId": "diagnostic_result",
+    "eventType": "diagnostic_completed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "scenarioCode": "pre_audit_collapse",
+      "caseId": "diagnostic_result"
+    },
+    "createdAt": "2026-04-28T21:08:23.936Z"
+  },
+  {
+    "eventId": "evt_1777410505640_p0egz6",
+    "userId": "u_moj4bm6d_y418kjkp",
+    "trialId": "",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "button_clicked",
+    "page": "ResultPage",
+    "meta": {
+      "buttonId": "start_pilot_result_hero",
+      "buttonLabel": "Test evidence flow in a 7-day pilot ->",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "placement": "result_hero",
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:08:25.640Z"
+  },
+  {
+    "eventId": "evt_1777410505670_hqztjq",
+    "userId": "u_moj4bm6d_y418kjkp",
+    "trialId": "",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_started",
+    "page": "ResultPage",
+    "meta": {
+      "sessionId": "",
+      "pattern": "",
+      "chain": "CHAIN-003",
+      "stage": "S4",
+      "run": "",
+      "scenarioCode": "pre_audit_collapse",
+      "primarySignalKey": "evidence_fragmentation",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "source": "result_page_start_pilot",
+      "entrySource": "result",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:08:25.670Z"
+  },
+  {
+    "eventId": "evt_1777410509854_jdr1ve",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_entered",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "source": "funnel_event",
+      "workflow": "Audit preparation",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:08:29.854Z"
+  },
+  {
+    "eventId": "evt_1777410509857_wjcshz",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_workflow_selected",
+    "page": "PilotPage",
+    "meta": {
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "source": "funnel_event",
+      "workflow": "Audit preparation",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:08:29.857Z"
+  },
+  {
+    "eventId": "evt_1777410509877_l5gg1c",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_setup_viewed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "source": "funnel_event",
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "pilotFocusKey": "evidence_fragmentation",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:08:29.877Z"
+  },
+  {
+    "eventId": "evt_1777410567147_yj0mgb",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "trial_started",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "eventType": "resource_control_request",
+      "weakestDimension": "evidence",
+      "pcId": "PC-001",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:09:27.147Z"
+  },
+  {
+    "eventId": "evt_1777410567150_4b8m4v",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_setup_confirmed",
+    "page": "PilotSetupPage",
+    "meta": {
+      "workflow": "Start with one workflow where evidence is hardest to retrieve under pressure.",
+      "selectedEventType": "resource_control_request",
+      "externalPressure": "high",
+      "authorityBoundary": "unclear",
+      "dependency": "high",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:09:27.150Z"
+  },
+  {
+    "eventId": "evt_1777410567216_i4epbt",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "source": "funnel_event",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:09:27.216Z"
+  },
+  {
+    "eventId": "evt_1777410567220_n7f404",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_result_viewed",
+    "page": "PilotResultPage",
+    "meta": {
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "source": "funnel_event",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:09:27.220Z"
+  },
+  {
+    "eventId": "evt_1777410574289_djh6ta",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "eventType": "pilot_to_receipt_clicked",
+    "page": "PilotResultPage",
+    "meta": {
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "receiptEligible": true,
+      "totalScore": 3.1,
+      "weakestDimension": "evidence",
+      "receiptHash": "H-81AEA90C2121ED35DE4564C5",
+      "caseId": "CASE-1777410503945-NVBW4R"
+    },
+    "createdAt": "2026-04-28T21:09:34.289Z"
+  },
+  {
+    "eventId": "evt_1777410612238_wufxhi",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "",
+    "caseId": "CASE-1777410612197-ATPNCK",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777410612197-ATPNCK"
+    },
+    "createdAt": "2026-04-28T21:10:12.238Z"
+  },
+  {
+    "eventId": "evt_1777410612241_do0zay",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "",
+    "caseId": "CASE-1777410612197-ATPNCK",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777410612197-ATPNCK"
+    },
+    "createdAt": "2026-04-28T21:10:12.241Z"
+  },
+  {
+    "eventId": "evt_1777418401278_yw6pow",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "receipt_to_verification_clicked",
+    "page": "ReceiptPage",
+    "meta": {
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "decisionStatus": "READY FOR FORMAL DETERMINATION",
+      "canEnterVerification": true,
+      "evidenceLockStatus": "consistent",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T23:20:01.279Z"
+  },
+  {
+    "eventId": "evt_1777418401396_4235n7",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "verification_viewed",
+    "page": "VerificationPage",
+    "meta": {
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "source": "funnel_event",
+      "overallStatus": "Verification Failed",
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": false,
+      "evidenceLockStatus": "broken",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T23:20:01.396Z"
+  },
+  {
+    "eventId": "evt_1777418401398_1aokf7",
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777408838782-6QX3HS",
+    "eventType": "verification_failed",
+    "page": "VerificationPage",
+    "meta": {
+      "overallStatus": "Verification Failed",
+      "receiptMode": "case_receipt",
+      "receiptSource": "pilot_case_result",
+      "canActivateFormalVerification": false,
+      "canShowSubscriptionOptions": false,
+      "evidenceLockStatus": "broken",
+      "weakestDimension": "evidence",
+      "caseId": "CASE-1777408838782-6QX3HS"
+    },
+    "createdAt": "2026-04-28T23:20:01.398Z"
   }
 ]

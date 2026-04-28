@@ -54,7 +54,7 @@ export const SHARED_RECEIPT_VERIFICATION_DEFAULTS = {
   resolvedVerificationEligible: false,
 
   identity: {
-    receiptId: "RCPT-DEMO-001",
+    receiptId: null,
     receiptHash: "",
     generatedAt: "",
     verifiedAt: "",

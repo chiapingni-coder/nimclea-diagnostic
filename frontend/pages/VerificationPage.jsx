@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getTrialSession } from "../lib/trialSession";
 import ROUTES from "../routes";
@@ -7,8 +7,20 @@ import { normalizeCaseInput } from "../utils/caseSchema";
 import { logTrialEvent } from "../lib/trialApi";
 import { getStableUserId } from "../utils/eventLogger";
 import { readSummaryBuffer } from "../lib/summaryBuffer";
+import { resolveSafeCaseId } from "../utils/caseIdResolver";
 import { resolveAccessMode } from "../lib/accessMode";
 import { getAccessMode } from "../utils/accessMode";
+import { sanitizeText } from "../lib/sanitizeText";
+import {
+  formatCustomerStructureValue,
+  getCustomerDecisionReadiness,
+  getCustomerNextStep,
+  getCustomerStructureStatus,
+} from "../lib/customerStructureDisplay";
+import {
+  getCustomerNextAction,
+  getWeakestDimensionDisplay,
+} from "../lib/customerDecisionDisplay";
 import VerificationTraceBlock from "./components/VerificationTraceBlock";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 import { getCaseById, getCurrentCaseId, resolveCaseId, upsertCase } from "../utils/caseRegistry.js";
@@ -25,6 +37,49 @@ import {
 import {
   flattenSharedReceiptVerificationContract,
 } from "../utils/sharedReceiptVerificationContract";
+
+const CANONICAL_CASE_FLOW_STEPS = ["Result", "Pilot Result", "Receipt", "Verification"];
+
+function sanitizeReceiptId(value) {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+
+  if (!trimmed || trimmed.includes("DEMO")) return null;
+
+  return trimmed;
+}
+
+function stripCanonicalCaseFlowState(state = {}) {
+  const nextState = { ...(state || {}) };
+  delete nextState.routeMeta;
+  delete nextState.sourcePath;
+  delete nextState.flowSteps;
+  delete nextState.steps;
+  delete nextState.breadcrumb;
+  return nextState;
+}
+
+function CanonicalCaseFlowBreadcrumb({ activeStep }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-400">
+      {CANONICAL_CASE_FLOW_STEPS.map((step, index) => {
+        const isActive = step === activeStep;
+
+        return (
+          <React.Fragment key={step}>
+            {index > 0 ? (
+              <span aria-hidden="true" className="text-slate-300"> / </span>
+            ) : null}
+            <span className={isActive ? "text-slate-900" : "text-slate-400"}>
+              {sanitizeText(step)}
+            </span>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 function updateCase(caseId = "", patch = {}) {
   if (!caseId) return null;
@@ -203,6 +258,27 @@ function getFirstNonEmpty(...values) {
     return value;
   }
   return null;
+}
+
+function getHumanTraceText(item) {
+  if (!item) return "";
+
+  if (typeof item === "string") {
+    return item.trim();
+  }
+
+  if (typeof item !== "object") {
+    return "";
+  }
+
+  return (
+    item.summary ||
+    item.text ||
+    item.description ||
+    item.rawText ||
+    item.detail ||
+    [item.title, item.note].filter(Boolean).join(": ")
+  ).trim();
 }
 
 function resolveVerificationPayload(
@@ -398,7 +474,7 @@ function normalizeVerificationData(input = {}, summaryBuffer = null) {
   return {
     verificationTitle: input.verificationTitle || "Formal Verification Review Record",
     overallStatus: input.overallStatus || "Ready for Review",
-    receiptId: input.receiptId || "RCPT-DEMO-001",
+    receiptId: sanitizeReceiptId(input.receiptId),
     verifiedAt: input.verifiedAt || "",
     caseInput: getCaseContext({
       ...input,
@@ -1129,10 +1205,10 @@ function CalibrationCard({
   return (
     <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
       <h2 className="text-lg font-semibold mb-2">
-        {status === "Verification Failed" ? "Required remediation order" : guidance.title}
+        {status === "Verification Failed" ? "Required remediation order" : sanitizeText(guidance.title)}
       </h2>
 
-      <p className="text-slate-700 mb-4">{guidance.message}</p>
+      <p className="text-slate-700 mb-4">{sanitizeText(guidance.message)}</p>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <p className="text-xs font-semibold text-slate-900 mb-3">
@@ -1141,7 +1217,7 @@ function CalibrationCard({
 
         <ul className="list-disc pl-5 space-y-2 text-xs text-slate-700">
           {guidance.actions.map((action, index) => (
-            <li key={index}>{action}</li>
+            <li key={index}>{sanitizeText(action)}</li>
           ))}
         </ul>
       </div>
@@ -1149,15 +1225,15 @@ function CalibrationCard({
       {minimalIntervention && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-xs font-semibold text-amber-900 mb-2">
-            {minimalIntervention.title}
+            {sanitizeText(minimalIntervention.title)}
           </p>
 
           <p className="text-xs font-semibold text-slate-900 leading-6">
-            {minimalIntervention.action}
+            {sanitizeText(minimalIntervention.action)}
           </p>
 
           <p className="mt-2 text-xs text-amber-800 leading-6">
-            {minimalIntervention.note}
+            {sanitizeText(minimalIntervention.note)}
           </p>
         </div>
       )}
@@ -1185,10 +1261,10 @@ function CalibrationCard({
                     className="rounded-xl border border-slate-200 bg-white p-4"
                   >
                     <p className="font-semibold text-slate-900 mb-1">
-                      {item.label}
+                      {sanitizeText(item.label)}
                     </p>
                     <p className="text-xs text-slate-700 leading-6">
-                      {item.detail}
+                      {sanitizeText(item.detail)}
                     </p>
                   </div>
                 ))}
@@ -1425,6 +1501,25 @@ export default function VerificationPage() {
       ? flattenSharedReceiptVerificationContract(sharedContract)
       : {};
 
+  const activeCaseId = resolveSafeCaseId({
+    ...location.state,
+    caseId: location.state?.caseId || caseId,
+    case_id: location.state?.case_id,
+    routeMeta: routeEnvelope?.routeMeta,
+    trialSession: location.state?.trialSession || getTrialSession() || {},
+    case: currentCase || receiptContext?.caseData || verificationFlat?.caseData || null,
+    caseSnapshot:
+      routeEnvelope?.caseSnapshot ||
+      receiptContext?.caseSnapshot ||
+      receiptLedgerRecord?.caseSnapshot ||
+      null,
+    metadata: routeEnvelope?.metadata || receiptContext?.metadata || null,
+  });
+
+  const receiptPath = activeCaseId
+    ? `/receipt?caseId=${encodeURIComponent(activeCaseId)}&from=verification`
+    : "/cases";
+
   const accessMode = getAccessMode(
     verificationFlat?.caseData || receiptContext?.caseData || currentCase
   );
@@ -1617,14 +1712,35 @@ const receiptAllowsVerification =
     !!routeEnvelope?.sharedReceiptVerificationContract ||
     !!sharedContract;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
-  return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-      <div className="max-w-3xl mx-auto">
-        <TopRightCasesCapsule />
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-xs font-medium text-slate-400 mb-2">
-            Verification not available
-          </p>
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+        <div className="max-w-3xl mx-auto">
+          <TopRightCasesCapsule />
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentCaseId =
+                    inferredCaseId ||
+                    currentCase?.caseId ||
+                    currentCase?.id ||
+                    "";
+
+                  if (currentCaseId) {
+                    console.log("[View all cases]", { caseId: currentCaseId });
+                  }
+
+                  navigate(ROUTES.CASES || "/cases");
+                }}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              >
+                View all cases
+              </button>
+            </div>
+            <p className="text-xs font-medium text-slate-400 mb-2">
+              Verification not available
+            </p>
           <h1 className="text-2xl font-bold mb-3">
             This receipt has not been issued for verification
           </h1>
@@ -1634,8 +1750,8 @@ const receiptAllowsVerification =
 
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              to={ROUTES.RECEIPT}
-              state={routeEnvelope || {}}
+              to={receiptPath}
+              state={stripCanonicalCaseFlowState(routeEnvelope || {})}
               className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black border border-black shadow-sm hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
             >
               Back to Receipt
@@ -1667,9 +1783,9 @@ const receiptAllowsVerification =
               <button
                 type="button"
                 onClick={() =>
-                  navigate(ROUTES.RECEIPT, {
+                  navigate(receiptPath, {
                     state: {
-                      ...(routeEnvelope || {}),
+                      ...stripCanonicalCaseFlowState(routeEnvelope || {}),
                       openQuickCapture: true,
                       quickCaptureIntent: "first_event_from_verification",
                       returnToVerification: true,
@@ -2008,10 +2124,10 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     }
   }, [resolvedVerificationCaseId, proofReceiptHash, verificationHash]);
 
-  const displayReceiptHash =
-    proofReceiptHash && proofReceiptHash !== "Unavailable"
-      ? `${proofReceiptHash.slice(0, 10)}闁?{proofReceiptHash.slice(-6)}`
-      : proofReceiptHash;
+const displayReceiptHash =
+  proofReceiptHash && proofReceiptHash !== "Unavailable"
+    ? `${proofReceiptHash.slice(0, 10)}...${proofReceiptHash.slice(-6)}`
+    : proofReceiptHash;
 
   const hasReceiptHash = hasVerificationPayload
     ? Boolean(ledgerReceiptHash) && (evaluated.hasReceiptHash || Boolean(data.receiptHash))
@@ -2022,6 +2138,22 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     overallStatus: finalOverallStatus,
     weakestDimension: data.weakestDimension || data.caseData?.weakestDimension || "",
   });
+
+  const humanTraceCaseSummary =
+    typeof data.displayContext === "string" && data.displayContext.trim()
+    ? data.displayContext.trim()
+    : "The case has enough context for review, but no stable written summary has been prepared yet.";
+
+  const humanTraceEvents = Array.isArray(data.eventTimeline)
+    ? data.eventTimeline
+        .map(getHumanTraceText)
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
+
+  const humanTraceCorrection =
+    guidance?.actions?.[0] ||
+    "Strengthen supporting signals and proof artifacts before external use.";
 
   const auditReady =
     hasVerificationPayload &&
@@ -2390,47 +2522,92 @@ const recommendedPathLabel =
 
   return (
   <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-    <div className="max-w-3xl mx-auto">
-      <TopRightCasesCapsule />
-      <div className="space-y-9">
-        <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-7 md:p-10 space-y-6 overflow-hidden">
+      <div className="max-w-3xl mx-auto">
+        <TopRightCasesCapsule />
+        <div className="space-y-9">
+          <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-7 md:p-10 space-y-6 overflow-hidden">
           <header className="bg-white p-0">
-          <h1 className="text-3xl font-bold mb-3">
-            {isPaid ? "Verification Ready" : "Verification Not Activated"}
-          </h1>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold mb-3">
+                {isPaid ? "Verification Ready" : "Verification Not Activated"}
+              </h1>
 
-          <p
-            style={{
-              margin: "0 0 10px 0",
-              fontSize: "13px",
-              lineHeight: "1.45",
-              color: "#64748B",
-              fontWeight: 400,
-            }}
-          >
-            {data.introText ||
-              "This page is the verification layer. It does not repeat receipt eligibility. It determines whether the issued record is externally ready, internally reviewable, or still structurally incomplete."}
-          </p>
+              <p
+                style={{
+                  margin: "0 0 10px 0",
+                  fontSize: "13px",
+                  lineHeight: "1.45",
+                  color: "#64748B",
+                  fontWeight: 400,
+                }}
+              >
+                {sanitizeText(
+                  data.introText,
+                  "This page is the verification layer. It does not repeat receipt eligibility. It determines whether the issued record is externally ready, internally reviewable, or still structurally incomplete."
+                )}
+              </p>
 
-          <div className="text-sm text-slate-500 mt-2">
-            Receipt records the decision. Verification checks that the record holds under review.
+              <div className="text-sm text-slate-500 mt-2">
+                Receipt records the decision. Verification checks that the record holds under review.
+              </div>
+
+              <p
+                style={{
+                  margin: "0 0 14px 0",
+                  fontSize: "12px",
+                  lineHeight: "1.35",
+                  color: "#94A3B8",
+                  fontWeight: 400,
+                }}
+              >
+                {data.weakestDimension
+                  ? `Where it is weakest: ${sanitizeText(getWeakestDimensionDisplay(data.weakestDimension))}`
+                  : data.caseData
+                  ? "Where it is weakest: the structure has a weak point that needs clarification before it can scale."
+                  : "Where it is weakest: not available in the current record."}
+              </p>
+              <p
+                style={{
+                  margin: "0 0 14px 0",
+                  fontSize: "12px",
+                  lineHeight: "1.35",
+                  color: "#64748B",
+                  fontWeight: 500,
+                }}
+              >
+                What to do next: {sanitizeText(getCustomerNextAction({
+                  score: deterministicScore?.totalScore,
+                  weakestDimension:
+                    data.weakestDimension || data.caseData?.weakestDimension,
+                }))}
+              </p>
+
+              <CanonicalCaseFlowBreadcrumb activeStep="Verification" />
+            </div>
+
+            <div className="flex items-start justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentCaseId =
+                    inferredCaseId ||
+                    currentCase?.caseId ||
+                    currentCase?.id ||
+                    "";
+
+                  if (currentCaseId) {
+                    console.log("[View all cases]", { caseId: currentCaseId });
+                  }
+
+                  navigate(ROUTES.CASES || "/cases");
+                }}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              >
+                View all cases
+              </button>
+            </div>
           </div>
-
-          <p
-            style={{
-              margin: "0 0 14px 0",
-              fontSize: "12px",
-              lineHeight: "1.35",
-              color: "#94A3B8",
-              fontWeight: 400,
-            }}
-          >
-            {data.weakestDimension
-              ? `Primary review dimension: ${data.weakestDimension}.`
-              : data.caseData
-              ? "Primary review dimension not separately identified under the current case schema."
-              : "Primary review dimension not available in the current record."}
-          </p>
 
           <div className="mt-3">
             <div
@@ -2441,7 +2618,7 @@ const recommendedPathLabel =
                 backgroundColor: "#F8FAFC",
               }}
             >
-              {/* 缂佹鍏涚粩鎾箳閹虹偟绐桰ssuance Status / Receipt ID */}
+
               <div
                 style={{
                   display: "grid",
@@ -2522,12 +2699,14 @@ const recommendedPathLabel =
                       color: "#0F172A",
                     }}
                   >
-                    {hasVerificationPayload ? data.receiptId : "No live receipt attached"}
+                    {sanitizeReceiptId(data.receiptId)
+                      ? sanitizeReceiptId(data.receiptId)
+                      : "No live receipt attached."}
                   </p>
                 </div>
               </div>
 
-              {/* 缂佹鍏涚粩鎾箳閹烘垶瀚茬紒妤婂厸缁ㄢ晠骞掗幒宥囶吅闂傚倸顕▓鎴澪熼鍡楁疇 */}
+
               <div
                 style={{
                   margin: "10px 0",
@@ -2536,7 +2715,7 @@ const recommendedPathLabel =
                 }}
               />
 
-              {/* 缂佹鍏涚花鈺呭箳閹虹偟绐梀erification Hash / Verified At */}
+              {/* Verification Hash / Verified At */}
               <div
                 style={{
                   display: "grid",
@@ -2651,7 +2830,7 @@ const recommendedPathLabel =
                       color: "#0F172A",
                     }}
                   >
-                    {data.verifiedAt || "Not recorded yet"}
+                    {sanitizeText(data.verifiedAt, "Not recorded yet")}
                   </p>
                 </div>
                 </div>
@@ -2673,7 +2852,7 @@ const recommendedPathLabel =
                     columnGap: "0",
                   }}
                 >
-                  {/* 鐎归潻璁ｇ槐鐧坅se Schema */}
+
                   <div style={{ padding: "2px 16px 4px 6px" }}>
                     <p style={{ fontSize: "12px", color: "#64748B", margin: "0 0 6px 0" }}>
                       Case Schema
@@ -2683,7 +2862,7 @@ const recommendedPathLabel =
                     </p>
                   </div>
 
-                  {/* 闁告瑧顒茬槐鐧坅se tested */}
+
                   <div
                     style={{
                       padding: "2px 6px 4px 16px",
@@ -2695,13 +2874,13 @@ const recommendedPathLabel =
                     </p>
                     {hasVerificationSummary ? (
                       <div className="text-sm leading-6 text-slate-900">
-                        <div>鉁?Baseline summary loaded</div>
-                        <div>鉁?Events: {verificationEventCount || "recorded"}</div>
-                        <div>鉁?Decision path reconstructed</div>
+                        <div>- Baseline summary loaded</div>
+                        <div>- Events: {verificationEventCount || "recorded"}</div>
+                        <div>- Decision path reconstructed</div>
                       </div>
                     ) : (
                       <p style={{ fontSize: "12.5px", fontWeight: 500 }}>
-                        {data.displayContext || "No structured summary available."}
+                        {sanitizeText(data.displayContext, "No structured summary is available yet.")}
                       </p>
                     )}
                   </div>
@@ -2745,11 +2924,11 @@ const recommendedPathLabel =
             </p>
 
             <VerificationTraceBlock
-              caseData={data.displayContext}
+              caseData={sanitizeText(data.displayContext)}
               events={data.eventTimeline}
-              correction={guidance?.actions?.[0]}
+              correction={sanitizeText(guidance?.actions?.[0])}
               verificationHash={verificationHash}
-              weakestDimension={data.weakestDimension}
+              weakestDimension={sanitizeText(data.weakestDimension)}
             />
 
             <div
@@ -2778,7 +2957,7 @@ const recommendedPathLabel =
                     fontWeight: 600,
                   }}
                 >
-                  {verdictLine}
+                  {sanitizeText(verdictLine)}
                 </div>
 
                 <div
@@ -2813,33 +2992,33 @@ const recommendedPathLabel =
             >
               {[
                 hasReceiptHash
-                  ? "闁?Receipt baseline attached"
-                  : "闁?Receipt baseline missing",
+                  ? "Receipt baseline attached"
+                  : "Receipt baseline missing",
 
                 finalOverallStatus === "Verification Ready"
-                  ? "闁?Structural sufficiency confirmed"
+                  ? "Structural sufficiency confirmed"
                   : hasCompleteStructure
-                  ? "闁?Structural sufficiency met"
-                  : "闁?Structural sufficiency not met",
+                  ? "Structural sufficiency met"
+                  : "Structural sufficiency not met",
 
                 auditReady
-                  ? "闁?Review condition satisfied"
-                  : "闁?Review condition pending",
+                  ? "Review condition satisfied"
+                  : "Review condition pending",
 
                 isEvidenceLockedConsistent
-                  ? "闁?Record chain consistent"
-                  : "闁?Record chain inconsistent",
+                  ? "Record chain consistent"
+                  : "Record chain inconsistent",
               ].map((text, index, arr) => (
                 <React.Fragment key={text}>
       
-                  {/* 婵絽绻嬬粩鎾锤?*/}
+
                   <div
                     style={{
-                      padding: "3px 8px",     // 妫ｅ啯鍟?闁告劕绉甸弫瑙勭▔閳ь剟宕烽崼顒傜闂傚牏鍋涢悥鍫曞礂閹惰姤鏆涢柨?
-                      fontSize: "10px",     // 妫ｅ啯鍟?闁告劕绉瑰閿嬬▔閳ь剟鎮欓崷顓炰化闁挎稑鐗呯粭澶屾啺娴ｇ儤绾柟?0闁挎稑濂旂槐鐗堝緞椤忓嫬鍙￠柨?
-                      lineHeight: "1.2",      // 妫ｅ啯鍟?闁告ê顑囬幓?
+                      padding: "3px 8px",
+                      fontSize: "10px",
+                      lineHeight: "1.2",
                       fontWeight: 500,
-                      letterSpacing: "0.01em", // 妫ｅ啯鍟?闁告梻濮崇粩鎾倷閸︻厼浠紒顔藉礃閸ぱ囧箛?
+                      letterSpacing: "0.01em",
                       color:
                         finalOverallStatus === "Verification Ready"
                           ? "#047857"
@@ -2852,12 +3031,12 @@ const recommendedPathLabel =
                     {text}
                   </div>
             
-                  {/* 濞戞搩鍙冨Λ璺ㄧ博閺嶎偄娈犻柨娑樼墕閸櫻囨煥椤曞棛绀?*/}
+
                   {index < arr.length - 1 && (
                     <div
                       style={{
                         width: "1px",
-                        height: "14px",                         // 妫ｅ啯鍟?闁哄洤顕悡?
+                        height: "14px",
                         backgroundColor:
                           finalOverallStatus === "Verification Ready"
                             ? "rgba(4,120,87,0.25)"
@@ -2873,7 +3052,7 @@ const recommendedPathLabel =
           </div>
         </section>
 
-        {/* 妫ｅ啯鏉?Supporting Evidence Upload */}
+
         <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
           <div className="flex items-center justify-between gap-6">
             <div className="max-w-[300px]">
@@ -3051,11 +3230,11 @@ const recommendedPathLabel =
               {consistencyRepairCard ? (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 sm:px-5">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700/80">
-                    {consistencyRepairCard.title}
+                    {sanitizeText(consistencyRepairCard.title)}
                   </div>
 
                   <h3 className="mt-2 text-xs font-semibold text-neutral-900 sm:text-[15px] leading-6">
-                    {consistencyRepairCard.intro}
+                    {sanitizeText(consistencyRepairCard.intro)}
                   </h3>
 
                   {Array.isArray(consistencyRepairCard.conflicts) &&
@@ -3067,10 +3246,10 @@ const recommendedPathLabel =
                           className="rounded-xl border border-amber-200/80 bg-white px-3 py-3"
                         >
                           <div className="text-xs font-medium text-neutral-900 leading-6">
-                            {item.label}
+                            {sanitizeText(item.label)}
                           </div>
                           <div className="mt-1 text-[13px] leading-5 text-neutral-600">
-                            Recommended repair: {item.fix}
+                            Recommended repair: {sanitizeText(item.fix)}
                           </div>
                         </div>
                       ))}
@@ -3083,10 +3262,10 @@ const recommendedPathLabel =
                         Minimal repair path
                       </div>
                       <div className="mt-1 text-xs font-medium text-neutral-900 leading-6">
-                        {consistencyRepairCard.minimalRepair.label}
+                        {sanitizeText(consistencyRepairCard.minimalRepair.label)}
                       </div>
                       <div className="mt-1 text-[13px] leading-5 text-neutral-600">
-                        {consistencyRepairCard.minimalRepair.action}
+                        {sanitizeText(consistencyRepairCard.minimalRepair.action)}
                       </div>
                     </div>
                   ) : null}
@@ -3096,7 +3275,7 @@ const recommendedPathLabel =
               <CalibrationCard
                 guidance={guidance}
                 status={finalOverallStatus}
-                weakestDimension={data.weakestDimension || data.caseData?.weakestDimension || ""}
+                weakestDimension={sanitizeText(data.weakestDimension || data.caseData?.weakestDimension || "")}
                 checks={data.checks}
                 isEvidenceLockedConsistent={isEvidenceLockedConsistent}
                 consistencyRepairCard={consistencyRepairCard}
@@ -3108,7 +3287,7 @@ const recommendedPathLabel =
         </div>
 
         <section className="mt-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Aggregated RUN Record</h2>
+          <h2 className="text-lg font-semibold mb-4">Aggregated Structure Record</h2>
 
           <div
             style={{
@@ -3125,7 +3304,7 @@ const recommendedPathLabel =
                 alignItems: "center",
               }}
             >
-              {/* 鐎归潻璁ｇ槐鐧漸mmary */}
+
               <div
                 style={{
                   padding: "2px 18px",
@@ -3133,17 +3312,17 @@ const recommendedPathLabel =
                 }}
               >
                 <p style={{ fontSize: "10px",   color: "#64748B", marginBottom: "10px" }}>
-                  RUN Summary
+                  Structure Summary
                 </p>
                 <p style={{ fontSize: "15px",  fontWeight: 600 }}>
-                  {data.runSummaryText || "No aggregated RUN summary available."}
+                  {sanitizeText(data.runSummaryText, "No aggregated RUN summary available.")}
                 </p>
               </div>
 
-              {/* 闁告瑧顒茬槐鐧沀N entries */}
+
               <div style={{ padding: "2px 18px" }}>
                 <p style={{ fontSize: "10px",   color: "#64748B", marginBottom: "10px" }}>
-                  RUN Signals
+                  What is happening
                 </p>
 
                 {Array.isArray(data.runEntries) && data.runEntries.length > 0 ? (
@@ -3159,7 +3338,7 @@ const recommendedPathLabel =
                           fontWeight: 500,
                         }}
                       >
-                        {entry.runLabel} 閼?{entry.count}
+                        {formatCustomerStructureValue(entry.runLabel)} {entry.count}
                       </span>
                     ))}
                   </div>
@@ -3185,6 +3364,20 @@ const recommendedPathLabel =
                 padding: "12px 16px",
               }}
             >
+              {(() => {
+                const customerSnapshot = {
+                  weakestDimension:
+                    data.weakestDimension || data.caseData?.weakestDimension,
+                  patternId: data.caseData?.patternId,
+                  runFallback:
+                    data.primaryRunLabel ||
+                    data.runLabel ||
+                    data.caseData?.fallbackRunCode,
+                  routeDecision:
+                    data.routeDecisionFromCase || data.caseData?.routeDecision,
+                };
+
+                return (
               <div
                 style={{
                   display: "grid",
@@ -3205,7 +3398,7 @@ const recommendedPathLabel =
                       margin: "0 0 10px 0",
                     }}
                   >
-                    Scenario
+                    Where it is weakest
                   </p>
                   <p
                     style={{
@@ -3215,7 +3408,7 @@ const recommendedPathLabel =
                       margin: 0,
                     }}
                   >
-                    {data.scenarioLabel || data.caseData?.scenarioCode || "No Dominant Scenario"}
+                    {sanitizeText(getWeakestDimensionDisplay(customerSnapshot.weakestDimension))}
                   </p>
                 </div>
 
@@ -3232,7 +3425,7 @@ const recommendedPathLabel =
                       margin: "0 0 10px 0",
                     }}
                   >
-                    Stage
+                    Current structure status
                   </p>
                   <p
                     style={{
@@ -3242,7 +3435,7 @@ const recommendedPathLabel =
                       margin: 0,
                     }}
                   >
-                    {data.stageLabel || data.caseData?.stage || "S0"}
+                    {getCustomerStructureStatus(customerSnapshot)}
                   </p>
                 </div>
 
@@ -3259,7 +3452,7 @@ const recommendedPathLabel =
                       margin: "0 0 10px 0",
                     }}
                   >
-                    Confidence
+                    Decision readiness
                   </p>
                   <p
                     style={{
@@ -3269,7 +3462,7 @@ const recommendedPathLabel =
                       margin: 0,
                     }}
                   >
-                    {data.confidenceLabel}
+                    {getCustomerDecisionReadiness(customerSnapshot)}
                   </p>
                 </div>
 
@@ -3285,20 +3478,22 @@ const recommendedPathLabel =
                       margin: "0 0 10px 0",
                     }}
                   >
-                    Primary RUN
+                    Next step
                   </p>
                   <p
                     style={{
                       fontSize: "15px", 
                       fontWeight: 600,
-                      lineHeight: 1,
+                      lineHeight: 1.25,
                       margin: 0,
                     }}
                   >
-                    {data.primaryRunLabel || data.runLabel || data.caseData?.fallbackRunCode || "RUN000"}
+                    {getCustomerNextStep(customerSnapshot)}
                   </p>
                 </div>
               </div>
+                );
+              })()}
             </div>
           </section>
         ) : null}  
@@ -3328,14 +3523,14 @@ const recommendedPathLabel =
                 const failedCount = data.checks.filter((c) => c.status === "failed").length;
 
                 if (failedCount > 0) {
-                  return `闁?${failedCount} failure${failedCount > 1 ? "s" : ""} detected. Structural issues must be corrected.`;
+                  return `${failedCount} failure${failedCount > 1 ? "s" : ""} detected. Structural issues must be corrected.`;
                 }
 
                 if (warningCount > 0) {
-                  return `闁?${warningCount} warning${warningCount > 1 ? "s" : ""} detected. Structure is partially complete.`;
+                  return `${warningCount} warning${warningCount > 1 ? "s" : ""} detected. Structure is partially complete.`;
                 }
 
-                return "闁?All checks passed. Structure is consistent and reviewable.";
+                return "All checks passed. Structure is consistent and reviewable.";
               })()}
             </p>
 
@@ -3362,7 +3557,7 @@ const recommendedPathLabel =
             {data.checks.map((check, index) => (
               <div key={`${check.label}-${index}`} style={{ padding: "12px 16px" }}>
       
-                {/* 闁哄秴娲。鐣屾偘?*/}
+
                 <div
                   style={{
                     display: "flex",
@@ -3371,7 +3566,7 @@ const recommendedPathLabel =
                     marginBottom: "6px",
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>{check.label}</span>
+                  <span style={{ fontWeight: 600 }}>{sanitizeText(check.label)}</span>
 
                   <span
                     style={{
@@ -3399,16 +3594,16 @@ const recommendedPathLabel =
                           : "1px solid #FCA5A5",
                     }}
                   >
-                    {check.status}
+                    {sanitizeText(check.status)}
                   </span>
                 </div>
 
-                {/* 闁硅绻楅崼?*/}
+
                 <p style={{ color: "#475569", lineHeight: 1.6 }}>
-                  {check.detail}
+                  {sanitizeText(check.detail)}
                 </p>
 
-                {/* 闁哄偆鍘肩槐鎴澪熼鍡楁疇闁挎稑鐗嗛崣褔鏌ㄩ鍡欑 */}
+
                 {index < data.checks.length - 1 && (
                   <div
                     style={{
@@ -3444,232 +3639,14 @@ const recommendedPathLabel =
                   key={`${item.time}-${item.title}-${index}`}
                   className="rounded-xl border border-slate-200 p-4 bg-slate-50"
                 >
-                  <p className="text-xs text-slate-500 mb-1">{item.time}</p>
-                  <h3 className="font-semibold mb-2">{item.title}</h3>
-                  <p className="text-slate-700 leading-7">{item.detail}</p>
+                  <p className="text-xs text-slate-500 mb-1">{sanitizeText(item.time)}</p>
+                  <h3 className="font-semibold mb-2">{sanitizeText(item.title)}</h3>
+                  <p className="text-slate-700 leading-7">{sanitizeText(item.detail)}</p>
                 </div>
               ))}
             </div>
           )}
 
-        </section>
-
-        <section className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-5 pr-4">
-            <div>
-              <h2 className="text-lg font-semibold">Ledger-backed proof</h2>
-              <p className="mt-1 text-xs text-slate-600">
-                This receipt is supported by a backend verification record for traceability and audit readiness.
-              </p>
-            </div>
-
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "26px",
-                padding: "0 12px",
-                borderRadius: "6px",
-                fontSize: "11px",
-                lineHeight: 1,
-                fontWeight: 600,
-                border: anchorStatus === "Anchored"
-                  ? "1px solid #A7F3D0"
-                  : anchorStatus === "Pending"
-                  ? "1px solid #FDE68A"
-                  : "1px solid #CBD5E1",
-                backgroundColor: anchorStatus === "Anchored"
-                  ? "#ECFDF5"
-                  : anchorStatus === "Pending"
-                  ? "#FFFBEB"
-                  : "#F8FAFC",
-                color: anchorStatus === "Anchored"
-                  ? "#047857"
-                  : anchorStatus === "Pending"
-                  ? "#B45309"
-                  : "#475569",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {anchorStatus}
-            </span>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: "#F8FAFC",
-              border: "1px solid #CBD5E1",
-              borderRadius: "20px",
-              padding: "12px 16px",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1.2fr",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  padding: "2px 18px",
-                  borderRight: "1px solid #CBD5E1",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    color: "#64748B",
-                    margin: "0 0 10px 0",
-                  }}
-                >
-                  Proof record ID
-                </p>
-                <p
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    lineHeight: 1.2,
-                    margin: 0,
-                    color: "#0F172A",
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {proofRecordId}
-                </p>
-              </div>
-          
-              <div
-                style={{
-                  padding: "2px 18px",
-                  borderRight: "1px solid #CBD5E1",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    color: "#64748B",
-                    margin: "0 0 10px 0",
-                  }}
-                >
-                  Anchored at
-                </p>
-                <p
-                  style={{
-                    fontSize: "15px", 
-                    fontWeight: 600,
-                    lineHeight: 1.2,
-                    margin: 0,
-                    color: "#0F172A",
-                  }}
-                >
-                  {anchoredAt}
-                </p>
-              </div>
-          
-              <div
-                style={{
-                  padding: "2px 18px",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    color: "#64748B",
-                    margin: "0 0 10px 0",
-                  }}
-                >
-                  Receipt hash
-                </p>
-           
-                <p
-                  style={{
-                    margin: "4px 0 0 0",
-                    fontSize: "10.5px",
-                    lineHeight: 1.35,
-                    color: "#94A3B8",
-                    fontWeight: 400,
-                  }}
-                >
-                  Source baseline for this verification chain.
-                </p>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      lineHeight: 1.2,
-                      margin: 0,
-                      color: "#0F172A",
-                      wordBreak: "break-all",
-                      flex: 1,
-                    }}
-                  >
-                    {displayReceiptHash}
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(proofReceiptHash);
-                        setReceiptHashCopied(true);
-                        window.setTimeout(() => {
-                          setReceiptHashCopied(false);
-                        }, 1200);
-                      } catch (error) {
-                        console.error("Failed to copy receipt hash:", error);
-                      }
-                    }}
-                    style={{
-                      marginLeft: "18px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: "999px",
-                      border: receiptHashCopied ? "1px solid #10B981" : "1px solid #CBD5E1",
-                      backgroundColor: receiptHashCopied ? "#ECFDF5" : "#FFFFFF",
-                      padding: "5px 14px",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: receiptHashCopied ? "#047857" : "#334155",
-                      whiteSpace: "nowrap",
-                      cursor: "pointer",
-                      boxShadow: receiptHashCopied
-                        ? "0 0 0 3px rgba(16, 185, 129, 0.14)"
-                        : "none",
-                      transition: "all 160ms ease",
-                    }}
-                  >
-                    {receiptHashCopied ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-4 text-xs text-slate-500 leading-6">
-            This page does not expose the full ledger. It shows the proof layer linked to the current receipt.
-          </p>
         </section>
 
         <section className="mt-4 bg-blue-50 rounded-2xl border border-blue-200 p-6">
@@ -3683,16 +3660,18 @@ const recommendedPathLabel =
                 : "text-emerald-700"
             }`}
           >
-            {data.finalNote ||
-              "Verification improves trust, portability, and review readiness by checking whether the issued case record remains internally consistent and traceable. It does not replace professional or legal review."}
+            {sanitizeText(
+              data.finalNote,
+              "Verification improves trust, portability, and review readiness by checking whether the issued case record remains internally consistent and traceable. It does not replace professional or legal review."
+            )}
           </p>
         </section>
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
-            to={ROUTES.RECEIPT}
+            to={receiptPath}
             state={{
-              ...(routeEnvelope || {}),
+              ...stripCanonicalCaseFlowState(routeEnvelope || {}),
               pcMeta,
             }}
             className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-[12px] font-medium text-slate-900 border border-slate-300 shadow-sm transition hover:bg-slate-100"
@@ -3781,7 +3760,7 @@ const recommendedPathLabel =
                     padding: 0,
                   }}
                 >
-                  閼?
+
                 </button>
               </div>
 
@@ -3805,7 +3784,7 @@ const recommendedPathLabel =
                   }}
                 >
                   <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0F172A" }}>
-                    {formalWorkspaceCopy.workspaceTitle}
+                    {sanitizeText(formalWorkspaceCopy.workspaceTitle)}
                   </h3>
 
                   <p style={{ margin: "8px 0 0 0", fontSize: "14px", lineHeight: 1.6, color: "#475569" }}>
@@ -3829,18 +3808,18 @@ const recommendedPathLabel =
               
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>鐠?Unlimited pilot sessions</div>
-                    <div>鐠?Unlimited result access</div>
-                    <div>鐠?Internal case tracking</div>
-                    <div>鐠?Analytics and history</div>
-                    <div>鐠?Preview of receipt & verification states</div>
+                    <div>- Unlimited pilot sessions</div>
+                    <div>- Unlimited result access</div>
+                    <div>- Internal case tracking</div>
+                    <div>- Analytics and history</div>
+                    <div>- Preview of receipt & verification states</div>
                   </div>
               
                   <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Does not include</div>
-                    <div>鐠?Formal Receipt issuance</div>
-                    <div>鐠?Formal Verification packages</div>
-                    <div>鐠?Exportable proof</div>
+                    <div>- Formal Receipt issuance</div>
+                    <div>- Formal Verification packages</div>
+                    <div>- Exportable proof</div>
                   </div>
 
                   <button
@@ -3848,7 +3827,7 @@ const recommendedPathLabel =
                     className="inline-flex items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-xs font-semibold text-green-700 shadow-sm transition hover:bg-green-100"
                     style={{ marginTop: "16px" }}
                   >
-                    {formalWorkspaceCopy.workspaceCta} 闁?
+                    {sanitizeText(formalWorkspaceCopy.workspaceCta)}
                   </button>
                 </div>
 
@@ -3887,17 +3866,17 @@ const recommendedPathLabel =
 
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>鐠?Official receipt issuance</div>
-                    <div>鐠?Locked case snapshot</div>
-                    <div>鐠?Persistent storage</div>
-                    <div>鐠?Internal documentation use</div>
+                    <div>- Official receipt issuance</div>
+                    <div>- Locked case snapshot</div>
+                    <div>- Persistent storage</div>
+                    <div>- Internal documentation use</div>
                   </div>
               
                   <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
-              <div>鐠?Recording key decisions</div>
-                    <div>鐠?Internal audits</div>
-                    <div>鐠?Case archiving</div>
+              <div>- Recording key decisions</div>
+                    <div>- Internal audits</div>
+                    <div>- Case archiving</div>
                   </div>
 
                   <button
@@ -3905,7 +3884,7 @@ const recommendedPathLabel =
                     className="inline-flex items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 hover:border-amber-400"
                     style={{ marginTop: "16px" }}
                   >
-                    {formalWorkspaceCopy.receiptCta} 闁?
+                    {sanitizeText(formalWorkspaceCopy.receiptCta)}
                   </button>
                 </div>
 
@@ -3944,17 +3923,104 @@ const recommendedPathLabel =
 
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>鐠?Formal verification outcome</div>
-                    <div>鐠?Rule-consistency judgment</div>
-                    <div>鐠?Externally usable decision result</div>
-                    <div>鐠?Portable verification record</div>
+                    <div>- Formal verification outcome</div>
+                    <div>- Rule-consistency judgment</div>
+                    <div>- Externally usable decision result</div>
+                    <div>- Portable verification record</div>
                   </div>
 
                   <div style={{ marginTop: "12px", fontSize: "14px", lineHeight: 1.7, color: "#64748B" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Best for</div>
-                    <div>鐠?Formal decision confirmation</div>
-                    <div>鐠?Compliance / risk review</div>
-                    <div>鐠?Decisions that must travel outside the workspace</div>
+                    <div>- Formal decision confirmation</div>
+                    <div>- Compliance / risk review</div>
+                    <div>- Decisions that must travel outside the workspace</div>
+                    <details
+                      open
+                      style={{
+                        marginTop: "24px",
+                        border: "1px solid #FCD34D",
+                        borderRadius: "28px",
+                        backgroundColor: "#FFFBEB",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <summary
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          padding: "14px 24px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: "#0F172A",
+                          borderBottom: "1px solid #FDE68A",
+                        }}
+                      >
+                        <span>Input Review Summary</span>
+
+                        <button
+                          type="button"
+                          onClick={(event) => event.preventDefault()}
+                          style={{
+                            border: "1px solid #E2E8F0",
+                            borderRadius: "999px",
+                            background: "#FFFFFF",
+                            padding: "4px 14px",
+                            fontSize: "12px",
+                            fontWeight: 500,
+                            color: "#475569",
+                          }}
+                        >
+                          Export PDF
+                        </button>
+                      </summary>
+
+                      <div style={{ padding: "18px 24px 24px" }}>
+                        <p style={{ margin: "0 0 6px", fontSize: "12px", color: "#64748B" }}>
+                          Case
+                        </p>
+
+                        <p style={{ margin: "0 0 24px", fontSize: "14px", lineHeight: 1.6 }}>
+                          {sanitizeText(humanTraceCaseSummary)}
+                        </p>
+
+                        <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#64748B" }}>
+                          What we observed
+                        </p>
+                    
+                        <div style={{ marginBottom: "24px", fontSize: "14px", lineHeight: 1.7 }}>
+                          {humanTraceEvents.length > 0 ? (
+                            humanTraceEvents.map((text, index) => (
+                              <div key={`${text}-${index}`}>- {sanitizeText(text)}</div>
+                            ))
+                          ) : (
+                            <div>- No readable event summary has been prepared yet.</div>
+                          )}
+                        </div>
+
+                        <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#64748B" }}>
+                          Recommended correction
+                        </p>
+                    
+                        <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6 }}>
+                          {sanitizeText(humanTraceCorrection)}
+                        </p>
+                    
+                        {data.weakestDimension && (
+                          <p
+                            style={{
+                              margin: "8px 0 0",
+                              fontSize: "12px",
+                              color: "#94A3B8",
+                            }}
+                          >
+                            Where it is weakest: {sanitizeText(getWeakestDimensionDisplay(data.weakestDimension))}
+                        </p>
+                      )}
+                    </div>
+                  </details>                 
                   </div>
 
                   <button
@@ -3962,7 +4028,7 @@ const recommendedPathLabel =
                     className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
                     style={{ marginTop: "16px" }}
                   >
-                    {formalWorkspaceCopy.verificationCta} 闁?
+                    {sanitizeText(formalWorkspaceCopy.verificationCta)}
                   </button>
                 </div>
               </div>
@@ -3987,3 +4053,6 @@ const recommendedPathLabel =
   </div>
 );
 }
+
+
+

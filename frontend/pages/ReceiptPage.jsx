@@ -1,10 +1,21 @@
-import React from "react";
+﻿import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 // import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
+import { sanitizeText } from "../lib/sanitizeText";
+import {
+  getCustomerDecisionReadiness,
+  getCustomerNextStep,
+  getCustomerStructureStatus,
+} from "../lib/customerStructureDisplay";
+import {
+  getCustomerNextAction,
+  getDecisionStabilityLabel,
+  getWeakestDimensionDisplay,
+} from "../lib/customerDecisionDisplay";
 import { getAccessMode } from "../utils/accessMode";
 import { calculateDeterministicScore } from "../utils/deterministicScore";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
@@ -34,6 +45,48 @@ import {
 } from "../utils/sharedReceiptVerificationContract";
 
 const HASH_LEDGER_API_BASE = "http://localhost:3000";
+const CANONICAL_CASE_FLOW_STEPS = ["Result", "Pilot Result", "Receipt", "Verification"];
+
+function sanitizeReceiptId(value) {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+
+  if (!trimmed || trimmed.includes("DEMO")) return null;
+
+  return trimmed;
+}
+
+function stripCanonicalCaseFlowState(state = {}) {
+  const nextState = { ...(state || {}) };
+  delete nextState.routeMeta;
+  delete nextState.sourcePath;
+  delete nextState.flowSteps;
+  delete nextState.steps;
+  delete nextState.breadcrumb;
+  return nextState;
+}
+
+function CanonicalCaseFlowBreadcrumb({ activeStep }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-400">
+      {CANONICAL_CASE_FLOW_STEPS.map((step, index) => {
+        const isActive = step === activeStep;
+
+        return (
+          <React.Fragment key={step}>
+            {index > 0 ? (
+              <span aria-hidden="true" className="text-slate-300"> / </span>
+            ) : null}
+            <span className={isActive ? "text-slate-900" : "text-slate-400"}>
+              {sanitizeText(step)}
+            </span>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 function getStoredReceiptData() {
   try {
@@ -586,7 +639,7 @@ function normalizeReceiptData(input = {}) {
 
   return {
     receiptTitle: input.receiptTitle || "Decision Receipt",
-    receiptId: input.receiptId || "RCPT-DEMO-001",
+    receiptId: sanitizeReceiptId(input.receiptId),
     generatedAt: input.generatedAt || "",
     verifiedAt: input.verifiedAt || "",
     receiptHash: input.receiptHash || "",
@@ -729,6 +782,7 @@ export default function ReceiptPage() {
   const [receiptHashCopied, setReceiptHashCopied] = React.useState(false);
   const [isCustomerRecordOpen, setIsCustomerRecordOpen] = React.useState(false);
   const [isReceiptEligibilityOpen, setIsReceiptEligibilityOpen] = React.useState(false);
+  const [hydratedReceiptRecord, setHydratedReceiptRecord] = React.useState(null);
 
   const [quickCaptureOpen, setQuickCaptureOpen] = React.useState(false);
   const [quickCaptureType, setQuickCaptureType] = React.useState("decision_accepted");
@@ -777,11 +831,17 @@ export default function ReceiptPage() {
 
   const routeData = location.state?.receiptPageData || null;
   const storedData = getStoredReceiptData();
+  const routeDataCaseId = String(
+    routeData?.caseData?.caseId || routeData?.caseId || ""
+  ).trim();
+  const storedDataCaseId = String(
+    storedData?.caseData?.caseId || storedData?.caseId || ""
+  ).trim();
 
   const resolvedPayload = resolveReceiptPayload(
     location.state || {},
     routeData,
-    storedData
+    hydratedReceiptRecord
   );
 
   const receiptHashCaseId =
@@ -905,7 +965,7 @@ export default function ReceiptPage() {
       React.useEffect(() => {
         if (DEBUG_DISABLE_RECEIPT_HASH) return;
 
-        const currentReceiptId = normalized.receiptId || "RCPT-DEMO-001";
+        const currentReceiptId = sanitizeReceiptId(normalized.receiptId) || receiptHashCaseId || "";
 
         if (persistedReceiptHash) {
           hashComputedForReceiptRef.current = currentReceiptId;
@@ -1078,7 +1138,8 @@ export default function ReceiptPage() {
   const hasReceiptEligibilitySignal =
     receiptEligibilityScore.receiptEligible === true ||
     routeDecision?.mode === "case_receipt" ||
-    routeDecision?.mode === "final_receipt";
+    routeDecision?.mode === "final_receipt" ||
+    Boolean(hydratedReceiptRecord);
 
   const canRenderReceipt =
     (hasReceiptIdentity && hasReceiptSource) ||
@@ -1123,6 +1184,48 @@ export default function ReceiptPage() {
         "",
     });
 
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateReceiptRecord() {
+      if (!inferredCaseId) {
+        setHydratedReceiptRecord(null);
+        return;
+      }
+
+      const currentStoredCaseId = routeDataCaseId || storedDataCaseId || "";
+
+      if (currentStoredCaseId === inferredCaseId && storedData) {
+        setHydratedReceiptRecord(storedData);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `http://localhost:3000/receipt-record?caseId=${encodeURIComponent(inferredCaseId)}`
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const record = await response.json().catch(() => null);
+
+        if (!cancelled && record) {
+          setHydratedReceiptRecord(record);
+        }
+      } catch (error) {
+        console.warn("Failed to hydrate receipt record", error);
+      }
+    }
+
+    hydrateReceiptRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inferredCaseId, routeDataCaseId, storedDataCaseId]);
+
   let currentCase = null;
 
   try {
@@ -1130,8 +1233,9 @@ export default function ReceiptPage() {
   } catch (error) {
     console.warn("Failed to read case registry for receipt gate", error);
   }
+  const activeCurrentCase = currentCase || hydratedReceiptRecord || null;
 
-  const existingLead = currentCase?.lead || null;
+  const existingLead = activeCurrentCase?.lead || null;
   const [lead, setLead] = React.useState({
     name: existingLead?.name || "",
     email: existingLead?.email || "",
@@ -1141,18 +1245,18 @@ export default function ReceiptPage() {
   const hasValidLead = lead.email && lead.email.includes("@");
 
   const currentCaseEventSource =
-    Array.isArray(currentCase?.events) && currentCase.events.length > 0
-      ? currentCase.events
-      : Array.isArray(currentCase?.eventLogs) && currentCase.eventLogs.length > 0
-      ? currentCase.eventLogs
-      : Array.isArray(currentCase?.capturedEvents) && currentCase.capturedEvents.length > 0
-      ? currentCase.capturedEvents
-      : Array.isArray(currentCase?.workspaceSummary?.events) && currentCase.workspaceSummary.events.length > 0
-      ? currentCase.workspaceSummary.events
-      : Array.isArray(currentCase?.pilotSummary?.events) && currentCase.pilotSummary.events.length > 0
-      ? currentCase.pilotSummary.events
-      : Array.isArray(currentCase?.pilotResult?.events) && currentCase.pilotResult.events.length > 0
-      ? currentCase.pilotResult.events
+    Array.isArray(activeCurrentCase?.events) && activeCurrentCase.events.length > 0
+      ? activeCurrentCase.events
+      : Array.isArray(activeCurrentCase?.eventLogs) && activeCurrentCase.eventLogs.length > 0
+      ? activeCurrentCase.eventLogs
+      : Array.isArray(activeCurrentCase?.capturedEvents) && activeCurrentCase.capturedEvents.length > 0
+      ? activeCurrentCase.capturedEvents
+      : Array.isArray(activeCurrentCase?.workspaceSummary?.events) && activeCurrentCase.workspaceSummary.events.length > 0
+      ? activeCurrentCase.workspaceSummary.events
+      : Array.isArray(activeCurrentCase?.pilotSummary?.events) && activeCurrentCase.pilotSummary.events.length > 0
+      ? activeCurrentCase.pilotSummary.events
+      : Array.isArray(activeCurrentCase?.pilotResult?.events) && activeCurrentCase.pilotResult.events.length > 0
+      ? activeCurrentCase.pilotResult.events
       : [];
 
   const fallbackCapturedEvents =
@@ -1171,8 +1275,10 @@ export default function ReceiptPage() {
   const currentCaseQuickCaptures =
     currentCaseEventSource.length > 0 ? currentCaseEventSource : fallbackCapturedEvents;
 
-  const realCapturedEvents = currentCaseQuickCaptures.filter((event) =>
-    String(
+  const realCapturedEvents = currentCaseQuickCaptures.filter((event) => {
+    if (!event || typeof event !== "object") return false;
+
+    const readableText = String(
       event?.note ||
       event?.description ||
       event?.text ||
@@ -1183,16 +1289,23 @@ export default function ReceiptPage() {
       event?.eventInput?.summaryContext ||
       event?.sourceInput?.description ||
       ""
-    ).trim().length > 0
-  );
+    ).trim();
+
+    return (
+      readableText.length > 0 ||
+      Boolean(event?.eventType) ||
+      Boolean(event?.eventId) ||
+      Boolean(event?.meta)
+    );
+  });
 
   const hasEvents =
     Array.isArray(realCapturedEvents) &&
     realCapturedEvents.length > 0;
 
   const deterministicScoreSource = {
-    ...(currentCase || normalized?.caseData || resolvedPayload?.caseData || {}),
-    caseId: inferredCaseId || currentCase?.caseId || "",
+    ...(activeCurrentCase || normalized?.caseData || resolvedPayload?.caseData || {}),
+    caseId: inferredCaseId || activeCurrentCase?.caseId || "",
     events:
       currentCaseQuickCaptures.length > 0
         ? currentCaseQuickCaptures
@@ -1206,22 +1319,22 @@ export default function ReceiptPage() {
         ? currentCaseQuickCaptures
         : realCapturedEvents,
     scopeLock:
-      currentCase?.scopeLock ||
+      activeCurrentCase?.scopeLock ||
       normalized?.caseData?.scopeLock ||
       resolvedPayload?.caseData?.scopeLock ||
       {},
     scope:
-      currentCase?.scope ||
+      activeCurrentCase?.scope ||
       normalized?.caseData?.scope ||
       resolvedPayload?.caseData?.scope ||
       {},
     acceptanceChecklist:
-      currentCase?.acceptanceChecklist ||
+      activeCurrentCase?.acceptanceChecklist ||
       normalized?.caseData?.acceptanceChecklist ||
       resolvedPayload?.caseData?.acceptanceChecklist ||
       {},
     checklist:
-      currentCase?.checklist ||
+      activeCurrentCase?.checklist ||
       normalized?.caseData?.checklist ||
       resolvedPayload?.caseData?.checklist ||
       {},
@@ -1246,22 +1359,22 @@ export default function ReceiptPage() {
     eventCount: deterministicScore.eventCount,
   });
 
-  const activeCaseBilling = caseBillingOverride || currentCase?.caseBilling || {};
+  const activeCaseBilling = caseBillingOverride || activeCurrentCase?.caseBilling || {};
   const accessMode = getAccessMode(
     {
-      ...(normalized?.caseData || resolvedPayload?.caseData || currentCase || {}),
+      ...(normalized?.caseData || resolvedPayload?.caseData || activeCurrentCase || {}),
       normalizedScore: deterministicScore.totalScore,
       score: deterministicScore.totalScore,
       eventCount: deterministicScore.eventCount,
       events: deterministicScore.events,
       receiptPaid:
         activeCaseBilling?.receiptActivated === true ||
-        currentCase?.payment?.receiptActivated === true ||
-        currentCase?.isPaid === true,
+        activeCurrentCase?.payment?.receiptActivated === true ||
+        activeCurrentCase?.isPaid === true,
       verificationPaid:
         activeCaseBilling?.verificationActivated === true ||
-        currentCase?.payment?.verificationActivated === true ||
-        currentCase?.isPaid === true,
+        activeCurrentCase?.payment?.verificationActivated === true ||
+        activeCurrentCase?.isPaid === true,
     }
   );
   const isPaid = accessMode === "paid";
@@ -1292,8 +1405,8 @@ export default function ReceiptPage() {
   };
   const receiptActivated =
     activeCaseBilling?.receiptActivated === true ||
-    currentCase?.payment?.receiptActivated === true ||
-    currentCase?.isPaid === true;
+    activeCurrentCase?.payment?.receiptActivated === true ||
+    activeCurrentCase?.isPaid === true;
 
   const data = {
     ...rawData,
@@ -1371,7 +1484,7 @@ export default function ReceiptPage() {
   decisionStatus: (() => {
     if (hasVerifiedAt) return "Verified";
 
-    // 濞屸剝婀侀惇鐔风杽娴滃娆?-> 瀵搫鍩楁稉宥呭帒鐠?READY
+    // Event-backed records are required before ready status.
     if (!hasEvents) {
       return "Insufficient Record";
     }
@@ -1516,6 +1629,34 @@ const normalizedScore = deterministicScore.totalScore;
 const hasPassingScore = Number(normalizedScore || 0) >= 3.0;
 const receiptEligible = hasEventBackedRecord && hasPassingScore;
 
+const receiptExpressionModel = (() => {
+  if (isVerified || data.decisionStatus === "Verified") {
+    return {
+      structureLabel: "Verified structure locked",
+      statusText: "This baseline has been verified and can be used externally.",
+    };
+  }
+
+  if (!hasEventBackedRecord || !hasEvents) {
+    return {
+      structureLabel: "Record not structured yet",
+      statusText: "Add at least one real event to activate baseline issuance.",
+    };
+  }
+
+  if (receiptEligible) {
+    return {
+      structureLabel: "Structured record prepared",
+      statusText: "This case has enough structure to issue a receipt baseline.",
+    };
+  }
+
+  return {
+    structureLabel: "Structured but unstable",
+    statusText: "The record contains event evidence, but the structure is not strong enough for receipt issuance yet.",
+  };
+})();
+
 const formatEventText = (event) => {
   if (typeof event === "string") return event;
 
@@ -1548,13 +1689,13 @@ const formatEventText = (event) => {
 };
 
 const customerRecordCaseOrigin =
-  currentCase?.caseOrigin ||
-  currentCase?.origin ||
-  currentCase?.caseInput ||
-  currentCase?.initialInput ||
-  currentCase?.problemStatement ||
-  currentCase?.diagnosticSummary ||
-  currentCase?.summary ||
+  activeCurrentCase?.caseOrigin ||
+  activeCurrentCase?.origin ||
+  activeCurrentCase?.caseInput ||
+  activeCurrentCase?.initialInput ||
+  activeCurrentCase?.problemStatement ||
+  activeCurrentCase?.diagnosticSummary ||
+  activeCurrentCase?.summary ||
   "";
 
 const safeCustomerRecordEvents = realCapturedEvents.map((event) =>
@@ -1627,8 +1768,6 @@ const canFormalizeProof =
 
 const receiptCtaLabel = !receiptEligible
   ? "Improve Record to Issue Receipt"
-  : !receiptActivated
-  ? "Unlock Formal Receipt"
   : "Open Verification";
 
 const handleActivateReceiptForCase = () => {
@@ -1682,7 +1821,9 @@ const handleQuickCaptureSubmit = () => {
   if (location.state?.returnToVerification) {
     navigate(ROUTES.VERIFICATION, {
       state: {
-        ...(location.state?.returnToVerificationState || location.state || {}),
+        ...stripCanonicalCaseFlowState(
+          location.state?.returnToVerificationState || location.state || {}
+        ),
         caseId: inferredCaseId,
       },
     });
@@ -1831,7 +1972,14 @@ if (!canRenderReceipt) {
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => navigate(ROUTES.PILOT_RESULT, { state: location.state })}
+              onClick={() =>
+                navigate(
+                  `${ROUTES.PILOT_RESULT}?caseId=${encodeURIComponent(
+                    inferredCaseId || data.caseData?.caseId || data.caseData?.id || ""
+                  )}`,
+                  { state: location.state }
+                )
+              }
               className="inline-flex items-center justify-center rounded-full bg-black px-5 py-2 text-sm font-semibold text-white border border-black shadow-sm hover:bg-black hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
             >
               Back to Pilot Result
@@ -1870,6 +2018,8 @@ if (!canRenderReceipt) {
                   : "Recorded case structure from pilot execution"}
               </p>
 
+              <CanonicalCaseFlowBreadcrumb activeStep="Receipt" />
+
               <h1
                 className="font-bold tracking-tight text-slate-900 mt-6 mb-3"
                 style={{ fontSize: "28px", lineHeight: "1.2" }}
@@ -1891,6 +2041,29 @@ if (!canRenderReceipt) {
                 zIndex: 9999,
               }}
             >
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentCaseId =
+                      inferredCaseId ||
+                      location.state?.caseId ||
+                      activeCurrentCase?.caseId ||
+                      activeCurrentCase?.id || 
+                      "";
+
+                    if (currentCaseId) {
+                      console.log("[View all cases]", { caseId: currentCaseId });
+                    }
+
+                    navigate(ROUTES.CASES || "/cases");
+                  }}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                >
+                  View all cases
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setQuickCaptureOpen(true)}
@@ -1904,7 +2077,7 @@ if (!canRenderReceipt) {
                   color: "#0F172A",
                   padding: "8px 14px",
                   fontSize: "13px",
-                  fontWeight: 600,
+                  fontWeight: 500,
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "8px",
@@ -1914,7 +2087,7 @@ if (!canRenderReceipt) {
               >
                 <span
                   style={{
-                    fontSize: "16px",
+                    fontSize: "12px",
                     fontWeight: 700,
                     lineHeight: 1,
                     marginRight: "2px",
@@ -1946,7 +2119,7 @@ if (!canRenderReceipt) {
               marginTop: "12px",
             }}
           >
-            {/* ===== Row 1閿涙D / Time / Verified ===== */}
+            {/* Row 1: Receipt ID / Time / Verified */}
            <div
               style={{
                 display: "grid",
@@ -1954,41 +2127,71 @@ if (!canRenderReceipt) {
                 alignItems: "center",
               }}
             >
-              <div style={{ padding: "6px 16px", borderRight: "1px solid #CBD5E1" }}>
+              <div style={{ padding: "6px 16px", borderRight: "1px solid #CBD5E1", minWidth: 0 }}>
                 <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
                   Receipt ID
                 </p>
-                <p style={{ fontWeight: 600, margin: 0 }}>{data.receiptId}</p>
+                <p
+                  style={{
+                    fontWeight: 500,
+                    margin: 0,
+                    minWidth: 0,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {sanitizeReceiptId(data.receiptId)
+                    ? sanitizeReceiptId(data.receiptId)
+                    : "No live receipt attached."}
+                </p>
               </div>
 
-              <div style={{ padding: "6px 16px", borderRight: "1px solid #CBD5E1" }}>
+              <div style={{ padding: "6px 16px", borderRight: "1px solid #CBD5E1", minWidth: 0 }}>
                 <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
                   Generated At
                 </p>
-                <p style={{ fontWeight: 600, margin: 0 }}>{data.generatedAt}</p>
+                <p
+                  style={{
+                    fontWeight: 500,
+                    margin: 0,
+                    minWidth: 0,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {data.generatedAt}
+                </p>
               </div>
           
-              <div style={{ padding: "6px 16px" }}>
+              <div style={{ padding: "6px 16px", minWidth: 0 }}>
                 <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
                   Verified At
                 </p>
-                <p style={{ fontWeight: 600, margin: 0 }}>
-                  {data.verifiedAt || "Not verified yet"}
+                <p
+                  style={{
+                    fontWeight: 500,
+                    margin: 0,
+                    minWidth: 0,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {sanitizeText(data.verifiedAt, "Not verified yet")}
                 </p>
               </div>
             </div>
           
             <div style={{ margin: "12px 0", height: "1px", background: "#CBD5E1" }} />
           
-            {/* ===== Row 2閿涙ash / Lock ===== */}
+            {/* Row 2: Hash / Lock */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 alignItems: "start",
               }}
             >
-              <div style={{ padding: "6px 16px" }}>
+              <div style={{ padding: "6px 16px", minWidth: 0 }}>
                 <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
                   {isPaid ? "Receipt Hash" : "Preview record hash"}
                 </p>
@@ -1999,15 +2202,18 @@ if (!canRenderReceipt) {
                     alignItems: "center",
                     gap: "6px",
                     marginBottom: "6px",
+                    minWidth: 0,
                   }}
                 >
                   <p
                     style={{
-                      fontWeight: 600,
+                      fontWeight: 500,
                       margin: 0,
-                      flex: "0 0 auto",
+                      flex: "1 1 auto",
+                      minWidth: 0,
                       lineHeight: 1.45,
-                      whiteSpace: "nowrap",
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
                     }}
                   >
                     {(() => {
@@ -2017,7 +2223,7 @@ if (!canRenderReceipt) {
                           : "";
 
                       return safeHash
-                        ? `H-${String(safeHash || "").slice(0, 8)}…${String(safeHash || "").slice(-6)}`
+                        ? `H-${String(safeHash || "").slice(0, 8)}...${String(safeHash || "").slice(-6)}`
                         : "Generating...";
                     })()}
                   </p>
@@ -2076,6 +2282,7 @@ if (!canRenderReceipt) {
                 style={{
                   padding: "6px 16px",
                   borderLeft: "1px solid #CBD5E1",
+                  minWidth: 0,
                 }}
               >
                 <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 10px 0" }}>
@@ -2096,14 +2303,14 @@ if (!canRenderReceipt) {
                       ? "#059669"
                       : "#D97706",
                     fontWeight: 700,
-                    fontSize: "16px",
+                    fontSize: "12px",
                   }}
                 >
                   <span
                     style={{
-                      width: "22px",
-                      height: "22px",
-                      display: "inline-flex",
+                      width: "18px",
+                      height: "18px",
+                      display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: "999px",
@@ -2115,7 +2322,6 @@ if (!canRenderReceipt) {
                         ? "#059669"
                         : "#D97706",
                       color: "#ffffff",
-                      fontSize: "12px",
                       lineHeight: 1,
                     }}
                   >
@@ -2124,7 +2330,21 @@ if (!canRenderReceipt) {
                       : !isEvidenceLockedConsistent
                       ? "!"
                       : guardedReceiptEligible
-                      ? "Ready"
+                      ? (
+                        <svg
+                          aria-hidden="true"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="m6 12 4 4 8-8" />
+                        </svg>
+                      )
                       : "!"}
                   </span>
 
@@ -2167,7 +2387,7 @@ if (!canRenderReceipt) {
           
             <div style={{ margin: "12px 0", height: "1px", background: "#CBD5E1" }} />
           
-            {/* ===== Row 3閿涙瓔tatus / Schema ===== */}
+            {/* Row 3: Status / Schema */}
             <div
               style={{
                 display: "grid",
@@ -2225,9 +2445,9 @@ if (!canRenderReceipt) {
                 >
                   <span
                     style={{
-                      width: "44px",
-                      height: "44px",
-                      display: "inline-flex",
+                      width: "40px",
+                      height: "40px",
+                      display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: "999px",
@@ -2239,15 +2459,50 @@ if (!canRenderReceipt) {
                           ? "#F59E0B"
                           : "#DC2626",
                       color: "#ffffff",
-                      fontSize: "22px",
                       lineHeight: 1,
                       flexShrink: 0,
                     }}
                   >
                     {data.decisionStatus === "Verified"
-                      ? "Ready"
+                      ? (
+                        <svg
+                          aria-hidden="true"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 3v18" />
+                          <path d="M5 7h14" />
+                          <path d="M7 7 4.5 12.5A3 3 0 0 0 7.1 17h.8a3 3 0 0 0 2.6-4.5Z" />
+                          <path d="M17 7 14.5 12.5A3 3 0 0 0 17.1 17h.8a3 3 0 0 0 2.6-4.5Z" />
+                          <path d="M12 7v10" />
+                        </svg>
+                      )
                       : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
-                      ? "!"
+                      ? (
+                        <svg
+                          aria-hidden="true"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 3v18" />
+                          <path d="M5 7h14" />
+                          <path d="M7 7 4.5 12.5A3 3 0 0 0 7.1 17h.8a3 3 0 0 0 2.6-4.5Z" />
+                          <path d="M17 7 14.5 12.5A3 3 0 0 0 17.1 17h.8a3 3 0 0 0 2.6-4.5Z" />
+                          <path d="M12 7v10" />
+                        </svg>
+                      )
                       : "-"}
                   </span>
               
@@ -2267,7 +2522,7 @@ if (!canRenderReceipt) {
                             : "#991B1B",
                       }}
                     >
-                      {data.decisionStatus.toUpperCase()}
+                      {sanitizeText(data.decisionStatus).toUpperCase()}
                     </p>
               
                     <p
@@ -2293,10 +2548,10 @@ if (!canRenderReceipt) {
                 }}
               >
                 <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 6px 0" }}>
-                  Case Schema
+                  Case Structure
                 </p>
-                <p style={{ fontWeight: 600, margin: "0 0 6px 0" }}>
-                  {data.schemaVersion || data.caseData?.schemaVersion || "Schema v0.1"}
+                <p style={{ fontWeight: 500, margin: "0 0 6px 0" }}>
+                  {sanitizeText(receiptExpressionModel.structureLabel)}
                 </p>
 
                 {typeof data.structureScoreFromCase === "number" && (
@@ -2308,7 +2563,7 @@ if (!canRenderReceipt) {
                       lineHeight: 1.5,
                     }}
                   >
-                    Structure score: {data.structureScoreFromCase.toFixed(2)}
+                    {sanitizeText(getDecisionStabilityLabel(data.structureScoreFromCase))}
                   </p>
                 )}
 
@@ -2321,9 +2576,22 @@ if (!canRenderReceipt) {
                       lineHeight: 1.5,
                     }}
                   >
-                    Structure status: {data.structureStatusFromCase}
+                    Structure status: {sanitizeText(data.structureStatusFromCase)}
                   </p>
                 )}
+                <p
+                  style={{
+                    fontSize: "11px",
+                    color: "#64748B",
+                    margin: "4px 0 0 0",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  What to do next: {sanitizeText(getCustomerNextAction({
+                    score: data.structureScoreFromCase,
+                    weakestDimension: data.caseData?.weakestDimension || data.weakestDimension,
+                  }))}
+                </p>
               </div>
             </div>
           </div>
@@ -2331,52 +2599,46 @@ if (!canRenderReceipt) {
           <div className="mt-6">
             <div className="space-y-3">
               <p className="text-xs text-slate-700 font-medium">
-                {caseStatus === "draft"
-                  ? "No real event recorded. Add at least one event to activate baseline issuance."
-                  : caseStatus === "verified"
-                  ? "This baseline has been verified and can be used externally."
-                  : "You are about to confirm a locked baseline."}
+                {sanitizeText(receiptExpressionModel.statusText)}
               </p>
 
               <button
                 type="button"
                 onClick={() => {
+                  // Lead capture should not block payment during receipt checkout.
+                  validateAndSaveLead();
+
+                  if (buttonState === "has_event_not_ready") {
+                    setQuickCaptureOpen(true);
+                    return;
+                  }
+
                   if (buttonState === "no_event") {
                     setQuickCaptureOpen(true);
                     return;
                   }
 
-                  if (buttonState === "has_event_not_ready") {
-                    navigate(ROUTES.PILOT_RESULT, {
-                      state: {
-                        ...location.state,
+                  if (buttonState === "ready") {
+                    if (!receiptActivated) {
+                      handleUnlockFormalReceipt();
+                      return;
+                    }
+
+                  navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
+                    state: {
+                      ...stripCanonicalCaseFlowState(location.state || {}),
+                      receiptPageData: data,
+                      sharedReceiptVerificationContract: sharedContract,
+                        caseData: data.caseData || null,
+                        verificationPageData: location.state?.verificationPageData || null,
+                        routeDecision,
+                        receiptSource,
+                        evidenceLock: finalEvidenceLock,
                         caseId: inferredCaseId,
                       },
                     });
                     return;
                   }
-
-                  if (!validateAndSaveLead()) return;
-
-                  if (hasValidLead === true && buttonState === "ready") {
-                    try {
-                      const caseId = inferredCaseId || getCurrentCaseId();
-                      updateCaseStatus(caseId, "lead_ready_for_payment", {
-                        leadReady: true,
-                        leadEmail: lead.email,
-                        leadReadyAt: new Date().toISOString(),
-                      });
-                    } catch (error) {
-                      console.warn("Failed to mark lead ready for payment", error);
-                    }
-                  }
-
-                  if (buttonState === "ready" && !isPaid) {
-                    handleUnlockFormalReceipt();
-                    return;
-                  }
-
-                  window.location.href = "https://buy.stripe.com/xxxxxxxxxxxx";
                 }}
                 style={{
                   backgroundColor:
@@ -2401,8 +2663,8 @@ if (!canRenderReceipt) {
                 className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold transition"
               >
                 {buttonState === "ready"
-                  ? isPaid
-                    ? "Export PDF"
+                  ? receiptActivated
+                    ? "Open Verification"
                     : "Unlock Formal Receipt"
                   : buttonState === "no_event"
                   ? "Capture first event"
@@ -2445,8 +2707,8 @@ if (!canRenderReceipt) {
 
                 <div className="px-3 py-2 space-y-2 text-xs text-slate-800">
                   <div className="flex justify-between font-medium text-slate-900">
-                    <span>Total score</span>
-                    <span>{Number(normalizedScore || 0).toFixed(2)} / 4</span>
+                    <span>Current status</span>
+                    <span>{sanitizeText(getDecisionStabilityLabel(normalizedScore))}</span>
                   </div>
 
                   <div className="flex justify-between text-slate-700">
@@ -2534,7 +2796,7 @@ if (!canRenderReceipt) {
                 padding: "14px 16px",
               }}
             >
-              {/* ===== Row 1閿涙瓔cenario / Stage / Confidence ===== */}
+              {/* Row 1: Scenario / Stage / Confidence */}
               <div
                 style={{
                   display: "grid",
@@ -2560,11 +2822,11 @@ if (!canRenderReceipt) {
                   <p
                     style={{
                       fontSize: "15px",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       margin: 0,
                     }}
                   >
-                    {data.scenarioLabel || "No Dominant Scenario"}
+                    {sanitizeText(data.scenarioLabel, "No Dominant Scenario")}
                   </p>
                 </div>
 
@@ -2586,11 +2848,11 @@ if (!canRenderReceipt) {
                   <p
                     style={{
                       fontSize: "15px",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       margin: 0,
                     }}
                   >
-                    {data.stageLabel || "S0"}
+                    {sanitizeText(data.stageLabel, "S0")}
                   </p>
                 </div>
           
@@ -2611,11 +2873,11 @@ if (!canRenderReceipt) {
                   <p
                     style={{
                       fontSize: "15px",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       margin: 0,
                     }}
                   >
-                    {data.confidenceLabel}
+                    {sanitizeText(data.confidenceLabel, "Not available")}
                   </p>
                 </div>
               </div>
@@ -2628,7 +2890,7 @@ if (!canRenderReceipt) {
                 }}
               />
 
-              {/* ===== Row 2閿涙瓓UN summary ===== */}
+              {/* Row 2: RUN summary */}
               <div
                 style={{
                   display: "flex",
@@ -2644,7 +2906,7 @@ if (!canRenderReceipt) {
                     margin: 0,
                   }}
                 >
-                  Aggregated RUNs
+                  Aggregated structure
                 </p>
                 <div
                   style={{
@@ -2655,7 +2917,7 @@ if (!canRenderReceipt) {
                   <p
                     style={{
                       fontSize: "13px",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       margin: 0,
                       color: "#0F172A",
                     }}
@@ -2686,7 +2948,7 @@ if (!canRenderReceipt) {
                 }}
               />
 
-              {/* ===== Row 3閿涙瓍ilot summary ===== */}
+              {/* Row 3: Pilot summary */}
               <div style={{ padding: "0 16px" }}>
                 <p
                   style={{
@@ -2700,7 +2962,7 @@ if (!canRenderReceipt) {
 
                 <p
                   style={{
-                    fontWeight: 600,
+                    fontWeight: 500,
                     lineHeight: 1.4,
                     margin: 0,
                   }}
@@ -2717,11 +2979,11 @@ if (!canRenderReceipt) {
                       persistedQuickCapture?.type ||
                       "";
            
-                    if (!summary || summary === "No structured summary available.") {
-                      return "Event captured, but no stable case summary yet.";
+                    if (!summary || summary === "No structured summary is available yet.") {
+                      return "No structured summary is available yet.";
                     }
            
-                    return summary;
+                    return sanitizeText(summary, "No structured summary is available yet.");
                   })()}
                 </p>
                 {(() => {
@@ -2734,8 +2996,8 @@ if (!canRenderReceipt) {
 
                   const helperText = !hasEventBackedBaseline
                     ? "Capture a real event to attach a pilot-tested summary."
-                    : !summary || summary === "No structured summary available."
-                    ? "Add one more specific event note to strengthen this baseline."
+                    : !summary || summary === "No structured summary is available yet."
+                    ? "No structured summary is available yet."
                     : "";
 
                   return helperText ? (
@@ -2747,7 +3009,7 @@ if (!canRenderReceipt) {
                         color: "#64748B",
                       }}
                     >
-                      {helperText}
+                      {sanitizeText(helperText)}
                     </p>
                   ) : null;
                 })()}
@@ -2774,12 +3036,12 @@ if (!canRenderReceipt) {
             <ul className="space-y-2 text-sm text-slate-700">
               {decisionSummaryBullets.map((bullet) => (
                 <li key={bullet.label} className="flex gap-2">
-                  <span className="shrink-0 text-slate-400">•</span>
+                  <span className="shrink-0 text-slate-400">-</span>
                   <span>
                     <span className="font-medium text-slate-900">
-                      {bullet.label}:
+                      {sanitizeText(bullet.label)}:
                     </span>{" "}
-                    {bullet.value}
+                    {sanitizeText(bullet.value)}
                   </span>
                 </li>
               ))}
@@ -2797,7 +3059,7 @@ if (!canRenderReceipt) {
               <p
                 style={{
                   color: "#854D0E",
-                  fontSize: "14px",
+                  fontSize: "12px",
                   fontWeight: 700,
                   margin: 0,
                 }}
@@ -2835,9 +3097,9 @@ if (!canRenderReceipt) {
 <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-start justify-between gap-4 mb-3">
               <div>
-                <h2 className="text-lg font-semibold">Customer Record</h2>
+                <h2 className="font-bold">Customer Record</h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  This record is included in the issued baseline.
+                  This is the single Customer Record source for this case. Pilot Result and Verification only read from this baseline.
                 </p>
               </div>
             </div>
@@ -2850,7 +3112,7 @@ if (!canRenderReceipt) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-900">
-                      {isCustomerRecordOpen ? "▼" : "▶"}
+                      {isCustomerRecordOpen ? "v" : ">"}
                     </span>
                     <span>Customer Record Snapshot</span>
                   </div>
@@ -2865,13 +3127,13 @@ if (!canRenderReceipt) {
                         <h2>Customer Record Snapshot</h2>
 
                         <h3>Case origin</h3>
-                        <p>${customerRecordCaseText}</p>
+                        <p>${sanitizeText(customerRecordCaseText)}</p>
 
                         <h3>Supporting events</h3>
                         <ul>
                           ${safeCustomerRecordEvents
                             .slice(0, 3)
-                            .map((event) => `<li>${formatEventText(event) || "Event recorded, but no readable text was captured."}</li>`)
+                            .map((event) => `<li>${sanitizeText(formatEventText(event), "Event recorded, but no readable text was captured.")}</li>`)
                             .join("")}
                         </ul>
 
@@ -2910,7 +3172,7 @@ if (!canRenderReceipt) {
                           Case origin
                         </p>
                         <p className="text-slate-900">
-                          {customerRecordCaseText}
+                          {sanitizeText(customerRecordCaseText)}
                         </p>
                       </div>
 
@@ -2923,7 +3185,7 @@ if (!canRenderReceipt) {
                           <ul className="space-y-1">
                             {safeCustomerRecordEvents.slice(0, 10).map((event, index) => (
                               <li key={event?.id || index}>
-                                {formatEventText(event) || "Event recorded, but no readable text was captured."}
+                                {sanitizeText(formatEventText(event), "Event recorded, but no readable text was captured.")}
                               </li>
                             ))}
                           </ul>
@@ -2961,6 +3223,15 @@ if (!canRenderReceipt) {
               padding: "12px 16px",
             }}
           >
+            {(() => {
+              const customerSnapshot = {
+                weakestDimension: data.caseData?.weakestDimension,
+                patternId: data.caseData?.patternId,
+                runFallback: data.caseData?.fallbackRunCode,
+                routeDecision: data.caseData?.routeDecision,
+              };
+
+              return (
             <div
               style={{
                 display: "grid",
@@ -2981,17 +3252,17 @@ if (!canRenderReceipt) {
                     margin: "0 0 10px 0",
                   }}
                 >
-                  Weakest dimension
+                  Where it is weakest
                 </p>
                 <p
                   style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
+                    fontSize: "12px",
+                    fontWeight: 500,
                     lineHeight: 1,
                     margin: 0,
                   }}
                 >
-                  {data.caseData.weakestDimension || "Not specified"}
+                  {sanitizeText(getWeakestDimensionDisplay(customerSnapshot.weakestDimension))}
                 </p>
               </div>
       
@@ -3008,17 +3279,17 @@ if (!canRenderReceipt) {
                     margin: "0 0 10px 0",
                   }}
                 >
-                  Pattern
+                  Current structure status
                 </p>
                 <p
                   style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
+                    fontSize: "12px",
+                    fontWeight: 500,
                     lineHeight: 1,
                     margin: 0,
                   }}
                 >
-                  {data.caseData.patternId || "PAT-00"}
+                  {getCustomerStructureStatus(customerSnapshot)}
                 </p>
               </div>
       
@@ -3035,17 +3306,17 @@ if (!canRenderReceipt) {
                     margin: "0 0 10px 0",
                   }}
                 >
-                  RUN fallback
+                  Decision readiness
                 </p>
                 <p
                   style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
+                    fontSize: "12px",
+                    fontWeight: 500,
                     lineHeight: 1,
                     margin: 0,
                   }}
                 >
-                  {data.caseData.fallbackRunCode || "RUN not resolved"}
+                  {getCustomerDecisionReadiness(customerSnapshot)}
                 </p>
               </div>
       
@@ -3061,133 +3332,25 @@ if (!canRenderReceipt) {
                     margin: "0 0 10px 0",
                   }}
                 >
-                  Route decision
+                  Next step
                 </p>
                 <p
                   style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    lineHeight: 1,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    lineHeight: 1.25,
                     margin: 0,
                   }}
                 >
-                  {data.caseData.routeDecision?.mode || "summary_only"}
+                  {getCustomerNextStep(customerSnapshot)}
                 </p>
-      
-                {data.caseData.routeDecision?.reason ? (
-                  <p
-                    style={{
-                      margin: "8px 0 0 0",
-                      fontSize: "11px",
-                      lineHeight: 1.25,
-                      color: "#64748B",
-                    }}
-                  >
-                    {data.caseData.routeDecision.reason}
-                  </p>
-                ) : null}
               </div>
             </div>
+              );
+            })()}
           </div>
         </section>
       ) : null}
-
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold mb-3">Supporting Signals</h2>
-
-          {hasEventBackedBaseline ? (
-          Array.isArray(data.topSignals) && data.topSignals.length > 0 ? (
-            <div
-              style={{
-                backgroundColor: "#F8FAFC",
-                border: "1px solid #CBD5E1",
-                borderRadius: "20px",
-                padding: "12px 16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${data.topSignals.length}, minmax(0, 1fr))`,
-                  alignItems: "center",
-                }}
-              >
-                {data.topSignals.map((signal, index) => (
-                  <div
-                    key={`${signal}-${index}`}
-                    style={{
-                      padding: "2px 14px",
-                      borderRight:
-                        index < data.topSignals.length - 1
-                          ? "1px solid #CBD5E1"
-                          : "none",
-                      flex: "1 1 auto",
-                      minWidth: "0",
-                    }}
-                  >
-                    {/* 娑撳绱發abel */}
-                    <p
-                      style={{
-                        fontSize: "13px",
-                        color: "#64748B",
-                        margin: "0 0 8px 0",
-                      }}
-                    >
-                      Signal {index + 1}
-                    </p>
-        
-                    {/* 娑撳绱皏alue閿涘牅绗夐崝鐘电煐 棣冩啚閿?*/}
-                    <p
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 600, 
-                        margin: 0,
-                        color: "#0F172A",
-                        whiteSpace: "normal",
-                        wordBreak: "keep-all",
-                        overflowWrap: "break-word",
-                      }}
-                    >
-                      {signal}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-slate-600">No signal data available.</p>
-          )
-          ) : (
-            <div
-              style={{
-                backgroundColor: "#FEFCE8",
-                border: "1px solid #FACC15",
-                borderRadius: "20px",
-                padding: "14px 16px",
-              }}
-            >
-              <p
-                style={{
-                  color: "#854D0E",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  margin: 0,
-                }}
-              >
-                Signals not activated
-              </p>
-              <p
-                style={{
-                  color: "#A16207",
-                  fontSize: "13px",
-                  margin: "6px 0 0 0",
-                }}
-              >
-                Supporting signals are generated after at least one captured event.
-              </p>
-            </div>
-          )}
-        </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-semibold mb-2">
@@ -3209,7 +3372,7 @@ if (!canRenderReceipt) {
             <h2 className="text-lg font-semibold mb-2">Record Note</h2>
             <p className="text-slate-700 leading-7">
               {hasEventBackedBaseline
-                ? data.receiptNote
+                ? sanitizeText(data.receiptNote)
                 : "No issued baseline yet. This record is waiting for event-backed evidence before it can be used for review, verification, or external reliance."}
             </p>
           </section>
@@ -3217,19 +3380,88 @@ if (!canRenderReceipt) {
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => {
-                if (!receiptEligible) {
-                  navigate(ROUTES.PILOT_RESULT, {
-                    state: {
-                      ...location.state,
-                      caseId: inferredCaseId,
-                    },
+                onClick={() => {
+                  console.log("[RECEIPT_CTA_CLICK]", {
+                    buttonState,
+                    isPaid,
+                    receiptEligible,
+                    hasEventBackedRecord,
+                    hasPassingScore,
+                    hasEventBackedBaseline,
+                    guardedReceiptEligible,
+                    canShowFormalPaymentEntry,
+                    dataDecisionStatus: data?.decisionStatus,
                   });
+
+                  if (!receiptEligible) {
+                    navigate(
+                      `${ROUTES.PILOT_RESULT}?caseId=${encodeURIComponent(
+                        inferredCaseId || data.caseData?.caseId || data.caseData?.id || ""
+                      )}`,
+                      {
+                      state: {
+                        ...stripCanonicalCaseFlowState(location.state || {}),
+                        caseId: inferredCaseId,
+                      },
+                    }
+                  );
                   return;
                 }
 
-                if (!receiptActivated) {
-                  handleUnlockFormalReceipt();
+                if (receiptEligible) {
+                  const session =
+                    location.state?.trialSession || getTrialSession();
+
+                  logTrialEvent(
+                    {
+                      userId:
+                        session?.userId ||
+                        location.state?.stableUserId ||
+                        localStorage.getItem("nimclea_user_id") ||
+                        "anonymous_user",
+                      trialId:
+                        session?.trialId ||
+                        session?.trialSessionId ||
+                        "receipt_entry",
+                      sessionId:
+                        location.state?.session_id ||
+                        location.state?.sessionId ||
+                        data.caseData?.sessionId ||
+                        data.receiptId ||
+                        "receipt_entry",
+                      caseId:
+                        data.caseData?.caseId ||
+                        data.caseData?.id ||
+                        inferredCaseId,
+                      eventType: "receipt_to_verification_clicked",
+                      page: "ReceiptPage",
+                      meta: {
+                        receiptMode,
+                        receiptSource,
+                        decisionStatus: data.decisionStatus,
+                        canEnterVerification,
+                        evidenceLockStatus: isEvidenceLockedConsistent
+                          ? "consistent"
+                          : "broken",
+                      },
+                    },
+                    { once: true }
+                  ).catch(() => {});
+
+                  navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
+                    state: {
+                      ...stripCanonicalCaseFlowState(location.state || {}),
+                      receiptPageData: data,
+                      sharedReceiptVerificationContract: sharedContract,
+                      caseData: data.caseData || null,
+                      verificationPageData:
+                        location.state?.verificationPageData || null,
+                      routeDecision,
+                      receiptSource,
+                      evidenceLock: finalEvidenceLock,
+                      caseId: inferredCaseId,
+                    },
+                  });
                   return;
                 }
 
@@ -3274,7 +3506,7 @@ if (!canRenderReceipt) {
 
                 navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
                   state: {
-                    ...(location.state || {}),
+                    ...stripCanonicalCaseFlowState(location.state || {}),
 
                     receiptPageData: data,
                     sharedReceiptVerificationContract: sharedContract,
@@ -3291,14 +3523,19 @@ if (!canRenderReceipt) {
               }}
               className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black border border-black shadow-sm hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
             >
-              {receiptCtaLabel}
+              {sanitizeText(receiptCtaLabel)}
             </button>
 
-          {/* 棣冩啚 閺傛澘顤冮敍娆盿ck to Pilot 閹稿鎸?*/}
+          {/* Back to Pilot */}
           <button
             type="button"
             onClick={() =>
-              navigate(ROUTES.PILOT_RESULT, { state: location.state })
+              navigate(
+                `${ROUTES.PILOT_RESULT}?caseId=${encodeURIComponent(
+                  inferredCaseId || data.caseData?.caseId || data.caseData?.id || ""
+                )}`,
+                { state: location.state }
+              )
             }
             className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
           >
@@ -3431,11 +3668,11 @@ if (!canRenderReceipt) {
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <span className="rounded-full bg-slate-950 px-3 py-1 text-[11px] font-semibold text-white">
-                        {quickCaptureSuggestion.label}
+                        {sanitizeText(quickCaptureSuggestion.label)}
                       </span>
 
                       <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
-                        Signal: {quickCaptureSuggestion.signalImpact}
+                        What this means in practice: {sanitizeText(quickCaptureSuggestion.signalImpact)}
                       </span>
                     </div>
 
@@ -3447,7 +3684,7 @@ if (!canRenderReceipt) {
                         color: "#64748B",
                       }}
                     >
-                      {quickCaptureSuggestion.reason}
+                      {sanitizeText(quickCaptureSuggestion.reason)}
                     </p>
                   </div>
                 </label>
@@ -3459,8 +3696,8 @@ if (!canRenderReceipt) {
                   onClick={handleQuickCaptureSubmit}
                   className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold text-white transition"
                   style={{
-                    backgroundColor: "#16A34A", // 濮?emerald-600 缁嬪秴浜曢弴瀵盖旀稉鈧悙?
-                    boxShadow: "0 6px 18px rgba(22,163,74,0.35)", // 娑撳妲捐ぐ?
+                    backgroundColor: "#16A34A",
+                    boxShadow: "0 6px 18px rgba(22,163,74,0.35)",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.boxShadow = "0 8px 22px rgba(22,163,74,0.45)";
@@ -3489,3 +3726,6 @@ if (!canRenderReceipt) {
     </div>
   );
 }
+
+
+

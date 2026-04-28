@@ -21,6 +21,7 @@ import { getTrialSession, setTrialSession } from "./lib/trialSession";
 import { logEvent } from "./utils/eventLogger";
 import { routeInput } from "./lib/inputRouter";
 import { matchExistingCase } from "./utils/matchExistingCase";
+import { getWeakestDimensionDisplay } from "./lib/customerDecisionDisplay";
 
 import {
   getCaseSummary,
@@ -35,6 +36,12 @@ const SCENARIO_LABEL_MAP = {
   boundary_blur: "Boundary Blur",
   fully_ready: "Fully Ready",
 };
+
+const API_BASE = "http://localhost:3000";
+const BASIC_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+
+const isValidEmail = (value) => BASIC_EMAIL_RE.test(normalizeEmail(value));
 
 const styles = {
   caseMatchHint: {
@@ -332,16 +339,6 @@ function SetupHero({
   return (
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
-        <div className="flex flex-wrap items-center gap-2">
-          <Pill variant="success">Pilot Setup</Pill>
-          <Pill variant="scenario">{scenarioLabel}</Pill>
-          {preview?.pressureProfile?.label ? (
-            <Pill variant="pressure">
-              {preview.pressureProfile.label}
-            </Pill>
-          ) : null}
-        </div>
-
         <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950 md:text-4xl">
           Lock in your execution path
         </h1>
@@ -355,10 +352,10 @@ function SetupHero({
         <div className="mt-7 max-w-xl">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-              Weakest dimension
+              Where it is weakest
             </div>
             <p className="mt-2 text-sm text-amber-900">
-              {weakestDimension || "Not specified"}
+              {getWeakestDimensionDisplay(weakestDimension)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               This dimension will shape the cost of your pilot path.
@@ -397,6 +394,63 @@ function normalizeUserContext(raw = "") {
     .replace(/\s+\n/g, "\n")
     .replace(/\n\s+/g, "\n")
     .trim();
+}
+
+function markLaunchFallbackEmailVerified(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail)) return;
+
+  localStorage.setItem("savedEmail", normalizedEmail);
+  localStorage.setItem("nimclea_email", normalizedEmail);
+  // TEMP: launch fallback verification until real magic link is implemented
+  localStorage.setItem("nimclea_email_verified", "true");
+}
+
+function saveLaunchFallbackEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail)) return "";
+
+  localStorage.setItem("savedEmail", normalizedEmail);
+  localStorage.setItem("nimclea_email", normalizedEmail);
+
+  return normalizedEmail;
+}
+
+function getCaseEmail(caseRecord = {}) {
+  if (!caseRecord || typeof caseRecord !== "object") return "";
+
+  return normalizeEmail(
+    caseRecord.email ||
+      caseRecord.lead?.email ||
+      caseRecord.ownerEmail ||
+      caseRecord.metadata?.email ||
+      caseRecord.caseData?.email ||
+      caseRecord.caseSnapshot?.email ||
+      caseRecord.caseSnapshot?.caseRecord?.email ||
+      ""
+  );
+}
+
+function hasLocalCaseForEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return false;
+
+  try {
+    return getAllCases()
+      .flatMap((item) => (Array.isArray(item) ? item : [item]))
+      .some((caseRecord) => {
+        const caseEmail = getCaseEmail(caseRecord);
+        const hasEvents =
+          Array.isArray(caseRecord?.events) &&
+          caseRecord.events.length > 0;
+
+        return caseEmail === normalizedEmail && hasEvents;
+      });
+  } catch {
+    return false;
+  }
 }
 
 function buildContextForSubmission(raw = "") {
@@ -558,10 +612,10 @@ function CarryOverSection({
       
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 h-full flex flex-col justify-center">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-            Weakest dimension
+            Where it is weakest
           </div>
           <p className="mt-2 text-sm text-amber-900">
-            {weakestDimension || "Not specified"}
+            {getWeakestDimensionDisplay(weakestDimension)}
           </p>
           <p className="mt-2 text-sm leading-6 text-amber-900">
             This dimension will shape the cost of your pilot path.
@@ -850,6 +904,7 @@ export default function PilotSetupPage() {
     email: "",
     company: "",
   });
+  const [emailError, setEmailError] = useState("");
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [caseMatchHint, setCaseMatchHint] = useState(null);
@@ -882,7 +937,7 @@ export default function PilotSetupPage() {
               label:
                 incomingCaseSchema.patternId ||
                 incomingCaseSchema.weakestDimension ||
-                "Structural Signal",
+                "What is happening",
               description: getCaseSummary({
                 caseData: incomingCaseSchema,
                 summaryText: "",
@@ -1012,21 +1067,74 @@ export default function PilotSetupPage() {
   const workflow =
     pilotSetup?.workflow || "Selected workflow";
 
+  const logLeadEmail = async (email = lead.email) => {
+    const payload = {
+      email,
+      caseId: resolvedCaseId || location.state?.caseId || null,
+      source: "pilot_setup",
+    };
+
+    console.log("[email-submit] sending", payload);
+
+    try {
+      const res = await fetch(`${API_BASE}/email/log`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("[email-submit] response", res.status);
+    } catch (error) {
+      console.error("PilotSetupPage email log error:", error);
+    }
+  };
+
+  function requireValidEmailBeforeEntry(emailValue) {
+    const normalizedEmail = normalizeEmail(emailValue);
+
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailError("Enter a valid email address to continue.");
+      return null;
+    }
+
+    return normalizedEmail;
+  }
+
   const handleLeadSubmit = async (event) => {
     event.preventDefault();
 
-    if (!lead.email.includes("@")) return;
+    const normalizedEmail = requireValidEmailBeforeEntry(lead.email);
+    if (!normalizedEmail) return;
+
+    setEmailError("");
 
     try {
+      await logLeadEmail(normalizedEmail);
       await registerTrialUser({
         name: lead.name,
-        email: lead.email,
+        email: normalizedEmail,
         company: lead.company,
         workflow: location.state?.pilot_setup?.workflow || workflow || "",
         caseId: location.state?.caseId,
         stableUserId: location.state?.stableUserId || stableUserId,
       });
+
+      if (hasLocalCaseForEmail(normalizedEmail)) {
+        markLaunchFallbackEmailVerified(normalizedEmail);
+        setLeadCaptured(true);
+        setShowContactModal(false);
+        await handleConfirm();
+        return;
+      }
+
+      saveLaunchFallbackEmail(normalizedEmail);
+      localStorage.removeItem("nimclea_email_verified");
       setLeadCaptured(true);
+      setShowContactModal(false);
+      await handleConfirm();
+      return;
     } catch (error) {
       console.error("PilotSetupPage lead capture error:", error);
     }
@@ -2324,6 +2432,14 @@ const handleConfirm = async () => {
 };
 
 const handlePrimarySubmit = async () => {
+  if (showContactModal) {
+    const normalizedEmail = requireValidEmailBeforeEntry(lead.email);
+    if (!normalizedEmail) return;
+
+    await handleContactModalSubmit();
+    return;
+  }
+
   const trimmedDescription = buildContextForSubmission(description);
 
   if (!eventType || !trimmedDescription) {
@@ -2340,22 +2456,38 @@ const handlePrimarySubmit = async () => {
 };
 
 const handleContactModalSubmit = async (event) => {
-  event.preventDefault();
+  event?.preventDefault();
 
-  if (!lead.email.includes("@")) return;
+  const normalizedEmail = requireValidEmailBeforeEntry(lead.email);
+  if (!normalizedEmail) return;
+
+  setEmailError("");
 
   try {
+    await logLeadEmail(normalizedEmail);
     await registerTrialUser({
       name: lead.name,
-      email: lead.email,
+      email: normalizedEmail,
       company: lead.company,
       workflow: location.state?.pilot_setup?.workflow || workflow || "",
       caseId: location.state?.caseId,
       stableUserId: location.state?.stableUserId || stableUserId,
     });
+
+    if (hasLocalCaseForEmail(normalizedEmail)) {
+      markLaunchFallbackEmailVerified(normalizedEmail);
+      setLeadCaptured(true);
+      setShowContactModal(false);
+      await handleConfirm();
+      return;
+    }
+
+    saveLaunchFallbackEmail(normalizedEmail);
+    localStorage.removeItem("nimclea_email_verified");
     setLeadCaptured(true);
     setShowContactModal(false);
     await handleConfirm();
+    return;
   } catch (error) {
     console.error("PilotSetupPage lead capture error:", error);
   }
@@ -2480,6 +2612,9 @@ return (
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Add your contact details so this case can be saved and linked to your result.
               </p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                You are entering in trial mode. Full verification will be required later.
+              </p>
 
               <div className="mt-5 space-y-3">
                 <input
@@ -2494,12 +2629,18 @@ return (
                 <input
                   type="email"
                   value={lead.email}
-                  onChange={(event) =>
-                    setLead((prev) => ({ ...prev, email: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    setLead((prev) => ({ ...prev, email: event.target.value }));
+                    setEmailError("");
+                  }}
                   placeholder="Work Email"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-slate-400"
                 />
+                {emailError ? (
+                  <p className="text-xs font-medium text-red-600">
+                    {emailError}
+                  </p>
+                ) : null}
                 <input
                   type="text"
                   value={lead.company}

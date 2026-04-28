@@ -30,6 +30,12 @@ import {
 } from "../lib/trialApi";
 import { resolveAccessMode } from "../lib/accessMode";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
+import { sanitizeText } from "../lib/sanitizeText";
+import {
+  getCustomerNextAction,
+  getPressureLabel,
+  getWeakestDimensionDisplay,
+} from "../lib/customerDecisionDisplay";
 
 function getEntrySource(location) {
   const stateSource =
@@ -282,9 +288,9 @@ function resolveRun({ scenarioCode = "", primarySignalKey = "", intensityLevel =
     return "RUN042";
   }
 
-  // ===== Pre-audit collapse闂佹寧绋戦悧鍛礊濡￥浜归柟鎯у暱椤ゅ懘鏌涢敂鎯у妺婵炲懏鐟╅弫?====
+  // Pre-audit collapse mapping.
   if (scenario === "pre_audit_collapse") {
-    if (level >= 5) return "RUN065"; // 闁?S5
+    if (level >= 5) return "RUN065"; // S5
     if (level >= 4) return "RUN064";
     if (level >= 3) return "RUN063";
     if (level >= 2) return "RUN044";
@@ -411,7 +417,7 @@ function normalizeSignal(signal, index, context = {}) {
   return {
     id: signal?.id || signal?.key || signal?.code || `signal-${index + 1}`,
     key: signal?.key || signal?.code || "",
-    label: signal?.label || "Structural Signal",
+    label: signal?.label || "What is happening",
     description:
       signal?.description ||
       signal?.shortText ||
@@ -420,8 +426,8 @@ function normalizeSignal(signal, index, context = {}) {
     insight:
       signal?.insight ||
       (normalizedScore === 0
-        ? "闂?This appears to be a relative structural strength in your current workflow."
-        : "闂?This is likely contributing to your current scenario classification."),
+        ? "This appears to be a relative structural strength in your current workflow."
+        : "This is likely contributing to your current scenario classification."),
     source: signal?.source || "Diagnostic Engine",
     score: normalizedScore,
   };
@@ -431,7 +437,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
   const isPressureSensitive =
     pressureProfile?.code === "pressure_sensitive";
 
-  // ===== S1闂佹寧绋掗懝楣冾敇閸濄儲濯奸柍銉ュ暱椤ゅ懐鈧娲嶉弲婊呰姳濠靛鍨?=====
+  // S1 mapping.
   if (scenarioCode === "pre_audit_collapse") {
     return [
       "Your workflow shows signs of structural breakdown when evidence needs to be retrieved or explained under pressure.",
@@ -440,7 +446,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
     ];
   }
 
-  // ===== S2闂佹寧绋掗懝鐐垔閸濆嫷鍤曞Δ锕€鐏濋崢鎾煟椤剙濡奸柣?=====
+  // S2 mapping.
   if (scenarioCode === "barely_functional") {
     return [
       "Your workflow is functional, but still relies on manual effort and hidden coordination to hold together.",
@@ -449,7 +455,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
     ];
   }
 
-  // ===== S3 / S4闂佹寧绋掗悺鐞絬ndary_blur闂佹寧绋戦悧鍡涘垂?subtype闂?====
+  // S3 / S4 boundary blur subtype.
   if (scenarioCode === "boundary_blur") {
     if (subtype === "pressure_fragile") {
       return [
@@ -466,7 +472,7 @@ function generateScenarioSummary({ scenarioCode, subtype, pressureProfile }) {
   ];
 }
 
-  // ===== S5闂佹寧绋掗懝楣冩偩椤掑嫬绀傞柕濞垮劚濞呮瑥顭跨捄鐑樻悙闁靛牅绮欏畷?=====
+  // S5 mapping.
   if (scenarioCode === "fully_ready") {
     if (isPressureSensitive) {
       return [
@@ -611,12 +617,12 @@ function generatePressureLine({ scenarioCode, pressureProfile }) {
     return "When someone asks for proof, things can quickly turn into a scramble.";
   }
 
-  // ===== C2 / 闂佸憡娲栭ˇ顖氼啅闁秵鍤勯柣锝呮湰閺?=====
+  // C2 mapping.
   if (scenarioCode === "barely_functional" || scenarioCode === "C2") {
     return "Things work, but explaining them often takes more effort than it should.";
   }
 
-  // ===== C3 / 闁哄鐗嗗﹢閬嶅疾椤愨懡鐔兼晬閸曨厔?=====
+  // C3 mapping.
   if (scenarioCode === "boundary_blur" || scenarioCode === "C3") {
     return isPressureSensitive
       ? "It works day to day, but under pressure, small gaps start to show."
@@ -627,7 +633,7 @@ function generatePressureLine({ scenarioCode, pressureProfile }) {
   if (scenarioCode === "fully_ready" || scenarioCode === "C4") {
     return isPressureSensitive
       ? "Most things are clear, but a few edge cases may still get messy under pressure."
-      : "Things are generally clear, and explanations don闂佺偨鍎查悰?rely on guesswork.";
+      : "Things are generally clear, and explanations do not rely on guesswork.";
   }
 
   // ===== fallback =====
@@ -931,7 +937,7 @@ const fallbackSignals =
           label: "Evidence Fragmentation",
           description:
             "Critical evidence appears difficult to retrieve, reconstruct, or verify quickly under pressure.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 5,
         },
@@ -941,7 +947,7 @@ const fallbackSignals =
           label: "Evidence Search Chaos",
           description:
             "Teams may not share a reliable first place to look when evidence is needed, increasing reconstruction effort.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 5,
         },
@@ -951,7 +957,7 @@ const fallbackSignals =
           label: "Retrieval Friction",
           description:
             "Key evidence may be slow to locate when verification or audit pressure increases.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 4,
         },
@@ -964,7 +970,7 @@ const fallbackSignals =
           label: "Evidence Fragmentation",
           description:
             "Supporting evidence is still usable, but remains harder to retrieve and align than it should be.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -974,7 +980,7 @@ const fallbackSignals =
           label: "Retrieval Friction",
           description:
             "Verification and explanation still require avoidable manual effort in day-to-day work.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -984,7 +990,7 @@ const fallbackSignals =
           label: "Hidden Process Debt",
           description:
             "Manual workarounds may be masking structural debt in how results are assembled and reviewed.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -997,7 +1003,7 @@ const fallbackSignals =
           label: "Boundary Clarity Weakness",
           description:
             "Team boundaries and responsibilities may be contributing to coordination ambiguity.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -1007,7 +1013,7 @@ const fallbackSignals =
           label: "Definition Conflict",
           description:
             "Shared meaning around important outputs may be less stable than it appears.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -1017,7 +1023,7 @@ const fallbackSignals =
           label: "Handoff Integrity Risk",
           description:
             "The way work moves across teams may not be clear enough to prevent drift.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 2,
         },
@@ -1030,7 +1036,7 @@ const fallbackSignals =
           label: "Operational Clarity",
           description:
             "The current structure appears relatively clear, traceable, and easier to verify across normal operating conditions.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: 1,
         },
@@ -1040,7 +1046,7 @@ const fallbackSignals =
           label: "Stable Ownership Paths",
           description:
             "Responsibilities and handoffs appear more stable and explicit than average.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: 1,
         },
@@ -1050,7 +1056,7 @@ const fallbackSignals =
           label: "Low Structural Friction",
           description:
             "The current workflow appears to require less manual reconstruction and fewer corrective loops.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: 1,
         },
@@ -1062,7 +1068,7 @@ const fallbackSignals =
           label: "Structural Friction",
           description:
             "Some part of the current operating structure may be creating avoidable effort, delay, or uncertainty when results need to be explained or verified.",
-          insight: "闂?This is likely contributing to your current scenario classification.",
+          insight: "This is likely contributing to your current scenario classification.",
           source: "Diagnostic Engine",
           score: boundedLevel || 3,
         },
@@ -1141,7 +1147,7 @@ const actionReadySignals = normalizedSignals.map((signal) => {
 
     extraction,
 
-    // 闁?Day 5.1 闂佸搫绉堕…鍫㈢紦妤ｅ啯鏅柛顐ｇ矌缁犱粙鏌ｉ敐鍡欐噰闁瑰€熷亹閹瑰嫰顢涢妶鍥╊槴
+    // Day 5.1 follow-up.
     stage: raw?.stage || source?.stage || null,
     chainId: raw?.chainId || source?.chainId || null,
   };
@@ -1192,8 +1198,21 @@ function CollapsibleCard({
   defaultOpen = false,
   closedLabel = "Why this result",
   openLabel = "Hide explanation",
+  buttonClassName = "shrink-0 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100",
+  controlledOpen,
+  onToggle,
+  textToggle = false,
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = typeof controlledOpen === "boolean" ? controlledOpen : internalOpen;
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+      return;
+    }
+
+    setInternalOpen((prev) => !prev);
+  };
 
   return (
     <Card className="p-5 md:p-7">
@@ -1209,13 +1228,19 @@ function CollapsibleCard({
           ) : null}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setOpen((prev) => !prev)}
-          className="shrink-0 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-        >
-          {open ? openLabel : closedLabel}
-        </button>
+        {textToggle ? (
+          <span className={buttonClassName} onClick={handleToggle}>
+            {open ? openLabel : closedLabel}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={handleToggle}
+            className={buttonClassName}
+          >
+            {open ? openLabel : closedLabel}
+          </button>
+        )}
       </div>
 
       {open ? <div className="mt-6 pb-2">{children}</div> : null}
@@ -1306,7 +1331,7 @@ function ReportHero({
   );
 
   const primarySignalLabel =
-    result?.top_signals?.[0]?.label || "Structural Signal";
+    result?.top_signals?.[0]?.label || "What is happening";
 
   const ctaLabel = pilotCtaLabel || result?.pilot_preview?.cta_label || "Start my 7-Day Pilot ->";
 
@@ -1329,24 +1354,31 @@ function ReportHero({
         </div>
 
         <h1 className="mt-5 mb-6 md:mb-8 !text-[44px] md:!text-[58px] leading-[1.06] font-semibold tracking-tight text-slate-950">
-          {heroTitle}
+          {sanitizeText(heroTitle)}
         </h1>
 
         <p className="mt-2 md:mt-3 mb-3 max-w-3xl text-base md:text-lg leading-relaxed text-slate-800">
-          {heroSupportLine}
+          {sanitizeText(heroSupportLine)}
         </p>
 
         <p className="mb-2 text-sm md:text-base text-gray-600 leading-relaxed">
-          This path is first interpreted through your weakest dimension: {weakestDimension}.
+          Where it is weakest: {sanitizeText(getWeakestDimensionDisplay(weakestDimension))}
+        </p>
+
+        <p className="mb-2 text-sm md:text-base text-gray-600 leading-relaxed">
+          What to do next: {sanitizeText(getCustomerNextAction({
+            intensityLevel: result.intensity?.level,
+            weakestDimension,
+          }))}
         </p>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          {pressureLine}
+          {sanitizeText(pressureLine)}
         </p>
 
         {showPilotCtas ? (
           <p className="mt-4 max-w-2xl text-sm text-slate-600">
-            {pilotCtaMicrocopy}
+            {sanitizeText(pilotCtaMicrocopy)}
           </p>
         ) : null}
 
@@ -1356,16 +1388,16 @@ function ReportHero({
               Dominant Scenario
             </div>
             <div className="text-lg font-semibold leading-snug text-slate-900">
-              {result?.scenario?.label || "No Dominant Scenario"}
+              {sanitizeText(result?.scenario?.label, "No Dominant Scenario")}
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 min-h-[92px] flex flex-col justify-center">
             <div className="text-xs font-medium tracking-wide text-slate-400 mb-2">
-              Primary Signal
+              What is happening
             </div>
             <div className="text-lg font-semibold leading-snug text-slate-900">
-              {primarySignalLabel}
+              {sanitizeText(primarySignalLabel)}
             </div>
           </div>
         </div>
@@ -1393,7 +1425,7 @@ function ReportHero({
                 WebkitAppearance: "none"
               }}
             >
-              {ctaLabel}
+              {sanitizeText(ctaLabel)}
             </button>
           </div>
         ) : null}
@@ -1401,10 +1433,7 @@ function ReportHero({
         <div className="mt-8">
           <IntensityBars level={result.intensity?.level} />
           <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Intensity Level{" "}
-            <span className="text-slate-900">
-              {result.intensity?.level || "0"} / 5
-            </span>
+            {sanitizeText(getPressureLabel(result.intensity?.level))}
           </div>
         </div>
       </div>
@@ -1457,7 +1486,7 @@ function SignalScoreBadge({ score }) {
   if (typeof score !== "number") {
     return (
       <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-        Signal
+        What is happening
       </span>
     );
   }
@@ -1485,15 +1514,15 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-slate-900">
-              {signal.label}
+              {sanitizeText(signal.label)}
             </h3>
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-              Signal {index + 1}
+              What is happening {index + 1}
             </span>
           </div>
 
           <p className="mt-2 text-sm leading-6 text-slate-700">
-            {signal.description}
+            {sanitizeText(signal.description)}
           </p>
         </div>
 
@@ -1514,12 +1543,12 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
               </div>
               <p className="mt-1 text-xs leading-5 text-sky-800">
                 {typeof signal.whyYou === "string" ? (
-                  <>Based on how you answered, {signal.whyYou}</>
+                  <>Based on how you answered, {sanitizeText(signal.whyYou)}</>
                 ) : (
                   <>
-                    Based on how you answered, it looks like {signal.whyYou?.pattern}
+                    Based on how you answered, it looks like {sanitizeText(signal.whyYou?.pattern)}
                       {signal.whyYou?.contrast ? (
-                      <> rather than {signal.whyYou.contrast}</>
+                      <> rather than {sanitizeText(signal.whyYou.contrast)}</>
                     ) : null}
                     .
                   </>
@@ -1534,7 +1563,7 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
                 What this looks like in practice
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-700">
-                {signal.realWorld}
+                {sanitizeText(signal.realWorld)}
               </p>
             </div>
           ) : null}
@@ -1545,7 +1574,7 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
                 Why this matters
               </div>
               <p className="mt-1 text-xs leading-5 text-amber-800">
-                {signal.whyThisMatters}
+                {sanitizeText(signal.whyThisMatters)}
               </p>
             </div>
           ) : null}
@@ -1556,7 +1585,7 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
                 Recommended action
               </div>
               <p className="mt-1 text-xs leading-5 text-emerald-800">
-                {signal.recommendedAction}
+                {sanitizeText(signal.recommendedAction)}
               </p>
             </div>
           ) : null}
@@ -1567,7 +1596,7 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
                 Pilot step
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-700">
-                {signal.pilotStep}
+                {sanitizeText(signal.pilotStep)}
               </p>
             </div>
           ) : null}
@@ -1578,19 +1607,19 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
                 Pilot metric
               </div>
               <p className="mt-1 text-xs leading-5 text-fuchsia-800">
-                {signal.pilotMetric}
+                {sanitizeText(signal.pilotMetric)}
               </p>
             </div>
           ) : null}
 
           {signal.insight ? (
             <p className="mt-3 text-xs leading-5 text-slate-600">
-              {signal.insight}
+              {sanitizeText(signal.insight)}
             </p>
           ) : null}
 
           <div className="mt-3 text-xs font-medium text-slate-500">
-            Source: {signal.source || "Diagnostic Engine"}
+            Source: {sanitizeText(signal.source, "Diagnostic Engine")}
           </div>
 
           {onStartPilot ? (
@@ -1604,16 +1633,20 @@ function SignalDetailCard({ signal, index, onStartPilot }) {
   );
 }
 
-function SignalsSection({ signals, onStartPilot }) {
+function SignalsSection({ signals, onStartPilot, showIssues, onToggleIssues }) {
   if (!signals || signals.length === 0) return null;
 
   return (
     <CollapsibleCard
-      title="Where this path starts to break"
+      title="What is happening"
       hint="These signals show what is already making work harder to retrieve, explain, or verify under real conditions."
       defaultOpen={false}
-      closedLabel="See the specific issues"
-      openLabel="Hide issues"
+      closedLabel="view"
+      openLabel="hide"
+      buttonClassName="issue-view-link shrink-0"
+      controlledOpen={showIssues}
+      onToggle={onToggleIssues}
+      textToggle
     >
       <ul className="mt-6 space-y-4">
         {signals.map((signal, index) => (
@@ -1697,23 +1730,23 @@ function PilotTriggerCard({
       <div className="space-y-4">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-            {copy.label}
+            {sanitizeText(copy.label)}
           </div>
 
           <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-            {copy.title}
+            {sanitizeText(copy.title)}
           </h2>
 
           <p className="mt-3 text-sm leading-7 text-slate-700">
-            {copy.body1}
+            {sanitizeText(copy.body1)}
           </p>
 
           <p className="mt-2 text-sm leading-7 text-slate-700">
-            {copy.body2}
+            {sanitizeText(copy.body2)}
           </p>
 
           <p className="mt-2 text-xs leading-6 text-slate-500">
-            {copy.footer}
+            {sanitizeText(copy.footer)}
           </p>
         </div>
 
@@ -1735,7 +1768,7 @@ function PilotTriggerCard({
             onClick={onStartPilot}
             className="mt-5 inline-flex items-center justify-center rounded-full bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
           >
-            {ctaLabel || "Test this path in a 7-day pilot ->"}
+            {sanitizeText(ctaLabel, "Test this path in a 7-day pilot ->")}
           </button>
         </div>
       </div>
@@ -1773,12 +1806,12 @@ function PilotSection({ pilotPreview, pilotFocus }) {
             </div>
 
             <h3 className="mt-2 text-base font-semibold text-emerald-900">
-              {pilotFocus.title}
+              {sanitizeText(pilotFocus.title)}
             </h3>
 
             <ul className="mt-3 space-y-1.5 text-sm leading-6 text-emerald-900">
               {pilotFocus.bullets?.slice(0, 3).map((item, index) => (
-                <li key={index}>闂?{item}</li>
+                <li key={index}>- {sanitizeText(item)}</li>
               ))}
             </ul>
           </div>
@@ -1826,7 +1859,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
                 Where to start
               </div>
               <div className="mt-2 text-sm leading-7 text-slate-900">
-                {pilotPreview.entry}
+                {sanitizeText(pilotPreview.entry)}
               </div>
            </div>
           </div>
@@ -1838,7 +1871,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
               </div>
               <ul className="mt-2 space-y-2 text-sm leading-7 text-slate-700">
                 {pilotPreview.actions.map((step, i) => (
-                  <li key={i}>闂?{step}</li>
+                  <li key={i}>- {sanitizeText(step)}</li>
                 ))}
               </ul>
             </div>
@@ -1850,7 +1883,7 @@ function PilotSection({ pilotPreview, pilotFocus }) {
                 What you'll see
               </div>
               <div className="mt-2 text-sm leading-7 text-slate-700">
-                {pilotPreview.outcome}
+                {sanitizeText(pilotPreview.outcome)}
               </div>
             </div>
           </div>
@@ -1934,10 +1967,10 @@ function ErrorState({ message, onRetry, onRestart }) {
       <div className="mx-auto max-w-3xl px-6 py-10">
         <Card className="p-8">
           <h1 className="text-2xl font-semibold text-slate-950">
-            We couldn闂佺偨鍎查悰?load the diagnostic preview
+            We could not load the diagnostic preview
           </h1>
 
-          <p className="mt-3 text-sm leading-7 text-slate-600">{message}</p>
+          <p className="mt-3 text-sm leading-7 text-slate-600">{sanitizeText(message)}</p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
@@ -2051,6 +2084,7 @@ export default function ResultPage({
   const stableUserId = useMemo(() => getStableUserId(), []);
   const entrySource = useMemo(() => getEntrySource(location), [location]);
   const [ctaState, setCtaState] = useState("default"); // default | warm | ready
+  const [showIssues, setShowIssues] = useState(false);
   
   const resolvedPcMeta =
     pcMeta ||
@@ -2293,12 +2327,12 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  // 20缂備礁顦扮敮鎺楀箖?闂?warm
+  // 20 percent maps to warm.
   const t1 = setTimeout(() => {
     setCtaState("warm");
   }, 20000);
 
-  // 45缂備礁顦扮敮鎺楀箖?闂?ready
+  // 45 percent maps to ready.
   const t2 = setTimeout(() => {
     setCtaState("ready");
   }, 45000);
@@ -3170,12 +3204,27 @@ if (typeof window !== "undefined") {
       console.error("pilot_started log failed:", err);
     });
 
+    const stripBreadcrumbState = (state = {}) => {
+      const {
+        routeMeta,
+        sourcePath,
+        flowSteps,
+        steps,
+        breadcrumb,
+        ...rest
+      } = state || {};
+
+      return rest;
+    };
+
+    const sanitizedPilotPayload = stripBreadcrumbState(enrichedResult || {});
+
     if (typeof onStartPilotProp === "function") {
       onStartPilotProp({
         sessionId: resolvedSessionId,
-        sourceInput: enrichedResult,
-        preview: enrichedResult,
-        result: enrichedResult,
+        sourceInput: sanitizedPilotPayload,
+        preview: sanitizedPilotPayload,
+        result: sanitizedPilotPayload,
         caseSchema,
         lockedScopeSnapshot,
         scenarioCode: enrichedResult?.scenario?.code || "",
@@ -3197,9 +3246,9 @@ if (typeof window !== "undefined") {
         sessionId: resolvedSessionId,
         session_id: resolvedSessionId,
 
-        sourceInput: enrichedResult,
-        preview: enrichedResult,
-        result: enrichedResult,
+        sourceInput: sanitizedPilotPayload,
+        preview: sanitizedPilotPayload,
+        result: sanitizedPilotPayload,
         caseSchema,
         lockedScopeSnapshot,
 
@@ -3279,13 +3328,13 @@ if (!isValidPreview(result)) {
             isCaseReview={isCaseReview}
             showPilotCtas={showPilotCtas}
             reviewCaseId={reviewCaseId}
-            onViewCases={() => navigate(ROUTES.CASES || "/cases")}
+            onViewCases={() => navigate("/cases")}
             showViewAllCases={showViewAllCases}
           />
 
           {runMeta?.microNote && (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
-              {runMeta.microNote}
+              {sanitizeText(runMeta.microNote)}
             </div>
           )}
 
@@ -3294,6 +3343,8 @@ if (!isValidPreview(result)) {
           <SignalsSection
             signals={enrichedResult.top_signals}
             onStartPilot={showPilotCtas ? handleStartPilot : null}
+            showIssues={showIssues}
+            onToggleIssues={() => setShowIssues((prev) => !prev)}
           />
 
           {showPilotCtas && (

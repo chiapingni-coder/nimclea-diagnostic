@@ -54,3 +54,16 @@ body {
   font-size: 0.86rem;
   line-height: 1.45;
 }
+
+.issue-view-link {
+  font-size: 12px;
+  color: #8A8F98;
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+}
+
+.issue-view-link:hover {
+  color: #6B7280;
+  text-decoration: none;
+}

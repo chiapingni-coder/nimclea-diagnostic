@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getWeakestDimensionDisplay } from "../lib/customerDecisionDisplay";
 
 const API_BASE = "http://localhost:3000";
 
@@ -875,7 +876,7 @@ export default function AnalyticsPage() {
                   Likely Issue Type: {summary.funnel.optimizationInsight.likelyIssueType}
                 </div>
                 <div className="mt-1 text-neutral-600">
-                  Signal: {summary.funnel.optimizationInsight.issueReason}
+                  What this means in practice: {summary.funnel.optimizationInsight.issueReason}
                 </div>
         
                 <div className="mt-2 font-medium text-neutral-900">
@@ -1363,7 +1364,7 @@ export default function AnalyticsPage() {
 
                          {item.meta?.weakestDimension ? (
                             <div className="text-neutral-500">
-                              Weakest dimension: {item.meta.weakestDimension}
+                              Where it is weakest: {getWeakestDimensionDisplay(item.meta.weakestDimension)}
                             </div>
                           ) : null}
                         </div>

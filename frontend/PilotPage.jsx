@@ -198,10 +198,10 @@ function PilotHero({ preview, sessionId, onViewAllCases }) {
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Strongest signal
+              What is happening
             </div>
             <p className="mt-2 text-sm font-medium text-slate-900">
-              {strongestSignal?.label || "Structural Signal"}
+              {strongestSignal?.label || "What is happening"}
             </p>
           </div>
 
@@ -394,10 +394,10 @@ function CarryOverSection({ preview }) {
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Strongest signal
+            What is happening
           </div>
           <p className="mt-2 text-sm text-slate-900">
-            {strongestSignal?.label || "Structural Signal"}
+            {strongestSignal?.label || "What is happening"}
           </p>
           {strongestSignal?.description ? (
             <p className="mt-2 text-sm leading-6 text-slate-600">

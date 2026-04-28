@@ -13,7 +13,7 @@ function ensureDataDir() {
 }
 
 function writeFallback(filePath, fallbackValue) {
-  fs.writeFileSync(filePath, JSON.stringify(fallbackValue, null, 2), "utf-8");
+  fs.writeFileSync(filePath, JSON.stringify(fallbackValue, null, 2), "utf8");
 }
 
 export function getDataPath(fileName) {
@@ -61,7 +61,7 @@ export function writeJsonFile(fileName, data) {
   ensureDataDir();
 
   const filePath = getDataPath(fileName);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
 
   return data;
 }

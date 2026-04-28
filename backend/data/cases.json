@@ -1,72 +1,23 @@
 [
   {
-    "caseId": "CASE-1777239565927-VTAANB",
-    "userId": "usr_1777245916464_2n1k26",
-    "trialId": "trial_1777245916464_114z1c",
+    "userId": "usr_1777396251430_58x1ai",
+    "trialId": "trial_1777396251430_s5s36k",
+    "caseId": "CASE-1777396036624-5AKHA7",
     "stage": "pilot",
     "score": 4,
     "receiptEligible": false,
     "verificationEligible": false,
     "caseData": {
       "sessionId": "",
-      "stableUserId": "u_mogafi8v_4bm5y5np",
-      "workflow": "Audit preparation",
+      "stableUserId": "u_moivpj4c_vus47v2u",
+      "email": "xiabingni@gmail.com",
+      "workflow": "Decision trace reconstruction",
       "scopeLock": {
-        "scopeStatement": "This case evaluates whether the selected workflow \"Audit preparation\" can be executed, explained, and carried forward under a 7-day pilot record.",
-        "lockedAt": "2026-04-26T23:48:55.361Z",
+        "scopeStatement": "This case evaluates whether the selected workflow \"Decision trace reconstruction\" can be executed, explained, and carried forward under a 7-day pilot record.",
+        "lockedAt": "2026-04-28T17:11:23.004Z",
         "source": "pilot_page",
-        "caseId": "CASE-1777239565927-VTAANB",
-        "workflow": "Audit preparation"
-      },
-      "acceptanceChecklist": [
-        {
-          "id": "acceptance_scope_defined",
-          "label": "The case has a clearly selected workflow scope.",
-          "status": "met",
-          "decision": "PASS"
-        },
-        {
-          "id": "acceptance_focus_defined",
-          "label": "The pilot has a defined structural focus.",
-          "status": "partial",
-          "decision": "NEEDS_INPUT"
-        },
-        {
-          "id": "acceptance_event_capture_required",
-          "label": "At least one real event must be captured before formal carry-forward.",
-          "status": "partial",
-          "decision": "NEEDS_INPUT"
-        }
-      ],
-      "scenarioCode": "pre_audit_collapse",
-      "weakestDimension": "evidence",
-      "chainId": "CHAIN-001",
-      "stage": "S3",
-      "pilotFocusKey": "",
-      "firstGuidedAction": "",
-      "firstStepLabel": ""
-    },
-    "version": 3,
-    "savedAt": "2026-04-26T23:48:55.370Z"
-  },
-  {
-    "caseId": "CASE-1777261332999-YAOE9X",
-    "userId": "usr_1777261366642_wgtoee",
-    "trialId": "trial_1777261366643_kjvgx4",
-    "stage": "pilot",
-    "score": 4,
-    "receiptEligible": false,
-    "verificationEligible": false,
-    "caseData": {
-      "sessionId": "",
-      "stableUserId": "u_mognhpqo_l0h8wg9x",
-      "workflow": "Audit preparation",
-      "scopeLock": {
-        "scopeStatement": "This case evaluates whether the selected workflow \"Audit preparation\" can be executed, explained, and carried forward under a 7-day pilot record.",
-        "lockedAt": "2026-04-27T03:42:46.534Z",
-        "source": "pilot_page",
-        "caseId": "CASE-1777261332999-YAOE9X",
-        "workflow": "Audit preparation"
+        "caseId": "CASE-1777396036624-5AKHA7",
+        "workflow": "Decision trace reconstruction"
       },
       "acceptanceChecklist": [
         {
@@ -96,26 +47,32 @@
       "firstGuidedAction": "Trace where evidence currently lives, and make one proof path visible end to end.",
       "firstStepLabel": "Start with evidence retrieval"
     },
-    "version": 1,
-    "savedAt": "2026-04-27T03:42:46.686Z"
+    "version": 2,
+    "savedAt": "2026-04-28T17:11:23.007Z",
+    "status": "draft",
+    "id": "CASE-1777396036624-5AKHA7",
+    "createdAt": "2026-04-28T17:10:51.439Z",
+    "updatedAt": "2026-04-28T17:11:23.008Z",
+    "source": "case_route"
   },
   {
-    "caseId": "CASE-1777264162910-DUXZX9",
-    "userId": "usr_1777264484247_b8j4yf",
-    "trialId": "trial_1777264484247_mf43gk",
+    "userId": "usr_1777408846136_lm90tp",
+    "trialId": "trial_1777408846136_eqkz4g",
+    "caseId": "CASE-1777408838782-6QX3HS",
     "stage": "pilot",
     "score": 4,
     "receiptEligible": false,
     "verificationEligible": false,
     "caseData": {
       "sessionId": "",
-      "stableUserId": "u_mogp6986_ohzhzvbu",
+      "stableUserId": "u_moj3bxbu_1qqocv7b",
+      "email": "xiabingni@gmail.com",
       "workflow": "Decision trace reconstruction",
       "scopeLock": {
         "scopeStatement": "This case evaluates whether the selected workflow \"Decision trace reconstruction\" can be executed, explained, and carried forward under a 7-day pilot record.",
-        "lockedAt": "2026-04-27T04:34:44.135Z",
+        "lockedAt": "2026-04-28T20:40:46.027Z",
         "source": "pilot_page",
-        "caseId": "CASE-1777264162910-DUXZX9",
+        "caseId": "CASE-1777408838782-6QX3HS",
         "workflow": "Decision trace reconstruction"
       },
       "acceptanceChecklist": [
@@ -147,6 +104,123 @@
       "firstStepLabel": "Start with evidence retrieval"
     },
     "version": 1,
-    "savedAt": "2026-04-27T04:34:44.285Z"
+    "savedAt": "2026-04-28T20:40:46.156Z",
+    "status": "draft",
+    "id": "CASE-1777408838782-6QX3HS",
+    "createdAt": "2026-04-28T20:40:46.157Z",
+    "updatedAt": "2026-04-28T20:40:46.157Z",
+    "source": "case_route"
+  },
+  {
+    "userId": "usr_1777409250501_dikpo7",
+    "trialId": "trial_1777409250501_d9efxi",
+    "caseId": "CASE-1777409246297-3OO2A7",
+    "stage": "pilot",
+    "score": 4,
+    "receiptEligible": false,
+    "verificationEligible": false,
+    "caseData": {
+      "sessionId": "",
+      "stableUserId": "u_moj3knrr_084vp4i5",
+      "email": "chiapingni@gmail.com",
+      "workflow": "Decision trace reconstruction",
+      "scopeLock": {
+        "scopeStatement": "This case evaluates whether the selected workflow \"Decision trace reconstruction\" can be executed, explained, and carried forward under a 7-day pilot record.",
+        "lockedAt": "2026-04-28T20:47:30.497Z",
+        "source": "pilot_page",
+        "caseId": "CASE-1777409246297-3OO2A7",
+        "workflow": "Decision trace reconstruction"
+      },
+      "acceptanceChecklist": [
+        {
+          "id": "acceptance_scope_defined",
+          "label": "The case has a clearly selected workflow scope.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_focus_defined",
+          "label": "The pilot has a defined structural focus.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_event_capture_required",
+          "label": "At least one real event must be captured before formal carry-forward.",
+          "status": "partial",
+          "decision": "NEEDS_INPUT"
+        }
+      ],
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "pilotFocusKey": "evidence_fragmentation",
+      "firstGuidedAction": "Trace where evidence currently lives, and make one proof path visible end to end.",
+      "firstStepLabel": "Start with evidence retrieval"
+    },
+    "version": 1,
+    "savedAt": "2026-04-28T20:47:30.507Z",
+    "status": "draft",
+    "id": "CASE-1777409246297-3OO2A7",
+    "createdAt": "2026-04-28T20:47:30.507Z",
+    "updatedAt": "2026-04-28T20:47:30.507Z",
+    "source": "case_route"
+  },
+  {
+    "userId": "usr_1777410509839_4x8xo9",
+    "trialId": "trial_1777410509839_2tjda0",
+    "caseId": "CASE-1777410503945-NVBW4R",
+    "stage": "pilot",
+    "score": 4,
+    "receiptEligible": false,
+    "verificationEligible": false,
+    "caseData": {
+      "sessionId": "",
+      "stableUserId": "u_moj4bm6d_y418kjkp",
+      "email": "chiapingni@gmail.com",
+      "workflow": "Audit preparation",
+      "scopeLock": {
+        "scopeStatement": "This case evaluates whether the selected workflow \"Audit preparation\" can be executed, explained, and carried forward under a 7-day pilot record.",
+        "lockedAt": "2026-04-28T21:08:29.835Z",
+        "source": "pilot_page",
+        "caseId": "CASE-1777410503945-NVBW4R",
+        "workflow": "Audit preparation"
+      },
+      "acceptanceChecklist": [
+        {
+          "id": "acceptance_scope_defined",
+          "label": "The case has a clearly selected workflow scope.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_focus_defined",
+          "label": "The pilot has a defined structural focus.",
+          "status": "met",
+          "decision": "PASS"
+        },
+        {
+          "id": "acceptance_event_capture_required",
+          "label": "At least one real event must be captured before formal carry-forward.",
+          "status": "partial",
+          "decision": "NEEDS_INPUT"
+        }
+      ],
+      "scenarioCode": "pre_audit_collapse",
+      "weakestDimension": "evidence",
+      "chainId": "CHAIN-003",
+      "stage": "S4",
+      "pilotFocusKey": "evidence_fragmentation",
+      "firstGuidedAction": "Trace where evidence currently lives, and make one proof path visible end to end.",
+      "firstStepLabel": "Start with evidence retrieval"
+    },
+    "version": 1,
+    "savedAt": "2026-04-28T21:08:29.843Z",
+    "status": "draft",
+    "id": "CASE-1777410503945-NVBW4R",
+    "createdAt": "2026-04-28T21:08:29.844Z",
+    "updatedAt": "2026-04-28T21:08:29.844Z",
+    "source": "case_route"
   }
 ]

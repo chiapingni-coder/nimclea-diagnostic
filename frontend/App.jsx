@@ -14,6 +14,7 @@ import RunLedgerPage from "./pages/RunLedgerPage";
 import AnalyticsPage from "./pages/AnalyticsPage.jsx";
 import CasesPage from "./pages/CasesPage.jsx";
 import { getAllCases } from "./utils/caseRegistry.js";
+import { hasVerifiedAccess } from "./lib/verifiedAccess";
 
 export const PC_META = {
   pc_id: "PC-001",
@@ -30,6 +31,12 @@ function EntryRedirect() {
   }
 
   if (!cases.length) {
+    return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
+  }
+
+  const verifiedAccess = hasVerifiedAccess();
+
+  if (!verifiedAccess) {
     return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
   }
 
@@ -56,7 +63,7 @@ function EntryRedirect() {
     );
   }
 
-  return <Navigate to={ROUTES.CASES} replace />;
+  return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
 }
 
 export default function App() {
@@ -74,6 +81,7 @@ export default function App() {
       <Route path={ROUTES.VERIFICATION} element={<VerificationPage pcMeta={PC_META} />} />
       <Route path={ROUTES.RUN_LEDGER} element={<RunLedgerPage pcMeta={PC_META} />} />
       <Route path={ROUTES.ANALYTICS} element={<AnalyticsPage pcMeta={PC_META} />} />
+      <Route path="/receipt" element={<ReceiptPage />} />
     </Routes>
   );
 }

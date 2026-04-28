@@ -3,6 +3,9 @@ console.log("🔥 THIS IS MY NEW SERVER");
 console.log("🔥 SERVER.JS IS RUNNING");
 import stripeRoutes from "./routes/stripe.js";
 import dotenv from "dotenv";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 dotenv.config();
 
@@ -20,6 +23,48 @@ import emailRoutes from "./routes/emailRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import hashLedgerRoutes from "./routes/hashLedgerRoutes.js";
 import { ensureDataFiles } from "./utils/ensureDataFiles.js";
+import { readJsonFile } from "./utils/jsonStore.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const EMAIL_LOGS_PATH = path.join(__dirname, "data", "emailLogs.json");
+
+async function appendEmailLog(record) {
+  let existingLogs = [];
+
+  await fs.mkdir(path.dirname(EMAIL_LOGS_PATH), { recursive: true });
+
+  try {
+    const raw = await fs.readFile(EMAIL_LOGS_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    existingLogs = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      console.warn("Failed to read emailLogs.json; starting a new log array", error);
+    }
+  }
+
+  const normalizedEmail = String(record?.email || "").trim().toLowerCase();
+  const normalizedCaseId = String(record?.caseId || "").trim();
+
+  const existingMatch = existingLogs.find((entry) => {
+    const entryEmail = String(entry?.email || "").trim().toLowerCase();
+    const entryCaseId = String(entry?.caseId || "").trim();
+
+    return entryEmail === normalizedEmail && entryCaseId === normalizedCaseId;
+  });
+
+  if (existingMatch) {
+    return existingMatch;
+  }
+
+  existingLogs.push(record);
+  await fs.writeFile(
+    EMAIL_LOGS_PATH,
+    JSON.stringify(existingLogs, null, 2),
+    "utf8"
+  );
+}
 
 function buildPressureProfile(groups = {}, signals = {}) {
   const pressureScore = Number(groups?.pressure_context_score || 0);
@@ -71,6 +116,237 @@ app.use("/trial", trialRegisterRoutes);
 app.use("/trial", trialStartRoutes);
 app.use("/case", caseRoutes);
 app.use("/event", eventRoutes);
+function findLastMatchingRecord(records, caseId) {
+  if (!Array.isArray(records) || !caseId) {
+    return null;
+  }
+
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index];
+    if (String(record?.caseId || record?.id || "").trim() === caseId) {
+      return record;
+    }
+  }
+
+  return null;
+}
+
+function normalizeCaseRecord(record = {}) {
+  if (!record || typeof record !== "object") {
+    return {};
+  }
+
+  const snapshot = record?.caseSnapshot || {};
+  const nestedCaseRecord = snapshot?.caseRecord || {};
+  const nestedCaseData = record?.caseData || {};
+  const snapshotEvents = Array.isArray(snapshot?.events) ? snapshot.events : [];
+  const recordEvents = Array.isArray(record?.events) ? record.events : [];
+  const caseRecordEvents = Array.isArray(nestedCaseRecord?.events) ? nestedCaseRecord.events : [];
+  const caseDataEvents = Array.isArray(nestedCaseData?.events) ? nestedCaseData.events : [];
+  const mergedEvents = [
+    ...snapshotEvents,
+    ...recordEvents,
+    ...caseRecordEvents,
+    ...caseDataEvents,
+  ].filter(Boolean);
+  const flattenedReceiptEligible =
+    typeof record?.receiptEligible === "boolean"
+      ? record.receiptEligible
+      : typeof nestedCaseRecord?.receiptEligible === "boolean"
+        ? nestedCaseRecord.receiptEligible
+        : typeof nestedCaseData?.receiptEligible === "boolean"
+          ? nestedCaseData.receiptEligible
+          : Boolean(mergedEvents.length > 0);
+
+  return {
+    ...record,
+    ...nestedCaseRecord,
+    ...nestedCaseData,
+    events: mergedEvents.length > 0 ? mergedEvents : record?.events || nestedCaseRecord?.events || nestedCaseData?.events || [],
+    eventLogs:
+      record?.eventLogs ||
+      nestedCaseRecord?.eventLogs ||
+      nestedCaseData?.eventLogs ||
+      mergedEvents,
+    entries:
+      record?.entries ||
+      nestedCaseRecord?.entries ||
+      nestedCaseData?.entries ||
+      mergedEvents,
+    latestEvent:
+      record?.latestEvent ||
+      nestedCaseRecord?.latestEvent ||
+      nestedCaseData?.latestEvent ||
+      mergedEvents[0] ||
+      null,
+    eventCount:
+      typeof snapshot?.eventCount === "number"
+        ? snapshot.eventCount
+        : typeof record?.eventCount === "number"
+          ? record.eventCount
+          : mergedEvents.length,
+    score:
+      typeof nestedCaseRecord?.score === "number"
+        ? nestedCaseRecord.score
+        : typeof nestedCaseData?.score === "number"
+          ? nestedCaseData.score
+          : typeof record?.score === "number"
+            ? record.score
+            : record?.score,
+    receiptEligible: flattenedReceiptEligible,
+    paymentStatus:
+      record?.paymentStatus ||
+      snapshot?.paymentStatus ||
+      nestedCaseRecord?.paymentStatus ||
+      nestedCaseData?.paymentStatus ||
+      "unpaid",
+    paid:
+      typeof record?.paid === "boolean"
+        ? record.paid
+        : typeof snapshot?.paid === "boolean"
+          ? snapshot.paid
+          : typeof nestedCaseRecord?.paid === "boolean"
+            ? nestedCaseRecord.paid
+            : typeof nestedCaseData?.paid === "boolean"
+              ? nestedCaseData.paid
+              : false,
+    verificationStatus:
+      record?.verificationStatus ||
+      snapshot?.verificationStatus ||
+      nestedCaseRecord?.verificationStatus ||
+      nestedCaseData?.verificationStatus ||
+      null,
+    ...snapshot,
+  };
+}
+
+app.get("/cases", (req, res) => {
+  const email = String(req.query?.email || "").trim().toLowerCase();
+
+  if (!email) {
+    return res.status(400).json({ error: "email required" });
+  }
+
+  try {
+    const storedLogs = readJsonFile("emailLogs.json", []);
+    const storedCases = readJsonFile("cases.json", []);
+    const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
+    const logs = Array.isArray(storedLogs) ? storedLogs : [];
+    const cases = Array.isArray(storedCases) ? storedCases : [];
+    const receiptRecords = Array.isArray(storedReceiptRecords) ? storedReceiptRecords : [];
+
+    const matches = logs
+      .filter((item) => {
+      const caseEmail = String(
+        item?.email ||
+          item?.userEmail ||
+          item?.leadEmail ||
+          item?.contactEmail ||
+          item?.captureEmail ||
+          ""
+      )
+        .trim()
+        .toLowerCase();
+
+      return caseEmail && caseEmail === email;
+      })
+      .map((item) => {
+        const caseId = String(item?.caseId || item?.id || "").trim();
+        const baseCase = findLastMatchingRecord(cases, caseId) || {};
+        const receiptCase = normalizeCaseRecord(
+          findLastMatchingRecord(receiptRecords, caseId) || {}
+        );
+
+        return {
+          email: item?.email || email,
+          caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
+          source: item?.source || "pilot_setup",
+          createdAt: item?.createdAt || null,
+          title:
+            receiptCase?.title ||
+            baseCase?.title ||
+            caseId ||
+            "Untitled case",
+          status:
+            receiptCase?.status ||
+            baseCase?.status ||
+            item?.status ||
+            "draft",
+          ...baseCase,
+          ...receiptCase,
+          ...item,
+          email: item?.email || email,
+          caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
+        };
+      });
+
+    return res.json(matches);
+  } catch (error) {
+    console.error("[GET /cases] error", error);
+    return res.status(500).json({ error: "Failed to load cases" });
+  }
+});
+app.get("/receipt-record", (req, res) => {
+  const caseId = String(req.query?.caseId || "").trim();
+
+  if (!caseId) {
+    return res.status(400).json({ error: "caseId required" });
+  }
+
+  try {
+    const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
+    const receiptRecords = Array.isArray(storedReceiptRecords)
+      ? storedReceiptRecords
+      : [];
+
+    for (let index = receiptRecords.length - 1; index >= 0; index -= 1) {
+      const record = receiptRecords[index];
+      if (String(record?.caseId || "").trim() === caseId) {
+        return res.json(normalizeCaseRecord(record));
+      }
+    }
+
+    return res.status(404).json({ error: "receipt record not found" });
+  } catch (error) {
+    console.error("[GET /receipt-record] error", error);
+    return res.status(500).json({ error: "Failed to load receipt record" });
+  }
+});
+app.post("/email/log", async (req, res) => {
+  console.log("[email-log] received", req.body);
+
+  const email = String(req.body?.email || "").trim();
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({
+      ok: false,
+      error: "Valid email is required",
+    });
+  }
+
+  const record = {
+    email,
+    caseId: req.body?.caseId || null,
+    source: req.body?.source || "pilot_setup",
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    await appendEmailLog(record);
+
+    return res.status(200).json({
+      ok: true,
+      record,
+    });
+  } catch (error) {
+    console.error("Failed to append email log", error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to append email log",
+    });
+  }
+});
 app.use("/email", emailRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/hash-ledger", hashLedgerRoutes);
@@ -85,6 +361,7 @@ app.post("/api/events/log", (req, res) => {
 });
 
 app.use("/api", stripeRoutes);
+app.use("/", stripeRoutes);
 
 function validateSubmittedAnswers(payload) {
   const answers = payload?.answers;

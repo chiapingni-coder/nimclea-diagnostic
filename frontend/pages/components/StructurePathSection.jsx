@@ -1,15 +1,13 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
-import { ROUTES } from "../../routes.js";
+import {
+  formatCustomerStructureValue,
+  getCustomerStructureStatus,
+} from "../../lib/customerStructureDisplay";
+import { sanitizeText } from "../../lib/sanitizeText";
+import { getStageDisplay } from "../../lib/stageMap";
 
 export default function StructurePathSection({ data }) {
-  const navigate = useNavigate();
-
   if (!data) return null;
-
-function getRunActionLabel() {
-  return "Start workspace preview";
-}
 
   const {
     pattern,
@@ -19,13 +17,19 @@ function getRunActionLabel() {
     explanation,
     nextAction,
     patternId,
-    chainId,
     patternDescription,
     chainDescription,
-    routeMeta
+    routeMeta,
   } = data;
 
-  const actionLabel = getRunActionLabel(runCode, stage);
+  const customerSnapshot = {
+    pattern,
+    patternId,
+    runCode,
+    routeDecision: routeMeta?.routeDecision || routeMeta?.mode,
+  };
+
+  const stageInfo = getStageDisplay(stage);
 
   return (
     <div style={styles.container}>
@@ -35,48 +39,56 @@ function getRunActionLabel() {
         <div style={styles.pathBlock}>
           <div style={styles.pathRow}>
             <span style={styles.label}>Pattern</span>
-            <span style={styles.value}>{pattern || "—"}</span>
+            <span style={styles.value}>
+              {formatCustomerStructureValue(pattern)}
+            </span>
           </div>
 
-          {patternId ? (
-            <div style={styles.metaId}>{patternId}</div>
-          ) : null}
-
           {patternDescription ? (
-            <div style={styles.metaText}>{patternDescription}</div>
+            <div style={styles.metaText}>{sanitizeText(patternDescription)}</div>
           ) : null}
         </div>
 
-        <div style={styles.arrow}>↓</div>
+        <div style={styles.arrow}>-&gt;</div>
 
         <div style={styles.pathBlock}>
           <div style={styles.pathRow}>
             <span style={styles.label}>Chain</span>
-            <span style={styles.value}>{chain || "—"}</span>
+            <span style={styles.value}>
+              {formatCustomerStructureValue(chain, "Structure path")}
+            </span>
           </div>
 
-          {chainId ? (
-            <div style={styles.metaId}>{chainId}</div>
-          ) : null}
-
           {chainDescription ? (
-            <div style={styles.metaText}>{chainDescription}</div>
+            <div style={styles.metaText}>{sanitizeText(chainDescription)}</div>
           ) : null}
         </div>
 
-        <div style={styles.arrow}>↓</div>
-
-        <div style={styles.pathRow}>
-          <span style={styles.label}>Stage</span>
-          <span style={styles.value}>{stage || "—"}</span>
-        </div>
-
-        <div style={styles.arrow}>↓</div>
+        <div style={styles.arrow}>-&gt;</div>
 
         <div style={styles.pathBlock}>
           <div style={styles.pathRow}>
-            <span style={styles.label}>RUN</span>
-            <span style={styles.value}>{runCode || "—"}</span>
+            <span style={styles.label}>Stage</span>
+            <span style={styles.value}>
+              {stageInfo.label}
+            </span>
+          </div>
+
+          {stageInfo.description ? (
+            <div style={styles.metaText}>
+              {sanitizeText(stageInfo.description)}
+            </div>
+          ) : null}
+        </div>
+
+        <div style={styles.arrow}>-&gt;</div>
+
+        <div style={styles.pathBlock}>
+          <div style={styles.pathRow}>
+            <span style={styles.label}>Status</span>
+            <span style={styles.value}>
+              {getCustomerStructureStatus(customerSnapshot)}
+            </span>
           </div>
 
           <div style={styles.actionRow}>
@@ -89,13 +101,13 @@ function getRunActionLabel() {
 
       {explanation ? (
         <div style={styles.explanation}>
-          {explanation}
+          {sanitizeText(explanation)}
         </div>
       ) : null}
 
       {nextAction ? (
         <div style={styles.nextAction}>
-          <strong>Next Step:</strong> {nextAction}
+          <strong>Next Step:</strong> {sanitizeText(nextAction)}
         </div>
       ) : null}
     </div>
@@ -108,81 +120,64 @@ const styles = {
     marginBottom: "24px",
     border: "1px solid #eee",
     borderRadius: "12px",
-    backgroundColor: "#fafafa"
+    backgroundColor: "#fafafa",
   },
   title: {
     fontSize: "20px",
-    marginBottom: "16px"
+    marginBottom: "16px",
   },
   pathBox: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    marginBottom: "16px"
+    marginBottom: "16px",
   },
   pathRow: {
     display: "flex",
     justifyContent: "space-between",
     width: "260px",
-    padding: "6px 0"
+    padding: "6px 0",
   },
   pathBlock: {
-  width: "260px",
-  padding: "8px 0"
+    width: "260px",
+    padding: "8px 0",
   },
-metaId: {
-  marginTop: "2px",
-  fontSize: "11px",
-  fontWeight: "600",
-  color: "#94a3b8",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em"
-},
-metaText: {
-  marginTop: "6px",
-  fontSize: "13px",
-  lineHeight: "1.5",
-  color: "#475569"
-},
-actionRow: {
-  marginTop: "8px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-start",
-  gap: "6px"
-},
-actionButton: {
-  border: "none",
-  borderRadius: "10px",
-  backgroundColor: "#0f172a",
-  color: "#fff",
-  padding: "8px 12px",
-  fontSize: "13px",
-  fontWeight: "600",
-  cursor: "pointer"
-},
-runHint: {
-  fontSize: "12px",
-  color: "#64748b"
-},
+  metaText: {
+    marginTop: "6px",
+    fontSize: "13px",
+    lineHeight: "1.5",
+    color: "#475569",
+  },
+  actionRow: {
+    marginTop: "8px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: "6px",
+  },
+  runHint: {
+    fontSize: "12px",
+    color: "#64748b",
+  },
   label: {
-    color: "#888"
+    color: "#888",
   },
   value: {
-    fontWeight: "600"
+    fontWeight: "600",
+    textAlign: "right",
   },
   arrow: {
     fontSize: "14px",
-    color: "#bbb"
+    color: "#bbb",
   },
   explanation: {
     marginTop: "12px",
     fontSize: "14px",
-    lineHeight: "1.6"
+    lineHeight: "1.6",
   },
   nextAction: {
     marginTop: "12px",
     fontSize: "15px",
-    color: "#111"
-  }
+    color: "#111",
+  },
 };

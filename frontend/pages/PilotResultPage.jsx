@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { buildReceiptPageData } from "../buildReceiptPageData";
 import { buildVerificationPageData } from "../buildVerificationPageData";
 import { createReceiptHash } from "./ReceiptPage";
+import { inferSignalsFromText, SIGNAL_PRIORITY } from "../utils/signalEngine";
 
 import {
   buildReceiptContract,
@@ -16,6 +17,11 @@ import { getPilotEntries } from "../utils/pilotEntries";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { resolveAccessMode } from "../lib/accessMode";
+import { sanitizeText } from "../lib/sanitizeText";
+import {
+  getCustomerNextAction,
+  getWeakestDimensionDisplay,
+} from "../lib/customerDecisionDisplay";
 import { evaluatePilotCombinationStatus } from "../utils/verificationStatus";
 import { calculateDeterministicScore } from "../utils/deterministicScore";
 import { recordRun } from "./runLedger";
@@ -80,6 +86,25 @@ const cleanTraceId = (value) => {
   const text = String(value ?? "").trim();
   const match = text.match(/\b(RUN\d+|PAT-\d+|CHAIN-\d+)\b/i);
   return match ? match[1].toUpperCase() : "";
+};
+
+const isMarketPlaceholder = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return true;
+  return [
+    "RUN000",
+    "PAT-00",
+    "unknown_scenario",
+    "unknown_signal",
+    "No Dominant Scenario",
+    "Selected workflow",
+    "Unknown workflow",
+  ].includes(text);
+};
+
+const safeMarketText = (value = "") => {
+  const text = String(value || "").trim();
+  return isMarketPlaceholder(text) ? "" : text;
 };
 
 function normalizeRunEntry(entry = {}) {
@@ -283,12 +308,12 @@ function getNormalizedEvidenceItems(caseData = {}, eventInput = {}) {
     }
   };
 
-  // 1) 閸樼喓鏁?evidenceItems
+  // 1) evidenceItems
   if (Array.isArray(caseData?.evidenceItems)) {
     caseData.evidenceItems.forEach((item) => pushItem(item, "evidence_item"));
   }
 
-  // 2) 閸忕厧顔?evidence / evidenceSupport
+  // 2) evidence / evidenceSupport
   if (Array.isArray(caseData?.evidence)) {
     caseData.evidence.forEach((item) => pushItem(item, "evidence"));
   }
@@ -297,7 +322,7 @@ function getNormalizedEvidenceItems(caseData = {}, eventInput = {}) {
     caseData.evidenceSupport.forEach((item) => pushItem(item, "evidence_support"));
   }
 
-  // 3) 閸忕厧顔愭担鐘靛箛閸︺劌鐖堕崘娆戞畱鐎涙顔?
+  // 3) supporting record inputs
   pushItem(caseData?.invoice, "invoice");
   pushItem(caseData?.bankRecord, "bank_record");
   pushItem(caseData?.approvalNote, "approval_note");
@@ -305,142 +330,12 @@ function getNormalizedEvidenceItems(caseData = {}, eventInput = {}) {
   pushItem(caseData?.decisionStatement, "decision_statement");
   pushItem(caseData?.executionSummary, "execution_summary");
 
-  // 4) 閸忕厧顔?eventInput 闁插苯褰查懗钘夘敚鏉╂稒娼甸惃鍕槈閹诡喗鏋冮張?
+  // 4) eventInput
   pushItem(eventInput?.evidence, "event_evidence");
   pushItem(eventInput?.evidenceNote, "event_evidence_note");
   pushItem(eventInput?.proofNote, "proof_note");
 
   return items;
-}
-
-function buildRecordText(caseData = {}) {
-  const caseIdSafe =
-    caseData?.caseId ||
-    caseData?.case_id ||
-    caseData?.id ||
-    caseData?.resultId ||
-    "draft";
-
-  const title = caseData?.title || "Untitled case";
-
-  const pilotResult =
-    caseData?.pilot_result ||
-    caseData?.pilotResult ||
-    {};
-
-  const summary =
-    caseData?.workspace_summary ||
-    caseData?.workspaceSummary ||
-    pilotResult?.summary ||
-    "No summary available.";
-
-  const dominantScenario =
-    caseData?.dominantScenario ||
-    caseData?.dominant_scenario ||
-    pilotResult?.dominantScenario ||
-    pilotResult?.dominant_scenario ||
-    pilotResult?.scenario ||
-    "N/A";
-
-  const primarySignal =
-    caseData?.primarySignal ||
-    caseData?.primary_signal ||
-    pilotResult?.primarySignal ||
-    pilotResult?.primary_signal ||
-    pilotResult?.signal ||
-    "N/A";
-
-  const events = Array.isArray(caseData?.events) ? caseData.events : [];
-
-  const eventLines =
-    events.length > 0
-      ? events
-          .map((event, index) => {
-            const text =
-              event?.text ||
-              event?.content ||
-              event?.summary ||
-              event?.description ||
-              JSON.stringify(event);
-            return `${index + 1}. ${text}`;
-          })
-          .join("\n")
-      : "No events recorded.";
-
-  const scopeLock =
-    caseData?.scopeLock?.scopeStatement ||
-    caseData?.scope_lock?.scopeStatement ||
-    caseData?.scopeLock ||
-    "Not set";
-
-  const acceptanceChecklist = Array.isArray(caseData?.acceptanceChecklist)
-    ? caseData.acceptanceChecklist
-    : [];
-
-  const checklistLines =
-    acceptanceChecklist.length > 0
-      ? acceptanceChecklist
-          .map((item, index) => {
-            const label = item?.label || item?.name || "Checklist item";
-            const decision = item?.decision || item?.status || "UNKNOWN";
-            return `${index + 1}. ${label} 鈥?${decision}`;
-          })
-          .join("\n")
-      : "No checklist recorded.";
-
-  return `
-==============================
-EXECUTION SUMMARY
-==============================
-
-Case ID: ${caseIdSafe}
-Title: ${title}
-
-Dominant Scenario:
-${dominantScenario}
-
-Primary Signal:
-${primarySignal}
-
-Summary:
-${summary}
-
-==============================
-CUSTOMER RECORD
-==============================
-
-Structured Events:
-${eventLines}
-
-Scope Lock:
-${scopeLock}
-
-Acceptance Checklist:
-${checklistLines}
-`.trim();
-}
-
-function downloadRecord(caseData = {}) {
-  const text = buildRecordText(caseData);
-
-  const caseIdSafe =
-    caseData?.caseId ||
-    caseData?.case_id ||
-    caseData?.id ||
-    caseData?.resultId ||
-    "draft";
-
-  const fileName = `case-record-${caseIdSafe}.txt`;
-
-  const blob = new Blob([text], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-
-  URL.revokeObjectURL(url);
 }
 
 function hasSevenDayWindowElapsed(entries = [], locationState = {}) {
@@ -780,7 +675,7 @@ function getScoreTriggerTag({
     );
 
     if (scenarioSet.size <= 1 && weakestSet.size <= 1 && latestThree.length >= 2) {
-      return "same scenario + same weakest dimension";
+      return "same situation pattern and same weak point";
     }
 
     if (score >= 1.5) {
@@ -868,7 +763,7 @@ function getTriggerEvidenceItems({ type, entries = [] }) {
       return {
         id: `consistency-${index}`,
         title: `Entry ${safeEntries.length - latestThree.length + index + 1}`,
-        detail: `scenario=${scenario}, weakest=${weakest}`,
+        detail: [safeMarketText(scenario), safeMarketText(weakest)].filter(Boolean).join(" / "),
       };
     });
   }
@@ -889,7 +784,6 @@ function getTriggerEvidenceItems({ type, entries = [] }) {
       return {
         id: `continuity-${index}`,
         title: `Log ${safeEntries.length - Math.min(5, safeEntries.length) + index + 1}`,
-        detail: `${eventType} 璺?${ts}`,
       };
     });
   }
@@ -1104,6 +998,33 @@ function resolveCaseDataFromState(locationState = {}) {
   return null;
 }
 
+const sanitizeForMarket = (obj = {}) => {
+  const BLOCK_LIST = [
+    "RUN000",
+    "PAT-00",
+    "unknown_scenario",
+    "unknown_signal",
+    "No Dominant Scenario",
+    "Selected workflow",
+    "Unknown workflow"
+  ];
+
+  const clean = (value) => {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    return BLOCK_LIST.includes(text) ? "" : text;
+  };
+
+  return {
+    ...obj,
+    runId: clean(obj.runId),
+    pattern: clean(obj.pattern),
+    scenarioCode: clean(obj.scenarioCode),
+    scenarioLabel: clean(obj.scenarioLabel),
+    workflow: clean(obj.workflow),
+  };
+};
+
 function buildSourceInputFromState(locationState = {}) {
   const preview = locationState?.preview || null;
   const sourceInput = locationState?.sourceInput || null;
@@ -1277,8 +1198,8 @@ return {
         pilotResult?.summaryText ||
         upstream?.summary?.[0] ||
         resultSeed?.summary ||
-        "No structured summary available.",
-    }) || "No structured summary available.",
+        "No structured summary is available yet.",
+    }) || "No structured summary is available yet.",
 
   caseInput: getCaseContext({
     caseData: resolvedCaseData,
@@ -1401,8 +1322,6 @@ function resolvePilotRuntimeState(locationState = {}, combinationStatus = {}, ha
       ? Number(upstreamEvidenceSupport || 0) +
         Number(upstreamStructureCompleteness || 0)
       : fallbackScore;
-
-  // 閴?descriptive-only閿涘牆浜ゆ惔鏇炲箵閸旂喕鍏橀敍?
 const resolvedReceiptEligible = null;
 
   return {
@@ -1424,6 +1343,29 @@ const resolvedReceiptEligible = null;
   };
 }
 
+const resolveObservedContext = (caseData) => {
+  const candidates = [
+    caseData?.rawText,
+    caseData?.eventText,
+    caseData?.summaryContext,
+    caseData?.displayContext,
+    ...(Array.isArray(caseData?.events)
+      ? caseData.events.map((event) => event?.text || event?.note || event?.label)
+      : []),
+  ];
+
+  return (
+    candidates.find((value) => {
+      const text = String(value || "").trim();
+      if (!text) return false;
+      if (text.includes("INV-2048")) return false;
+      if (text.includes("TXN-88921")) return false;
+      if (text.includes("Duplicate charge")) return false;
+      return true;
+    }) || "No observed context has been captured for this case yet."
+  );
+};
+
 export default function PilotResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1434,6 +1376,10 @@ export default function PilotResultPage() {
       return new URLSearchParams();
     }
   }, [location.search]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
 
   const resolvedCaseId = useMemo(
     () =>
@@ -1470,14 +1416,6 @@ export default function PilotResultPage() {
     location.state?.eventHistory ||
     getPilotEntries();
 
-  console.log("USING PILOT ENTRIES SOURCE =",
-    Array.isArray(location.state?.pilot_entries) ? "state.pilot_entries" :
-    Array.isArray(location.state?.latest_pilot_entry?.eventHistory) ? "latest_pilot_entry.eventHistory" :
-    Array.isArray(location.state?.pilot_result?.eventHistory) ? "pilot_result.eventHistory" :
-    Array.isArray(location.state?.eventHistory) ? "eventHistory" :
-    "getPilotEntries()"
-  );
-
   const eventHistory = useMemo(() => {
     return Array.isArray(rawPilotEntries) ? rawPilotEntries : [];
   }, [rawPilotEntries]);
@@ -1491,8 +1429,6 @@ export default function PilotResultPage() {
   useEffect(() => {
     if (!resolvedCaseId) return;
     if (!hasCapturedEvents) return;
-
-    console.log("PILOT_RESULT_UPDATE_WORKSPACE_SUMMARY", resolvedCaseId);
 
     try {
       setCaseStatus(resolvedCaseId, "workspace_summary");
@@ -1553,16 +1489,26 @@ export default function PilotResultPage() {
   const backToPilotPath = location.state?.session_id
     ? `${ROUTES.PILOT_SETUP}?session_id=${location.state.session_id}`
     : ROUTES.PILOT_SETUP;
+  const stripBreadcrumbState = (state = {}) => {
+    const {
+      routeMeta,
+      sourcePath,
+      flowSteps,
+      steps,
+      breadcrumb,
+      ...rest
+    } = state || {};
+
+    return rest;
+  };
   const handleBack = () => {
     navigate(backToPilotPath, {
       state: {
-        ...location.state,
+        ...stripBreadcrumbState(location.state || {}),
         pcMeta,
       },
     });
   };
-
-  console.log("棣冾潵 PilotResult location.state =", location.state);
 
   useEffect(() => {
     if (!resolvedCaseId) return;
@@ -1597,7 +1543,9 @@ export default function PilotResultPage() {
     });
   }, [resolvedCaseId, location.state, hasCapturedEvents]);
 
-  const sourceInput = buildSourceInputFromState(location.state || {});
+  const rawSourceInput = buildSourceInputFromState(location.state || {});
+  const sourceInput = sanitizeForMarket(rawSourceInput);
+
   const rawAcceptanceChecklist =
     location.state?.acceptanceChecklist ||
     location.state?.pilot_result?.acceptanceChecklist ||
@@ -1772,24 +1720,6 @@ export default function PilotResultPage() {
     });
   }, [eventHistory, sourceInput]);
 
-  const customerRecordEvents = useMemo(() => {
-    return entries
-      .map((entry) => {
-        const eventInput = getEntryEventInput(entry) || {};
-
-        const time = getEntryTimestamp(entry);
-
-        return {
-          rawText: eventInput.rawText || entry?.rawText || "",
-          userInput: eventInput.userInput || entry?.userInput || "",
-          originalText: eventInput.originalText || entry?.originalText || "",
-          input: eventInput.input || entry?.input || "",
-          time,
-        };
-      })
-      .filter((event) => getRawEventText(event).length > 0);
-  }, [entries]);
-
   const latestEvent = entries[entries.length - 1] || null;
   const currentEventType = latestEvent?.eventType || getCurrentEventType(entries);
   const currentEventLabel = getEventLabel(currentEventType);
@@ -1836,32 +1766,9 @@ export default function PilotResultPage() {
   ]);
 
   const score = useMemo(() => {
-    console.log("[SCORE_SOURCE_PRIORITY]", {
-      page: "PilotResultPage",
-      caseId,
-      usingPersistedCase: Boolean(persistedCase),
-      persistedKeys: persistedCase ? Object.keys(persistedCase) : [],
-      fallbackEntryCount: Array.isArray(scoringEntries) ? scoringEntries.length : 0,
-      scoringSourceKeys: scoringSource ? Object.keys(scoringSource) : [],
-    });
-
-    console.log("[SCORE_INPUT_SOURCE]", {
-      page: "PilotResultPage",
-      caseId,
-      sourceKeys: scoringSource ? Object.keys(scoringSource) : [],
-      source: scoringSource,
-    });
-
     return calculateDeterministicScore(scoringSource);
   }, [caseId, persistedCase, scoringEntries, scoringSource]);
   const isReceiptReady = Boolean(score?.receiptEligible);
-
-  console.log("[DETERMINISTIC_SCORE]", {
-    page: "PilotResultPage",
-    caseId: resolvedCaseId,
-    score,
-    eventCount: score.eventCount,
-  });
 
   useEffect(() => {
     if (!topInterventions[0]) return;
@@ -1918,14 +1825,6 @@ export default function PilotResultPage() {
     [score]
   );
 
-  console.log("CASE DEBUG combinationStatus =", combinationStatus);
-  console.log("CASE DEBUG all entries =", entries);
-  console.log("CASE DEBUG scoringEntries =", scoringEntries);
-  console.log(
-    "CASE DEBUG latest scoring entry =",
-    scoringEntries[scoringEntries.length - 1]
-  );
-
   const hasPilotEntries = entries.length > 0;
 
   const runtimeState = useMemo(() => {
@@ -1936,7 +1835,7 @@ export default function PilotResultPage() {
     );
   }, [location.state, combinationStatus, hasPilotEntries]);
 
-  const resolvedStructureStatus = runtimeState.resolvedStructureStatus;  // 閴?娴犲懎鐫嶇粈?
+  const resolvedStructureStatus = runtimeState.resolvedStructureStatus;
 
   const mainPathSummary = getMainPathSummary({
     structureStatus: resolvedStructureStatus,
@@ -1984,9 +1883,9 @@ export default function PilotResultPage() {
       sourceInput.result?.pattern
   );
   const structuralTraceText = [cleanRunId, cleanPatternId]
+    .map(safeMarketText)
     .filter(Boolean)
     .join(" → ");
-
   const runSummaryText = useMemo(() => {
     return buildRunSummaryText(runEntries);
   }, [runEntries]);
@@ -2167,7 +2066,34 @@ const resolvedCaseInput = getCaseContext(sourceInput);
 
 const resolvedSummaryText =
   getCaseSummary(sourceInput) ||
-  "No structured summary available.";
+  "No structured summary is available yet.";
+
+const missingSummaryText = "No structured summary is available yet.";
+const existingPilotSummary = [
+  getCaseSummary(sourceInput),
+  sourceInput?.summaryText,
+].find(
+  (summary) =>
+    typeof summary === "string" &&
+    summary.trim() &&
+    summary.trim() !== missingSummaryText
+);
+const capturedEventText = (Array.isArray(capturedEvents) ? capturedEvents : entries)
+  .map((event) =>
+    typeof event === "string"
+      ? event
+      : event?.text ||
+        event?.event ||
+        event?.description ||
+        event?.content ||
+        event?.eventInput?.summaryContext ||
+        event?.eventInput?.eventDescription ||
+        event?.eventInput?.eventText ||
+        ""
+  )
+  .filter(Boolean)
+  .join(" ");
+const displayPilotSummary = existingPilotSummary || missingSummaryText;
 
 const enhancedSourceInput = {
   ...sourceInput,
@@ -2188,6 +2114,7 @@ const enhancedSourceInput = {
   structureStatus: resolvedStructureStatus,
   caseInput: resolvedCaseInput,
   summaryText: resolvedSummaryText,
+  signals: sourceInput.signals || [],
   pilotEntriesCount: entries.length,
   pilotFlow,
   runEntries,
@@ -2202,11 +2129,37 @@ const enhancedSourceInput = {
   receiptEligible: canProceedToReceipt,
 };
 
-const canExportEvidencePack = access.canExportPDF;
+const data = enhancedSourceInput;
 
-const handleExportEvidencePack = () => {
-  downloadRecord(currentCase || location.state?.caseData || {});
-};
+const textSource =
+  data?.caseInput ||
+  data?.latestEvent?.description ||
+  data?.latestEvent?.text ||
+  data?.latestEvent?.eventInput?.description ||
+  data?.latestEvent?.eventInput?.summaryContext ||
+  data?.summaryText ||
+  "";
+
+const inferredSignals = inferSignalsFromText(textSource);
+
+const mergedSignals = Array.from(new Set([
+  ...(data.signals || []),
+  ...inferredSignals,
+]));
+
+data.signals = mergedSignals;
+
+const pilotSupportingSignals = mergedSignals
+  .map((signal) =>
+    typeof signal === "string"
+      ? safeMarketText(signal)
+      : safeMarketText(signal?.label || signal?.key || signal?.value || "")
+  )
+  .filter(Boolean)
+  .sort((a, b) => (SIGNAL_PRIORITY[b] || 0) - (SIGNAL_PRIORITY[a] || 0))
+  .slice(0, 2);
+
+console.log("RAW signals:", data?.signals);
 
 const acceptanceStatus = resolvedAcceptanceChecklist?.status || "NEEDS_INPUT";
 const acceptanceStatusClass =
@@ -2254,10 +2207,32 @@ if (!hasCapturedEvents) {
     ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(resolvedCaseId)}`
     : ROUTES.PILOT || "/pilot";
 
-  return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <TopRightCasesCapsule />
       <div className="max-w-3xl mx-auto">
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              const currentCaseId =
+                resolvedCaseId ||
+                location.state?.caseId ||
+                currentCase?.caseId ||
+                currentCase?.id ||
+                "";
+
+              if (currentCaseId) {
+                console.log("[View all cases]", { caseId: currentCaseId });
+              }
+
+              navigate(ROUTES.CASES || "/cases");
+            }}
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+          >
+            View all cases
+          </button>
+        </div>
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm leading-6 text-slate-700">
             Please capture at least one event before generating a pilot result.
@@ -2323,7 +2298,7 @@ return (
     </style>
     <TopRightCasesCapsule />
     <div className="max-w-3xl mx-auto">
-      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
+      <div id="pilot-summary-root" className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -2335,7 +2310,7 @@ return (
                       : "Suggested next move"}
                   </p>
                   <p className="mt-1 text-xs text-amber-900">
-                    {suggestedIntervention}
+                    {sanitizeText(suggestedIntervention)}
                   </p>
                 </div>
               )}
@@ -2349,16 +2324,42 @@ return (
                 {isWeeklySummaryFlow
                   ? "This page summarizes the pilot window and prepares it for final receipt generation and verification."
                   : resolvedWeakestDimension
-                  ? `This event is first interpreted through your weakest dimension: ${resolvedWeakestDimension}.`
-                  : "This page explains how the current event is being interpreted structurally."}
+                  ? `Where it is weakest: ${sanitizeText(getWeakestDimensionDisplay(resolvedWeakestDimension))}`
+                : "This page explains how the current event is being interpreted structurally."}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                What to do next: {sanitizeText(getCustomerNextAction({
+                  score: score?.totalScore,
+                  weakestDimension: resolvedWeakestDimension,
+                }))}
               </p>
             </div>
+            <div className="flex items-start justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentCaseId =
+                    resolvedCaseId ||
+                    location.state?.caseId ||
+                    currentCase?.caseId ||
+                    currentCase?.id ||
+                    "";
 
-            
+                  if (currentCaseId) {
+                    console.log("[View all cases]", { caseId: currentCaseId });
+                  }
+
+                  navigate(ROUTES.CASES || "/cases");
+                }}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              >
+                View all cases
+              </button>
+            </div>
           </div>
         </header>
 
-        {!hasEventBackedBaseline ? (
+        {false ? (
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
             <h2 className="text-lg font-semibold text-amber-900">
               No real events recorded yet
@@ -2371,7 +2372,7 @@ return (
               onClick={() =>
                 navigate(ROUTES.RECEIPT, {
                   state: {
-                    ...(location.state || {}),
+                    ...stripBreadcrumbState(location.state || {}),
                     openQuickCapture: true,
                     quickCaptureIntent: "first_event_from_pilot_result",
                   },
@@ -2396,156 +2397,18 @@ return (
                         Main judgment path
                       </p>
                       <h2 className="mt-1 text-2xl md:text-3xl font-semibold leading-tight text-slate-950">
-                        {mainPathSummary.title}
+                        {sanitizeText(mainPathSummary.title)}
                       </h2>
                     </div>
                   </div>
 
                   <p className="mt-4 text-xs leading-6 text-slate-700">
-                    {mainPathSummary.body}
+                    {sanitizeText(mainPathSummary.body)}
                   </p>
 
                   <div className="mt-4">
                     {hasCapturedEvents ? (
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white">
-                        <div className="flex items-center justify-between gap-3 px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setSubmittedExpanded((prev) => !prev)}
-                            className="flex cursor-pointer items-center gap-3 text-left text-sm font-medium text-slate-900"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`section-caret ${
-                                submittedExpanded ? "section-caret-open" : ""
-                              }`}
-                            />
-                            <span>{summaryTitle}</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-
-                              const summaryText =
-                                resolvedSummaryText ||
-                                sourceInput?.summaryText ||
-                                "No structured summary available.";
-                              const firstRawText =
-                                getRawEventText(customerRecordEvents[0]) ||
-                                "No original event text was captured.";
-
-                              const lines = [
-                                summaryTitle,
-                                "",
-                                "[Summary]",
-                                summaryText,
-                                "",
-                                "[You described]",
-                                firstRawText,
-                                "",
-                                "[Captured Events]",
-                                ...(customerRecordEvents.length > 0
-                                  ? customerRecordEvents.map((event, index) => {
-                                      const timeText = event?.time
-                                        ? new Date(event.time).toLocaleString()
-                                        : "No timestamp";
-
-                                      return `Event ${index + 1} - ${timeText}\n"${getRawEventText(event)}"`;
-                                    })
-                                  : ["No original event text was captured."]),
-                              ];
-
-                              const blob = new Blob([lines.join("\n\n")], {
-                                type: "text/plain;charset=utf-8",
-                              });
-                              const url = URL.createObjectURL(blob);
-                              const anchor = document.createElement("a");
-
-                              anchor.href = url;
-                              anchor.download = "nimclea-draft-record.txt";
-                              anchor.click();
-
-                              URL.revokeObjectURL(url);
-                            }}
-                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
-                          >
-                            Export Summary
-                          </button>
-                        </div>
-
-                        {submittedExpanded ? (
-                          <div className="border-t border-slate-100 px-4 pb-4 pt-3 text-sm text-slate-700">
-                            <div
-                              className="px-1 py-2"
-                              style={{
-                                height: "360px",
-                                overflowY: "auto",
-                                overflowX: "hidden",
-                              }}
-                            >
-                              <div className="space-y-5">
-                                <div>
-                                  <p className="text-xs font-medium text-slate-500">
-                                    Summary
-                                  </p>
-                                  <p
-                                    className="mt-1 italic text-slate-700"
-                                    style={{
-                                      lineHeight: "1.45",
-                                      wordBreak: "break-word",
-                                      overflowWrap: "anywhere",
-                                    }}
-                                  >
-                                    {resolvedSummaryText ||
-                                      sourceInput?.summaryText ||
-                                      "No structured summary available."}
-                                  </p>
-                                </div>
-
-                                <div>
-                                  <p className="text-xs font-medium text-slate-500">
-                                    Captured Events
-                                  </p>
-
-                                  <div className="mt-2 space-y-3">
-                                    {customerRecordEvents.length > 0 ? (
-                                      customerRecordEvents.map((event, index) => (
-                                        <div key={index} className="text-sm">
-                                          <p className="text-xs text-slate-500">
-                                            Event {index + 1}:
-                                            {event?.time ? (
-                                              <span className="ml-2 text-slate-400">
-                                                {new Date(event.time).toLocaleString()}
-                                              </span>
-                                            ) : null}
-                                          </p>
-
-                                          <p
-                                            className="mt-1 italic text-slate-700"
-                                            style={{
-                                              lineHeight: "1.45",
-                                              wordBreak: "break-word",
-                                              overflowWrap: "anywhere",
-                                            }}
-                                          >
-                                            {getRawEventText(event)}
-                                          </p>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <p className="text-sm italic text-slate-700">
-                                        No original event text was captured.
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
+                      <div style={{ marginTop: "8px" }}>                  
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500">
@@ -2554,10 +2417,71 @@ return (
                     )}
                   </div>
 
+                  {pilotSupportingSignals.length > 0 ? (
+                    <div style={{ marginTop: "12px" }}>
+                      <section
+                        style={{
+                          background: "#fff",
+                          border: "1px solid #E2E8F0",
+                          borderRadius: "16px",
+                          padding: "14px 16px",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            width: "100%",
+                          }}
+                        >
+                          <h2
+                            style={{
+                              fontSize: "15px",
+                              fontWeight: 500,
+                              margin: 0,
+                              color: "#0F172A",
+                            }}
+                          >
+                            What is happening
+                          </h2>
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "10px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "4px",
+                            paddingLeft: "0px",
+                          }}
+                        >
+                          {pilotSupportingSignals.map((signal, index) => (
+                            <div
+                              key={`${signal}-${index}`}
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 400,
+                                color: "#475569",
+                                lineHeight: 1.45,
+                              }}
+                            >
+                              <span style={{ color: "#64748B" }}>
+                                What this means in practice {index + 1}:
+                              </span>{" "}
+                              {sanitizeText(signal)}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                  ) : null}
+
                   <div className="mt-4 border-t border-slate-100 pt-3">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                       <p className="text-xs font-medium text-slate-900">
-                        Structure: Locked • Accepted
+                        {isReceiptReady ? "Structure: Receipt-ready" : "Structure: Still forming"}
                       </p>
                       <button
                         type="button"
@@ -2577,15 +2501,13 @@ return (
                           <div>
                             <span className="text-slate-900">Scope status: </span>
                             <span className="font-medium text-slate-900">
-                              {hardenedScopeLock?.status || "not locked"}
+                              {sanitizeText(hardenedScopeLock?.status, "not locked")}
                             </span>
                           </div>
                           <div>
                             <span className="text-slate-900">Workflow: </span>
                             <span className="font-medium text-slate-900">
-                              {hardenedScopeLock?.workflow ||
-                                sourceInput?.workflow ||
-                                "Selected workflow"}
+                              {sanitizeText(safeMarketText(hardenedScopeLock?.workflow || sourceInput?.workflow || ""))}
                             </span>
                           </div>
                           <div>
@@ -2593,10 +2515,10 @@ return (
                             <span
                               className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${acceptanceStatusClass}`}
                             >
-                              {acceptanceStatus}
+                              {sanitizeText(acceptanceStatus)}
                             </span>
                             <p className="text-sm text-slate-500 mt-1">
-                              Acceptance means the required structure exists. Receipt readiness depends on the score threshold below.
+                              Acceptance means the required structure exists. Receipt readiness depends on the decision stability threshold below.
                             </p>
                           </div>
                           <div>
@@ -2619,9 +2541,7 @@ return (
                                   className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
                                 >
                                   <span>
-                                    {item?.key === "receiptReadyCandidate"
-                                      ? "Structure accepted"
-                                      : item?.label || "Checklist item"}
+                                    {sanitizeText(item?.label, "Checklist item")}
                                   </span>
                                   <span
                                     className={
@@ -2654,11 +2574,7 @@ return (
                       Observed context
                     </p>
                     <p className="mt-1 text-xs leading-6 text-slate-700">
-                      {getCaseSummary(enhancedSourceInput.latestEvent) ||
-                        getCaseContext(enhancedSourceInput.latestEvent) ||
-                        getCaseSummary(enhancedSourceInput) ||
-                        getCaseContext(enhancedSourceInput) ||
-                        "No case attached"}
+                      {sanitizeText(resolveObservedContext(currentCase))}
                     </p>
                   </div>
                 )}
@@ -2669,7 +2585,7 @@ return (
                   </p>
 
                   <p className="mt-1 text-sm font-medium text-emerald-900">
-                    {primaryRecommendation} 
+                    {sanitizeText(primaryRecommendation)}
                   </p>
 
                   <p className="mt-1 text-sm text-gray-500">
@@ -2695,7 +2611,7 @@ return (
                   {backupPathExpanded && (
                     <div className="px-4 pb-4">
                       <p className="text-xs leading-6 text-slate-700">
-                        {backupRecommendation}
+                        {sanitizeText(backupRecommendation)}
                       </p>
                     </div>
                   )}
@@ -2773,10 +2689,22 @@ return (
                         totalRunHits,
                       });
 
+                      const safeEntries = Array.isArray(entries) ? entries : [];
+                      const existingEvents = Array.isArray(currentCase?.events)
+                        ? currentCase.events
+                        : [];
+                      const mergedEvents = [...safeEntries, ...existingEvents].filter(Boolean);
+
                       try {
                         if (!currentCase?.receipt?.hash) {
                           upsertCase({
                             caseId: resolvedCaseId,
+                            events: mergedEvents,
+                            eventLogs: mergedEvents,
+                            entries: mergedEvents,
+                            latestEvent: mergedEvents[0] || null,
+                            status: "workspace_summary",
+                            updatedAt: new Date().toISOString(),
                             receipt: {
                               eligible: canProceedToReceipt,
                               score: scoring.totalScore,
@@ -3161,7 +3089,6 @@ return (
                   padding: 0,
                 }}
               >
-                鑴?
               </button>
             </div>
       
@@ -3192,7 +3119,7 @@ return (
                     color: "#0F172A",
                   }}
                 >
-                  {workspaceCopy.workspaceTitle}
+                  {sanitizeText(workspaceCopy.workspaceTitle)}
                 </h3>
       
                 <p
@@ -3264,7 +3191,7 @@ return (
                   className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                   style={{ marginTop: "16px" }}
                 >
-                  {workspaceCopy.workspaceCta}
+                  {sanitizeText(workspaceCopy.workspaceCta)}
                 </button>
               </div>
 
@@ -3357,7 +3284,7 @@ return (
                   className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
                   style={{ marginTop: "16px" }}
                 >
-                  {workspaceCopy.receiptCta}
+                  {sanitizeText(workspaceCopy.receiptCta)}
                 </button>
               </div>
             </div>

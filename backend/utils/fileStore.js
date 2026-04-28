@@ -9,7 +9,7 @@ export function ensureJsonFile(filePath, defaultValue = []) {
   }
 
   if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2), "utf-8");
+    fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2), "utf8");
   }
 }
 
@@ -27,7 +27,7 @@ export function readJsonFile(filePath, defaultValue = []) {
 
 export function writeJsonFile(filePath, data) {
   ensureJsonFile(filePath, []);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
 }
 
 export function appendJsonFile(filePath, item, defaultValue = []) {

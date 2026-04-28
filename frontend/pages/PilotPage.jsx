@@ -86,6 +86,11 @@ function buildPilotRegisterEmail(stableUserId = "") {
   return `${stableUserId}@nimclea.local`;
 }
 
+function getStoredEmail() {
+  if (typeof window === "undefined") return "";
+  return String(localStorage.getItem("nimclea_email") || "").trim();
+}
+
 function createPilotId(sessionId = "") {
   if (!sessionId) return "NIM-PILOT";
   return `PILOT-${String(sessionId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 10).toUpperCase()}`;
@@ -235,20 +240,8 @@ function PilotHero({
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
         <div className="flex flex-wrap items-center gap-2">
-          {pcMeta?.pc_id ? <Pill>{pcMeta.pc_id}</Pill> : null}
           <Pill success>7-Day Pilot</Pill>
           {scenarioLabel ? <Pill>{scenarioLabel}</Pill> : null}
-          {preview?.pressureProfile?.label ? (
-            <Pill
-              style={{
-                backgroundColor: "#FEF3C7",
-                color: "#78350F",
-                border: "1px solid #FCD34D",
-              }}
-            >
-              {preview.pressureProfile.label}
-            </Pill>
-          ) : null}
         </div>
 
         <>
@@ -283,11 +276,6 @@ function PilotHero({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-8 py-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        <span>Pilot ID: {pilotId}</span>
-        <span>{resolvedEventWindow}</span>
-        <span>{resolvedNextAction}</span>
-      </div>
     </Card>
   );
 }
@@ -662,10 +650,10 @@ function CarryOverSection({
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Strongest signal
+              What is happening
             </div>
             <p className="mt-2 text-sm text-slate-900">
-              {strongestSignal?.label || "Structural Signal"}
+              {strongestSignal?.label || "What is happening"}
             </p>
             {strongestSignal?.description ? (
               <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -848,7 +836,7 @@ export default function PilotPage() {
             label:
               incomingCaseSchema.pilotFocusKey ||
               incomingCaseSchema.weakestDimension ||
-              "Structural Signal",
+              "What is happening",
             description: getSafeCaseSummary(incomingCaseSchema),
             pilotStep: incomingCaseSchema.routeDecision?.reason || "",
             pilotMetric: incomingCaseSchema.structureStatus || "",
@@ -903,6 +891,18 @@ export default function PilotPage() {
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
   const access = resolveAccessMode(incomingCaseSchema || preview || location.state || {});
+  const stripBreadcrumbState = (state = {}) => {
+    const {
+      routeMeta,
+      sourcePath,
+      flowSteps,
+      steps,
+      breadcrumb,
+      ...rest
+    } = state || {};
+
+    return rest;
+  };
 
   const stableUserId = useMemo(() => getStableUserId(), []);
   const startInFlightRef = useRef(false);
@@ -933,7 +933,7 @@ export default function PilotPage() {
         state: {
           pcMeta,
           session_id: resolvedSessionId,
-          preview,
+          preview: stripBreadcrumbState(preview || {}),
         },
       }
     );
@@ -1095,12 +1095,14 @@ export default function PilotPage() {
       ...scopeLock,
       caseId: caseIdForPilot,
     };
+    const storedEmail = getStoredEmail();
 
     if (!incomingCaseId) {
       const createdCase = upsertCase({
         caseId: resolvedCaseId,
         source: "pilot",
         currentStep: "pilot",
+        email: storedEmail || undefined,
         summary: getSafeCaseSummary(fallbackCaseSchema),
         weakestDimension:
           weakestDimension ||
@@ -1130,6 +1132,7 @@ export default function PilotPage() {
           caseData: {
             sessionId: resolvedSessionId,
             stableUserId,
+            email: storedEmail || undefined,
             workflow,
             scopeLock: scopedScopeLock,
             acceptanceChecklist: normalizedChecklist,
@@ -1148,6 +1151,32 @@ export default function PilotPage() {
             firstStepLabel: incomingFirstStepLabel || "",
           },
         });
+
+        if (storedEmail && caseIdForPilot) {
+          upsertCase({
+            caseId: caseIdForPilot,
+            email: storedEmail,
+            source: "pilot",
+          });
+        }
+
+        if (storedEmail && caseIdForPilot) {
+          const emailLogResponse = await fetch("http://localhost:3000/email/log", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: storedEmail,
+              caseId: caseIdForPilot,
+              source: "pilot_page",
+            }),
+          });
+
+          if (!emailLogResponse.ok) {
+            console.warn("PilotPage email log not saved", await emailLogResponse.text());
+          }
+        }
       } catch (error) {
         console.error("PilotPage sync error:", error);
       }
@@ -1159,9 +1188,9 @@ export default function PilotPage() {
       sessionId: resolvedSessionId,
       caseId: caseIdForPilot,
       case_id: caseIdForPilot,
-      preview,
-      result: preview,
-      sourceInput: preview,
+      preview: stripBreadcrumbState(preview || {}),
+      result: stripBreadcrumbState(preview || {}),
+      sourceInput: stripBreadcrumbState(preview || {}),
       trialSession,
       caseSchema: fallbackCaseSchema,
       stage: resolvedStage,
@@ -1296,7 +1325,6 @@ export default function PilotPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="relative mx-auto max-w-3xl px-6 py-10">
-        <TopRightCasesCapsule />
         <div className="space-y-6">
           <PilotHero
             preview={preview}
