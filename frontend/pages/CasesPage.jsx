@@ -417,30 +417,38 @@ export default function CasesPage() {
                   placeholder="Enter your email"
                   className="w-full rounded-full border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
                 />
-                <button
-                  type="button"
-                  onClick={handleContinueWithEmail}
-                  className="inline-flex items-center justify-center rounded-full text-sm font-medium transition"
-                  style={{
-                    backgroundColor: "#0F172A",
-                    color: "#FFFFFF",
-                    border: "1px solid #0F172A",
-                    padding: "10px 20px",
-                    lineHeight: "1.2",
-                    width: "auto",
-                    minWidth: "unset",
-                  }}
-                >
-                  Continue
-                </button>
-
-                <div className="mt-4 text-center">
-                  <a
-                    href="https://nimclea.com"
-                    className="text-xs text-slate-400 hover:text-slate-600 transition"
+                <div className="mt-1 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => window.location.href = "https://nimclea.com"}
+                    className="inline-flex items-center justify-center rounded-full text-sm font-medium transition hover:bg-slate-100"
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      color: "#0F172A",
+                      border: "1px solid #CBD5E1",
+                      padding: "8px 16px",
+                      lineHeight: "1.2",
+                    }}
                   >
-                    ← Back
-                  </a>
+                    Back
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleContinueWithEmail}
+                    className="inline-flex items-center justify-center rounded-full text-sm font-medium transition"
+                    style={{
+                      backgroundColor: "#0F172A",
+                      color: "#FFFFFF",
+                      border: "1px solid #0F172A",
+                      padding: "7px 16px",
+                      lineHeight: "1.2",
+                      width: "auto",
+                      minWidth: "unset",
+                    }}
+                  >
+                    Continue
+                  </button>
                 </div>
               </div>
 
