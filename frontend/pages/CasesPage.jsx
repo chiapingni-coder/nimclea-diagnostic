@@ -433,6 +433,15 @@ export default function CasesPage() {
                 >
                   Continue
                 </button>
+
+                <div className="mt-4 text-center">
+                  <a
+                    href="https://nimclea.com"
+                    className="text-xs text-slate-400 hover:text-slate-600 transition"
+                  >
+                    ← Back
+                  </a>
+                </div>
               </div>
 
               {emailError ? (
