@@ -1136,5 +1136,19 @@
       "caseId": "CASE-1777408838782-6QX3HS"
     },
     "createdAt": "2026-04-28T23:20:01.398Z"
+  },
+  {
+    "eventId": "evt_1777428947843_mch6fo",
+    "userId": "",
+    "trialId": "",
+    "caseId": "CASE-1777428937561-DPUJ7E",
+    "eventType": "entry_viewed",
+    "page": "DiagnosticPage",
+    "meta": {
+      "pcId": "PC-001",
+      "source": "landing_view",
+      "caseId": "CASE-1777428937561-DPUJ7E"
+    },
+    "createdAt": "2026-04-29T02:15:47.844Z"
   }
 ]

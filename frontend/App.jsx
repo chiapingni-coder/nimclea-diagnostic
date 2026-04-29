@@ -30,37 +30,14 @@ function EntryRedirect() {
     cases = [];
   }
 
-  if (!cases.length) {
-    return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
-  }
-
   const verifiedAccess = hasVerifiedAccess();
 
-  if (!verifiedAccess) {
-    return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
-  }
-
-  const hasRealCase = cases.some(
-    (c) => Array.isArray(c?.events) && c.events.length > 0
-  );
-
-  if (hasRealCase) {
+  if (verifiedAccess && cases.length > 0) {
     return <Navigate to={ROUTES.CASES} replace />;
   }
 
-  const latestCase = cases[cases.length - 1];
-  const caseId =
-    latestCase?.caseId ||
-    latestCase?.id ||
-    latestCase?.resultId;
-
-  if (caseId) {
-    return (
-      <Navigate
-        to={`${ROUTES.RESULT}?caseId=${encodeURIComponent(caseId)}&from=case`}
-        replace
-      />
-    );
+  if (cases.length > 0) {
+    return <Navigate to={ROUTES.CASES} replace />;
   }
 
   return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
