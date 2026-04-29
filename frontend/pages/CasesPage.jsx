@@ -258,16 +258,6 @@ export default function CasesPage() {
     }
   }, [location.search]);
 
-  React.useEffect(() => {
-    const storedEmail = formatEmail(localStorage.getItem(EMAIL_STORAGE_KEY) || "");
-
-    if (!storedEmail) return;
-
-    setSavedEmail(storedEmail);
-    setEmailInput(storedEmail);
-    void loadCasesForEmail(storedEmail);
-  }, [loadCasesForEmail]);
-
   const handleContinueWithEmail = React.useCallback(() => {
 
     const email = formatEmail(emailInput);
@@ -435,13 +425,13 @@ export default function CasesPage() {
                     backgroundColor: "#0F172A",
                     color: "#FFFFFF",
                     border: "1px solid #0F172A",
-                    padding: "10px 14px",
+                    padding: "10px 20px",
                     lineHeight: "1.2",
                     width: "auto",
                     minWidth: "unset",
                   }}
                 >
-                  Continue to Cases
+                  Continue
                 </button>
               </div>
 

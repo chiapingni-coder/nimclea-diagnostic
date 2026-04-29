@@ -13,41 +13,29 @@ import ROUTES from "./routes";
 import RunLedgerPage from "./pages/RunLedgerPage";
 import AnalyticsPage from "./pages/AnalyticsPage.jsx";
 import CasesPage from "./pages/CasesPage.jsx";
-import { getAllCases } from "./utils/caseRegistry.js";
-import { hasVerifiedAccess } from "./lib/verifiedAccess";
-
 export const PC_META = {
   pc_id: "PC-001",
   pc_name: "Decision Risk Diagnostic"
 };
 
 function EntryRedirect() {
-  let cases = [];
-
-  try {
-    cases = getAllCases?.() || [];
-  } catch {
-    cases = [];
-  }
-
-  const verifiedAccess = hasVerifiedAccess();
-
-  if (verifiedAccess && cases.length > 0) {
-    return <Navigate to={ROUTES.CASES} replace />;
-  }
-
-  if (cases.length > 0) {
-    return <Navigate to={ROUTES.CASES} replace />;
-  }
-
-  return <Navigate to={ROUTES.DIAGNOSTIC} replace />;
+  return <Navigate to={ROUTES.ACCESS} replace />;
 }
 
 export default function App() {
   return (
     <Routes>
       <Route path={ROUTES.HOME} element={<EntryRedirect />} />
-      <Route path={ROUTES.CASES} element={<CasesPage pcMeta={PC_META} />} />
+      <Route
+        path={ROUTES.ACCESS}
+        element={<CasesPage pcMeta={PC_META} entryMode="access" />}
+      />
+
+      <Route
+        path={ROUTES.CASES}
+        element={<CasesPage pcMeta={PC_META} entryMode="cases" />}
+      />
+      
       <Route path={ROUTES.DIAGNOSTIC} element={<DiagnosticPage pcMeta={PC_META} />} />
       <Route path={ROUTES.RESULT} element={<ResultPage pcMeta={PC_META} />} />
       <Route path={ROUTES.PILOT} element={<PilotPage pcMeta={PC_META} />} />
