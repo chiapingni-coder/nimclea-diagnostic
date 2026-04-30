@@ -757,7 +757,18 @@ export default function CasesPage() {
                         <>
                           <p>{sanitizeText(getDecisionStabilityLabel(item?.score))}</p>
                           <p>Where it is weakest: {sanitizeText(getWeakestDimensionDisplay(item?.weakestDimension))}</p>
-                          <p>Updated: {sanitizeText(item?.updatedAt, "N/A")}</p>
+                          <p>
+                            Updated:{" "}
+                            {item?.updatedAt
+                              ? new Date(item.updatedAt).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })
+                              : "N/A"}
+                          </p>
                           <p>Receipt: {sanitizeText(isPaid ? receiptBillingStatus : "Preview only")}</p>
                           <p>Verification: {sanitizeText(isPaid ? verificationBillingStatus : "Not activated")}</p>
                         </>
