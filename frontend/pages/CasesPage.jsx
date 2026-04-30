@@ -299,6 +299,8 @@ export default function CasesPage() {
   }, [resolvedCaseId, resolvedEmail]);
 
   const loadCasesForEmail = React.useCallback(async (rawEmail, options = {}) => {
+    console.log("[loadCasesForEmail called]", rawEmail);
+
     const email = formatEmail(rawEmail);
 
     if (!email || !email.includes("@")) {
@@ -433,6 +435,8 @@ export default function CasesPage() {
   }, [location.search]);
 
   const handleContinueWithEmail = React.useCallback(() => {
+    console.log("[access continue clicked]", { emailInput });
+    console.log("[access continue formatted]", formatEmail(emailInput));
 
     const email = formatEmail(emailInput);
 
