@@ -11,8 +11,7 @@ import {
   getWeakestDimensionDisplay,
 } from "../lib/customerDecisionDisplay";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const EMAIL_STORAGE_KEY = "nimclea_email";
 
 function normalizeEmail(value = "") {
