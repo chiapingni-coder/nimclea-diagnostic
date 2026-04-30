@@ -11,7 +11,8 @@ import {
   getWeakestDimensionDisplay,
 } from "../lib/customerDecisionDisplay";
 
-const API_BASE = "http://localhost:3000";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 const EMAIL_STORAGE_KEY = "nimclea_email";
 
 function normalizeEmail(value = "") {
@@ -100,6 +101,33 @@ function resolveCaseId(item) {
   return resolveSafeCaseId(normalized);
 }
 
+function hasDiagnosticResultData(item) {
+  const normalized = normalizeCaseItem(item);
+  const caseData = normalized?.caseData || normalized?.caseSchema || normalized || {};
+
+  return Boolean(
+    normalized?.result ||
+      normalized?.preview ||
+      normalized?.diagnostic ||
+      normalized?.diagnosticResult ||
+      normalized?.caseSnapshot?.caseRecord ||
+      normalized?.pilot_result ||
+      normalized?.pilotResult ||
+      normalized?.resultId ||
+      caseData?.result ||
+      caseData?.preview ||
+      caseData?.scenario ||
+      caseData?.scenarioCode ||
+      caseData?.scenarioLabel ||
+      caseData?.stage ||
+      caseData?.score != null ||
+      caseData?.normalizedScore != null ||
+      hasNonEmptyArray(caseData?.signals) ||
+      hasNonEmptyArray(caseData?.top_signals) ||
+      hasNonEmptyArray(caseData?.topSignals)
+  );
+}
+
 function getCaseDetailRoute(item) {
   const caseIdSafe = resolveCaseId(item);
 
@@ -107,7 +135,21 @@ function getCaseDetailRoute(item) {
     return "/cases";
   }
 
-  return `/receipt?caseId=${encodeURIComponent(caseIdSafe)}&from=case`;
+  const encodedCaseId = encodeURIComponent(caseIdSafe);
+
+  if (!hasDiagnosticResultData(item)) {
+    return `${ROUTES.DIAGNOSTIC}?caseId=${encodedCaseId}`;
+  }
+
+  if (!hasRealEventSignal(item)) {
+    return `${ROUTES.RESULT}?caseId=${encodedCaseId}`;
+  }
+
+  if (hasActivatedReceipt(item)) {
+    return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
+  }
+
+  return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
 }
 
 function hasRealEventSignal(item) {
@@ -116,15 +158,114 @@ function hasRealEventSignal(item) {
   const eventCount =
     Number(item?.eventCount || 0) ||
     Number(normalized?.eventCount || 0) ||
+    Number(normalized?.caseSnapshot?.eventCount || 0) ||
     (Array.isArray(item?.events) ? item.events.length : 0) ||
-    (Array.isArray(normalized?.events) ? normalized.events.length : 0);
+    (Array.isArray(normalized?.events) ? normalized.events.length : 0) ||
+    (Array.isArray(normalized?.eventLogs) ? normalized.eventLogs.length : 0) ||
+    (Array.isArray(normalized?.structuredEvents) ? normalized.structuredEvents.length : 0) ||
+    (Array.isArray(normalized?.caseEvents) ? normalized.caseEvents.length : 0) ||
+    (Array.isArray(normalized?.entries) ? normalized.entries.length : 0) ||
+    (Array.isArray(normalized?.pilotEntries) ? normalized.pilotEntries.length : 0) ||
+    (Array.isArray(normalized?.eventEntries) ? normalized.eventEntries.length : 0) ||
+    (Array.isArray(normalized?.captureRecords) ? normalized.captureRecords.length : 0) ||
+    (Array.isArray(normalized?.captures) ? normalized.captures.length : 0);
 
-  return eventCount > 0;
+  return (
+    eventCount > 0 ||
+    hasNonEmptyText(normalized?.rawEventText) ||
+    hasNonEmptyText(normalized?.eventText) ||
+    hasNonEmptyText(normalized?.captureText) ||
+    hasNonEmptyText(normalized?.userEventText)
+  );
+}
+
+function hasActivatedReceipt(item) {
+  const normalized = normalizeCaseItem(item);
+  const receiptStatus = String(
+    normalized?.receiptStatus ||
+      normalized?.receipt?.status ||
+      normalized?.payment?.receiptStatus ||
+      normalized?.paymentStatus ||
+      ""
+  ).toLowerCase();
+  const paymentStatus = String(
+    normalized?.payment?.status ||
+      normalized?.caseBilling?.receiptStatus ||
+      ""
+  ).toLowerCase();
+
+  return Boolean(
+    normalized?.caseBilling?.receiptActivated === true ||
+      normalized?.payment?.receiptActivated === true ||
+      normalized?.payment?.receiptPaid === true ||
+      normalized?.receipt?.paid === true ||
+      normalized?.receiptPaid === true ||
+      normalized?.paidReceipt === true ||
+      normalized?.formalReceiptUnlocked === true ||
+      normalized?.paid === true ||
+      normalized?.isPaid === true ||
+      receiptStatus === "paid" ||
+      receiptStatus === "activated" ||
+      paymentStatus === "paid"
+  );
+}
+
+function resolveEmailFromCaseId(caseId = "") {
+  if (!caseId) return "";
+
+  const allCases = getAllCases().flatMap((item) =>
+    Array.isArray(item) ? item : [item]
+  );
+
+  const found = allCases.find((item) => {
+    const normalized = normalizeCaseItem(item);
+    const itemCaseId =
+      normalized?.caseId ||
+      normalized?.case_id ||
+      normalized?.id ||
+      "";
+
+    return String(itemCaseId) === String(caseId);
+  });
+
+  return formatEmail(
+    found?.email ||
+      found?.lead?.email ||
+      found?.ownerEmail ||
+      found?.metadata?.email ||
+      found?.caseData?.email ||
+      found?.caseRecord?.email ||
+      found?.trialSession?.email ||
+      found?.routeMeta?.email ||
+      found?.sourceInput?.email ||
+      found?.pilot_setup?.email ||
+      found?.pilot_result?.email ||
+      found?.caseSnapshot?.email ||
+      found?.caseSnapshot?.caseRecord?.email ||
+      found?.caseSnapshot?.caseRecord?.caseData?.email ||
+      ""
+  );
 }
 
 export default function CasesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const resolvedCaseId =
+    location.state?.caseId ||
+    location.state?.case_id ||
+    localStorage.getItem("nimclea_current_case_id") ||
+    "";
+  const resolvedEmail =
+    location.state?.email ||
+    location.state?.userEmail ||
+    localStorage.getItem(EMAIL_STORAGE_KEY) ||
+    resolveEmailFromCaseId(
+      location.state?.caseId ||
+        location.state?.case_id ||
+        localStorage.getItem("nimclea_current_case_id") ||
+        ""
+    ) ||
+    "";
   const [expandedCaseIds, setExpandedCaseIds] = React.useState({});
   const [caseCreationError, setCaseCreationError] = React.useState("");
   const [showSubscriptionOptions, setShowSubscriptionOptions] = React.useState(false);
@@ -132,19 +273,42 @@ export default function CasesPage() {
   const [startingSubscriptionCheckout, setStartingSubscriptionCheckout] = React.useState(false);
 
   const [cases, setCases] = React.useState([]);
-  const [savedEmail, setSavedEmail] = React.useState("");
-  const [emailInput, setEmailInput] = React.useState("");
+  const [savedEmail, setSavedEmail] = React.useState(resolvedEmail);
+  const [emailInput, setEmailInput] = React.useState(resolvedEmail);
   const [emailError, setEmailError] = React.useState("");
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
+  const hasWorkspaceIdentity = Boolean(formatEmail(savedEmail || resolvedEmail));
+
+  console.log("[CasesPage identity]", {
+    resolvedCaseId,
+    resolvedEmail,
+    savedEmail,
+    hasWorkspaceIdentity,
+    locationState: location.state,
+  });
+
+  React.useEffect(() => {
+    if (resolvedCaseId) {
+      localStorage.setItem("nimclea_current_case_id", resolvedCaseId);
+    }
+    if (resolvedEmail) {
+      localStorage.setItem(EMAIL_STORAGE_KEY, resolvedEmail);
+    }
+  }, [resolvedCaseId, resolvedEmail]);
 
   const loadCasesForEmail = React.useCallback(async (rawEmail, options = {}) => {
     const email = formatEmail(rawEmail);
 
-    if (!email) {
-      setEmailError("Enter an email to continue.");
-      setEmailStatus("");
+    if (!email || !email.includes("@")) {
+      console.log("[CasesPage] invalid email, forcing access state");
+
+      localStorage.removeItem(EMAIL_STORAGE_KEY);
+      setSavedEmail("");
+      setEmailInput("");
+      setCases([]);
+
       return;
     }
 
@@ -193,7 +357,7 @@ export default function CasesPage() {
 
       if (mergedCases.length === 0) {
         setCases([]);
-        setSavedEmail("");
+        setSavedEmail(email);
         setEmailInput(email);
         setEmailStatus("");
         setShowNoCaseModal(true);
@@ -248,6 +412,16 @@ export default function CasesPage() {
       setLoadingCases(false);
     }
   }, [navigate]);
+
+  React.useEffect(() => {
+    const email = formatEmail(savedEmail || resolvedEmail);
+
+    if (!email) return;
+
+    setSavedEmail(email);
+    setEmailInput(email);
+    void loadCasesForEmail(email);
+  }, [resolvedEmail, savedEmail, loadCasesForEmail]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search || "");
@@ -357,7 +531,7 @@ export default function CasesPage() {
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
-        {savedEmail && (
+        {hasWorkspaceIdentity && (
           <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">Cases</h1>
@@ -400,11 +574,37 @@ export default function CasesPage() {
           </header>
         )}
 
-        {!savedEmail && (
+        {!hasWorkspaceIdentity && (
           <section className="flex justify-center">
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-              <div className="mb-6 flex flex-col items-center text-center">
-                <h2 className="text-xl font-semibold text-slate-900 whitespace-nowrap">
+              <div className="mb-8 flex flex-col items-center">
+                {/* Logo */}
+                <div
+                  style={{
+                    color: "#0467a5",
+                    fontSize: "36px",
+                    fontWeight: "900",
+                    fontFamily: "Arial Black, Arial, Helvetica, sans-serif",
+                    WebkitTextStroke: "0.3px #0467a5",   // ← 关键：视觉加粗
+                    letterSpacing: "-0.5px",
+                    lineHeight: 1,
+                    marginBottom: "28px",
+                  }}
+                >
+                  Nimclea
+                </div>
+
+                {/* Title（靠近输入框 + 左对齐） */}
+                <h2
+                  style={{
+                    width: "100%",
+                    fontSize: "16px",     // ← 稍微放大
+                    fontWeight: 600,      // ← 加粗（但不抢logo）
+                    color: "#334155",     // ← 稍微更深一点
+                    marginBottom: "12px",
+                    textAlign: "center",
+                  }}
+                >
                   Access your Nimclea workspace
                 </h2>
               </div>
@@ -417,7 +617,16 @@ export default function CasesPage() {
                   placeholder="Enter your email"
                   className="w-full rounded-full border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
                 />
-                <div className="mt-1 flex items-center justify-center gap-3">
+                <div
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "center", 
+                    alignItems: "center",
+                    gap: "12px",
+                    marginTop: "8px",
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => window.location.href = "https://nimclea.com"}
@@ -426,7 +635,7 @@ export default function CasesPage() {
                       backgroundColor: "#FFFFFF",
                       color: "#0F172A",
                       border: "1px solid #CBD5E1",
-                      padding: "8px 16px",
+                      padding: "6px 14px",
                       lineHeight: "1.2",
                     }}
                   >
@@ -441,7 +650,7 @@ export default function CasesPage() {
                       backgroundColor: "#0F172A",
                       color: "#FFFFFF",
                       border: "1px solid #0F172A",
-                      padding: "7px 16px",
+                      padding: "6px 14px",
                       lineHeight: "1.2",
                       width: "auto",
                       minWidth: "unset",
@@ -638,6 +847,19 @@ export default function CasesPage() {
                         navigate(targetPath, {
                           state: {
                             caseId: resolvedCaseId,
+                            email: savedEmail || resolvedEmail,
+                            trialId:
+                              normalizedItem?.trialId ||
+                              normalizedItem?.trial_id ||
+                              normalizedItem?.trialSession?.trialId ||
+                              normalizedItem?.caseSnapshot?.trialId ||
+                              "",
+                            userId:
+                              normalizedItem?.userId ||
+                              normalizedItem?.user_id ||
+                              normalizedItem?.trialSession?.userId ||
+                              "",
+                            source: "cases_page",
                           },
                         });
                       }}
@@ -717,7 +939,13 @@ export default function CasesPage() {
                   setShowNoCaseModal(false);
                   localStorage.setItem(EMAIL_STORAGE_KEY, emailInput);
                   localStorage.removeItem("nimclea_email_verified");
-                  navigate(ROUTES.DIAGNOSTIC);
+                  navigate(ROUTES.DIAGNOSTIC, {
+                    state: {
+                      email: emailInput,
+                      caseId: resolvedCaseId,
+                      source: "cases_page",
+                    },
+                  });
                 }}
                 style={{
                   border: "1px solid #0F172A",
