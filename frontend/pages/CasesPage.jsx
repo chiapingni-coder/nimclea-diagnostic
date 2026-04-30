@@ -250,6 +250,7 @@ function resolveEmailFromCaseId(caseId = "") {
 export default function CasesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+
   const resolvedCaseId =
     location.state?.caseId ||
     location.state?.case_id ||
@@ -279,7 +280,7 @@ export default function CasesPage() {
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
-  const hasWorkspaceIdentity = Boolean(formatEmail(savedEmail || resolvedEmail));
+  const hasWorkspaceIdentity = Boolean(formatEmail(savedEmail || resolvedEmail)) && cases.length > 0;
 
   console.log("[CasesPage identity]", {
     resolvedCaseId,
@@ -450,12 +451,16 @@ export default function CasesPage() {
 
   const handleSwitchEmail = React.useCallback(() => {
     localStorage.removeItem(EMAIL_STORAGE_KEY);
+    localStorage.removeItem("nimclea_email_verified");
+    localStorage.removeItem("nimclea_current_case_id");
+
     setSavedEmail("");
     setEmailInput("");
     setCases([]);
     setEmailError("");
     setEmailStatus("");
     setLoadingCases(false);
+    setShowNoCaseModal(false);
   }, []);
 
   const handlePilotExtensionCheckout = React.useCallback(async () => {
