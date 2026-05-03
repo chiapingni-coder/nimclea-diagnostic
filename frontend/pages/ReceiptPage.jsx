@@ -1233,7 +1233,7 @@ export default function ReceiptPage() {
   } catch (error) {
     console.warn("Failed to read case registry for receipt gate", error);
   }
-  const activeCurrentCase = currentCase || hydratedReceiptRecord || null;
+  const activeCurrentCase = hydratedReceiptRecord || currentCase || null;
 
   const existingLead = activeCurrentCase?.lead || null;
   const [lead, setLead] = React.useState({
@@ -1484,6 +1484,15 @@ export default function ReceiptPage() {
   decisionStatus: (() => {
     if (hasVerifiedAt) return "Verified";
 
+    const backendReady =
+      activeCurrentCase?.receiptEligible === true ||
+      activeCurrentCase?.caseReceiptEligible === true ||
+      activeCurrentCase?.receiptStatus === "ready" ||
+      activeCurrentCase?.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+      activeCurrentCase?.receipt?.decisionStatus === "READY FOR FORMAL DETERMINATION";
+
+    if (backendReady) return "READY FOR FORMAL DETERMINATION";
+
     // Event-backed records are required before ready status.
     if (!hasEvents) {
       return "Insufficient Record";
@@ -1627,7 +1636,15 @@ const hasEventBackedBaseline =
 const hasEventBackedRecord = Number(deterministicScore.eventCount || 0) > 0;
 const normalizedScore = deterministicScore.totalScore;
 const hasPassingScore = Number(normalizedScore || 0) >= 3.0;
-const receiptEligible = hasEventBackedRecord && hasPassingScore;
+const backendReceiptReady =
+  activeCurrentCase?.receiptEligible === true ||
+  activeCurrentCase?.caseReceiptEligible === true ||
+  activeCurrentCase?.receiptStatus === "ready" ||
+  activeCurrentCase?.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+  activeCurrentCase?.receipt?.decisionStatus === "READY FOR FORMAL DETERMINATION";
+
+const receiptEligible =
+  backendReceiptReady || (hasEventBackedRecord && hasPassingScore);
 
 const receiptExpressionModel = (() => {
   if (isVerified || data.decisionStatus === "Verified") {

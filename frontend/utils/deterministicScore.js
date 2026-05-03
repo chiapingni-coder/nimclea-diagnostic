@@ -50,7 +50,7 @@ export function normalizeScoreInput(caseData = {}) {
         ""
       ),
     }))
-    .filter(event => event.text.length > 0)
+    .filter((event) => event.text.length > 0 || event.type.length > 0)
     .sort((a, b) => {
       const ta = a.createdAt || "";
       const tb = b.createdAt || "";
@@ -223,7 +223,9 @@ export function calculateDeterministicScore(caseData = {}) {
     rawKeys: caseData ? Object.keys(caseData) : [],
   });
   const eventCount = input.events.length;
-  const joinedText = input.events.map(e => e.text.toLowerCase()).join(" ");
+  const joinedText = input.events
+    .map((e) => `${e.text || ""} ${e.type || ""}`.toLowerCase())
+    .join(" ");
 
   const hasRealEvent = eventCount > 0;
   const hasWorkflow = input.workflow.length > 0 || joinedText.includes("workflow");

@@ -272,10 +272,10 @@ app.get("/cases", (req, res) => {
             baseCase?.status ||
             item?.status ||
             "draft",
+          ...item,
           ...baseCase,
           ...receiptCase,
-          ...item,
-          email: item?.email || email,
+          email: item?.email || baseCase?.email || receiptCase?.email || email,
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
         };
       });
@@ -286,6 +286,7 @@ app.get("/cases", (req, res) => {
     return res.status(500).json({ error: "Failed to load cases" });
   }
 });
+
 app.get("/receipt-record", (req, res) => {
   const caseId = String(req.query?.caseId || "").trim();
 
@@ -295,15 +296,67 @@ app.get("/receipt-record", (req, res) => {
 
   try {
     const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
+    const storedCases = readJsonFile("cases.json", []);
+
     const receiptRecords = Array.isArray(storedReceiptRecords)
       ? storedReceiptRecords
       : [];
 
+    const cases = Array.isArray(storedCases) ? storedCases : [];
+
+    const latestCase = normalizeCaseRecord(
+      findLastMatchingRecord(cases, caseId) || {}
+    );
+
     for (let index = receiptRecords.length - 1; index >= 0; index -= 1) {
       const record = receiptRecords[index];
+
       if (String(record?.caseId || "").trim() === caseId) {
-        return res.json(normalizeCaseRecord(record));
+        const receiptCase = normalizeCaseRecord(record);
+
+        const mergedReceipt = {
+          ...(receiptCase.receipt || {}),
+          ...(latestCase.receipt || {}),
+        };
+
+        const isReceiptReady =
+          mergedReceipt.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+          mergedReceipt.receiptEligible === true ||
+          latestCase.receiptEligible === true ||
+          latestCase.caseReceiptEligible === true;
+
+        return res.json({
+          ...receiptCase,
+          ...latestCase,
+          caseId,
+          receipt: mergedReceipt,
+          decisionStatus:
+            latestCase.decisionStatus ||
+            receiptCase.decisionStatus ||
+            mergedReceipt.decisionStatus ||
+            "",
+          receiptEligible: isReceiptReady,
+          caseReceiptEligible: isReceiptReady,
+          receiptStatus: isReceiptReady
+            ? "ready"
+            : latestCase.receiptStatus || receiptCase.receiptStatus || mergedReceipt.status || "",
+          hash: receiptCase.hash || latestCase.hash || "",
+          receiptHash:
+            receiptCase.receiptHash ||
+            latestCase.receiptHash ||
+            receiptCase.hash ||
+            latestCase.hash ||
+            "",
+          caseSnapshot: receiptCase.caseSnapshot || latestCase.caseSnapshot,
+        });
       }
+    }
+
+    if (latestCase?.caseId || latestCase?.id) {
+      return res.json({
+        ...latestCase,
+        caseId,
+      });
     }
 
     return res.status(404).json({ error: "receipt record not found" });
