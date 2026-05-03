@@ -6,6 +6,7 @@ import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
 import { getStableUserId } from "../utils/eventLogger";
 
 import {
+  API_BASE,
   registerTrialUser,
   saveCaseSnapshot,
   logTrialEvent,
@@ -284,6 +285,8 @@ function WorkflowPicker({
   selectedWorkflow,
   onSelect,
   onStart,
+  title = "Choose a workflow. Your pilot is ready to start.",
+  buttonLabel = "Create new case",
 }) {
   const workflowOptions = [
     "Audit preparation",
@@ -304,9 +307,7 @@ function WorkflowPicker({
 
   return (
     <Card className="p-6 md:p-7">
-      <SectionTitle
-        title="Choose a workflow. Your pilot is ready to start."
-      />
+      <SectionTitle title={title} />
 
       <div
         className="mt-5"
@@ -392,7 +393,7 @@ function WorkflowPicker({
       boxShadow: "0 4px 10px rgba(15, 23, 42, 0.12)",
     }}
   >
-    Create new case
+    {buttonLabel}
   </button>
 </div>
 </div>
@@ -726,6 +727,19 @@ export default function PilotPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search || ""),
+    [location.search]
+  );
+
+  const isCaseReview = useMemo(
+    () =>
+      searchParams.get("from") === "case" ||
+      Boolean(searchParams.get("caseId")) ||
+      location.state?.from === "case",
+    [searchParams, location.state]
+  );
+
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
     pc_name: "Decision Risk Diagnostic",
@@ -772,10 +786,11 @@ export default function PilotPage() {
         caseId:
           location.state?.caseId ||
           location.state?.case_id ||
+          searchParams.get("caseId") ||
           incomingCaseSchema?.caseId ||
           "",
       }),
-    [incomingCaseSchema, location.state]
+    [location.state, searchParams, incomingCaseSchema]
   );
 
   const weakestDimension =
@@ -908,21 +923,79 @@ export default function PilotPage() {
   const startInFlightRef = useRef(false);
   
   useEffect(() => {
-    const source =
-      previewFromLocation ||
-      previewFromCaseSchema ||
-      getStoredPreview(resolvedSessionId) ||
-      null;
+    let cancelled = false;
 
-    if (source && isValidPreview(source)) {
-      setPreview(source);
-      setLoading(false);
-      return;
+    async function loadPreview() {
+      setLoading(true);
+
+      const source =
+        previewFromLocation ||
+        previewFromCaseSchema ||
+        getStoredPreview(resolvedSessionId) ||
+        null;
+
+      if (source && isValidPreview(source)) {
+        if (!cancelled) {
+          setPreview(source);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (isCaseReview && resolvedCaseId) {
+        try {
+          const response = await fetch(
+            `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
+          );
+
+          const payload = await response.json().catch(() => ({}));
+          const caseRecord = payload?.data || null;
+
+          const casePreviewCandidate =
+            caseRecord?.preview ||
+            caseRecord?.result?.preview ||
+            caseRecord?.diagnosticResult?.preview ||
+            caseRecord?.diagnosticResult ||
+            caseRecord?.caseSnapshot?.caseRecord?.preview ||
+            caseRecord?.caseSnapshot?.caseRecord?.result?.preview ||
+            caseRecord?.caseSnapshot?.preview ||
+            caseRecord?.caseSnapshot?.result?.preview ||
+            null;
+
+          if (casePreviewCandidate && isValidPreview(casePreviewCandidate)) {
+            if (!cancelled) {
+              setPreview({
+                ...casePreviewCandidate,
+                caseId: resolvedCaseId,
+              });
+              setLoading(false);
+            }
+            return;
+          }
+        } catch (error) {
+          console.warn("PilotPage caseId load failed:", error);
+        }
+      }
+
+      if (!cancelled) {
+        setPreview(null);
+        setLoading(false);
+      }
     }
 
-    setPreview(null);
-    setLoading(false);
-    }, [previewFromLocation, previewFromCaseSchema, resolvedSessionId]);
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    previewFromLocation,
+    previewFromCaseSchema,
+    resolvedSessionId,
+    isCaseReview,
+    resolvedCaseId,
+    isCaseReview,
+  ]);
 
   const handleBack = useCallback(() => {
     navigate(
@@ -1289,12 +1362,26 @@ export default function PilotPage() {
 
     console.log("PILOT_PAGE_OUTBOUND_STATE", pilotState);
     
-    navigate(
-      resolvedSessionId
-        ? `/pilot/setup?session_id=${resolvedSessionId}`
-        : "/pilot/setup",
-      { state: pilotState }
-    );
+const setupParams = new URLSearchParams();
+
+if (caseIdForPilot) {
+  setupParams.set("caseId", caseIdForPilot);
+}
+
+if (isCaseReview) {
+  setupParams.set("from", "case");
+}
+
+if (resolvedSessionId) {
+  setupParams.set("session_id", resolvedSessionId);
+}
+
+const setupQuery = setupParams.toString();
+
+navigate(
+  setupQuery ? `/pilot/setup?${setupQuery}` : "/pilot/setup",
+  { state: pilotState }
+);
   }, [
     navigate,
     location.state,
@@ -1344,6 +1431,12 @@ export default function PilotPage() {
             selectedWorkflow={selectedWorkflow}
             onSelect={setSelectedWorkflow}
             onStart={handleStart}
+            title={
+              isCaseReview
+                ? "Continue your case plan."
+                : "Choose a workflow. Your pilot is ready to start."
+            }
+            buttonLabel={isCaseReview ? "Continue Case Plan" : "Create new case"}
           />
 
           <PilotPlanCard
