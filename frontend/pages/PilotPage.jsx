@@ -200,6 +200,7 @@ function PilotHero({
   sessionId,
   onStart,
   pcMeta = null,
+  onViewCases,
   pilotFocusKey = "",
   firstGuidedAction = "",
   firstStepLabel = "",
@@ -240,9 +241,28 @@ function PilotHero({
   return (
     <Card className="overflow-hidden">
       <div className="p-8 md:p-10">
-        <div className="flex flex-wrap items-center gap-2">
-          <Pill success>7-Day Pilot</Pill>
-          {scenarioLabel ? <Pill>{scenarioLabel}</Pill> : null}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill success>7-Day Pilot</Pill>
+            {scenarioLabel ? <Pill>{scenarioLabel}</Pill> : null}
+          </div>
+
+          {onViewCases ? (
+            <button
+              type="button"
+              onClick={onViewCases}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              style={{
+                minWidth: "138px",
+                height: "28px",
+                lineHeight: "1",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              View all cases
+            </button>
+          ) : null}
         </div>
 
         <>
@@ -998,19 +1018,26 @@ export default function PilotPage() {
   ]);
 
   const handleBack = useCallback(() => {
-    navigate(
-      resolvedSessionId
+    const targetPath =
+      isCaseReview && resolvedCaseId
+        ? `${ROUTES.RESULT || "/result"}?caseId=${encodeURIComponent(resolvedCaseId)}&from=case`
+        : resolvedSessionId
         ? `/result?session_id=${resolvedSessionId}`
-        : "/result",
-      {
-        state: {
-          pcMeta,
-          session_id: resolvedSessionId,
-          preview: stripBreadcrumbState(preview || {}),
-        },
-      }
-    );
-  }, [navigate, pcMeta, preview, resolvedSessionId]);
+        : "/result";
+
+    navigate(targetPath, {
+      state: {
+        pcMeta,
+        session_id: resolvedSessionId,
+        sessionId: resolvedSessionId,
+        caseId: resolvedCaseId,
+        case_id: resolvedCaseId,
+        from: isCaseReview ? "case" : undefined,
+        preview: stripBreadcrumbState(preview || {}),
+        result: stripBreadcrumbState(preview || {}),
+      },
+    });
+  }, [navigate, pcMeta, preview, resolvedSessionId, resolvedCaseId, isCaseReview]);
 
   const handleStart = useCallback(async () => {
     const workflow = selectedWorkflow || "Audit preparation";
@@ -1417,6 +1444,7 @@ navigate(
             preview={preview}
             sessionId={resolvedSessionId}
             onStart={handleStart}
+            onViewCases={() => navigate(ROUTES.CASES || "/cases")}
             pcMeta={pcMeta}
             pilotFocusKey={incomingPilotFocusKey}
             firstGuidedAction={incomingFirstGuidedAction}

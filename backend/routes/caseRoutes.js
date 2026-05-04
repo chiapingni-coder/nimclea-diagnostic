@@ -171,10 +171,53 @@ router.get("/:caseId", (req, res) => {
       });
     }
 
+    const eventLogsRaw = readJsonFile("eventLogs.json", []);
+    const eventLogs = Array.isArray(eventLogsRaw)
+      ? eventLogsRaw
+      : Array.isArray(eventLogsRaw?.events)
+      ? eventLogsRaw.events
+      : Array.isArray(eventLogsRaw?.logs)
+      ? eventLogsRaw.logs
+      : [];
+
+    const matchedEventLogs = eventLogs.filter((event) => {
+      return (
+        event?.caseId === caseId ||
+        event?.meta?.caseId === caseId ||
+        event?.body?.caseId === caseId
+      );
+    });
+
+    const existingEvents = Array.isArray(target?.events) ? target.events : [];
+    const existingEventLogs = Array.isArray(target?.eventLogs) ? target.eventLogs : [];
+
+    const eventMap = new Map();
+
+    [...existingEvents, ...existingEventLogs, ...matchedEventLogs].forEach((event) => {
+      if (!event || typeof event !== "object") return;
+
+      const key =
+        event.eventId ||
+        event.id ||
+        event.meta?.quickCaptureId ||
+        `${event.caseId || event.meta?.caseId || ""}:${event.eventType || ""}:${event.createdAt || ""}:${event.meta?.note || event.note || ""}`;
+
+      eventMap.set(key, event);
+    });
+
+    const mergedEvents = Array.from(eventMap.values());
+
+    const hydratedTarget = {
+      ...target,
+      events: mergedEvents,
+      eventLogs: mergedEvents,
+      eventCount: mergedEvents.length,
+    };
+
     return res.json({
       success: true,
       message: "Case fetched",
-      data: target,
+      data: hydratedTarget,
     });
   } catch (error) {
     console.error("GET /case/:caseId error:", error);

@@ -188,7 +188,13 @@ export default function Questionnaire({ pcMeta }) {
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState(PHASE.LANDING);
-  const [diagnosticCaseId] = useState(() => createCaseId());
+  const incomingCaseId =
+    new URLSearchParams(window.location.search).get("caseId") ||
+    window.history.state?.usr?.caseId ||
+    window.history.state?.usr?.case_id ||
+    "";
+
+  const [diagnosticCaseId] = useState(() => incomingCaseId || createCaseId());
   const [answers, setAnswers] = useState(() => buildInitialAnswers(questions));
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [inputRouteHint, setInputRouteHint] = useState("");
@@ -594,6 +600,7 @@ try {
     "diagnostic_result";
 
   const resolvedCaseId =
+    diagnosticCaseId ||
     sessionId ||
     session?.trialId ||
     session?.sessionId ||
@@ -651,11 +658,16 @@ if (!apiResult?.preview && !apiResult) {
 
       setPhase(PHASE.DONE);
 
-      navigate(ROUTES.RESULT, {
+      navigate(`${ROUTES.RESULT}?caseId=${encodeURIComponent(diagnosticCaseId)}`, {
         state: {
           preview,
           result,
           session_id: sessionId,
+          caseId: diagnosticCaseId,
+          case_id: diagnosticCaseId,
+          sourceCaseId: diagnosticCaseId,
+          from: "case",
+          redoDiagnostic: Boolean(incomingCaseId),
           pcMeta: resolvedPcMeta
         }
       });

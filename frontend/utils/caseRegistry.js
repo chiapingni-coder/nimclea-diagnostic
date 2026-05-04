@@ -95,7 +95,27 @@ export function getCaseById(caseId = "") {
   if (!caseId) return null;
 
   const cases = getCaseRegistry();
-  return cases.find((item) => item.caseId === caseId) || null;
+  const registryCase = cases.find((item) => item.caseId === caseId) || null;
+
+  if (typeof window === "undefined") return registryCase;
+
+  try {
+    const storedRaw = localStorage.getItem(`nimclea_case_${caseId}`);
+    const storedCase = storedRaw ? JSON.parse(storedRaw) : null;
+
+    if (storedCase && storedCase.caseId === caseId) {
+      return {
+        ...(registryCase || {}),
+        ...storedCase,
+        events:
+          Array.isArray(storedCase.events) && storedCase.events.length > 0
+            ? storedCase.events
+            : registryCase?.events || [],
+      };
+    }
+  } catch {}
+
+  return registryCase;
 }
 
 function hasCaseEvents(caseRecord = {}) {

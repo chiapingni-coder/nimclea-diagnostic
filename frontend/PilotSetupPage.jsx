@@ -995,11 +995,15 @@ export default function PilotSetupPage() {
     location.state?.sessionId ||
     "";
 
+  const setupUrlParams = new URLSearchParams(location.search || "");
+  const setupUrlCaseId = setupUrlParams.get("caseId") || "";
+
   const resolvedCaseId =
     resolveCaseId({
       caseId:
         location.state?.caseId ||
         location.state?.case_id ||
+        setupUrlCaseId ||
         location.state?.trialSession?.caseId ||
         location.state?.trialSession?.case_id ||
         pilotSetup?.caseId ||
@@ -1271,13 +1275,31 @@ export default function PilotSetupPage() {
   ]);
 
   const handleBack = () => {
+    const pilotBackParams = new URLSearchParams();
+
+    if (sessionId) {
+      pilotBackParams.set("session_id", sessionId);
+    }
+
+    if (resolvedCaseId) {
+      pilotBackParams.set("caseId", resolvedCaseId);
+      pilotBackParams.set("from", "case");
+    }
+
+    const pilotBackQuery = pilotBackParams.toString();
+
     navigate(
-      sessionId ? `${ROUTES.PILOT}?session_id=${sessionId}` : ROUTES.PILOT,
+      pilotBackQuery
+        ? `${ROUTES.PILOT}?${pilotBackQuery}`
+        : ROUTES.PILOT,
       {
         state: {
           pcMeta,
           session_id: sessionId,
           sessionId,
+          caseId: resolvedCaseId,
+          case_id: resolvedCaseId,
+          from: resolvedCaseId ? "case" : undefined,
           preview,
           result: preview,
           caseSchema: incomingCaseSchema,
@@ -1336,11 +1358,10 @@ const handleConfirm = async () => {
 
   console.log("馃 ROUTING DECISION:", decision);
 
-  // 馃敶 鍏抽敭锛氬厛涓嶇户缁墽琛?
   let finalSelectedCaseId = selectedCaseOverrideId;
 
-  if (!finalSelectedCaseId && !hasExistingCases) {
-    finalSelectedCaseId = "__CREATE_NEW_CASE__";
+  if (!finalSelectedCaseId && resolvedCaseId) {
+    finalSelectedCaseId = resolvedCaseId;
   } else if (!finalSelectedCaseId) {
     finalSelectedCaseId = "__CREATE_NEW_CASE__";
   }
@@ -1890,6 +1911,99 @@ const handleConfirm = async () => {
   const allPilotEntries = appendPilotEntry(pilotEntry);
 
   try {
+    const backendCaseIdToUpdate = caseIdToUpdate || resolvedCaseId;
+
+    if (backendCaseIdToUpdate) {
+      const backendResponse = await fetch(
+        `${API_BASE}/case/${encodeURIComponent(backendCaseIdToUpdate)}`
+      );
+
+      const backendPayload = await backendResponse.json().catch(() => ({}));
+      const backendCaseRecord =
+        backendResponse.ok && backendPayload?.data ? backendPayload.data : null;
+
+      if (backendCaseRecord?.caseId) {
+        const existingBackendEvents = Array.isArray(backendCaseRecord.events)
+          ? backendCaseRecord.events
+          : [];
+
+        const mergedBackendEvents = [...existingBackendEvents, pilotEntry].filter(Boolean);
+
+        await fetch(`${API_BASE}/case/save`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            caseId: backendCaseIdToUpdate,
+            id: backendCaseRecord.id || backendCaseIdToUpdate,
+
+            userId:
+              backendCaseRecord.userId ||
+              mergedTrialSession?.userId ||
+              stableUserId ||
+              "local_user",
+
+            trialId:
+              backendCaseRecord.trialId ||
+              mergedTrialSession?.trialId ||
+              mergedTrialSession?.trialSessionId ||
+              "local_trial",
+
+            stage:
+              entryCaseData?.stage ||
+              backendCaseRecord.stage ||
+              "S0",
+
+            status: "workspace_active",
+            currentStep: "pilot_result",
+
+            title:
+              backendCaseRecord.title ||
+              entryCaseData?.title ||
+              "Untitled case",
+
+            events: mergedBackendEvents,
+            eventLogs: mergedBackendEvents,
+            entries: mergedBackendEvents,
+            latestEvent: pilotEntry,
+
+            caseData: {
+              caseId: backendCaseIdToUpdate,
+              stage: entryCaseData?.stage || backendCaseRecord.stage || "S0",
+              summary:
+                entryCaseData?.summary ||
+                entryCaseData?.summaryContext ||
+                trimmedDescription ||
+                "",
+              description: trimmedDescription || "",
+              eventType,
+              weakestDimension:
+                entryCaseData?.weakestDimension ||
+                weakestDimension ||
+                "",
+              patternId:
+                entryCaseData?.patternId ||
+                resolvedRoute?.pattern ||
+                "",
+              fallbackRunCode:
+                entryCaseData?.fallbackRunCode ||
+                resolvedRoute?.runId ||
+                "",
+            },
+          }),
+        });
+      } else {
+        console.warn("PilotSetupPage backend case sync skipped: case not found", {
+          backendCaseIdToUpdate,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn("PilotSetupPage backend case sync failed:", error);
+  }
+
+  try {
     if (resolvedCaseId) {
       updateCaseStatus(resolvedCaseId, "workspace_active", {
         currentStep: "pilot_capture",
@@ -2277,9 +2391,23 @@ const handleConfirm = async () => {
   confirmLockedRef.current = false;
   setRoutingDecision(null);
 
+  const finalNavigationCaseId = caseIdToUpdate || navState.caseId || resolvedCaseId || "";
+  const finalNavigationParams = new URLSearchParams();
+
+  if (sessionId) {
+    finalNavigationParams.set("session_id", sessionId);
+  }
+
+  if (finalNavigationCaseId) {
+    finalNavigationParams.set("caseId", finalNavigationCaseId);
+    finalNavigationParams.set("from", "case");
+  }
+
+  const finalNavigationQuery = finalNavigationParams.toString();
+
   navigate(
-    sessionId
-      ? `${navState.routeMeta.pathname}?session_id=${sessionId}`
+    finalNavigationQuery
+      ? `${navState.routeMeta.pathname}?${finalNavigationQuery}`
       : navState.routeMeta.pathname,
     {
       state: {
@@ -2505,8 +2633,19 @@ const caseRegistry = (() => {
     return [];
   }
 })();
+
+const setupSearchParams = new URLSearchParams(location.search || "");
+const isLockedToCurrentCase =
+  Boolean(resolvedCaseId) &&
+  (
+    location.state?.from === "case" ||
+    setupSearchParams.get("from") === "case" ||
+    Boolean(setupSearchParams.get("caseId"))
+  );
+
 const hasExistingCases = caseRegistry && caseRegistry.length > 0;
 const strongMatchedCase =
+  !isLockedToCurrentCase &&
   hasExistingCases &&
   routingDecision?.match?.matched &&
   routingDecision.match?.bestMatch?.caseId &&

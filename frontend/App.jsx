@@ -41,6 +41,7 @@ export default function App() {
       <Route path={ROUTES.PILOT} element={<PilotPage pcMeta={PC_META} />} />
       <Route path={ROUTES.PILOT_SETUP} element={<PilotSetupPage pcMeta={PC_META} />} />
       <Route path={ROUTES.PILOT_RESULT} element={<PilotResultPage pcMeta={PC_META} />} />
+      <Route path="/pilot/result" element={<PilotResultPage pcMeta={PC_META} />} />
       <Route path={ROUTES.RECEIPT} element={<ReceiptPage pcMeta={PC_META} />} />
       <Route path={ROUTES.PAYMENT_SUCCESS} element={<PaymentSuccessPage />} />
       <Route path={ROUTES.VERIFICATION} element={<VerificationPage pcMeta={PC_META} />} />
