@@ -42,7 +42,12 @@ export default function TopRightCasesCapsule({
       <button
         type="button"
         onClick={() => navigate("/cases")}
-        className="px-4 py-1.5 text-sm rounded-full bg-[#FFF7CC] text-[#8A6D1F] border border-[#F3D36B] hover:bg-[#FFEFA3] transition"
+        className="inline-flex items-center justify-center whitespace-nowrap px-4 py-1.5 text-xs font-semibold rounded-full bg-white text-slate-700 border border-slate-200 shadow-sm hover:bg-slate-50 transition"
+        style={{
+          minWidth: "116px",
+          height: "28px",
+          lineHeight: "1",
+        }}
       >
         {children}
       </button>

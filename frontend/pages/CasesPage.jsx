@@ -505,7 +505,7 @@ export default function CasesPage() {
         caseId: createCaseId(),
         title: "Untitled case",
         status: "draft",
-        currentStep: "pilot_capture",
+        currentStep: "diagnostic",
         source: "cases_page",
         email: savedEmail,
       });
@@ -523,11 +523,12 @@ export default function CasesPage() {
         source: "cases_page",
       });
 
-      navigate(`/pilot/setup?caseId=${encodeURIComponent(newCaseId)}&from=case`, {
+      navigate(`${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(newCaseId)}&from=new_case`, {
         state: {
           caseId: newCaseId,
           email: savedEmail,
-          from: "case",
+          from: "new_case",
+          source: "cases_page",
         },
       });
     } catch (error) {
@@ -582,7 +583,7 @@ export default function CasesPage() {
           </header>
         )}
 
-        {!hasWorkspaceIdentity && (
+        {!formatEmail(savedEmail || resolvedEmail) && (
           <section className="flex justify-center">
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
               <div className="mb-8 flex flex-col items-center">
@@ -708,6 +709,10 @@ export default function CasesPage() {
                 ? normalizedItem.acceptanceChecklist
                 : [];
               const detailPath = getCaseDetailRoute(normalizedItem);
+              const redoDiagnosticCaseId = resolveCaseId(normalizedItem);
+              const redoDiagnosticPath = redoDiagnosticCaseId
+                ? `${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(redoDiagnosticCaseId)}&redo=1`
+                : ROUTES.DIAGNOSTIC;
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
 
@@ -892,6 +897,32 @@ export default function CasesPage() {
                       }}
                     >
                       Detail
+                    </a>
+                    <a
+                      href={redoDiagnosticPath}
+                      onClick={(event) => {
+                        event.preventDefault();
+
+                        navigate(redoDiagnosticPath, {
+                          state: {
+                            caseId: redoDiagnosticCaseId,
+                            case_id: redoDiagnosticCaseId,
+                            sourceCaseId: redoDiagnosticCaseId,
+                            from: "case",
+                            redoDiagnostic: true,
+                          },
+                        });
+                      }}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                      style={{
+                        height: "28px",
+                        minHeight: "28px",
+                        maxHeight: "28px",
+                        padding: "0 14px",
+                        lineHeight: "1",
+                      }}
+                    >
+                      Redo Diagnostic
                     </a>
                   </div>
                 </div>

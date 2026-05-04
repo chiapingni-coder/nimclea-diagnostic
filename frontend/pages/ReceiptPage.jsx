@@ -800,6 +800,14 @@ export default function ReceiptPage() {
   const receiptDebugLoggedRef = React.useRef(false);
   const hashComputedForReceiptRef = React.useRef("");
   const routeEnvelope = location.state || null;
+  const receiptUrlParams = React.useMemo(
+    () => new URLSearchParams(location.search || ""),
+    [location.search]
+  );
+
+const urlCaseId = String(
+  receiptUrlParams.get("caseId") || receiptUrlParams.get("case_id") || ""
+).trim();
 
   React.useEffect(() => {
     if (location.state?.openQuickCapture) {
@@ -847,6 +855,7 @@ export default function ReceiptPage() {
   const receiptHashCaseId =
     resolveCaseId({
       caseId:
+        urlCaseId ||
         location.state?.caseId ||
         location.state?.case_id ||
         location.state?.result?.caseId ||
@@ -1176,6 +1185,7 @@ export default function ReceiptPage() {
   const inferredCaseId =
     resolveCaseId({
       caseId:
+        urlCaseId ||
         location.state?.caseId ||
         location.state?.case_id ||
         location.state?.result?.caseId ||
@@ -1245,12 +1255,24 @@ export default function ReceiptPage() {
   const hasValidLead = lead.email && lead.email.includes("@");
 
   const currentCaseEventSource =
-    Array.isArray(activeCurrentCase?.events) && activeCurrentCase.events.length > 0
+    Array.isArray(currentCase?.events) && currentCase.events.length > 0
+      ? currentCase.events
+      : Array.isArray(currentCase?.eventLogs) && currentCase.eventLogs.length > 0
+      ? currentCase.eventLogs
+      : Array.isArray(currentCase?.pilotTrail) && currentCase.pilotTrail.length > 0
+      ? currentCase.pilotTrail
+      : Array.isArray(currentCase?.trail) && currentCase.trail.length > 0
+      ? currentCase.trail
+      : Array.isArray(activeCurrentCase?.events) && activeCurrentCase.events.length > 0
       ? activeCurrentCase.events
       : Array.isArray(activeCurrentCase?.eventLogs) && activeCurrentCase.eventLogs.length > 0
       ? activeCurrentCase.eventLogs
       : Array.isArray(activeCurrentCase?.capturedEvents) && activeCurrentCase.capturedEvents.length > 0
       ? activeCurrentCase.capturedEvents
+      : Array.isArray(activeCurrentCase?.pilotTrail) && activeCurrentCase.pilotTrail.length > 0
+      ? activeCurrentCase.pilotTrail
+      : Array.isArray(activeCurrentCase?.trail) && activeCurrentCase.trail.length > 0
+      ? activeCurrentCase.trail
       : Array.isArray(activeCurrentCase?.workspaceSummary?.events) && activeCurrentCase.workspaceSummary.events.length > 0
       ? activeCurrentCase.workspaceSummary.events
       : Array.isArray(activeCurrentCase?.pilotSummary?.events) && activeCurrentCase.pilotSummary.events.length > 0
@@ -1831,17 +1853,56 @@ const handleQuickCaptureSubmit = () => {
     events: [...currentCaseQuickCaptures, quickCaptureEvent],
   });
 
+  const quickCaptureSession =
+    location.state?.trialSession || getTrialSession();
+
+  logTrialEvent({
+    userId:
+      quickCaptureSession?.userId ||
+      location.state?.stableUserId ||
+      localStorage.getItem("nimclea_user_id") ||
+      "anonymous_user",
+    trialId:
+      quickCaptureSession?.trialId ||
+      quickCaptureSession?.trialSessionId ||
+      "receipt_entry",
+    sessionId:
+      location.state?.session_id ||
+      location.state?.sessionId ||
+      data.caseData?.sessionId ||
+      data.receiptId ||
+      "receipt_entry",
+    caseId: inferredCaseId,
+    eventType: "quick_capture_submitted",
+    page: "ReceiptPage",
+    stableUserId:
+      location.state?.stableUserId ||
+      localStorage.getItem("nimclea_user_id") ||
+      quickCaptureSession?.userId ||
+      "anonymous_user",
+    meta: {
+      source: "receipt_quick_capture",
+      caseId: inferredCaseId,
+      quickCaptureId: quickCaptureEvent.id,
+      quickCaptureType: quickCaptureEvent.type,
+      signalImpact: quickCaptureEvent.signalImpact,
+      note: quickCaptureEvent.note,
+      capturedAt: quickCaptureEvent.capturedAt,
+    },
+  });
+
   setLatestQuickCapture(quickCaptureEvent);
   setQuickCaptureOpen(false);
   setQuickCaptureNote("");
 
   if (location.state?.returnToVerification) {
-    navigate(ROUTES.VERIFICATION, {
+    navigate(`${ROUTES.VERIFICATION}?caseId=${encodeURIComponent(inferredCaseId)}`, {
       state: {
         ...stripCanonicalCaseFlowState(
           location.state?.returnToVerificationState || location.state || {}
         ),
         caseId: inferredCaseId,
+        case_id: inferredCaseId,
       },
     });
     return;
@@ -2011,7 +2072,6 @@ if (!canRenderReceipt) {
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6">
-        <TopRightCasesCapsule />
         <header className="relative bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div
             style={{

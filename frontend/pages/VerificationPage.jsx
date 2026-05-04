@@ -4,7 +4,7 @@ import { getTrialSession } from "../lib/trialSession";
 import ROUTES from "../routes";
 import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput } from "../utils/caseSchema";
-import { logTrialEvent } from "../lib/trialApi";
+import { API_BASE, logTrialEvent } from "../lib/trialApi";
 import { getStableUserId } from "../utils/eventLogger";
 import { readSummaryBuffer } from "../lib/summaryBuffer";
 import { resolveSafeCaseId } from "../utils/caseIdResolver";
@@ -1411,6 +1411,7 @@ export default function VerificationPage() {
   const [receiptLedgerRecord, setReceiptLedgerRecord] = useState(null);
   const [receiptLedgerLoading, setReceiptLedgerLoading] = useState(false);
   const [receiptLedgerError, setReceiptLedgerError] = useState(null);
+  const [workflowEventLogs, setWorkflowEventLogs] = useState([]);
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
@@ -1479,6 +1480,58 @@ export default function VerificationPage() {
     }
 
     loadReceiptLedgerForVerification();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  React.useEffect(() => {
+    if (!caseId) {
+      setWorkflowEventLogs([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadWorkflowEventLogs() {
+      try {
+        const response = await fetch(`${API_BASE}/analytics/events`);
+        const payload = await response.json().catch(() => ({}));
+
+        const items = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.events)
+          ? payload.events
+          : Array.isArray(payload?.logs)
+          ? payload.logs
+          : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+  
+        const matched = items.filter((item) => {
+          const itemCaseId =
+            item?.caseId ||
+            item?.case_id ||
+            item?.meta?.caseId ||
+            item?.meta?.case_id ||
+            "";
+  
+          return String(itemCaseId) === String(caseId);
+        });
+  
+        if (!cancelled) {
+          setWorkflowEventLogs(matched);
+        }
+      } catch (error) {
+        console.warn("Verification workflow event log load failed:", error);
+        if (!cancelled) {
+          setWorkflowEventLogs([]);
+        }
+      }
+    }
+
+    loadWorkflowEventLogs();
 
     return () => {
       cancelled = true;
@@ -1838,13 +1891,56 @@ const receiptAllowsVerification =
     receiptLevelStructurePass &&
     hasUsableCaseData;
 
-  const hasVerificationPayload =
-    !!(
-      (verificationFlat?.receiptId || baseData?.receiptId) &&
-      (verificationFlat?.receiptHash || baseData?.receiptHash) &&
-      (verificationFlat?.caseData || baseData?.caseData || resolvedPayload?.schema)
-    );
-   
+const liveReceiptId =
+  sanitizeReceiptId(
+    verificationFlat?.receiptId ||
+      baseData?.receiptId ||
+      resolvedPayload?.receiptId ||
+      receiptBackedContext?.receiptId ||
+      receiptLedgerRecord?.receiptId ||
+      receiptLedgerRecord?.data?.receiptId ||
+      receiptLedgerRecord?.payload?.receiptId ||
+      (inferredCaseId ? `R-${inferredCaseId}` : "")
+  ) || "";
+
+const liveReceiptHash =
+  ledgerReceiptHash ||
+  verificationFlat?.receiptHash ||
+  baseData?.receiptHash ||
+  resolvedPayload?.receiptHash ||
+  receiptBackedContext?.receiptHash ||
+  "";
+
+const liveCaseData =
+  verificationFlat?.caseData ||
+  baseData?.caseData ||
+  resolvedPayload?.schema ||
+  receiptBackedContext?.caseData ||
+  currentCase ||
+  null;
+
+const hasVerificationPayload =
+  !!(liveReceiptId && liveReceiptHash && liveCaseData);
+
+const workflowEventCount = Array.isArray(workflowEventLogs)
+  ? workflowEventLogs.length
+  : 0;
+
+const workflowPages = Array.from(
+  new Set(
+    (workflowEventLogs || [])
+      .map((event) => event?.page)
+      .filter(Boolean)
+  )
+).slice(0, 5);
+
+const workflowEvidenceSummary =
+  workflowEventCount > 0
+    ? `${workflowEventCount} workflow events were recorded across ${
+        workflowPages.length > 0 ? workflowPages.join(", ") : "the case flow"
+      }. No user-written case summary has been added yet.`
+    : "No user-written case summary has been added yet.";
+
   const behavioralGroundingCheck = hasVerificationPayload
     ? evaluated.checks.find((check) => check.label === "Behavioral grounding") || null
     : null;
@@ -1852,13 +1948,9 @@ const receiptAllowsVerification =
   const data = {
     ...baseData,
     ...verificationFlat,
-    receiptHash:
-      ledgerReceiptHash ||
-      verificationFlat.receiptHash ||
-      baseData.receiptHash ||
-      resolvedPayload.receiptHash ||
-      "",
-    caseData: verificationFlat.caseData || baseData.caseData || resolvedPayload.schema || null,
+    receiptId: liveReceiptId,
+    receiptHash: liveReceiptHash,
+    caseData: liveCaseData,
     weakestDimension:
       shouldPromoteVerificationReady &&
       evaluated.verificationStatus === "Verification Failed"
@@ -1868,7 +1960,21 @@ const receiptAllowsVerification =
     displayContext:
       activeSummaryBuffer?.displayContext ||
       activeSummaryBuffer?.summaryContext ||
+      currentCase?.displayContext ||
+      currentCase?.summaryContext ||
+      currentCase?.summary ||
+      currentCase?.description ||
+      currentCase?.caseInput ||
+      liveCaseData?.displayContext ||
+      liveCaseData?.summaryContext ||
+      liveCaseData?.summary ||
+      liveCaseData?.description ||
+      liveCaseData?.caseInput ||
       baseData.displayContext ||
+      getCaseSummary(currentCase) ||
+      getCaseContext(currentCase) ||
+      getCaseSummary({ caseData: liveCaseData }) ||
+      getCaseContext({ caseData: liveCaseData }) ||
       getCaseSummary(verificationFlat) ||
       getCaseContext(verificationFlat),
     overallStatus:
@@ -1977,7 +2083,8 @@ const consistencyCheck = verificationFlat?.consistencyCheck || {
 };
 
 const finalOverallStatus =
-  verificationFlat?.resolvedVerificationEligible === true
+  verificationFlat?.resolvedVerificationEligible === true ||
+  data.overallStatus === "Verification Ready"
     ? "Verification Ready"
     : hasVerificationPayload
     ? "Verification Warning"
@@ -2523,7 +2630,6 @@ const recommendedPathLabel =
   return (
   <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto">
-        <TopRightCasesCapsule />
         <div className="space-y-9">
           <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-7 md:p-10 space-y-6 overflow-hidden">
           <header className="bg-white p-0">
@@ -2602,7 +2708,14 @@ const recommendedPathLabel =
 
                   navigate(ROUTES.CASES || "/cases");
                 }}
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                style={{
+                  minWidth: "138px",
+                  height: "28px",
+                  lineHeight: "1",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
               >
                 View all cases
               </button>
@@ -2879,9 +2992,22 @@ const recommendedPathLabel =
                         <div>- Decision path reconstructed</div>
                       </div>
                     ) : (
-                      <p style={{ fontSize: "12.5px", fontWeight: 500 }}>
-                        {sanitizeText(data.displayContext, "No structured summary is available yet.")}
-                      </p>
+                      <div style={{ fontSize: "12.5px", fontWeight: 500, lineHeight: 1.6 }}>
+                        {data.displayContext ? (
+                          <p style={{ margin: 0 }}>
+                            {sanitizeText(data.displayContext)}
+                          </p>
+                        ) : (
+                          <div>
+                            <p style={{ margin: "0 0 6px 0", color: "#475569" }}>
+                              No user-written case summary has been added yet.
+                            </p>
+                            <p style={{ margin: 0, color: "#64748B" }}>
+                              Workflow evidence: {sanitizeText(workflowEvidenceSummary)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -24,6 +24,7 @@ import {
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 
 import {
+  API_BASE,
   registerTrialUser,
   saveCaseSnapshot,
   logTrialEvent,
@@ -1288,6 +1289,7 @@ function ReportHero({
   result,
   sessionId,
   onStartPilot,
+  onContinueCasePlan,
   heroTitle,
   heroSupportLine,
   pilotCtaLabel,
@@ -1426,6 +1428,34 @@ function ReportHero({
               }}
             >
               {sanitizeText(ctaLabel)}
+            </button>
+          </div>
+        ) : null}
+
+        {!showPilotCtas && isCaseReview && reviewCaseId && onContinueCasePlan ? (
+          <div className="mt-6 flex flex-col items-start justify-center">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              NEXT STEP
+            </div>
+
+            <button
+              type="button"
+              onClick={onContinueCasePlan}
+              className="mt-3 inline-flex items-center justify-center text-xs md:text-sm font-medium"
+              style={{
+                backgroundColor: "#047857",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "9999px",
+                padding: "14px 28px",
+                lineHeight: 1,
+                boxShadow: "0 4px 12px rgba(5, 150, 105, 0.22)",
+                cursor: "pointer",
+                appearance: "none",
+                WebkitAppearance: "none"
+              }}
+            >
+              Continue to Case Plan
             </button>
           </div>
         ) : null}
@@ -2205,6 +2235,7 @@ export default function ResultPage({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const resultViewedLoggedRef = useRef(false);
+    const caseIdLoadAttemptedRef = useRef("");
 
     const resultSeed = useMemo(() => {
       if (!result) return null;
@@ -2373,9 +2404,47 @@ const handleRestart = useCallback(() => {
   navigate(ROUTES.HOME);
 }, [navigate, onRestartProp, resolvedSessionId]);
 
-const fetchPreview = useCallback(() => {
+const fetchPreview = useCallback(async () => {
   try {
     setError("");
+
+    if (hasCaseIdInUrl && resolvedCaseId) {
+      try {
+        const response = await fetch(
+          `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
+        );
+
+        const payload = await response.json().catch(() => ({}));
+        const caseRecord = payload?.data || null;
+
+        const caseResultCandidate =
+          caseRecord?.preview ||
+          caseRecord?.result?.preview ||
+          caseRecord?.diagnosticResult?.preview ||
+          caseRecord?.diagnosticResult ||
+          caseRecord?.caseSnapshot?.caseRecord?.preview ||
+          caseRecord?.caseSnapshot?.caseRecord?.result?.preview ||
+          caseRecord?.caseSnapshot?.preview ||
+          caseRecord?.caseSnapshot?.result?.preview ||
+          caseRecord?.result ||
+          caseRecord?.caseSnapshot?.result ||
+          caseRecord?.caseSnapshot?.caseRecord?.diagnosticResult ||
+          null;
+
+        const caseResult = normalizePreview(caseResultCandidate);
+
+        if (caseResult && isValidPreview(caseResult)) {
+          setResult({
+            ...caseResult,
+            caseId: resolvedCaseId,
+          });
+          setError("");
+          return;
+        }
+      } catch (caseLoadError) {
+        console.warn("ResultPage caseId load failed:", caseLoadError);
+      }
+    }
 
     const storedResult = normalizePreview(getStoredResult(resolvedSessionId));
     if (storedResult && isValidPreview(storedResult)) {
@@ -2407,16 +2476,26 @@ const fetchPreview = useCallback(() => {
         : "Something went wrong while loading the preview."
     );
   }
-}, [resolvedSessionId]);
+}, [hasCaseIdInUrl, resolvedCaseId, resolvedSessionId]);
 
 useEffect(() => {
+  if (
+    hasCaseIdInUrl &&
+    resolvedCaseId &&
+    caseIdLoadAttemptedRef.current !== resolvedCaseId
+  ) {
+    caseIdLoadAttemptedRef.current = resolvedCaseId;
+    fetchPreview();
+    return;
+  }
+
   if (result && isValidPreview(result)) {
     setError("");
     return;
   }
 
   fetchPreview();
-}, [result, resolvedSessionId, fetchPreview]);
+}, [result, resolvedCaseId, resolvedSessionId, fetchPreview, hasCaseIdInUrl]);
 
 const handleRetry = useCallback(async () => {
   await fetchPreview();
@@ -3302,6 +3381,14 @@ if (error && !result) {
   );
 }
 
+if (
+  hasCaseIdInUrl &&
+  resolvedCaseId &&
+  caseIdLoadAttemptedRef.current !== resolvedCaseId
+) {
+  return <LoadingState />;
+}
+
 if (!result) {
   return <EmptyState onRestart={handleRestart} />;
 }
@@ -3319,6 +3406,24 @@ if (!isValidPreview(result)) {
             result={enrichedResult}
             sessionId={resolvedSessionId}
             onStartPilot={showPilotCtas ? handleStartPilot : null}
+            onContinueCasePlan={() => {
+              const targetCaseId = reviewCaseId || resolvedCaseId;
+
+              navigate(`${ROUTES.PILOT}?caseId=${encodeURIComponent(targetCaseId)}&from=case`, {
+                state: {
+                  caseId: targetCaseId,
+                  case_id: targetCaseId,
+                  from: "case",
+                  sessionId: resolvedSessionId,
+                  session_id: resolvedSessionId,
+                  sourceInput: enrichedResult,
+                  preview: enrichedResult,
+                  result: enrichedResult,
+                  caseSchema,
+                  lockedScopeSnapshot,
+                },
+              });
+            }}
             heroTitle={heroTitle}
             heroSupportLine={heroSupportLine}
             pilotCtaLabel={pilotCtaLabel}

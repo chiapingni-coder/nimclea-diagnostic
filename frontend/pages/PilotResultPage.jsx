@@ -14,7 +14,7 @@ import ROUTES from "../routes";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 import { logEvent } from "../utils/eventLogger";
 import { getPilotEntries } from "../utils/pilotEntries";
-import { logTrialEvent } from "../lib/trialApi";
+import { API_BASE, logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { resolveAccessMode } from "../lib/accessMode";
 import { sanitizeText } from "../lib/sanitizeText";
@@ -1398,6 +1398,37 @@ export default function PilotResultPage() {
   const caseId = resolvedCaseId;
   const isCaseReview =
     searchParams.get("from") === "case" || Boolean(searchParams.get("caseId"));
+  const [backendCaseRecord, setBackendCaseRecord] = useState(null);
+
+  useEffect(() => {
+    if (!resolvedCaseId) return;
+
+    let cancelled = false;
+
+    async function loadBackendCaseRecord() {
+      try {
+        const response = await fetch(
+          `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
+        );
+
+        const payload = await response.json().catch(() => ({}));
+        const caseRecord = payload?.data || null;
+
+        if (!cancelled && caseRecord) {
+          setBackendCaseRecord(caseRecord);
+        }
+      } catch (error) {
+        console.warn("PilotResultPage backend case load failed:", error);
+      }
+    }
+
+    loadBackendCaseRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedCaseId]);
+
   const resultCaseId =
     location.state?.resultCaseId ||
     location.state?.originCaseId ||
@@ -1409,12 +1440,22 @@ export default function PilotResultPage() {
     searchParams.get("caseId") ||
     "";
 
-  const rawPilotEntries =
-    location.state?.pilot_entries ||
-    location.state?.latest_pilot_entry?.eventHistory ||
-    location.state?.pilot_result?.eventHistory ||
-    location.state?.eventHistory ||
-    getPilotEntries();
+  const pickNonEmptyEntries = (...candidates) =>
+    candidates.find((items) => Array.isArray(items) && items.length > 0) || [];
+
+  const rawPilotEntries = pickNonEmptyEntries(
+    location.state?.pilot_entries,
+    location.state?.latest_pilot_entry?.eventHistory,
+    location.state?.pilot_result?.eventHistory,
+    location.state?.eventHistory,
+    getCaseById(caseId)?.events,
+    getCaseById(caseId)?.eventLogs,
+    getCaseById(caseId)?.entries,
+    backendCaseRecord?.events,
+    backendCaseRecord?.eventLogs,
+    backendCaseRecord?.entries,
+    getPilotEntries()
+  );
 
   const eventHistory = useMemo(() => {
     return Array.isArray(rawPilotEntries) ? rawPilotEntries : [];
@@ -2296,7 +2337,6 @@ return (
         }
       `}
     </style>
-    <TopRightCasesCapsule />
     <div className="max-w-3xl mx-auto">
       <div id="pilot-summary-root" className="bg-white rounded-[28px] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
         <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
@@ -2351,7 +2391,14 @@ return (
 
                   navigate(ROUTES.CASES || "/cases");
                 }}
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                style={{
+                  minWidth: "138px",
+                  height: "28px",
+                  lineHeight: "1",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
               >
                 View all cases
               </button>
@@ -2938,7 +2985,14 @@ return (
                         console.error("pilot_to_receipt_clicked log error:", error);
                       });
 
-                      navigate(ROUTES.RECEIPT, {
+                      const targetCaseId =
+                        receiptSourceInput.caseData?.caseId ||
+                        receiptSourceInput.caseData?.id ||
+                        location.state?.caseId ||
+                        location.state?.case_id ||
+                        resolvedCaseId;
+
+                      navigate(`${ROUTES.RECEIPT}?caseId=${encodeURIComponent(targetCaseId)}`, {
                         state: {
                           session_id:
                             location.state?.session_id ||
@@ -2952,10 +3006,8 @@ return (
                             receiptPageDataWithHash.receiptId ||
                             "pilot_result",
 
-                          caseId:
-                            receiptSourceInput.caseData?.caseId ||
-                            receiptSourceInput.caseData?.id ||
-                            resolvedCaseId,
+                          caseId: targetCaseId,
+                          case_id: targetCaseId,
 
                           pcMeta,
                           receiptReady: true,
@@ -2977,11 +3029,13 @@ return (
                         diagnosticResultPath,
                       });
 
-                      navigate(diagnosticResultPath, {
+                      const targetCaseId = resultCaseId || resolvedCaseId;
+
+                      navigate(`${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(targetCaseId)}&from=case`, {
                         state: {
                           ...(location.state || {}),
-                          caseId: resultCaseId || resolvedCaseId,
-                          case_id: resultCaseId || resolvedCaseId,
+                          caseId: targetCaseId,
+                          case_id: targetCaseId,
                           from: "case",
                           pcMeta,
                         },
@@ -3004,7 +3058,7 @@ return (
                       cursor: "pointer",
                     }}
                     >
-                    Back to Result
+                    Back to Case Plan
                   </button>
 
                 </div>
