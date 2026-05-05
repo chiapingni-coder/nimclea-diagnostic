@@ -755,8 +755,9 @@ export default function PilotPage() {
   const isCaseReview = useMemo(
     () =>
       searchParams.get("from") === "case" ||
-      Boolean(searchParams.get("caseId")) ||
-      location.state?.from === "case",
+      searchParams.get("mode") === "caseReview" ||
+      location.state?.from === "case" ||
+      location.state?.mode === "caseReview",
     [searchParams, location.state]
   );
 
@@ -1444,7 +1445,7 @@ navigate(
             preview={preview}
             sessionId={resolvedSessionId}
             onStart={handleStart}
-            onViewCases={() => navigate(ROUTES.CASES || "/cases")}
+            onViewCases={isCaseReview ? () => navigate(ROUTES.CASES || "/cases") : null}
             pcMeta={pcMeta}
             pilotFocusKey={incomingPilotFocusKey}
             firstGuidedAction={incomingFirstGuidedAction}

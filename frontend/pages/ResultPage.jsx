@@ -2073,12 +2073,17 @@ export default function ResultPage({
       const params = new URLSearchParams(location.search || "");
       return (
         params.get("from") === "case" ||
-        Boolean(params.get("caseId")) ||
+        params.get("mode") === "caseReview" ||
         location.state?.from === "case" ||
+        location.state?.mode === "caseReview" ||
         Boolean(location.state?.caseItem)
       );
     } catch {
-      return location.state?.from === "case" || Boolean(location.state?.caseItem);
+      return (
+        location.state?.from === "case" ||
+        location.state?.mode === "caseReview" ||
+        Boolean(location.state?.caseItem)
+      );
     }
   }, [location.search, location.state]);
   const reviewCaseId = useMemo(() => {
@@ -2094,7 +2099,7 @@ export default function ResultPage({
       return location.state?.caseId || location.state?.case_id || "";
     }
   }, [location.search, location.state]);
-  const showPilotCtas = !isCaseReview && !reviewCaseId;
+  const showPilotCtas = !isCaseReview;
 
   useEffect(() => {
     const session = getTrialSession() || null;
@@ -3318,7 +3323,7 @@ if (typeof window !== "undefined") {
       return;
     }
 
-    navigate(ROUTES.PILOT, {
+    navigate(`${ROUTES.PILOT}?caseId=${encodeURIComponent(resolvedCaseId)}`, {
       state: {
         caseId: resolvedCaseId,
         case_id: resolvedCaseId,
@@ -3399,7 +3404,6 @@ if (!isValidPreview(result)) {
 
   return (
     <main className="relative min-h-screen bg-slate-50">
-      <TopRightCasesCapsule />
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="space-y-6">
           <ReportHero

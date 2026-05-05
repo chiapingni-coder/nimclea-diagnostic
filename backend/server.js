@@ -255,7 +255,15 @@ app.get("/cases", (req, res) => {
         const baseCase = findLastMatchingRecord(cases, caseId) || {};
         const receiptCase = normalizeCaseRecord(
           findLastMatchingRecord(receiptRecords, caseId) || {}
+          
         );
+
+        const hasPersistedCase = Boolean(baseCase?.caseId || baseCase?.id || receiptCase?.caseId || receiptCase?.id);
+        const isLegacyFirstCaseLog = item?.source === "cases_page_first_case";
+
+        if (isLegacyFirstCaseLog && !hasPersistedCase) {
+          return null;
+        }
 
         return {
           email: item?.email || email,
@@ -278,7 +286,8 @@ app.get("/cases", (req, res) => {
           email: item?.email || baseCase?.email || receiptCase?.email || email,
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
         };
-      });
+      })
+      .filter(Boolean);
 
     return res.json(matches);
   } catch (error) {

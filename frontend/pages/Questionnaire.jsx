@@ -666,8 +666,9 @@ if (!apiResult?.preview && !apiResult) {
           caseId: diagnosticCaseId,
           case_id: diagnosticCaseId,
           sourceCaseId: diagnosticCaseId,
-          from: "case",
-          redoDiagnostic: Boolean(incomingCaseId),
+          from: location.state?.from === "case" ? "case" : undefined,
+          mode: location.state?.from === "case" ? "caseReview" : undefined,
+          redoDiagnostic: location.state?.from === "case",
           pcMeta: resolvedPcMeta
         }
       });
