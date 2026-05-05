@@ -231,9 +231,18 @@ app.get("/cases", (req, res) => {
     const storedLogs = readJsonFile("emailLogs.json", []);
     const storedCases = readJsonFile("cases.json", []);
     const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
+    const storedEventLogs = readJsonFile("eventLogs.json", []);
+
     const logs = Array.isArray(storedLogs) ? storedLogs : [];
     const cases = Array.isArray(storedCases) ? storedCases : [];
     const receiptRecords = Array.isArray(storedReceiptRecords) ? storedReceiptRecords : [];
+    const eventLogs = Array.isArray(storedEventLogs)
+      ? storedEventLogs
+      : Array.isArray(storedEventLogs?.events)
+      ? storedEventLogs.events
+      : Array.isArray(storedEventLogs?.logs)
+      ? storedEventLogs.logs
+      : [];
 
     const matches = logs
       .filter((item) => {
@@ -255,7 +264,46 @@ app.get("/cases", (req, res) => {
         const baseCase = findLastMatchingRecord(cases, caseId) || {};
         const receiptCase = normalizeCaseRecord(
           findLastMatchingRecord(receiptRecords, caseId) || {}
-          
+        );
+
+        const matchedEventLogs = eventLogs.filter((event) => {
+          return (
+            event?.caseId === caseId ||
+            event?.meta?.caseId === caseId ||
+            event?.body?.caseId === caseId
+          );
+        });
+
+        const eventMap = new Map();
+
+        [
+          ...(Array.isArray(baseCase?.events) ? baseCase.events : []),
+          ...(Array.isArray(baseCase?.eventLogs) ? baseCase.eventLogs : []),
+          ...(Array.isArray(receiptCase?.events) ? receiptCase.events : []),
+          ...(Array.isArray(receiptCase?.eventLogs) ? receiptCase.eventLogs : []),
+          ...matchedEventLogs,
+        ].forEach((event) => {
+          if (!event || typeof event !== "object") return;
+
+          const key =
+            event.eventId ||
+            event.id ||
+            event.meta?.quickCaptureId ||
+            `${event.caseId || event.meta?.caseId || event.body?.caseId || ""}:${
+              event.eventType || event.type || ""
+              }:${event.createdAt || event.timestamp || ""}:${event.meta?.note || event.note || ""}`;
+
+          if (!eventMap.has(key)) {
+            eventMap.set(key, event);
+          }
+        });
+
+        const mergedEvents = Array.from(eventMap.values());
+
+        const mergedEventCount = Math.max(
+          Number(baseCase?.eventCount || 0),
+          Number(receiptCase?.eventCount || 0),
+          mergedEvents.length
         );
 
         const hasPersistedCase = Boolean(baseCase?.caseId || baseCase?.id || receiptCase?.caseId || receiptCase?.id);
@@ -283,6 +331,10 @@ app.get("/cases", (req, res) => {
           ...item,
           ...baseCase,
           ...receiptCase,
+          events: mergedEvents.length > 0 ? mergedEvents : receiptCase?.events || baseCase?.events || [],
+          eventLogs: mergedEvents.length > 0 ? mergedEvents : receiptCase?.eventLogs || baseCase?.eventLogs || [],
+          entries: mergedEvents.length > 0 ? mergedEvents : receiptCase?.entries || baseCase?.entries || [],
+          eventCount: mergedEventCount,
           email: item?.email || baseCase?.email || receiptCase?.email || email,
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
         };
