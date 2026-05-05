@@ -1412,6 +1412,9 @@ export default function VerificationPage() {
   const [receiptLedgerLoading, setReceiptLedgerLoading] = useState(false);
   const [receiptLedgerError, setReceiptLedgerError] = useState(null);
   const [workflowEventLogs, setWorkflowEventLogs] = useState([]);
+  const [restoredCaseRecord, setRestoredCaseRecord] = useState(null);
+  const [restoredCaseLoading, setRestoredCaseLoading] = useState(false);
+  const [modalSource, setModalSource] = useState("verification_cta");
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
@@ -1436,11 +1439,15 @@ export default function VerificationPage() {
 
   const summaryBufferFromRoute = location.state?.summaryBuffer || null;
 
+  const verificationUrlParams = new URLSearchParams(location.search || "");
+  const verificationUrlCaseId = verificationUrlParams.get("caseId") || "";
+
   const inferredCaseId =
     resolveCaseId({
       caseId:
         location.state?.caseId ||
         location.state?.case_id ||
+        verificationUrlCaseId ||
         location.state?.caseData?.caseId ||
         location.state?.caseData?.id ||
         receiptContext?.caseData?.caseId ||
@@ -1449,6 +1456,48 @@ export default function VerificationPage() {
         "",
     });
   const caseId = inferredCaseId;
+
+  React.useEffect(() => {
+    const restoreCaseId = caseId || inferredCaseId;
+
+    if (!restoreCaseId) {
+      setRestoredCaseRecord(null);
+      setRestoredCaseLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadBackendCaseRecord() {
+      setRestoredCaseLoading(true);
+
+      try {
+        const response = await fetch(
+          `${API_BASE}/case/${encodeURIComponent(restoreCaseId)}`
+        );
+        const payload = await response.json().catch(() => ({}));
+
+        if (!cancelled && payload?.data) {
+          setRestoredCaseRecord(payload.data);
+        }
+      } catch (error) {
+        console.warn("VerificationPage case restore failed:", error);
+        if (!cancelled) {
+          setRestoredCaseRecord(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setRestoredCaseLoading(false);
+        }
+      }
+    }
+
+    loadBackendCaseRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId, inferredCaseId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1549,6 +1598,8 @@ export default function VerificationPage() {
     console.warn("Failed to read case registry for verification gate", error);
   }
 
+  const effectiveCaseRecord = restoredCaseRecord || currentCase || null;
+
   const verificationFlat =
     sharedContract
       ? flattenSharedReceiptVerificationContract(sharedContract)
@@ -1560,7 +1611,7 @@ export default function VerificationPage() {
     case_id: location.state?.case_id,
     routeMeta: routeEnvelope?.routeMeta,
     trialSession: location.state?.trialSession || getTrialSession() || {},
-    case: currentCase || receiptContext?.caseData || verificationFlat?.caseData || null,
+    case: effectiveCaseRecord || receiptContext?.caseData || verificationFlat?.caseData || null,
     caseSnapshot:
       routeEnvelope?.caseSnapshot ||
       receiptContext?.caseSnapshot ||
@@ -1574,17 +1625,24 @@ export default function VerificationPage() {
     : "/cases";
 
   const accessMode = getAccessMode(
-    verificationFlat?.caseData || receiptContext?.caseData || currentCase
+    verificationFlat?.caseData || receiptContext?.caseData || effectiveCaseRecord
   );
   const isPaid = accessMode === "paid";
 
-  const activeCaseBilling = caseBillingOverride || currentCase?.caseBilling || {};
+  const activeCaseBilling = caseBillingOverride || effectiveCaseRecord?.caseBilling || {};
   const verificationActivated =
     activeCaseBilling?.verificationActivated === true ||
-    currentCase?.payment?.verificationActivated === true ||
-    currentCase?.isPaid === true;
+    effectiveCaseRecord?.payment?.verificationActivated === true ||
+    effectiveCaseRecord?.isPaid === true;
+  const effectiveCaseEvents = [
+    ...(Array.isArray(effectiveCaseRecord?.events) ? effectiveCaseRecord.events : []),
+    ...(Array.isArray(effectiveCaseRecord?.eventLogs) ? effectiveCaseRecord.eventLogs : []),
+    ...(Array.isArray(effectiveCaseRecord?.entries) ? effectiveCaseRecord.entries : []),
+    ...(effectiveCaseRecord?.latestEvent ? [effectiveCaseRecord.latestEvent] : []),
+    ...(Array.isArray(workflowEventLogs) ? workflowEventLogs : []),
+  ].filter(Boolean);
   const deterministicScoreSource = {
-    ...(currentCase ||
+    ...(effectiveCaseRecord ||
       receiptContext?.caseData ||
       verificationFlat?.caseData ||
       routeData?.caseData ||
@@ -1592,87 +1650,71 @@ export default function VerificationPage() {
       {}),
     caseId:
       inferredCaseId ||
-      currentCase?.caseId ||
+      effectiveCaseRecord?.caseId ||
       receiptContext?.caseData?.caseId ||
       verificationFlat?.caseData?.caseId ||
       routeData?.caseData?.caseId ||
       storedData?.caseData?.caseId ||
       "",
     events:
-      Array.isArray(currentCase?.events) && currentCase.events.length > 0
-        ? currentCase.events
+      effectiveCaseEvents.length > 0
+        ? effectiveCaseEvents
         : Array.isArray(verificationFlat?.eventTimeline) && verificationFlat.eventTimeline.length > 0
         ? verificationFlat.eventTimeline
         : Array.isArray(receiptContext?.eventTimeline) && receiptContext.eventTimeline.length > 0
         ? receiptContext.eventTimeline
         : [],
     capturedEvents:
-      Array.isArray(currentCase?.events) && currentCase.events.length > 0
-        ? currentCase.events
+      effectiveCaseEvents.length > 0
+        ? effectiveCaseEvents
         : Array.isArray(verificationFlat?.eventTimeline) && verificationFlat.eventTimeline.length > 0
         ? verificationFlat.eventTimeline
         : Array.isArray(receiptContext?.eventTimeline) && receiptContext.eventTimeline.length > 0
         ? receiptContext.eventTimeline
         : [],
     entries:
-      Array.isArray(currentCase?.events) && currentCase.events.length > 0
-        ? currentCase.events
+      effectiveCaseEvents.length > 0
+        ? effectiveCaseEvents
         : Array.isArray(verificationFlat?.eventTimeline) && verificationFlat.eventTimeline.length > 0
         ? verificationFlat.eventTimeline
         : Array.isArray(receiptContext?.eventTimeline) && receiptContext.eventTimeline.length > 0
         ? receiptContext.eventTimeline
         : [],
     scopeLock:
-      currentCase?.scopeLock ||
+      effectiveCaseRecord?.scopeLock ||
       receiptContext?.caseData?.scopeLock ||
       verificationFlat?.caseData?.scopeLock ||
       routeData?.caseData?.scopeLock ||
       storedData?.caseData?.scopeLock ||
       {},
     scope:
-      currentCase?.scope ||
+      effectiveCaseRecord?.scope ||
       receiptContext?.caseData?.scope ||
       verificationFlat?.caseData?.scope ||
       routeData?.caseData?.scope ||
       storedData?.caseData?.scope ||
       {},
     acceptanceChecklist:
-      currentCase?.acceptanceChecklist ||
+      effectiveCaseRecord?.acceptanceChecklist ||
       receiptContext?.caseData?.acceptanceChecklist ||
       verificationFlat?.caseData?.acceptanceChecklist ||
       routeData?.caseData?.acceptanceChecklist ||
       storedData?.caseData?.acceptanceChecklist ||
       {},
     checklist:
-      currentCase?.checklist ||
+      effectiveCaseRecord?.checklist ||
       receiptContext?.caseData?.checklist ||
       verificationFlat?.caseData?.checklist ||
       routeData?.caseData?.checklist ||
       storedData?.caseData?.checklist ||
       {},
   };
-  {
-    const scoringSource = deterministicScoreSource;
-    console.log("[SCORE_INPUT_SOURCE]", {
-      page: "VerificationPage",
-      caseId: inferredCaseId,
-      sourceKeys: scoringSource ? Object.keys(scoringSource) : [],
-      source: scoringSource,
-    });
-  }
   const deterministicScore = calculateDeterministicScore(
     deterministicScoreSource
   );
 
-  console.log("[DETERMINISTIC_SCORE]", {
-    page: "VerificationPage",
-    caseId: inferredCaseId,
-    score: deterministicScore,
-    eventCount: deterministicScore.eventCount,
-  });
-
   const access = resolveAccessMode({
-    ...(currentCase || {}),
+    ...(effectiveCaseRecord || {}),
     ...(receiptContext?.caseData || {}),
     ...(verificationFlat?.caseData || {}),
     normalizedScore: deterministicScore.totalScore,
@@ -1681,12 +1723,12 @@ export default function VerificationPage() {
     events: deterministicScore.events,
     receiptPaid:
       activeCaseBilling?.receiptActivated === true ||
-      currentCase?.payment?.receiptActivated === true ||
-      currentCase?.payment?.receiptPaid === true ||
-      currentCase?.isPaid === true,
+      effectiveCaseRecord?.payment?.receiptActivated === true ||
+      effectiveCaseRecord?.payment?.receiptPaid === true ||
+      effectiveCaseRecord?.isPaid === true,
     verificationPaid:
       verificationActivated ||
-      currentCase?.payment?.verificationPaid === true,
+      effectiveCaseRecord?.payment?.verificationPaid === true,
   });
   const formalWorkspaceCopy = verificationActivated
     ? {
@@ -1704,15 +1746,31 @@ export default function VerificationPage() {
         verificationCta: "Activate formal workspace",
       };
 
-  const currentCaseEvents = Array.isArray(currentCase?.events)
-    ? currentCase.events
-    : [];
+  const currentCaseEvents = effectiveCaseEvents;
 
   const submittedEvents = currentCaseEvents.length;
 
   const decisionPathEvents = currentCaseEvents.length;
 
+  const restoredEventCount = Number(effectiveCaseRecord?.eventCount || 0);
+  const restoredEventsLength = Array.isArray(effectiveCaseRecord?.events)
+    ? effectiveCaseRecord.events.length
+    : 0;
+  const restoredEventLogsLength = Array.isArray(effectiveCaseRecord?.eventLogs)
+    ? effectiveCaseRecord.eventLogs.length
+    : 0;
+  const restoredEntriesLength = Array.isArray(effectiveCaseRecord?.entries)
+    ? effectiveCaseRecord.entries.length
+    : 0;
+  const hasLatestEvent = Boolean(effectiveCaseRecord?.latestEvent);
+
   const hasEventBackedBaseline =
+    restoredEventCount > 0 ||
+    restoredEventsLength > 0 ||
+    restoredEventLogsLength > 0 ||
+    restoredEntriesLength > 0 ||
+    hasLatestEvent ||
+    (Array.isArray(workflowEventLogs) && workflowEventLogs.length > 0) ||
     Number(submittedEvents || 0) > 0 ||
     Number(decisionPathEvents || 0) > 0;
 
@@ -1740,123 +1798,34 @@ export default function VerificationPage() {
         caseData:
           receiptSourceData?.caseData ||
           receiptContext?.caseData ||
-          currentCase ||
+          effectiveCaseRecord ||
           null,
       }
     : receiptContext;
 
-  const receiptDecisionStatus = receiptContext?.decisionStatus || "";
+  const receiptDecisionStatus =
+    receiptBackedContext?.decisionStatus ||
+    receiptContext?.decisionStatus ||
+    "";
 
-const receiptAllowsVerification =
-  deterministicScore.receiptEligible ||
-  access.verificationEligible ||
-  currentCase?.receipt?.eligible === true ||
-  receiptDecisionStatus === "Eligible for Verification" ||
-  receiptDecisionStatus === "READY FOR FORMAL DETERMINATION" ||
-  receiptDecisionStatus === "Verified";
+  const receiptAllowsVerification =
+    deterministicScore.receiptEligible ||
+    access.verificationEligible ||
+    hasLedgerReceipt ||
+    effectiveCaseRecord?.receipt?.eligible === true ||
+    receiptDecisionStatus === "Eligible for Verification" ||
+    receiptDecisionStatus === "READY FOR FORMAL DETERMINATION" ||
+    receiptDecisionStatus === "Verified";
 
   const cameFromIssuedReceipt =
     caseId ||
     receiptLedgerLoading ||
     hasLedgerReceipt ||
-    !!currentCase?.receipt ||
+    !!effectiveCaseRecord?.receipt ||
     !!receiptContext ||
     !!routeEnvelope?.receiptPageData ||
     !!routeEnvelope?.sharedReceiptVerificationContract ||
     !!sharedContract;
-    if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
-    return (
-      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-        <div className="max-w-3xl mx-auto">
-          <TopRightCasesCapsule />
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <div className="mb-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  const currentCaseId =
-                    inferredCaseId ||
-                    currentCase?.caseId ||
-                    currentCase?.id ||
-                    "";
-
-                  if (currentCaseId) {
-                    console.log("[View all cases]", { caseId: currentCaseId });
-                  }
-
-                  navigate(ROUTES.CASES || "/cases");
-                }}
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
-              >
-                View all cases
-              </button>
-            </div>
-            <p className="text-xs font-medium text-slate-400 mb-2">
-              Verification not available
-            </p>
-          <h1 className="text-2xl font-bold mb-3">
-            This receipt has not been issued for verification
-          </h1>
-          <p className="text-slate-700 leading-7">
-            Verification can only be opened from an issued receipt that is eligible for verification.
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              to={receiptPath}
-              state={stripCanonicalCaseFlowState(routeEnvelope || {})}
-              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black border border-black shadow-sm hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
-            >
-              Back to Receipt
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-  if (!hasEventBackedBaseline) {
-    return (
-      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-        <div className="max-w-3xl mx-auto">
-          <TopRightCasesCapsule />
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <p className="text-xs font-medium text-slate-400 mb-2">
-              Verification blocked
-            </p>
-            <h1 className="text-2xl font-bold mb-3">
-              Verification not activated
-            </h1>
-            <p className="text-slate-700 leading-7">
-              This record has no event-backed baseline yet. Capture at least one real event before requesting formal verification.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(receiptPath, {
-                    state: {
-                      ...stripCanonicalCaseFlowState(routeEnvelope || {}),
-                      openQuickCapture: true,
-                      quickCaptureIntent: "first_event_from_verification",
-                      returnToVerification: true,
-                      returnToVerificationState: routeEnvelope || {},
-                    },
-                  })
-                }
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-[12px] font-medium text-white shadow-sm transition hover:bg-slate-800"
-              >
-                Capture first event
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const resolvedPayload = resolveVerificationPayload(
     routeEnvelope || {},
     receiptBackedContext,
@@ -2207,6 +2176,9 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     persistedVerificationHash || generatedVerificationHash;
 
   React.useEffect(() => {
+    if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
+    if (!hasEventBackedBaseline) return;
+
     saveStoredVerificationHash(
       resolvedVerificationCaseId,
       proofReceiptHash,
@@ -2229,7 +2201,16 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     } catch (error) {
       console.warn("Failed to persist verification on case", error);
     }
-  }, [resolvedVerificationCaseId, proofReceiptHash, verificationHash]);
+  }, [
+    cameFromIssuedReceipt,
+    receiptAllowsVerification,
+    hasEventBackedBaseline,
+    resolvedVerificationCaseId,
+    proofReceiptHash,
+    verificationHash,
+    currentCase,
+    verificationFlat,
+  ]);
 
 const displayReceiptHash =
   proofReceiptHash && proofReceiptHash !== "Unavailable"
@@ -2364,6 +2345,9 @@ const displayReceiptHash =
       };
 
   React.useEffect(() => {
+    if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
+    if (!hasEventBackedBaseline) return;
+
     try {
       localStorage.setItem(
         "verificationPageData",
@@ -2383,7 +2367,14 @@ const displayReceiptHash =
     } catch (error) {
       console.error("Failed to persist verification payload:", error);
     }
-  }, [data, sharedContract, verificationHash]);
+  }, [
+    cameFromIssuedReceipt,
+    receiptAllowsVerification,
+    hasEventBackedBaseline,
+    data,
+    sharedContract,
+    verificationHash,
+  ]);
 
   React.useEffect(() => {
   const session =
@@ -2401,6 +2392,7 @@ const displayReceiptHash =
 
     if (!caseId) return;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
+    if (!hasEventBackedBaseline) return;
     if (verificationViewedLoggedRef.current) return;
 
     verificationViewedLoggedRef.current = true;
@@ -2442,6 +2434,7 @@ const displayReceiptHash =
   }, [
     cameFromIssuedReceipt,
     receiptAllowsVerification,
+    hasEventBackedBaseline,
     location.state,
     data.caseData,
     data.receiptId,
@@ -2462,6 +2455,7 @@ const displayReceiptHash =
 
     if (!session?.userId || !session?.trialId) return;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
+    if (!hasEventBackedBaseline) return;
 
     const finalEventType =
       finalOverallStatus === "Verification Ready"
@@ -2513,6 +2507,7 @@ const displayReceiptHash =
   }, [
     cameFromIssuedReceipt,
     receiptAllowsVerification,
+    hasEventBackedBaseline,
     location.state,
     data.caseData,
     data.receiptId,
@@ -2524,6 +2519,95 @@ const displayReceiptHash =
     canShowSubscriptionOptions,
     isEvidenceLockedConsistent,
   ]);
+
+  if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+        <div className="max-w-3xl mx-auto">
+          <TopRightCasesCapsule />
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentCaseId =
+                    inferredCaseId ||
+                    effectiveCaseRecord?.caseId ||
+                    effectiveCaseRecord?.id ||
+                    "";
+
+                  navigate(ROUTES.CASES || "/cases");
+                }}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              >
+                View all cases
+              </button>
+            </div>
+            <p className="text-xs font-medium text-slate-400 mb-2">
+              Verification not available
+            </p>
+            <h1 className="text-2xl font-bold mb-3">
+              This receipt has not been issued for verification
+            </h1>
+            <p className="text-slate-700 leading-7">
+              Verification can only be opened from an issued receipt that is eligible for verification.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                to={receiptPath}
+                state={stripCanonicalCaseFlowState(routeEnvelope || {})}
+                className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black border border-black shadow-sm hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+              >
+                Back to Receipt
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasEventBackedBaseline) {
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+        <div className="max-w-3xl mx-auto">
+          <TopRightCasesCapsule />
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <p className="text-xs font-medium text-slate-400 mb-2">
+              Verification blocked
+            </p>
+            <h1 className="text-2xl font-bold mb-3">
+              Verification not activated
+            </h1>
+            <p className="text-slate-700 leading-7">
+              This record has no event-backed baseline yet. Capture at least one real event before requesting formal verification.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(receiptPath, {
+                    state: {
+                      ...stripCanonicalCaseFlowState(routeEnvelope || {}),
+                      openQuickCapture: true,
+                      quickCaptureIntent: "first_event_from_verification",
+                      returnToVerification: true,
+                      returnToVerificationState: routeEnvelope || {},
+                    },
+                  })
+                }
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-[12px] font-medium text-white shadow-sm transition hover:bg-slate-800"
+              >
+                Capture first event
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
 const recommendedPathLabel =
     finalOverallStatus === "Verification Ready"
@@ -2537,8 +2621,6 @@ const recommendedPathLabel =
 
   const recommendWeeklyAccess =
     finalOverallStatus === "Verification Failed";
-
-  const [modalSource, setModalSource] = useState("verification_cta");
 
   const handleOpenSubscriptionModal = async (source = "verification_cta") => {
     try {
@@ -2701,10 +2783,6 @@ const recommendedPathLabel =
                     currentCase?.caseId ||
                     currentCase?.id ||
                     "";
-
-                  if (currentCaseId) {
-                    console.log("[View all cases]", { caseId: currentCaseId });
-                  }
 
                   navigate(ROUTES.CASES || "/cases");
                 }}

@@ -2141,8 +2141,6 @@ export default function ResultPage({
         ...(session || {}),
         userId: stableUserId,
       });
-
-      console.log("SESSION USER LOCKED:", stableUserId);
     }
   }, []);
 
@@ -2282,11 +2280,7 @@ export default function ResultPage({
       rawFromStoragePreview ||
       null;
 
-    console.log("濡絽鍟弳?raw before normalize:", raw);
-
     const normalized = normalizePreview(raw);
-
-    console.log("濡絽鍠氬?extraction after normalize:", normalized?.extraction);
 
     return normalized;
   }, [resultProp, resultFromLocation, previewFromLocation, resolvedSessionId]);
@@ -2491,6 +2485,7 @@ const fetchPreview = useCallback(async () => {
           caseRecord?.result ||
           caseRecord?.caseSnapshot?.result ||
           caseRecord?.caseSnapshot?.caseRecord?.diagnosticResult ||
+          caseRecord?.caseData ||
           null;
 
         const caseResult = normalizePreview(caseResultCandidate);
@@ -2600,14 +2595,9 @@ useEffect(() => {
     },
   };
 
-  console.log("RESULT_VIEWED_FIRED", payload);
-
   resultViewedLoggedRef.current = true;
 
   Promise.resolve(logTrialEvent(payload))
-    .then((res) => {
-      console.log("RESULT_VIEWED_LOGGED", res);
-    })
     .catch((err) => {
       console.error("result_viewed log failed:", err);
       resultViewedLoggedRef.current = false;
@@ -2777,13 +2767,6 @@ useEffect(() => {
   });
 
   startPilotButtonViewedRef.current = true;
-
-  console.log("BUTTON_VIEWED_FIRED", {
-    sessionId: resolvedSessionId || "",
-    buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot ->",
-    scenarioCode,
-    entrySource,
-  });
 
   Promise.resolve(
     logTrialEvent({
