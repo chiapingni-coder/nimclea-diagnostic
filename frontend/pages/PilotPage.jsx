@@ -1461,11 +1461,11 @@ navigate(
             onSelect={setSelectedWorkflow}
             onStart={handleStart}
             title={
-              isCaseReview
-                ? "Continue your case plan."
+              isCaseReview || resolvedCaseId
+                ? "Choose a workflow. Your case is ready."
                 : "Choose a workflow. Your pilot is ready to start."
             }
-            buttonLabel={isCaseReview ? "Continue Case Plan" : "Create new case"}
+            buttonLabel={isCaseReview || resolvedCaseId ? "Continue Case" : "Create case"}
           />
 
           <PilotPlanCard

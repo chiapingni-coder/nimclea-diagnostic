@@ -783,6 +783,7 @@ export default function ReceiptPage() {
   const [isCustomerRecordOpen, setIsCustomerRecordOpen] = React.useState(false);
   const [isReceiptEligibilityOpen, setIsReceiptEligibilityOpen] = React.useState(false);
   const [hydratedReceiptRecord, setHydratedReceiptRecord] = React.useState(null);
+  const [receiptRecordHydrationComplete, setReceiptRecordHydrationComplete] = React.useState(false);
 
   const [quickCaptureOpen, setQuickCaptureOpen] = React.useState(false);
   const [quickCaptureType, setQuickCaptureType] = React.useState("decision_accepted");
@@ -1198,8 +1199,11 @@ const urlCaseId = String(
     let cancelled = false;
 
     async function hydrateReceiptRecord() {
+      setReceiptRecordHydrationComplete(false);
+
       if (!inferredCaseId) {
         setHydratedReceiptRecord(null);
+        setReceiptRecordHydrationComplete(true);
         return;
       }
 
@@ -1207,6 +1211,7 @@ const urlCaseId = String(
 
       if (currentStoredCaseId === inferredCaseId && storedData) {
         setHydratedReceiptRecord(storedData);
+        setReceiptRecordHydrationComplete(true);
         return;
       }
 
@@ -1216,6 +1221,9 @@ const urlCaseId = String(
         );
 
         if (!response.ok) {
+          if (!cancelled) {
+            setReceiptRecordHydrationComplete(true);
+          }
           return;
         }
 
@@ -1226,6 +1234,10 @@ const urlCaseId = String(
         }
       } catch (error) {
         console.warn("Failed to hydrate receipt record", error);
+      } finally {
+        if (!cancelled) {
+          setReceiptRecordHydrationComplete(true);
+        }
       }
     }
 
@@ -1244,6 +1256,9 @@ const urlCaseId = String(
     console.warn("Failed to read case registry for receipt gate", error);
   }
   const activeCurrentCase = hydratedReceiptRecord || currentCase || null;
+  const isReceiptCaseHydrating =
+    Boolean(inferredCaseId) &&
+    !receiptRecordHydrationComplete;
 
   const existingLead = activeCurrentCase?.lead || null;
   const [lead, setLead] = React.useState({
@@ -1504,6 +1519,8 @@ const urlCaseId = String(
     "Open Verification Review",
 
   decisionStatus: (() => {
+    if (isReceiptCaseHydrating) return "Checking receipt status";
+
     if (hasVerifiedAt) return "Verified";
 
     const backendReady =
@@ -1536,6 +1553,7 @@ const urlCaseId = String(
 
   React.useEffect(() => {
     if (!inferredCaseId) return;
+    if (isReceiptCaseHydrating) return;
 
     try {
       upsertCase({
@@ -1561,7 +1579,7 @@ const urlCaseId = String(
     } catch (e) {
       console.warn("Failed to persist case at receipt stage", e);
     }
-  }, [inferredCaseId]);
+  }, [inferredCaseId, isReceiptCaseHydrating]);
 
 const canShowFormalPaymentEntry =
   data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
@@ -1971,6 +1989,7 @@ React.useEffect(() => {
     inferredCaseId;
 
   if (!caseId) return;
+  if (isReceiptCaseHydrating) return;
 
   const session =
     location.state?.trialSession || getTrialSession() || {};
@@ -2020,6 +2039,7 @@ React.useEffect(() => {
   DEBUG_DISABLE_RECEIPT_EVENT_LOG,
   canRenderReceipt,
   inferredCaseId,
+  isReceiptCaseHydrating,
   location.state,
   data.receiptId,
   data.caseData,
@@ -2030,6 +2050,27 @@ React.useEffect(() => {
   canEnterVerification,
   isEvidenceLockedConsistent,
 ]);
+
+if (isReceiptCaseHydrating) {
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <div className="max-w-3xl mx-auto">
+        <TopRightCasesCapsule />
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <p className="text-xs font-medium text-slate-400 mb-2">
+            Receipt status
+          </p>
+          <h1 className="text-2xl font-bold mb-3">
+            Checking receipt status...
+          </h1>
+          <p className="text-slate-700 leading-7">
+            Loading the current case record before showing the receipt decision.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 if (!canRenderReceipt) {
   return (

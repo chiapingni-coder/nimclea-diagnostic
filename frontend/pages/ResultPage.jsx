@@ -3081,6 +3081,44 @@ const handleSaveCaseContactSubmit = useCallback(async (event) => {
       company: lead.company,
     });
 
+    await saveCaseSnapshot({
+      userId: getTrialSession()?.userId || stableUserId || "anonymous",
+      trialId: resolvedSessionId || resolvedCaseId,
+      caseId: resolvedCaseId,
+      stage: "result",
+      status: "diagnostic_completed",
+      score:
+        typeof enrichedResult?.intensity?.level === "number"
+          ? enrichedResult.intensity.level
+          : null,
+      receiptEligible: false,
+      verificationEligible: false,
+      source: "result_page_save_case",
+      email,
+      lead: {
+        name: lead.name,
+        email,
+        company: lead.company,
+      },
+      result: enrichedResult,
+      preview: enrichedResult,
+      caseSchema,
+      caseData: {
+        ...(caseSchema || {}),
+        caseId: resolvedCaseId,
+        email,
+        lead: {
+          name: lead.name,
+          email,
+          company: lead.company,
+        },
+        result: enrichedResult,
+        preview: enrichedResult,
+        status: "diagnostic_completed",
+        currentStep: "result",
+      },
+    });
+
     await logResultCaseEmail({
       email,
       caseId: resolvedCaseId,
@@ -3094,7 +3132,15 @@ const handleSaveCaseContactSubmit = useCallback(async (event) => {
   } finally {
     setSavingContact(false);
   }
-}, [caseSchema, enrichedResult, lead, navigateToSavedCase, resolvedCaseId]);
+}, [
+  caseSchema,
+  enrichedResult,
+  lead,
+  navigateToSavedCase,
+  resolvedCaseId,
+  resolvedSessionId,
+  stableUserId,
+]);
 
 const summarySeed = useMemo(() => {
   if (!result || !isValidPreview(result)) return null;
