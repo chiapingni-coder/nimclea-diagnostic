@@ -1455,12 +1455,21 @@ const handleConfirm = async () => {
   let existingTrialSession =
     location.state?.trialSession || getTrialSession();
 
-  if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
+  const isLocalFallbackTrialSession =
+    String(existingTrialSession?.trialId || "").startsWith("t_") ||
+    !existingTrialSession?.email ||
+    existingTrialSession?.lockedScopeSnapshot?.lockedBy === "fallback";
+
+  if (
+    !existingTrialSession?.userId ||
+    !existingTrialSession?.trialId ||
+    isLocalFallbackTrialSession
+  ) {
     try {
       const registerRes = await registerTrialUser({
-        email: "pilot@nimclea.local",
-        name: "",
-        company: "",
+        email: lead.email || localStorage.getItem("nimclea_email") || "pilot@nimclea.local",
+        name: lead.name || "",
+        company: lead.company || "",
       });
 
       existingTrialSession = {
