@@ -1,4 +1,7 @@
 const USER_ID_KEY = "nimclea_user_id_v1";
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com"
+).replace(/\/$/, "");
 
 function createStableUserId() {
   const seed = Math.random().toString(36).slice(2, 10);
@@ -84,7 +87,7 @@ export async function logEvent(eventName, payload = {}) {
   const eventPayload = buildEventPayload(eventName, payload);
 
   try {
-    await fetch("http://localhost:3000/api/events/log", {
+    await fetch(`${API_BASE}/api/events/log`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
