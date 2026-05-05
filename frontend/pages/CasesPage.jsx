@@ -199,6 +199,52 @@ function hasRealEventSignal(item) {
   );
 }
 
+function hasPostDiagnosticProgress(item) {
+  const normalized = normalizeCaseItem(item);
+  const pilotResult = normalized?.pilot_result || normalized?.pilotResult || {};
+  const postDiagnosticStatuses = [
+    "active",
+    "workspace_summary",
+    "receipt_ready",
+    "verification_ready",
+    "receipt_activated",
+    "verification_activated",
+    "paid",
+  ];
+  const postDiagnosticSteps = [
+    "pilot",
+    "pilot_setup",
+    "pilot_result",
+    "receipt",
+    "verification",
+  ];
+
+  return Boolean(
+    hasRealEventSignal(normalized) ||
+      pilotResult?.result ||
+      (Array.isArray(pilotResult?.entries) && pilotResult.entries.length > 0) ||
+      (Array.isArray(pilotResult?.events) && pilotResult.events.length > 0) ||
+      normalized?.receipt ||
+      normalized?.verification ||
+      postDiagnosticSteps.includes(String(normalized?.currentStep || "").toLowerCase()) ||
+      postDiagnosticStatuses.includes(String(normalized?.status || "").toLowerCase())
+  );
+}
+
+function isEmptyDraftCase(item) {
+  const normalized = normalizeCaseItem(item);
+
+  return (
+    normalized?.status === "draft" &&
+    !hasDiagnosticResultData(normalized) &&
+    !hasPostDiagnosticProgress(normalized)
+  );
+}
+
+function isVisibleActiveCase(item) {
+  return !isEmptyDraftCase(item);
+}
+
 function hasActivatedReceipt(item) {
   const normalized = normalizeCaseItem(item);
   const receiptStatus = String(
@@ -381,7 +427,41 @@ export default function CasesPage() {
           return caseEmail === email.trim().toLowerCase();
         });
 
-      const mergedCases = nextCases;
+      const caseIdOf = (item = {}) =>
+        String(
+          item?.caseId ||
+            item?.case_id ||
+            item?.id ||
+            item?.caseSnapshot?.caseId ||
+            item?.caseSnapshot?.caseRecord?.caseId ||
+            ""
+        ).trim();
+
+      const mergedCaseMap = new Map();
+
+      nextCases.forEach((item) => {
+        const id = caseIdOf(item);
+        if (!id) return;
+        mergedCaseMap.set(id, {
+          ...item,
+          caseId: id,
+        });
+      });
+
+      localCases.forEach((item) => {
+        const id = caseIdOf(item);
+        if (!id) return;
+
+        const existing = mergedCaseMap.get(id) || {};
+        mergedCaseMap.set(id, {
+          ...existing,
+          ...item,
+          caseId: id,
+          id,
+        });
+      });
+
+      const mergedCases = Array.from(mergedCaseMap.values());
 
       if (mergedCases.length === 0) {
         setCases([]);
@@ -389,17 +469,10 @@ export default function CasesPage() {
         setSavedEmail(email);
         setEmailInput(email);
         setEmailStatus("");
-        setShowNoCaseModal(false);
+        setShowNoCaseModal(true);
         localStorage.setItem(EMAIL_STORAGE_KEY, email);
         localStorage.removeItem("nimclea_email_verified");
         localStorage.removeItem("nimclea_current_case_id");
-
-        navigate(ROUTES.DIAGNOSTIC, {
-          state: {
-            email,
-            from: "access",
-          },
-        });
 
         return;
       }
@@ -518,7 +591,13 @@ export default function CasesPage() {
     setEmailStatus("");
     setLoadingCases(false);
     setShowNoCaseModal(false);
-  }, []);
+    setCaseView("active");
+
+    navigate(ROUTES.CASES || "/cases", {
+      replace: true,
+      state: {},
+    });
+  }, [navigate]);
 
   const handleArchiveCase = React.useCallback((caseIdToArchive = "") => {
     const safeCaseId = String(caseIdToArchive || "").trim();
@@ -710,6 +789,11 @@ export default function CasesPage() {
     }
   };
 
+  const visibleActiveCases = React.useMemo(
+    () => cases.filter(isVisibleActiveCase),
+    [cases]
+  );
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
@@ -771,7 +855,7 @@ export default function CasesPage() {
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              Active Cases ({cases.length})
+              Active Cases ({visibleActiveCases.length})
             </button>
             <span className="text-slate-300" aria-hidden="true">
               |
@@ -896,19 +980,23 @@ export default function CasesPage() {
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <p className="text-slate-600">Loading cases...</p>
           </section>
-        ) : caseView === "active" && cases.length === 0 && hasWorkspaceIdentity ? (
+        ) : caseView === "active" && visibleActiveCases.length === 0 && hasWorkspaceIdentity ? (
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <p className="text-sm text-slate-500">No active cases.</p>
           </section>
-        ) : caseView === "active" && cases.length > 0 ? (
+        ) : caseView === "active" && visibleActiveCases.length > 0 ? (
           <section className="space-y-3">
-            {cases.map((item, index) => {
+            {visibleActiveCases.map((item, index) => {
               const normalizedItem = normalizeCaseItem(item);
               const caseId = normalizedItem?.caseId || normalizedItem?.case_id || normalizedItem?.id || "";
               const accessMode = getAccessMode(normalizedItem);
               const isPaid = accessMode === "paid";
               const caseSchema = normalizedItem?.caseSchema || normalizedItem?.caseData || normalizedItem || {};
-              const pilotResult = normalizedItem?.pilot_result || normalizedItem?.pilotResult || {};
+              const hasDiagnosticData = hasDiagnosticResultData(normalizedItem);
+              const hasProgress = hasPostDiagnosticProgress(normalizedItem);
+              const isDiagnosticCompletedOnly =
+                hasDiagnosticData && !hasProgress;
+
               const receiptBillingStatus = normalizedItem?.caseBilling?.receiptActivated
                 ? "Activated"
                 : "Preview";
@@ -920,7 +1008,12 @@ export default function CasesPage() {
                 ? normalizedItem.acceptanceChecklist
                 : [];
               const detailPath = getCaseDetailRoute(normalizedItem);
-              const redoDiagnosticCaseId = resolveCaseId(normalizedItem);
+              const primaryResolvedCaseId = resolveCaseId(normalizedItem);
+              const primaryActionPath = isDiagnosticCompletedOnly && primaryResolvedCaseId
+                ? `${ROUTES.PILOT_SETUP}?caseId=${encodeURIComponent(primaryResolvedCaseId)}`
+                : detailPath;
+              const primaryActionLabel = isDiagnosticCompletedOnly ? "Continue Case" : "Detail";
+              const redoDiagnosticCaseId = primaryResolvedCaseId;
               const redoDiagnosticPath = redoDiagnosticCaseId
                 ? `${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(redoDiagnosticCaseId)}&redo=1`
                 : ROUTES.DIAGNOSTIC;
@@ -1049,12 +1142,14 @@ export default function CasesPage() {
 
                   <div className="flex flex-wrap gap-2">
                     <a
-                      href={detailPath}
+                      href={primaryActionPath}
                       onClick={(event) => {
                         event.preventDefault();
 
                         const resolvedCaseId = resolveCaseId(normalizedItem);
-                        const targetPath = getCaseDetailRoute(normalizedItem);
+                        const targetPath = isDiagnosticCompletedOnly
+                          ? primaryActionPath
+                          : getCaseDetailRoute(normalizedItem);
 
                         if (!resolvedCaseId) {
                           console.warn("[CasePage] Missing resolvedCaseId for case item", normalizedItem);
@@ -1085,22 +1180,30 @@ export default function CasesPage() {
                         });
 
                         navigate(targetPath, {
-                          state: {
-                            caseId: resolvedCaseId,
-                            email: savedEmail || resolvedEmail,
-                            trialId:
-                              normalizedItem?.trialId ||
-                              normalizedItem?.trial_id ||
-                              normalizedItem?.trialSession?.trialId ||
-                              normalizedItem?.caseSnapshot?.trialId ||
-                              "",
-                            userId:
-                              normalizedItem?.userId ||
-                              normalizedItem?.user_id ||
-                              normalizedItem?.trialSession?.userId ||
-                              "",
-                            source: "cases_page",
-                          },
+                          state: isDiagnosticCompletedOnly
+                            ? {
+                                caseId: resolvedCaseId,
+                                case_id: resolvedCaseId,
+                                email: savedEmail || resolvedEmail,
+                                source: "cases_page",
+                                from: "case_continue",
+                              }
+                            : {
+                                caseId: resolvedCaseId,
+                                email: savedEmail || resolvedEmail,
+                                trialId:
+                                  normalizedItem?.trialId ||
+                                  normalizedItem?.trial_id ||
+                                  normalizedItem?.trialSession?.trialId ||
+                                  normalizedItem?.caseSnapshot?.trialId ||
+                                  "",
+                                userId:
+                                  normalizedItem?.userId ||
+                                  normalizedItem?.user_id ||
+                                  normalizedItem?.trialSession?.userId ||
+                                  "",
+                                source: "cases_page",
+                              },
                         });
                       }}
                       className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
@@ -1112,7 +1215,7 @@ export default function CasesPage() {
                         lineHeight: "1",
                       }}
                     >
-                      Detail
+                      {primaryActionLabel}
                     </a>
                   </div>
                 </div>
