@@ -103,16 +103,70 @@ function hasNonEmptyText(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+const NON_EVIDENCE_EVENT_TYPES = new Set([
+  "entry_viewed",
+  "entry_clicked",
+  "diagnostic_started",
+  "diagnostic_completed",
+  "diagnostic_submitted",
+  "result_viewed",
+  "case_viewed",
+  "case_opened",
+  "cases_viewed",
+  "access_continue_clicked",
+]);
+
+function getCaseEventType(event = {}) {
+  return String(
+    event?.eventType ||
+      event?.type ||
+      event?.meta?.eventType ||
+      event?.meta?.selectedEventType ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+function isRealEvidenceEvent(event = {}) {
+  if (!event || typeof event !== "object") return false;
+
+  const eventType = getCaseEventType(event);
+  const page = String(event?.page || event?.meta?.page || "").toLowerCase();
+
+  if (!eventType) return false;
+  if (NON_EVIDENCE_EVENT_TYPES.has(eventType)) return false;
+  if (page.includes("diagnostic") && eventType.startsWith("entry_")) return false;
+  if (eventType.startsWith("diagnostic_")) return false;
+
+  return true;
+}
+
+function getEvidenceEvents(item = {}) {
+  const normalized = normalizeCaseItem(item);
+
+  return [
+    ...(Array.isArray(item?.events) ? item.events : []),
+    ...(Array.isArray(normalized?.events) ? normalized.events : []),
+    ...(Array.isArray(normalized?.eventLogs) ? normalized.eventLogs : []),
+    ...(Array.isArray(normalized?.structuredEvents) ? normalized.structuredEvents : []),
+    ...(Array.isArray(normalized?.caseEvents) ? normalized.caseEvents : []),
+    ...(Array.isArray(normalized?.entries) ? normalized.entries : []),
+    ...(Array.isArray(normalized?.pilotEntries) ? normalized.pilotEntries : []),
+    ...(Array.isArray(normalized?.eventEntries) ? normalized.eventEntries : []),
+    ...(Array.isArray(normalized?.captureRecords) ? normalized.captureRecords : []),
+    ...(Array.isArray(normalized?.captures) ? normalized.captures : []),
+  ].filter(isRealEvidenceEvent);
+}
+
 function getDisplayStatus(item) {
   const normalized = normalizeCaseItem(item);
-  const eventCount =
-    Number(normalized?.eventCount || 0) ||
-    (Array.isArray(normalized?.events) ? normalized.events.length : 0);
+  const evidenceEventCount = getEvidenceEvents(normalized).length;
 
   if (normalized?.paid || normalized?.paymentStatus === "paid") return "Paid";
   if (normalized?.paymentStatus === "checkout_created") return "Receipt checkout started";
   if (normalized?.receiptEligible) return "Receipt ready";
-  if (eventCount > 0) return `Event captured (${eventCount})`;
+  if (evidenceEventCount > 0) return `Event captured (${evidenceEventCount})`;
   return normalized?.status || "draft";
 }
 
@@ -174,24 +228,10 @@ function getCaseDetailRoute(item) {
 
 function hasRealEventSignal(item) {
   const normalized = normalizeCaseItem(item);
-
-  const eventCount =
-    Number(item?.eventCount || 0) ||
-    Number(normalized?.eventCount || 0) ||
-    Number(normalized?.caseSnapshot?.eventCount || 0) ||
-    (Array.isArray(item?.events) ? item.events.length : 0) ||
-    (Array.isArray(normalized?.events) ? normalized.events.length : 0) ||
-    (Array.isArray(normalized?.eventLogs) ? normalized.eventLogs.length : 0) ||
-    (Array.isArray(normalized?.structuredEvents) ? normalized.structuredEvents.length : 0) ||
-    (Array.isArray(normalized?.caseEvents) ? normalized.caseEvents.length : 0) ||
-    (Array.isArray(normalized?.entries) ? normalized.entries.length : 0) ||
-    (Array.isArray(normalized?.pilotEntries) ? normalized.pilotEntries.length : 0) ||
-    (Array.isArray(normalized?.eventEntries) ? normalized.eventEntries.length : 0) ||
-    (Array.isArray(normalized?.captureRecords) ? normalized.captureRecords.length : 0) ||
-    (Array.isArray(normalized?.captures) ? normalized.captures.length : 0);
+  const evidenceEventCount = getEvidenceEvents(normalized).length;
 
   return (
-    eventCount > 0 ||
+    evidenceEventCount > 0 ||
     hasNonEmptyText(normalized?.rawEventText) ||
     hasNonEmptyText(normalized?.eventText) ||
     hasNonEmptyText(normalized?.captureText) ||
@@ -518,7 +558,10 @@ export default function CasesPage() {
           receiptEligible: Boolean(c.receiptEligible || c.caseReceiptEligible),
           paymentStatus: c.paymentStatus || "",
           paid: Boolean(c.paid),
-          status: eventCount > 0 ? "active" : c.status || "draft",
+          status:
+            getEvidenceEvents({ ...c, events, eventLogs: events }).length > 0
+              ? "active"
+              : c.status || "draft",
         };
       });
 
