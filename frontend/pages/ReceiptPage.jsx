@@ -1269,32 +1269,25 @@ const urlCaseId = String(
   const [leadError, setLeadError] = React.useState("");
   const hasValidLead = lead.email && lead.email.includes("@");
 
-  const currentCaseEventSource =
-    Array.isArray(currentCase?.events) && currentCase.events.length > 0
-      ? currentCase.events
-      : Array.isArray(currentCase?.eventLogs) && currentCase.eventLogs.length > 0
-      ? currentCase.eventLogs
-      : Array.isArray(currentCase?.pilotTrail) && currentCase.pilotTrail.length > 0
-      ? currentCase.pilotTrail
-      : Array.isArray(currentCase?.trail) && currentCase.trail.length > 0
-      ? currentCase.trail
-      : Array.isArray(activeCurrentCase?.events) && activeCurrentCase.events.length > 0
-      ? activeCurrentCase.events
-      : Array.isArray(activeCurrentCase?.eventLogs) && activeCurrentCase.eventLogs.length > 0
-      ? activeCurrentCase.eventLogs
-      : Array.isArray(activeCurrentCase?.capturedEvents) && activeCurrentCase.capturedEvents.length > 0
-      ? activeCurrentCase.capturedEvents
-      : Array.isArray(activeCurrentCase?.pilotTrail) && activeCurrentCase.pilotTrail.length > 0
-      ? activeCurrentCase.pilotTrail
-      : Array.isArray(activeCurrentCase?.trail) && activeCurrentCase.trail.length > 0
-      ? activeCurrentCase.trail
-      : Array.isArray(activeCurrentCase?.workspaceSummary?.events) && activeCurrentCase.workspaceSummary.events.length > 0
-      ? activeCurrentCase.workspaceSummary.events
-      : Array.isArray(activeCurrentCase?.pilotSummary?.events) && activeCurrentCase.pilotSummary.events.length > 0
-      ? activeCurrentCase.pilotSummary.events
-      : Array.isArray(activeCurrentCase?.pilotResult?.events) && activeCurrentCase.pilotResult.events.length > 0
-      ? activeCurrentCase.pilotResult.events
-      : [];
+  const currentCaseEventCandidates = [
+    currentCase?.eventLogs,
+    currentCase?.events,
+    currentCase?.pilotTrail,
+    currentCase?.trail,
+    activeCurrentCase?.eventLogs,
+    activeCurrentCase?.events,
+    activeCurrentCase?.capturedEvents,
+    activeCurrentCase?.pilotTrail,
+    activeCurrentCase?.trail,
+    activeCurrentCase?.workspaceSummary?.events,
+    activeCurrentCase?.pilotSummary?.events,
+    activeCurrentCase?.pilotResult?.events,
+  ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
+
+  const currentCaseEventSource = currentCaseEventCandidates.reduce(
+    (best, candidate) => (candidate.length > best.length ? candidate : best),
+    []
+  );
 
   const fallbackCapturedEvents =
     Array.isArray(normalized?.caseData?.events) && normalized.caseData.events.length > 0

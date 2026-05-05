@@ -241,10 +241,12 @@ export function calculateDeterministicScore(caseData = {}) {
     joinedText.includes("scope") ||
     joinedText.includes("clarified");
 
+  const hasRepeatedEvents = eventCount >= 2;
+
   const baseEvidence = hasEvidence ? 0.9 : hasRealEvent ? 0.55 : 0;
   const baseStructure = hasWorkflow || hasDecisionScope ? 1.0 : hasRealEvent ? 0.6 : 0;
   const baseConsistency = hasDecisionScope ? 0.85 : hasRealEvent ? 0.45 : 0;
-  const baseContinuity = hasContinuity ? 0.85 : hasRealEvent ? 0.45 : 0;
+  const baseContinuity = hasContinuity ? 0.85 : hasRepeatedEvents ? 0.65 : hasRealEvent ? 0.45 : 0;
 
   const eventBoost = getEventScoreBoost(input.events);
   const evidence = Math.min(1, baseEvidence + eventBoost.evidenceBoost);
