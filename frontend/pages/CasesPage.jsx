@@ -478,17 +478,31 @@ export default function CasesPage() {
       }
 
       const hydratedCases = mergedCases.map((c) => {
-        const events =
-          Array.isArray(c.events)
-            ? c.events
-            : Array.isArray(c.caseSnapshot?.events)
-            ? c.caseSnapshot.events
-            : [];
+        const eventCandidates = [
+          c.eventLogs,
+          c.events,
+          c.capturedEvents,
+          c.pilotTrail,
+          c.trail,
+          c.caseSnapshot?.eventLogs,
+          c.caseSnapshot?.events,
+          c.caseSnapshot?.caseRecord?.eventLogs,
+          c.caseSnapshot?.caseRecord?.events,
+          c.caseSnapshot?.caseRecord?.capturedEvents,
+          c.caseSnapshot?.caseRecord?.pilotTrail,
+          c.caseSnapshot?.caseRecord?.trail,
+        ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
 
-        const eventCount =
-          Number(c.eventCount || 0) ||
-          Number(c.caseSnapshot?.eventCount || 0) ||
-          events.length;
+        const events = eventCandidates.reduce(
+          (best, candidate) => (candidate.length > best.length ? candidate : best),
+          []
+        );
+
+        const eventCount = Math.max(
+          Number(c.eventCount || 0),
+          Number(c.caseSnapshot?.eventCount || 0),
+          events.length
+        );
 
         return {
           ...c,
@@ -501,7 +515,7 @@ export default function CasesPage() {
           events,
           eventCount,
           score: c.score ?? c.caseSnapshot?.caseRecord?.score,
-          receiptEligible: Boolean(c.receiptEligible),
+          receiptEligible: Boolean(c.receiptEligible || c.caseReceiptEligible),
           paymentStatus: c.paymentStatus || "",
           paid: Boolean(c.paid),
           status: eventCount > 0 ? "active" : c.status || "draft",
