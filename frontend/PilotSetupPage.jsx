@@ -4,6 +4,7 @@ import ROUTES from "./routes";
 import { buildPilotNavigationState } from "./utils/pilotRouting";
 import { appendPilotEntry } from "./utils/pilotEntries";
 import { normalizeCaseInput } from "./utils/caseSchema";
+import TopRightCasesCapsule from "./components/TopRightCasesCapsule.jsx";
 
 import {
   resolveCaseId,
@@ -337,8 +338,9 @@ function SetupHero({
   }, [sessionId]);
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="relative overflow-hidden">
       <div className="p-8 md:p-10">
+        <TopRightCasesCapsule />
         <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950 md:text-4xl">
           Lock in your execution path
         </h1>
@@ -869,17 +871,24 @@ export default function PilotSetupPage() {
     }
   }, []);
 
-  console.log("PILOT_SETUP_LIVE_CHECK", "frontend-root-PilotSetupPage");
-
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
     pc_name: "Decision Risk Diagnostic",
   };
 
+  const setupUrlParams = new URLSearchParams(location.search || "");
+  const setupUrlCaseId = setupUrlParams.get("caseId") || "";
+
   const incomingCaseSchema =
     location.state?.caseSchema && typeof location.state.caseSchema === "object"
       ? normalizeCaseInput(location.state.caseSchema)
       : null;
+
+  const [restoredCaseSchema, setRestoredCaseSchema] = useState(null);
+  const [restoredCaseLoading, setRestoredCaseLoading] = useState(
+    Boolean(!incomingCaseSchema && setupUrlCaseId)
+  );
+  const effectiveCaseSchema = incomingCaseSchema || restoredCaseSchema;
 
   const incomingLockedScopeSnapshot =
     location.state?.lockedScopeSnapshot &&
@@ -890,7 +899,6 @@ export default function PilotSetupPage() {
   const [eventType, setEventType] = useState("");
   const [showEventRequired, setShowEventRequired] = useState(false);
 
-  console.log("HAS_SET_SHOW_EVENT_REQUIRED", typeof setShowEventRequired);
   const [signalLevels, setSignalLevels] = useState({
     externalPressure: "medium",
     authorityBoundary: "slightly_unclear",
@@ -923,23 +931,24 @@ export default function PilotSetupPage() {
 
   const preview =
     location.state?.preview ||
-    (incomingCaseSchema
+    (effectiveCaseSchema
       ? {
           title: "Nimclea Pilot Setup Context",
           scenario: {
-            code: incomingCaseSchema.scenarioCode || "",
-            label: incomingCaseSchema.scenarioCode || "No Dominant Scenario",
+            code: effectiveCaseSchema.scenarioCode || "",
+            label:
+              effectiveCaseSchema.scenarioCode || "Restored Setup Context",
           },
           top_signals: [
             {
-              key: incomingCaseSchema.patternId || "",
-              signalKey: incomingCaseSchema.patternId || "",
+              key: effectiveCaseSchema.patternId || "",
+              signalKey: effectiveCaseSchema.patternId || "",
               label:
-                incomingCaseSchema.patternId ||
-                incomingCaseSchema.weakestDimension ||
-                "What is happening",
+                effectiveCaseSchema.patternId ||
+                effectiveCaseSchema.weakestDimension ||
+                "Case setup context",
               description: getCaseSummary({
-                caseData: incomingCaseSchema,
+                caseData: effectiveCaseSchema,
                 summaryText: "",
               }),
             },
@@ -953,12 +962,12 @@ export default function PilotSetupPage() {
                 "Start with the first place where this workflow becomes harder to explain, verify, or sustain.",
             ],
             outcome:
-              incomingCaseSchema.routeDecision?.reason ||
-              "Observe whether the workflow becomes easier to execute and verify.",
+              effectiveCaseSchema.routeDecision?.reason ||
+              "Use the restored case context to continue setup.",
           },
-          weakestDimension: incomingCaseSchema.weakestDimension || "",
-          chainId: incomingCaseSchema.chainId || "",
-          stage: incomingCaseSchema.stage || "",
+          weakestDimension: effectiveCaseSchema.weakestDimension || "",
+          chainId: effectiveCaseSchema.chainId || "",
+          stage: effectiveCaseSchema.stage || "",
         }
       : null);
 
@@ -995,9 +1004,6 @@ export default function PilotSetupPage() {
     location.state?.sessionId ||
     "";
 
-  const setupUrlParams = new URLSearchParams(location.search || "");
-  const setupUrlCaseId = setupUrlParams.get("caseId") || "";
-
   const resolvedCaseId =
     resolveCaseId({
       caseId:
@@ -1012,6 +1018,67 @@ export default function PilotSetupPage() {
         trialSession?.case_id ||
         "",
     });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreCaseSchema() {
+      if (!resolvedCaseId || incomingCaseSchema) {
+        setRestoredCaseLoading(false);
+        return;
+      }
+
+      setRestoredCaseLoading(true);
+
+      try {
+        const response = await fetch(
+          `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
+        );
+        const payload = await response.json().catch(() => ({}));
+        const caseData = payload?.data?.caseData;
+        const restoredLead =
+          payload?.data?.lead ||
+          caseData?.lead ||
+          caseData?.contact ||
+          payload?.data?.contact ||
+          {};
+
+        if (!cancelled && caseData && typeof caseData === "object") {
+          setRestoredCaseSchema(normalizeCaseInput(caseData));
+        
+          const restoredEmail = normalizeEmail(
+            restoredLead?.email ||
+              caseData?.email ||
+              payload?.data?.email ||
+              ""
+          );
+        
+          if (isValidEmail(restoredEmail)) {
+            setLead((prev) => ({
+              name: restoredLead?.name || prev.name || "",
+              email: restoredEmail,
+              company: restoredLead?.company || prev.company || "",
+            }));
+            setLeadCaptured(true);
+            setShowContactModal(false);
+            markLaunchFallbackEmailVerified(restoredEmail);
+          }
+        }
+      } catch (error) {
+        console.warn("PilotSetupPage caseId restore failed:", error);
+      } finally {
+        if (!cancelled) {
+          setRestoredCaseLoading(false);
+        }
+      }
+    }
+
+    restoreCaseSchema();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedCaseId, incomingCaseSchema]);
 
   const effectiveCaseId =
     selectedCaseOverrideId === "STANDALONE"
@@ -1042,8 +1109,6 @@ export default function PilotSetupPage() {
       threshold: 0.35,
       limit: 3,
     });
-
-    console.log("[CaseMatch][PilotSetup][typing]", caseMatch);
 
     const score = caseMatch?.bestMatch?.score || 0;
 
@@ -1078,8 +1143,6 @@ export default function PilotSetupPage() {
       source: "pilot_setup",
     };
 
-    console.log("[email-submit] sending", payload);
-
     try {
       const res = await fetch(`${API_BASE}/email/log`, {
         method: "POST",
@@ -1088,8 +1151,6 @@ export default function PilotSetupPage() {
         },
         body: JSON.stringify(payload),
       });
-
-      console.log("[email-submit] response", res.status);
     } catch (error) {
       console.error("PilotSetupPage email log error:", error);
     }
@@ -1145,7 +1206,7 @@ export default function PilotSetupPage() {
   };
 
   const weakestDimension =
-    incomingCaseSchema?.weakestDimension ||
+    effectiveCaseSchema?.weakestDimension ||
     location.state?.weakestDimension ||
     "";
 
@@ -1157,24 +1218,24 @@ export default function PilotSetupPage() {
 
   const pilotFocusKey =
     location.state?.pilotFocusKey ||
-    incomingCaseSchema?.patternId ||
+    effectiveCaseSchema?.patternId ||
     "";
 
   const firstGuidedAction =
     location.state?.firstGuidedAction ||
-    incomingCaseSchema?.routeDecision?.reason ||
+    effectiveCaseSchema?.routeDecision?.reason ||
     "";
 
   const firstStepLabel =
     location.state?.firstStepLabel ||
     getCaseSummary({
-      caseData: incomingCaseSchema,
+      caseData: effectiveCaseSchema,
       summaryText: "",
     }) ||
     "";
 
   const hasRequiredContext =
-    ((preview && typeof preview === "object") || incomingCaseSchema) &&
+    ((preview && typeof preview === "object") || effectiveCaseSchema) &&
     pilotSetup &&
     typeof pilotSetup === "object";
 
@@ -1250,7 +1311,7 @@ export default function PilotSetupPage() {
         source: "funnel_event",
         workflow: pilotSetup?.workflow || preview?.workflow || "Selected workflow",
         scenarioCode:
-          incomingCaseSchema?.scenarioCode ||
+          effectiveCaseSchema?.scenarioCode ||
           preview?.scenario?.code ||
           "",
         weakestDimension,
@@ -1267,7 +1328,7 @@ export default function PilotSetupPage() {
     stableUserId,
     pilotSetup,
     preview,
-    incomingCaseSchema,
+    effectiveCaseSchema,
     weakestDimension,
     pilotFocusKey,
     entrySource,
@@ -1302,14 +1363,14 @@ export default function PilotSetupPage() {
           from: resolvedCaseId ? "case" : undefined,
           preview,
           result: preview,
-          caseSchema: incomingCaseSchema,
+          caseSchema: effectiveCaseSchema,
           lockedScopeSnapshot: resolvedLockedScopeSnapshot,
           stableUserId:
             stableUserId || localStorage.getItem("stableUserId") || "",
           trialSession:
             trialSession || getTrialSession() || null,
           stage:
-            incomingCaseSchema?.stage ||
+            effectiveCaseSchema?.stage ||
             location.state?.stage ||
             location.state?.result?.stage ||
             preview?.stage ||
@@ -1356,8 +1417,6 @@ const handleConfirm = async () => {
     inputText: trimmedDescription,
   };
 
-  console.log("馃 ROUTING DECISION:", decision);
-
   let finalSelectedCaseId = selectedCaseOverrideId;
 
   if (!finalSelectedCaseId && resolvedCaseId) {
@@ -1371,14 +1430,10 @@ const handleConfirm = async () => {
     limit: 3,
   });
 
-  console.log("[CaseMatch][PilotSetup]", caseMatch);
-
   const inputRoute = routeInput(trimmedDescription, {
     caseId: resolvedCaseId,
     hasActiveCase: Boolean(resolvedCaseId),
   });
-
-  console.log("[InputRouter][PilotSetup]", inputRoute);
 
   let summarizedDescription = "";
 
@@ -1398,11 +1453,6 @@ const handleConfirm = async () => {
   
   let existingTrialSession =
     location.state?.trialSession || getTrialSession();
-
-  console.log("TRIAL_SESSION_CHECK", {
-    fromState: location.state?.trialSession,
-    fromStorage: getTrialSession(),
-  });
 
   if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
     try {
@@ -1593,7 +1643,6 @@ const handleConfirm = async () => {
         routeReason: inputRoute?.reason || "",
       });
 
-      console.log("STANDALONE EVENT:", result);
       didWriteRoutingDecision = true;
     }
 
@@ -1604,7 +1653,6 @@ const handleConfirm = async () => {
         routeReason: inputRoute?.reason || "",
       });
 
-      console.log("NEW CASE CREATED BY USER CHOICE:", result);
       writtenRoutingCaseId = result?.caseId || "";
       didWriteRoutingDecision = true;
     }
@@ -1619,7 +1667,6 @@ const handleConfirm = async () => {
         }
       );
 
-      console.log("ATTACHED TO MATCHED CASE:", result);
       writtenRoutingCaseId = result?.caseId || finalSelectedCaseId;
       didWriteRoutingDecision = true;
     }
@@ -1631,7 +1678,6 @@ const handleConfirm = async () => {
         routeReason: inputRoute?.reason || "",
       });
 
-      console.log("NEW CASE CREATED:", result);
       writtenRoutingCaseId = result?.caseId || "";
       didWriteRoutingDecision = true;
     }
@@ -1647,7 +1693,6 @@ const handleConfirm = async () => {
         }
       );
   
-     console.log("FALLBACK ATTACH:", result);
       writtenRoutingCaseId = result?.caseId || effectiveCaseId;
       didWriteRoutingDecision = true;
     }
@@ -1703,7 +1748,7 @@ const handleConfirm = async () => {
 
   const entryCaseData = normalizeCaseInput(
     {
-      ...(incomingCaseSchema || {}),
+      ...(effectiveCaseSchema || {}),
       source: "pilot",
       summary:
         summarizedDescription ||
@@ -1723,22 +1768,22 @@ const handleConfirm = async () => {
       boundaryState,
       weakestDimension:
         weakestDimension ||
-        incomingCaseSchema?.weakestDimension ||
+        effectiveCaseSchema?.weakestDimension ||
         "",
       scenarioCode:
-        incomingCaseSchema?.scenarioCode ||
+        effectiveCaseSchema?.scenarioCode ||
         preview?.scenario?.code ||
         "unknown_scenario",
       patternId: resolvedRoute.pattern,
       fallbackRunCode: resolvedRoute.runId,
       stage:
-        incomingCaseSchema?.stage ||
+        effectiveCaseSchema?.stage ||
         extraction?.stageCode ||
         resultSeed?.stageCode ||
         preview?.stage ||
         "S0",
       chainId:
-        incomingCaseSchema?.chainId ||
+        effectiveCaseSchema?.chainId ||
         location.state?.chainId ||
         "CHAIN-001",
     },
@@ -1793,7 +1838,7 @@ const handleConfirm = async () => {
         getCaseStage({
           caseData: entryCaseData,
           stage:
-            incomingCaseSchema?.stage ||
+            effectiveCaseSchema?.stage ||
             extraction?.stageCode ||
             resultSeed?.stageCode ||
             preview?.stage ||
@@ -2386,8 +2431,6 @@ const handleConfirm = async () => {
     firstStepLabel,
   });
 
-  console.log("馃Ь final pilot_entries =", allPilotEntries);
-
   confirmLockedRef.current = false;
   setRoutingDecision(null);
 
@@ -2620,6 +2663,20 @@ const handleContactModalSubmit = async (event) => {
     console.error("PilotSetupPage lead capture error:", error);
   }
 };
+
+if (restoredCaseLoading && !hasRequiredContext) {
+  return (
+    <main className="pilot-setup-page pilot-setup-compact min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Card className="p-8">
+          <p className="text-sm leading-6 text-slate-600">
+            Restoring saved case setup context...
+          </p>
+        </Card>
+      </div>
+    </main>
+  );
+}
 
 if (!hasRequiredContext) {
   return <EmptyState onBack={handleBack} />;

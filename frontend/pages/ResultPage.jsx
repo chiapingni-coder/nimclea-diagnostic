@@ -16,16 +16,17 @@ import { getStableUserId } from "../utils/eventLogger";
 import {
   CASE_STATUS,
   upsertCase,
+  updateCaseLead,
   buildCaseTitle,
   createCaseId,
   getDraftCase,
   isValidCaseId,
 } from "../utils/caseRegistry";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
+import WorkspaceContactModal from "../components/WorkspaceContactModal.jsx";
 
 import {
   API_BASE,
-  registerTrialUser,
   saveCaseSnapshot,
   logTrialEvent,
 } from "../lib/trialApi";
@@ -79,6 +80,34 @@ const STORAGE_KEYS = {
   PREVIEW: "nimclea_preview_result",
   SESSION_ID: "nimclea_session_id",
 };
+
+async function logResultCaseEmail({ email, caseId }) {
+  if (!email || !caseId) return null;
+
+  try {
+    const response = await fetch(`${API_BASE}/email/log`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        caseId,
+        source: "result_page_save_case",
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn("Failed to persist result case email log", await response.text());
+      return null;
+    }
+
+    return response.json().catch(() => null);
+  } catch (error) {
+    console.warn("Failed to persist result case email log", error);
+    return null;
+  }
+}
 
 const RUN_TO_STAGE = {
   RUN007: "S1",
@@ -1301,6 +1330,7 @@ function ReportHero({
   reviewCaseId = "",
   onViewCases,
   showViewAllCases = false,
+  topRightCaseButtonLabel = "View all cases",
 }) {
 
   const reportId = useMemo(() => createReportId(sessionId), [sessionId]);
@@ -1350,7 +1380,7 @@ function ReportHero({
               onClick={onViewCases}
               className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
             >
-              View all cases
+              {topRightCaseButtonLabel}
             </button>
           )}
         </div>
@@ -2073,12 +2103,17 @@ export default function ResultPage({
       const params = new URLSearchParams(location.search || "");
       return (
         params.get("from") === "case" ||
-        Boolean(params.get("caseId")) ||
+        params.get("mode") === "caseReview" ||
         location.state?.from === "case" ||
+        location.state?.mode === "caseReview" ||
         Boolean(location.state?.caseItem)
       );
     } catch {
-      return location.state?.from === "case" || Boolean(location.state?.caseItem);
+      return (
+        location.state?.from === "case" ||
+        location.state?.mode === "caseReview" ||
+        Boolean(location.state?.caseItem)
+      );
     }
   }, [location.search, location.state]);
   const reviewCaseId = useMemo(() => {
@@ -2094,7 +2129,7 @@ export default function ResultPage({
       return location.state?.caseId || location.state?.case_id || "";
     }
   }, [location.search, location.state]);
-  const showPilotCtas = !isCaseReview && !reviewCaseId;
+  const showPilotCtas = !isCaseReview;
 
   useEffect(() => {
     const session = getTrialSession() || null;
@@ -2106,8 +2141,6 @@ export default function ResultPage({
         ...(session || {}),
         userId: stableUserId,
       });
-
-      console.log("SESSION USER LOCKED:", stableUserId);
     }
   }, []);
 
@@ -2115,6 +2148,17 @@ export default function ResultPage({
   const entrySource = useMemo(() => getEntrySource(location), [location]);
   const [ctaState, setCtaState] = useState("default"); // default | warm | ready
   const [showIssues, setShowIssues] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [lead, setLead] = useState(() => ({
+    name: "",
+    email:
+      typeof window !== "undefined"
+        ? localStorage.getItem("nimclea_email") || localStorage.getItem("savedEmail") || ""
+        : "",
+    company: "",
+  }));
+  const [emailError, setEmailError] = useState("");
+  const [savingContact, setSavingContact] = useState(false);
   
   const resolvedPcMeta =
     pcMeta ||
@@ -2188,6 +2232,22 @@ export default function ResultPage({
 
     return getDraftCase()?.caseId || createCaseId();
   }, [location.search, location.state, resultProp, resolvedSessionId]);
+  const showTopRightCaseButton = showViewAllCases || Boolean(resolvedCaseId);
+
+  const navigateToSavedCase = useCallback(() => {
+    const target = resolvedCaseId
+      ? `/cases?caseId=${encodeURIComponent(resolvedCaseId)}&from=result_save`
+      : "/cases";
+
+    navigate(target, {
+      state: {
+        caseId: resolvedCaseId,
+        case_id: resolvedCaseId,
+        from: "result_save",
+        source: "result_page",
+      },
+    });
+  }, [navigate, resolvedCaseId]);
 
   const resultFromLocation =
     isLikelyResultPayload(location.state?.result)
@@ -2220,11 +2280,7 @@ export default function ResultPage({
       rawFromStoragePreview ||
       null;
 
-    console.log("濡絽鍟弳?raw before normalize:", raw);
-
     const normalized = normalizePreview(raw);
-
-    console.log("濡絽鍠氬?extraction after normalize:", normalized?.extraction);
 
     return normalized;
   }, [resultProp, resultFromLocation, previewFromLocation, resolvedSessionId]);
@@ -2429,6 +2485,7 @@ const fetchPreview = useCallback(async () => {
           caseRecord?.result ||
           caseRecord?.caseSnapshot?.result ||
           caseRecord?.caseSnapshot?.caseRecord?.diagnosticResult ||
+          caseRecord?.caseData ||
           null;
 
         const caseResult = normalizePreview(caseResultCandidate);
@@ -2538,14 +2595,9 @@ useEffect(() => {
     },
   };
 
-  console.log("RESULT_VIEWED_FIRED", payload);
-
   resultViewedLoggedRef.current = true;
 
   Promise.resolve(logTrialEvent(payload))
-    .then((res) => {
-      console.log("RESULT_VIEWED_LOGGED", res);
-    })
     .catch((err) => {
       console.error("result_viewed log failed:", err);
       resultViewedLoggedRef.current = false;
@@ -2715,13 +2767,6 @@ useEffect(() => {
   });
 
   startPilotButtonViewedRef.current = true;
-
-  console.log("BUTTON_VIEWED_FIRED", {
-    sessionId: resolvedSessionId || "",
-    buttonLabel: viewedButtonLabel || "Start my 7-Day Pilot ->",
-    scenarioCode,
-    entrySource,
-  });
 
   Promise.resolve(
     logTrialEvent({
@@ -2975,6 +3020,109 @@ const caseSchema = useMemo(() => {
   resolvedPath,
   weakestDimension,
   lockedScopeSnapshot,
+]);
+
+const handleSaveCaseContactSubmit = useCallback(async (event) => {
+  event?.preventDefault();
+
+  const email = String(lead.email || "").trim().toLowerCase();
+
+  if (!email.includes("@")) {
+    setEmailError("Enter a valid email address to continue.");
+    return;
+  }
+
+  setEmailError("");
+  setSavingContact(true);
+
+  try {
+    localStorage.setItem("nimclea_email", email);
+    localStorage.setItem("savedEmail", email);
+    localStorage.setItem("nimclea_current_case_id", resolvedCaseId);
+
+    upsertCase({
+      caseId: resolvedCaseId,
+      id: resolvedCaseId,
+      status: "diagnostic_completed",
+      currentStep: "result",
+      source: "result_page_save_case",
+      email,
+      lead: {
+        name: lead.name,
+        email,
+        company: lead.company,
+      },
+      result: enrichedResult,
+      preview: enrichedResult,
+      caseSchema,
+      caseData: caseSchema,
+    });
+
+    updateCaseLead(resolvedCaseId, {
+      name: lead.name,
+      email,
+      company: lead.company,
+    });
+
+    await saveCaseSnapshot({
+      userId: getTrialSession()?.userId || stableUserId || "anonymous",
+      trialId: resolvedSessionId || resolvedCaseId,
+      caseId: resolvedCaseId,
+      stage: "result",
+      status: "diagnostic_completed",
+      score:
+        typeof enrichedResult?.intensity?.level === "number"
+          ? enrichedResult.intensity.level
+          : null,
+      receiptEligible: false,
+      verificationEligible: false,
+      source: "result_page_save_case",
+      email,
+      lead: {
+        name: lead.name,
+        email,
+        company: lead.company,
+      },
+      result: enrichedResult,
+      preview: enrichedResult,
+      caseSchema,
+      caseData: {
+        ...(caseSchema || {}),
+        caseId: resolvedCaseId,
+        email,
+        lead: {
+          name: lead.name,
+          email,
+          company: lead.company,
+        },
+        result: enrichedResult,
+        preview: enrichedResult,
+        status: "diagnostic_completed",
+        currentStep: "result",
+      },
+    });
+
+    await logResultCaseEmail({
+      email,
+      caseId: resolvedCaseId,
+    });
+
+    setShowContactModal(false);
+    navigateToSavedCase();
+  } catch (error) {
+    console.error("ResultPage save case contact error:", error);
+    setEmailError("Could not save access. Please try again.");
+  } finally {
+    setSavingContact(false);
+  }
+}, [
+  caseSchema,
+  enrichedResult,
+  lead,
+  navigateToSavedCase,
+  resolvedCaseId,
+  resolvedSessionId,
+  stableUserId,
 ]);
 
 const summarySeed = useMemo(() => {
@@ -3318,7 +3466,7 @@ if (typeof window !== "undefined") {
       return;
     }
 
-    navigate(ROUTES.PILOT, {
+    navigate(`${ROUTES.PILOT}?caseId=${encodeURIComponent(resolvedCaseId)}`, {
       state: {
         caseId: resolvedCaseId,
         case_id: resolvedCaseId,
@@ -3399,7 +3547,6 @@ if (!isValidPreview(result)) {
 
   return (
     <main className="relative min-h-screen bg-slate-50">
-      <TopRightCasesCapsule />
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="space-y-6">
           <ReportHero
@@ -3433,8 +3580,16 @@ if (!isValidPreview(result)) {
             isCaseReview={isCaseReview}
             showPilotCtas={showPilotCtas}
             reviewCaseId={reviewCaseId}
-            onViewCases={() => navigate("/cases")}
-            showViewAllCases={showViewAllCases}
+            onViewCases={() => {
+              if (isCaseReview) {
+                navigate("/cases");
+                return;
+              }
+
+              setShowContactModal(true);
+            }}
+            showViewAllCases={showTopRightCaseButton}
+            topRightCaseButtonLabel={isCaseReview ? "View all cases" : "Save Case"}
           />
 
           {runMeta?.microNote && (
@@ -3461,6 +3616,25 @@ if (!isValidPreview(result)) {
               weakestDimension={weakestDimension}
             />
           )}
+
+          <WorkspaceContactModal
+            isOpen={showContactModal}
+            lead={lead}
+            setLead={(updater) => {
+              setLead(updater);
+              setEmailError("");
+            }}
+            emailError={emailError}
+            isSaving={savingContact}
+            onSubmit={handleSaveCaseContactSubmit}
+            onCancel={() => {
+              setEmailError("");
+              setShowContactModal(false);
+            }}
+            title="Access your Nimclea workspace"
+            description="Add your contact details so this case can stay connected to your workspace."
+            submitLabel="Continue"
+          />
 
         </div>
       </div>

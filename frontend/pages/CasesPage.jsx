@@ -13,6 +13,27 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const EMAIL_STORAGE_KEY = "nimclea_email";
+const ARCHIVED_CASE_IDS_KEY = "nimclea_archived_case_ids";
+
+function getArchivedCaseIds() {
+  try {
+    const raw = localStorage.getItem(ARCHIVED_CASE_IDS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveArchivedCaseIds(caseIds = []) {
+  try {
+    const safeIds = Array.from(new Set(caseIds.filter(Boolean)));
+    localStorage.setItem(ARCHIVED_CASE_IDS_KEY, JSON.stringify(safeIds));
+    return safeIds;
+  } catch {
+    return [];
+  }
+}
 
 function normalizeEmail(value = "") {
   return String(value || "").trim().toLowerCase();
@@ -178,6 +199,52 @@ function hasRealEventSignal(item) {
   );
 }
 
+function hasPostDiagnosticProgress(item) {
+  const normalized = normalizeCaseItem(item);
+  const pilotResult = normalized?.pilot_result || normalized?.pilotResult || {};
+  const postDiagnosticStatuses = [
+    "active",
+    "workspace_summary",
+    "receipt_ready",
+    "verification_ready",
+    "receipt_activated",
+    "verification_activated",
+    "paid",
+  ];
+  const postDiagnosticSteps = [
+    "pilot",
+    "pilot_setup",
+    "pilot_result",
+    "receipt",
+    "verification",
+  ];
+
+  return Boolean(
+    hasRealEventSignal(normalized) ||
+      pilotResult?.result ||
+      (Array.isArray(pilotResult?.entries) && pilotResult.entries.length > 0) ||
+      (Array.isArray(pilotResult?.events) && pilotResult.events.length > 0) ||
+      normalized?.receipt ||
+      normalized?.verification ||
+      postDiagnosticSteps.includes(String(normalized?.currentStep || "").toLowerCase()) ||
+      postDiagnosticStatuses.includes(String(normalized?.status || "").toLowerCase())
+  );
+}
+
+function isEmptyDraftCase(item) {
+  const normalized = normalizeCaseItem(item);
+
+  return (
+    normalized?.status === "draft" &&
+    !hasDiagnosticResultData(normalized) &&
+    !hasPostDiagnosticProgress(normalized)
+  );
+}
+
+function isVisibleActiveCase(item) {
+  return !isEmptyDraftCase(item);
+}
+
 function hasActivatedReceipt(item) {
   const normalized = normalizeCaseItem(item);
   const receiptStatus = String(
@@ -273,13 +340,17 @@ export default function CasesPage() {
   const [startingSubscriptionCheckout, setStartingSubscriptionCheckout] = React.useState(false);
 
   const [cases, setCases] = React.useState([]);
+  const [archivedCases, setArchivedCases] = React.useState([]);
   const [savedEmail, setSavedEmail] = React.useState(resolvedEmail);
   const [emailInput, setEmailInput] = React.useState(resolvedEmail);
   const [emailError, setEmailError] = React.useState("");
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
-  const hasWorkspaceIdentity = Boolean(formatEmail(savedEmail || resolvedEmail)) && cases.length > 0;
+  const [caseView, setCaseView] = React.useState("active");
+  const hasWorkspaceIdentity =
+    Boolean(formatEmail(savedEmail || resolvedEmail)) &&
+    (cases.length > 0 || archivedCases.length > 0);
 
   console.log("[CasesPage identity]", {
     resolvedCaseId,
@@ -310,6 +381,7 @@ export default function CasesPage() {
       setSavedEmail("");
       setEmailInput("");
       setCases([]);
+      setArchivedCases([]);
 
       return;
     }
@@ -355,32 +427,82 @@ export default function CasesPage() {
           return caseEmail === email.trim().toLowerCase();
         });
 
-      const mergedCases = nextCases.length > 0 ? nextCases : localCases;
+      const caseIdOf = (item = {}) =>
+        String(
+          item?.caseId ||
+            item?.case_id ||
+            item?.id ||
+            item?.caseSnapshot?.caseId ||
+            item?.caseSnapshot?.caseRecord?.caseId ||
+            ""
+        ).trim();
+
+      const mergedCaseMap = new Map();
+
+      nextCases.forEach((item) => {
+        const id = caseIdOf(item);
+        if (!id) return;
+        mergedCaseMap.set(id, {
+          ...item,
+          caseId: id,
+        });
+      });
+
+      localCases.forEach((item) => {
+        const id = caseIdOf(item);
+        if (!id) return;
+
+        const existing = mergedCaseMap.get(id) || {};
+        mergedCaseMap.set(id, {
+          ...existing,
+          ...item,
+          caseId: id,
+          id,
+        });
+      });
+
+      const mergedCases = Array.from(mergedCaseMap.values());
 
       if (mergedCases.length === 0) {
         setCases([]);
+        setArchivedCases([]);
         setSavedEmail(email);
         setEmailInput(email);
         setEmailStatus("");
         setShowNoCaseModal(true);
         localStorage.setItem(EMAIL_STORAGE_KEY, email);
         localStorage.removeItem("nimclea_email_verified");
+        localStorage.removeItem("nimclea_current_case_id");
 
         return;
       }
 
       const hydratedCases = mergedCases.map((c) => {
-        const events =
-          Array.isArray(c.events)
-            ? c.events
-            : Array.isArray(c.caseSnapshot?.events)
-            ? c.caseSnapshot.events
-            : [];
+        const eventCandidates = [
+          c.eventLogs,
+          c.events,
+          c.capturedEvents,
+          c.pilotTrail,
+          c.trail,
+          c.caseSnapshot?.eventLogs,
+          c.caseSnapshot?.events,
+          c.caseSnapshot?.caseRecord?.eventLogs,
+          c.caseSnapshot?.caseRecord?.events,
+          c.caseSnapshot?.caseRecord?.capturedEvents,
+          c.caseSnapshot?.caseRecord?.pilotTrail,
+          c.caseSnapshot?.caseRecord?.trail,
+        ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
 
-        const eventCount =
-          Number(c.eventCount || 0) ||
-          Number(c.caseSnapshot?.eventCount || 0) ||
-          events.length;
+        const events = eventCandidates.reduce(
+          (best, candidate) => (candidate.length > best.length ? candidate : best),
+          []
+        );
+
+        const eventCount = Math.max(
+          Number(c.eventCount || 0),
+          Number(c.caseSnapshot?.eventCount || 0),
+          events.length
+        );
 
         return {
           ...c,
@@ -393,14 +515,35 @@ export default function CasesPage() {
           events,
           eventCount,
           score: c.score ?? c.caseSnapshot?.caseRecord?.score,
-          receiptEligible: Boolean(c.receiptEligible),
+          receiptEligible: Boolean(c.receiptEligible || c.caseReceiptEligible),
           paymentStatus: c.paymentStatus || "",
           paid: Boolean(c.paid),
           status: eventCount > 0 ? "active" : c.status || "draft",
         };
       });
 
-      setCases(hydratedCases);
+      const archivedCaseIds = getArchivedCaseIds();
+
+      const activeCases = [];
+      const nextArchivedCases = [];
+
+      hydratedCases.forEach((caseItem) => {
+        const visibleCaseId = String(
+          caseItem?.caseId ||
+          caseItem?.case_id ||
+          caseItem?.id ||
+          ""
+        ).trim();
+
+        if (visibleCaseId && archivedCaseIds.includes(visibleCaseId)) {
+          nextArchivedCases.push(caseItem);
+        } else {
+          activeCases.push(caseItem);
+        }
+      });
+
+      setCases(activeCases);
+      setArchivedCases(nextArchivedCases);
       setSavedEmail(email);
       setEmailInput(email);
       localStorage.setItem(EMAIL_STORAGE_KEY, email);
@@ -408,6 +551,7 @@ export default function CasesPage() {
     } catch (error) {
       console.warn("Failed to load cases by email", error);
       setCases([]);
+      setArchivedCases([]);
       setEmailStatus("");
       setEmailError("Could not load cases. Please try again.");
     } finally {
@@ -456,11 +600,133 @@ export default function CasesPage() {
     setSavedEmail("");
     setEmailInput("");
     setCases([]);
+    setArchivedCases([]);
     setEmailError("");
     setEmailStatus("");
     setLoadingCases(false);
     setShowNoCaseModal(false);
-  }, []);
+    setCaseView("active");
+
+    navigate(ROUTES.CASES || "/cases", {
+      replace: true,
+      state: {},
+    });
+  }, [navigate]);
+
+  const handleArchiveCase = React.useCallback((caseIdToArchive = "") => {
+    const safeCaseId = String(caseIdToArchive || "").trim();
+
+    if (!safeCaseId) return;
+
+    const confirmed = window.confirm(
+      "Archive this case? It will be hidden from Active Cases, but the underlying records will not be deleted."
+    );
+
+    if (!confirmed) return;
+
+    const nextArchivedIds = saveArchivedCaseIds([
+      ...getArchivedCaseIds(),
+      safeCaseId,
+    ]);
+
+    const archivedCase = cases.find((caseItem) => {
+      const currentCaseId = String(
+        caseItem?.caseId ||
+        caseItem?.case_id ||
+        caseItem?.id ||
+        ""
+      ).trim();
+
+      return currentCaseId === safeCaseId;
+    });
+
+    if (archivedCase) {
+      setArchivedCases((prev) => {
+        const alreadyArchived = prev.some((caseItem) => {
+          const currentCaseId = String(
+            caseItem?.caseId ||
+            caseItem?.case_id ||
+            caseItem?.id ||
+            ""
+          ).trim();
+
+          return currentCaseId === safeCaseId;
+        });
+
+        return alreadyArchived ? prev : [...prev, archivedCase];
+      });
+    }
+
+    setCases((prev) =>
+      prev.filter((caseItem) => {
+        const currentCaseId = String(
+          caseItem?.caseId ||
+          caseItem?.case_id ||
+          caseItem?.id ||
+          ""
+        ).trim();
+
+        return !currentCaseId || !nextArchivedIds.includes(currentCaseId);
+      })
+    );
+
+    setExpandedCaseIds((prev) => {
+      const next = { ...prev };
+      delete next[safeCaseId];
+      return next;
+    });
+  }, [cases]);
+
+  const handleRestoreCase = React.useCallback((caseIdToRestore = "") => {
+    const safeCaseId = String(caseIdToRestore || "").trim();
+
+    if (!safeCaseId) return;
+
+    saveArchivedCaseIds(
+      getArchivedCaseIds().filter((caseId) => String(caseId).trim() !== safeCaseId)
+    );
+
+    const restoredCase = archivedCases.find((caseItem) => {
+      const currentCaseId = String(
+        caseItem?.caseId ||
+        caseItem?.case_id ||
+        caseItem?.id ||
+        ""
+      ).trim();
+
+      return currentCaseId === safeCaseId;
+    });
+
+    if (restoredCase) {
+      setCases((prev) => {
+        const alreadyActive = prev.some((caseItem) => {
+          const currentCaseId = String(
+            caseItem?.caseId ||
+            caseItem?.case_id ||
+            caseItem?.id ||
+            ""
+          ).trim();
+
+          return currentCaseId === safeCaseId;
+        });
+
+        return alreadyActive ? prev : [...prev, restoredCase];
+      });
+    }
+
+    setArchivedCases((prev) =>
+      prev.filter((caseItem) => {
+        const currentCaseId = String(
+          caseItem?.caseId ||
+          caseItem?.case_id ||
+          caseItem?.id ||
+          ""
+        ).trim();
+
+        return currentCaseId !== safeCaseId;
+      })
+    );
+  }, [archivedCases]);
 
   const handlePilotExtensionCheckout = React.useCallback(async () => {
     setSubscriptionCheckoutError("");
@@ -537,6 +803,11 @@ export default function CasesPage() {
     }
   };
 
+  const visibleActiveCases = React.useMemo(
+    () => cases.filter(isVisibleActiveCase),
+    [cases]
+  );
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
@@ -583,7 +854,41 @@ export default function CasesPage() {
           </header>
         )}
 
-        {!formatEmail(savedEmail || resolvedEmail) && (
+        {hasWorkspaceIdentity && (
+          <nav
+            className="flex items-center gap-3 px-1 text-sm"
+            aria-label="Case views"
+            style={{ paddingLeft: "25px" }}
+          >
+            <button
+              type="button"
+              onClick={() => setCaseView("active")}
+              className={`border-b-2 pb-1 transition ${
+                caseView === "active"
+                  ? "border-slate-900 font-semibold text-slate-900"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Active Cases ({visibleActiveCases.length})
+            </button>
+            <span className="text-slate-300" aria-hidden="true">
+              |
+            </span>
+            <button
+              type="button"
+              onClick={() => setCaseView("archived")}
+              className={`border-b-2 pb-1 transition ${
+                caseView === "archived"
+                  ? "border-slate-900 font-semibold text-slate-900"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Archived Cases ({archivedCases.length})
+            </button>
+          </nav>
+        )}
+
+        {!loadingCases && !hasWorkspaceIdentity && (
           <section className="flex justify-center">
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
               <div className="mb-8 flex flex-col items-center">
@@ -689,15 +994,23 @@ export default function CasesPage() {
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <p className="text-slate-600">Loading cases...</p>
           </section>
-        ) : cases.length === 0 ? null : (
+        ) : caseView === "active" && visibleActiveCases.length === 0 && hasWorkspaceIdentity ? (
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <p className="text-sm text-slate-500">No active cases.</p>
+          </section>
+        ) : caseView === "active" && visibleActiveCases.length > 0 ? (
           <section className="space-y-3">
-            {cases.map((item, index) => {
+            {visibleActiveCases.map((item, index) => {
               const normalizedItem = normalizeCaseItem(item);
               const caseId = normalizedItem?.caseId || normalizedItem?.case_id || normalizedItem?.id || "";
               const accessMode = getAccessMode(normalizedItem);
               const isPaid = accessMode === "paid";
               const caseSchema = normalizedItem?.caseSchema || normalizedItem?.caseData || normalizedItem || {};
-              const pilotResult = normalizedItem?.pilot_result || normalizedItem?.pilotResult || {};
+              const hasDiagnosticData = hasDiagnosticResultData(normalizedItem);
+              const hasProgress = hasPostDiagnosticProgress(normalizedItem);
+              const isDiagnosticCompletedOnly =
+                hasDiagnosticData && !hasProgress;
+
               const receiptBillingStatus = normalizedItem?.caseBilling?.receiptActivated
                 ? "Activated"
                 : "Preview";
@@ -709,7 +1022,12 @@ export default function CasesPage() {
                 ? normalizedItem.acceptanceChecklist
                 : [];
               const detailPath = getCaseDetailRoute(normalizedItem);
-              const redoDiagnosticCaseId = resolveCaseId(normalizedItem);
+              const primaryResolvedCaseId = resolveCaseId(normalizedItem);
+              const primaryActionPath = isDiagnosticCompletedOnly && primaryResolvedCaseId
+                ? `${ROUTES.PILOT_SETUP}?caseId=${encodeURIComponent(primaryResolvedCaseId)}`
+                : detailPath;
+              const primaryActionLabel = isDiagnosticCompletedOnly ? "Continue Case" : "Detail";
+              const redoDiagnosticCaseId = primaryResolvedCaseId;
               const redoDiagnosticPath = redoDiagnosticCaseId
                 ? `${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(redoDiagnosticCaseId)}&redo=1`
                 : ROUTES.DIAGNOSTIC;
@@ -789,43 +1107,48 @@ export default function CasesPage() {
                           </p>
                         </div>
 
-                        <div>
-                          <h3 className="font-semibold text-slate-800">Acceptance Checklist</h3>
-                          {acceptanceChecklist.length > 0 ? (
-                            <div className="mt-2 space-y-1.5">
-                              {acceptanceChecklist.map((check) => {
-                                const decision = check?.decision || "";
-                                const badgeClass =
-                                  decision === "PASS"
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    : decision === "BLOCK"
-                                    ? "border-red-200 bg-red-50 text-red-700"
-                                    : decision === "NEEDS_INPUT"
-                                    ? "border-amber-200 bg-amber-50 text-amber-700"
-                                    : "border-slate-200 bg-slate-50 text-slate-600";
+                        <div className="mt-5 flex flex-row flex-wrap items-center justify-start gap-3 border-t border-slate-100 py-4">
+                          <a
+                            href={redoDiagnosticPath}
+                            onClick={(event) => {
+                              event.preventDefault();
 
-                                return (
-                                  <div
-                                    key={check?.id || check?.label || decision}
-                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"
-                                  >
-                                    <span className="min-w-0 leading-5 text-slate-700">
-                                      {sanitizeText(check?.label, "Checklist item")}
-                                    </span>
-                                    <span
-                                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}
-                                    >
-                                      {sanitizeText(decision, "UNKNOWN")}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <p className="mt-1 leading-5">
-                              No acceptance checklist recorded yet.
-                            </p>
-                          )}
+                              navigate(redoDiagnosticPath, {
+                                state: {
+                                  caseId: redoDiagnosticCaseId,
+                                  case_id: redoDiagnosticCaseId,
+                                  sourceCaseId: redoDiagnosticCaseId,
+                                  from: "case",
+                                  redoDiagnostic: true,
+                                },
+                              });
+                            }}
+                            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                            style={{
+                              height: "28px",
+                              minHeight: "28px",
+                              maxHeight: "28px",
+                              padding: "0 14px",
+                              lineHeight: "1",
+                            }}
+                          >
+                            Redo Diagnostic
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => handleArchiveCase(redoDiagnosticCaseId || caseId)}
+                            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            style={{
+                              height: "28px",
+                              minHeight: "28px",
+                              maxHeight: "28px",
+                              padding: "0 14px",
+                              lineHeight: "1",
+                            }}
+                          >
+                            Archive case
+                          </button>
                         </div>
                       </div>
                     )}
@@ -833,12 +1156,14 @@ export default function CasesPage() {
 
                   <div className="flex flex-wrap gap-2">
                     <a
-                      href={detailPath}
+                      href={primaryActionPath}
                       onClick={(event) => {
                         event.preventDefault();
 
                         const resolvedCaseId = resolveCaseId(normalizedItem);
-                        const targetPath = getCaseDetailRoute(normalizedItem);
+                        const targetPath = isDiagnosticCompletedOnly
+                          ? primaryActionPath
+                          : getCaseDetailRoute(normalizedItem);
 
                         if (!resolvedCaseId) {
                           console.warn("[CasePage] Missing resolvedCaseId for case item", normalizedItem);
@@ -869,22 +1194,30 @@ export default function CasesPage() {
                         });
 
                         navigate(targetPath, {
-                          state: {
-                            caseId: resolvedCaseId,
-                            email: savedEmail || resolvedEmail,
-                            trialId:
-                              normalizedItem?.trialId ||
-                              normalizedItem?.trial_id ||
-                              normalizedItem?.trialSession?.trialId ||
-                              normalizedItem?.caseSnapshot?.trialId ||
-                              "",
-                            userId:
-                              normalizedItem?.userId ||
-                              normalizedItem?.user_id ||
-                              normalizedItem?.trialSession?.userId ||
-                              "",
-                            source: "cases_page",
-                          },
+                          state: isDiagnosticCompletedOnly
+                            ? {
+                                caseId: resolvedCaseId,
+                                case_id: resolvedCaseId,
+                                email: savedEmail || resolvedEmail,
+                                source: "cases_page",
+                                from: "case_continue",
+                              }
+                            : {
+                                caseId: resolvedCaseId,
+                                email: savedEmail || resolvedEmail,
+                                trialId:
+                                  normalizedItem?.trialId ||
+                                  normalizedItem?.trial_id ||
+                                  normalizedItem?.trialSession?.trialId ||
+                                  normalizedItem?.caseSnapshot?.trialId ||
+                                  "",
+                                userId:
+                                  normalizedItem?.userId ||
+                                  normalizedItem?.user_id ||
+                                  normalizedItem?.trialSession?.userId ||
+                                  "",
+                                source: "cases_page",
+                              },
                         });
                       }}
                       className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
@@ -896,33 +1229,7 @@ export default function CasesPage() {
                         lineHeight: "1",
                       }}
                     >
-                      Detail
-                    </a>
-                    <a
-                      href={redoDiagnosticPath}
-                      onClick={(event) => {
-                        event.preventDefault();
-
-                        navigate(redoDiagnosticPath, {
-                          state: {
-                            caseId: redoDiagnosticCaseId,
-                            case_id: redoDiagnosticCaseId,
-                            sourceCaseId: redoDiagnosticCaseId,
-                            from: "case",
-                            redoDiagnostic: true,
-                          },
-                        });
-                      }}
-                      className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-800 transition hover:bg-slate-50"
-                      style={{
-                        height: "28px",
-                        minHeight: "28px",
-                        maxHeight: "28px",
-                        padding: "0 14px",
-                        lineHeight: "1",
-                      }}
-                    >
-                      Redo Diagnostic
+                      {primaryActionLabel}
                     </a>
                   </div>
                 </div>
@@ -930,6 +1237,60 @@ export default function CasesPage() {
             );
             })}
           </section>
+        ) : null}
+
+        {!loadingCases && caseView === "archived" && (
+          archivedCases.length === 0 ? (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+              <p className="text-sm text-slate-500">No archived cases.</p>
+            </section>
+          ) : (
+            <section className="space-y-3">
+              {archivedCases.map((item, index) => {
+                const normalizedItem = normalizeCaseItem(item);
+                const caseId =
+                  normalizedItem?.caseId ||
+                  normalizedItem?.case_id ||
+                  normalizedItem?.id ||
+                  resolveCaseId(normalizedItem) ||
+                  "";
+                const caseKey = caseId || normalizedItem?.resultId || String(index);
+
+                return (
+                  <article
+                    key={caseKey}
+                    className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-base font-semibold text-slate-900">
+                          {sanitizeText(normalizedItem?.title || caseId, "Untitled case")}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Status: {sanitizeText(getDisplayStatus(normalizedItem))}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreCase(caseId)}
+                        className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        style={{
+                          height: "28px",
+                          minHeight: "28px",
+                          maxHeight: "28px",
+                          padding: "0 14px",
+                          lineHeight: "1",
+                        }}
+                      >
+                        Restore case
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )
         )}
       </div>
 

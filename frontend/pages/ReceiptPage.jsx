@@ -783,6 +783,7 @@ export default function ReceiptPage() {
   const [isCustomerRecordOpen, setIsCustomerRecordOpen] = React.useState(false);
   const [isReceiptEligibilityOpen, setIsReceiptEligibilityOpen] = React.useState(false);
   const [hydratedReceiptRecord, setHydratedReceiptRecord] = React.useState(null);
+  const [receiptRecordHydrationComplete, setReceiptRecordHydrationComplete] = React.useState(false);
 
   const [quickCaptureOpen, setQuickCaptureOpen] = React.useState(false);
   const [quickCaptureType, setQuickCaptureType] = React.useState("decision_accepted");
@@ -1198,8 +1199,11 @@ const urlCaseId = String(
     let cancelled = false;
 
     async function hydrateReceiptRecord() {
+      setReceiptRecordHydrationComplete(false);
+
       if (!inferredCaseId) {
         setHydratedReceiptRecord(null);
+        setReceiptRecordHydrationComplete(true);
         return;
       }
 
@@ -1207,6 +1211,7 @@ const urlCaseId = String(
 
       if (currentStoredCaseId === inferredCaseId && storedData) {
         setHydratedReceiptRecord(storedData);
+        setReceiptRecordHydrationComplete(true);
         return;
       }
 
@@ -1216,6 +1221,9 @@ const urlCaseId = String(
         );
 
         if (!response.ok) {
+          if (!cancelled) {
+            setReceiptRecordHydrationComplete(true);
+          }
           return;
         }
 
@@ -1226,6 +1234,10 @@ const urlCaseId = String(
         }
       } catch (error) {
         console.warn("Failed to hydrate receipt record", error);
+      } finally {
+        if (!cancelled) {
+          setReceiptRecordHydrationComplete(true);
+        }
       }
     }
 
@@ -1244,6 +1256,9 @@ const urlCaseId = String(
     console.warn("Failed to read case registry for receipt gate", error);
   }
   const activeCurrentCase = hydratedReceiptRecord || currentCase || null;
+  const isReceiptCaseHydrating =
+    Boolean(inferredCaseId) &&
+    !receiptRecordHydrationComplete;
 
   const existingLead = activeCurrentCase?.lead || null;
   const [lead, setLead] = React.useState({
@@ -1254,32 +1269,25 @@ const urlCaseId = String(
   const [leadError, setLeadError] = React.useState("");
   const hasValidLead = lead.email && lead.email.includes("@");
 
-  const currentCaseEventSource =
-    Array.isArray(currentCase?.events) && currentCase.events.length > 0
-      ? currentCase.events
-      : Array.isArray(currentCase?.eventLogs) && currentCase.eventLogs.length > 0
-      ? currentCase.eventLogs
-      : Array.isArray(currentCase?.pilotTrail) && currentCase.pilotTrail.length > 0
-      ? currentCase.pilotTrail
-      : Array.isArray(currentCase?.trail) && currentCase.trail.length > 0
-      ? currentCase.trail
-      : Array.isArray(activeCurrentCase?.events) && activeCurrentCase.events.length > 0
-      ? activeCurrentCase.events
-      : Array.isArray(activeCurrentCase?.eventLogs) && activeCurrentCase.eventLogs.length > 0
-      ? activeCurrentCase.eventLogs
-      : Array.isArray(activeCurrentCase?.capturedEvents) && activeCurrentCase.capturedEvents.length > 0
-      ? activeCurrentCase.capturedEvents
-      : Array.isArray(activeCurrentCase?.pilotTrail) && activeCurrentCase.pilotTrail.length > 0
-      ? activeCurrentCase.pilotTrail
-      : Array.isArray(activeCurrentCase?.trail) && activeCurrentCase.trail.length > 0
-      ? activeCurrentCase.trail
-      : Array.isArray(activeCurrentCase?.workspaceSummary?.events) && activeCurrentCase.workspaceSummary.events.length > 0
-      ? activeCurrentCase.workspaceSummary.events
-      : Array.isArray(activeCurrentCase?.pilotSummary?.events) && activeCurrentCase.pilotSummary.events.length > 0
-      ? activeCurrentCase.pilotSummary.events
-      : Array.isArray(activeCurrentCase?.pilotResult?.events) && activeCurrentCase.pilotResult.events.length > 0
-      ? activeCurrentCase.pilotResult.events
-      : [];
+  const currentCaseEventCandidates = [
+    currentCase?.eventLogs,
+    currentCase?.events,
+    currentCase?.pilotTrail,
+    currentCase?.trail,
+    activeCurrentCase?.eventLogs,
+    activeCurrentCase?.events,
+    activeCurrentCase?.capturedEvents,
+    activeCurrentCase?.pilotTrail,
+    activeCurrentCase?.trail,
+    activeCurrentCase?.workspaceSummary?.events,
+    activeCurrentCase?.pilotSummary?.events,
+    activeCurrentCase?.pilotResult?.events,
+  ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
+
+  const currentCaseEventSource = currentCaseEventCandidates.reduce(
+    (best, candidate) => (candidate.length > best.length ? candidate : best),
+    []
+  );
 
   const fallbackCapturedEvents =
     Array.isArray(normalized?.caseData?.events) && normalized.caseData.events.length > 0
@@ -1504,6 +1512,8 @@ const urlCaseId = String(
     "Open Verification Review",
 
   decisionStatus: (() => {
+    if (isReceiptCaseHydrating) return "Checking receipt status";
+
     if (hasVerifiedAt) return "Verified";
 
     const backendReady =
@@ -1536,6 +1546,7 @@ const urlCaseId = String(
 
   React.useEffect(() => {
     if (!inferredCaseId) return;
+    if (isReceiptCaseHydrating) return;
 
     try {
       upsertCase({
@@ -1561,7 +1572,7 @@ const urlCaseId = String(
     } catch (e) {
       console.warn("Failed to persist case at receipt stage", e);
     }
-  }, [inferredCaseId]);
+  }, [inferredCaseId, isReceiptCaseHydrating]);
 
 const canShowFormalPaymentEntry =
   data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
@@ -1971,6 +1982,7 @@ React.useEffect(() => {
     inferredCaseId;
 
   if (!caseId) return;
+  if (isReceiptCaseHydrating) return;
 
   const session =
     location.state?.trialSession || getTrialSession() || {};
@@ -2020,6 +2032,7 @@ React.useEffect(() => {
   DEBUG_DISABLE_RECEIPT_EVENT_LOG,
   canRenderReceipt,
   inferredCaseId,
+  isReceiptCaseHydrating,
   location.state,
   data.receiptId,
   data.caseData,
@@ -2030,6 +2043,27 @@ React.useEffect(() => {
   canEnterVerification,
   isEvidenceLockedConsistent,
 ]);
+
+if (isReceiptCaseHydrating) {
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <div className="max-w-3xl mx-auto">
+        <TopRightCasesCapsule />
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <p className="text-xs font-medium text-slate-400 mb-2">
+            Receipt status
+          </p>
+          <h1 className="text-2xl font-bold mb-3">
+            Checking receipt status...
+          </h1>
+          <p className="text-slate-700 leading-7">
+            Loading the current case record before showing the receipt decision.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 if (!canRenderReceipt) {
   return (

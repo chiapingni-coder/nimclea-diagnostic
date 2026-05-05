@@ -755,8 +755,9 @@ export default function PilotPage() {
   const isCaseReview = useMemo(
     () =>
       searchParams.get("from") === "case" ||
-      Boolean(searchParams.get("caseId")) ||
-      location.state?.from === "case",
+      searchParams.get("mode") === "caseReview" ||
+      location.state?.from === "case" ||
+      location.state?.mode === "caseReview",
     [searchParams, location.state]
   );
 
@@ -769,8 +770,6 @@ export default function PilotPage() {
     location.state?.caseSchema && typeof location.state.caseSchema === "object"
       ? normalizeCaseInput(location.state.caseSchema)
       : null;
-
-  console.log("棣冾潵 location.state:", location.state);
 
   const resolvedChainId =
     incomingCaseSchema?.chainId ||
@@ -962,7 +961,7 @@ export default function PilotPage() {
         return;
       }
 
-      if (isCaseReview && resolvedCaseId) {
+      if (resolvedCaseId) {
         try {
           const response = await fetch(
             `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
@@ -970,6 +969,62 @@ export default function PilotPage() {
 
           const payload = await response.json().catch(() => ({}));
           const caseRecord = payload?.data || null;
+          const normalizedCaseData =
+            caseRecord?.caseData && typeof caseRecord.caseData === "object"
+              ? normalizeCaseInput(caseRecord.caseData)
+              : null;
+
+          const caseDataPreview = normalizedCaseData
+            ? {
+                title: "Nimclea Pilot Context",
+                scenario: {
+                  code: normalizedCaseData.scenarioCode || "",
+                  label:
+                    normalizedCaseData.scenarioCode || "Case Review Context",
+                },
+                top_signals: [
+                  {
+                    id: "case-context-signal",
+                    key:
+                      normalizedCaseData.weakestDimension || "case_context",
+                    label: normalizedCaseData.weakestDimension
+                      ? `${normalizedCaseData.weakestDimension} context`
+                      : "Case context",
+                    description:
+                      "This pilot context was rebuilt from the saved case record.",
+                    source: "Case Record",
+                    score: caseRecord?.score || 1,
+                  },
+                ],
+                pilot_preview: {
+                  entry:
+                    normalizedCaseData.firstStepLabel ||
+                    `Continue with ${
+                      normalizedCaseData.workflow || "the selected workflow"
+                    }.`,
+                  actions: [
+                    normalizedCaseData.firstGuidedAction ||
+                      "Continue from the saved case context and capture the next real workflow event.",
+                  ],
+                  outcome:
+                    "Use the saved case context to continue toward receipt and verification readiness.",
+                  eventWindow: "case review window",
+                  progressLabel: "Case context restored",
+                  nextAction:
+                    normalizedCaseData.firstStepLabel ||
+                    "Capture the next real workflow event.",
+                },
+                weakestDimension: normalizedCaseData.weakestDimension || "",
+                chainId: normalizedCaseData.chainId || "",
+                stage: normalizedCaseData.stage || "",
+                summary: [
+                  normalizedCaseData.summary ||
+                    `Saved case context for ${
+                      normalizedCaseData.workflow || "this workflow"
+                    }.`,
+                ],
+              }
+            : null;
 
           const casePreviewCandidate =
             caseRecord?.preview ||
@@ -980,6 +1035,7 @@ export default function PilotPage() {
             caseRecord?.caseSnapshot?.caseRecord?.result?.preview ||
             caseRecord?.caseSnapshot?.preview ||
             caseRecord?.caseSnapshot?.result?.preview ||
+            caseDataPreview ||
             null;
 
           if (casePreviewCandidate && isValidPreview(casePreviewCandidate)) {
@@ -1153,12 +1209,6 @@ export default function PilotPage() {
       startInFlightRef.current = false;
       return;
     }
-
-    console.log("PILOT_PAGE_TO_SETUP", {
-      fromState: location.state?.trialSession,
-      fromStorage: getTrialSession(),
-      finalTrialSession: trialSession,
-    });
 
     const fallbackCaseSchema =
       incomingCaseSchema ||
@@ -1387,8 +1437,6 @@ export default function PilotPage() {
 
     startInFlightRef.current = false;
 
-    console.log("PILOT_PAGE_OUTBOUND_STATE", pilotState);
-    
 const setupParams = new URLSearchParams();
 
 if (caseIdForPilot) {
@@ -1444,7 +1492,7 @@ navigate(
             preview={preview}
             sessionId={resolvedSessionId}
             onStart={handleStart}
-            onViewCases={() => navigate(ROUTES.CASES || "/cases")}
+            onViewCases={isCaseReview ? () => navigate(ROUTES.CASES || "/cases") : null}
             pcMeta={pcMeta}
             pilotFocusKey={incomingPilotFocusKey}
             firstGuidedAction={incomingFirstGuidedAction}
@@ -1460,11 +1508,11 @@ navigate(
             onSelect={setSelectedWorkflow}
             onStart={handleStart}
             title={
-              isCaseReview
-                ? "Continue your case plan."
+              isCaseReview || resolvedCaseId
+                ? "Choose a workflow. Your case is ready."
                 : "Choose a workflow. Your pilot is ready to start."
             }
-            buttonLabel={isCaseReview ? "Continue Case Plan" : "Create new case"}
+            buttonLabel={isCaseReview || resolvedCaseId ? "Continue Case" : "Create case"}
           />
 
           <PilotPlanCard
