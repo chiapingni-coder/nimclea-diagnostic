@@ -1455,6 +1455,20 @@ const handleConfirm = async () => {
   let existingTrialSession =
     location.state?.trialSession || getTrialSession();
 
+  const activeLeadEmail = normalizeEmail(
+    lead.email ||
+      localStorage.getItem("nimclea_email") ||
+      localStorage.getItem("savedEmail") ||
+      ""
+  );
+
+  const existingSessionEmail = normalizeEmail(existingTrialSession?.email || "");
+
+  const isMismatchedTrialSession =
+    Boolean(activeLeadEmail) &&
+    Boolean(existingSessionEmail) &&
+    existingSessionEmail !== activeLeadEmail;
+
   const isLocalFallbackTrialSession =
     String(existingTrialSession?.trialId || "").startsWith("t_") ||
     !existingTrialSession?.email ||
@@ -1463,11 +1477,12 @@ const handleConfirm = async () => {
   if (
     !existingTrialSession?.userId ||
     !existingTrialSession?.trialId ||
-    isLocalFallbackTrialSession
+    isLocalFallbackTrialSession ||
+    isMismatchedTrialSession
   ) {
     try {
       const registerRes = await registerTrialUser({
-        email: lead.email || localStorage.getItem("nimclea_email") || "pilot@nimclea.local",
+        email: activeLeadEmail || "pilot@nimclea.local",
         name: lead.name || "",
         company: lead.company || "",
       });
@@ -1491,6 +1506,7 @@ const handleConfirm = async () => {
       }
   
       setTrialSession(existingTrialSession);
+      localStorage.setItem("stableUserId", existingTrialSession.userId);
     } catch (error) {
       console.error("PilotSetupPage registerTrialUser error:", error);
       confirmLockedRef.current = false;
