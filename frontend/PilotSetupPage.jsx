@@ -1036,9 +1036,33 @@ export default function PilotSetupPage() {
         );
         const payload = await response.json().catch(() => ({}));
         const caseData = payload?.data?.caseData;
+        const restoredLead =
+          payload?.data?.lead ||
+          caseData?.lead ||
+          caseData?.contact ||
+          payload?.data?.contact ||
+          {};
 
         if (!cancelled && caseData && typeof caseData === "object") {
           setRestoredCaseSchema(normalizeCaseInput(caseData));
+        
+          const restoredEmail = normalizeEmail(
+            restoredLead?.email ||
+              caseData?.email ||
+              payload?.data?.email ||
+              ""
+          );
+        
+          if (isValidEmail(restoredEmail)) {
+            setLead((prev) => ({
+              name: restoredLead?.name || prev.name || "",
+              email: restoredEmail,
+              company: restoredLead?.company || prev.company || "",
+            }));
+            setLeadCaptured(true);
+            setShowContactModal(false);
+            markLaunchFallbackEmailVerified(restoredEmail);
+          }
         }
       } catch (error) {
         console.warn("PilotSetupPage caseId restore failed:", error);
