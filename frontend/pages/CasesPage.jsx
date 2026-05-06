@@ -3,8 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 import { getAccessMode } from "../utils/accessMode";
 import { sanitizeText } from "../lib/sanitizeText";
+import { saveCaseSnapshot } from "../lib/trialApi";
+import { getTrialSession } from "../lib/trialSession";
 import { createCaseId, upsertCase, getAllCases } from "../utils/caseRegistry.js";
 import { resolveSafeCaseId } from "../utils/caseIdResolver.js";
+import { runClientStateGuard } from "../utils/clientStateGuard.js";
+import { getStableUserId } from "../utils/eventLogger";
 
 import {
   getDecisionStabilityLabel,
@@ -669,20 +673,24 @@ function resolveEmailFromCaseId(caseId = "") {
 export default function CasesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const guardedClientState = React.useMemo(
+    () => runClientStateGuard(location),
+    [location.search, location.state]
+  );
 
   const resolvedCaseId =
     location.state?.caseId ||
     location.state?.case_id ||
-    localStorage.getItem("nimclea_current_case_id") ||
+    guardedClientState.currentCaseId ||
     "";
   const resolvedEmail =
     location.state?.email ||
     location.state?.userEmail ||
-    localStorage.getItem(EMAIL_STORAGE_KEY) ||
+    guardedClientState.workspaceEmail ||
     resolveEmailFromCaseId(
       location.state?.caseId ||
         location.state?.case_id ||
-        localStorage.getItem("nimclea_current_case_id") ||
+        guardedClientState.currentCaseId ||
         ""
     ) ||
     "";
@@ -1147,11 +1155,37 @@ export default function CasesPage() {
       });
 
       const newCaseId = createdCase?.caseId;
+      const createdAt = createdCase?.createdAt || new Date().toISOString();
 
       if (!newCaseId) {
         setCaseCreationError("Could not create a new case. Please try again.");
         return;
       }
+
+      const trialSession = getTrialSession() || {};
+      const userId =
+        trialSession?.userId ||
+        localStorage.getItem("stableUserId") ||
+        getStableUserId();
+      const trialId =
+        trialSession?.trialId ||
+        localStorage.getItem("nimclea_session_id") ||
+        `case_${newCaseId}`;
+
+      await saveCaseSnapshot({
+        userId,
+        trialId,
+        caseId: newCaseId,
+        id: newCaseId,
+        email: savedEmail,
+        title: "Untitled case",
+        status: "draft",
+        stage: "diagnostic",
+        currentStep: "diagnostic",
+        source: "cases_page",
+        createdAt,
+        updatedAt: new Date().toISOString(),
+      });
 
       await logCaseEmail({
         email: savedEmail,

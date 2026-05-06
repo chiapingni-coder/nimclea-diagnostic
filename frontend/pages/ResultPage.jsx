@@ -22,6 +22,7 @@ import {
   getDraftCase,
   isValidCaseId,
 } from "../utils/caseRegistry";
+import { runClientStateGuard } from "../utils/clientStateGuard.js";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 import WorkspaceContactModal from "../components/WorkspaceContactModal.jsx";
 
@@ -2094,6 +2095,10 @@ export default function ResultPage({
 
   const navigate = useNavigate();
   const location = useLocation();
+  const guardedClientState = useMemo(
+    () => runClientStateGuard(location),
+    [location.search, location.state]
+  );
   const searchParams = new URLSearchParams(location.search);
   const fromCase = searchParams.get("from") === "case";
   const hasCaseIdInUrl = Boolean(searchParams.get("caseId"));
@@ -2153,7 +2158,7 @@ export default function ResultPage({
     name: "",
     email:
       typeof window !== "undefined"
-        ? localStorage.getItem("nimclea_email") || localStorage.getItem("savedEmail") || ""
+        ? guardedClientState.workspaceEmail || ""
         : "",
     company: "",
   }));
@@ -2469,6 +2474,23 @@ const fetchPreview = useCallback(async () => {
         const response = await fetch(
           `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
         );
+
+        if (response.status === 404) {
+          if (localStorage.getItem("nimclea_current_case_id") === resolvedCaseId) {
+            localStorage.removeItem("nimclea_current_case_id");
+          }
+          if (localStorage.getItem("current_case_id") === resolvedCaseId) {
+            localStorage.removeItem("current_case_id");
+          }
+          setShowContactModal(false);
+          setResult(null);
+          setError("This case could not be found. Return to Cases and start from your workspace.");
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Could not load this case.");
+        }
 
         const payload = await response.json().catch(() => ({}));
         const caseRecord = payload?.data || null;
@@ -3592,6 +3614,7 @@ if (!isValidPreview(result)) {
 
               const existingEmail = [
                 lead.email,
+                guardedClientState.workspaceEmail,
                 localStorage.getItem("nimclea_email"),
                 localStorage.getItem("savedEmail"),
                 location.state?.email,

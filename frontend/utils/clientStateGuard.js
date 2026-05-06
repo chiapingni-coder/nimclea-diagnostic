@@ -1,0 +1,38 @@
+export function getUrlCaseId(locationLike = {}) {
+  try {
+    const params = new URLSearchParams(locationLike?.search || "");
+    return String(params.get("caseId") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+export function runClientStateGuard(locationLike = {}) {
+  if (typeof window === "undefined") {
+    return {
+      workspaceEmail: "",
+      urlCaseId: getUrlCaseId(locationLike),
+      currentCaseId: "",
+    };
+  }
+
+  const nimcleaEmail = String(localStorage.getItem("nimclea_email") || "").trim();
+  const savedEmail = String(localStorage.getItem("savedEmail") || "").trim();
+
+  if (nimcleaEmail && savedEmail && nimcleaEmail.toLowerCase() !== savedEmail.toLowerCase()) {
+    localStorage.removeItem("savedEmail");
+  }
+
+  const urlCaseId = getUrlCaseId(locationLike);
+  const storedCaseId = String(localStorage.getItem("nimclea_current_case_id") || "").trim();
+
+  if (urlCaseId && storedCaseId && storedCaseId !== urlCaseId) {
+    localStorage.removeItem("nimclea_current_case_id");
+  }
+
+  return {
+    workspaceEmail: nimcleaEmail || savedEmail,
+    urlCaseId,
+    currentCaseId: urlCaseId || storedCaseId,
+  };
+}
