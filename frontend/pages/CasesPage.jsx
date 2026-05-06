@@ -114,12 +114,19 @@ const NON_EVIDENCE_EVENT_TYPES = new Set([
   "case_opened",
   "cases_viewed",
   "access_continue_clicked",
+  "receipt_viewed",
+  "verification_viewed",
+  "pilot_setup_viewed",
+  "page_viewed",
+  "score_computed",
+  "deterministic_score",
 ]);
 
 function getCaseEventType(event = {}) {
   return String(
     event?.eventType ||
       event?.type ||
+      event?.selectedEventType ||
       event?.meta?.eventType ||
       event?.meta?.selectedEventType ||
       ""
@@ -128,22 +135,84 @@ function getCaseEventType(event = {}) {
     .toLowerCase();
 }
 
-function isRealEvidenceEvent(event = {}) {
+function getEventCaseId(event = {}) {
+  if (!event || typeof event !== "object") return "";
+
+  return String(
+    event?.caseId ||
+      event?.case_id ||
+      event?.metadata?.caseId ||
+      event?.metadata?.case_id ||
+      event?.meta?.caseId ||
+      event?.meta?.case_id ||
+      event?.id ||
+      ""
+  ).trim();
+}
+
+function hasRealEvidenceText(event = {}) {
+  return (
+    hasNonEmptyText(event?.rawEventText) ||
+    hasNonEmptyText(event?.eventText) ||
+    hasNonEmptyText(event?.captureText) ||
+    hasNonEmptyText(event?.userEventText) ||
+    hasNonEmptyText(event?.meta?.rawEventText) ||
+    hasNonEmptyText(event?.meta?.eventText) ||
+    hasNonEmptyText(event?.meta?.captureText) ||
+    hasNonEmptyText(event?.meta?.userEventText)
+  );
+}
+
+function isEvidenceEventType(eventType = "") {
+  const normalizedType = String(eventType || "").toLowerCase();
+
+  return (
+    normalizedType === "routed_input" ||
+    normalizedType === "quick_capture" ||
+    normalizedType === "receipt_quick_capture" ||
+    normalizedType === "event_capture" ||
+    normalizedType === "pilot_event" ||
+    normalizedType === "workflow_event" ||
+    normalizedType === "case_event" ||
+    normalizedType === "structured_event" ||
+    normalizedType.includes("capture")
+  );
+}
+
+function isRealEvidenceEvent(event = {}, currentCaseId = "") {
   if (!event || typeof event !== "object") return false;
 
   const eventType = getCaseEventType(event);
   const page = String(event?.page || event?.meta?.page || "").toLowerCase();
+  const source = String(event?.source || event?.meta?.source || "").toLowerCase();
+  const eventCaseId = getEventCaseId(event);
+  const normalizedCurrentCaseId = String(currentCaseId || "").trim();
 
-  if (!eventType) return false;
-  if (NON_EVIDENCE_EVENT_TYPES.has(eventType)) return false;
+  if (!normalizedCurrentCaseId) return false;
+  if (!eventCaseId || eventCaseId !== normalizedCurrentCaseId) return false;
+
+  if (eventType && NON_EVIDENCE_EVENT_TYPES.has(eventType)) return false;
   if (page.includes("diagnostic") && eventType.startsWith("entry_")) return false;
   if (eventType.startsWith("diagnostic_")) return false;
 
-  return true;
+  const evidenceSources = new Set([
+    "quick_capture",
+    "pilot_setup",
+    "receipt_quick_capture",
+    "event_capture",
+  ]);
+
+  if (hasRealEvidenceText(event)) return true;
+  if (evidenceSources.has(source)) return true;
+  if (!eventType) return false;
+
+  return isEvidenceEventType(eventType);
 }
 
 function getEvidenceEvents(item = {}) {
   const normalized = normalizeCaseItem(item);
+  const currentCaseId = resolveCaseId(normalized);
+  const seen = new Set();
 
   return [
     ...(Array.isArray(item?.events) ? item.events : []),
@@ -156,7 +225,58 @@ function getEvidenceEvents(item = {}) {
     ...(Array.isArray(normalized?.eventEntries) ? normalized.eventEntries : []),
     ...(Array.isArray(normalized?.captureRecords) ? normalized.captureRecords : []),
     ...(Array.isArray(normalized?.captures) ? normalized.captures : []),
-  ].filter(isRealEvidenceEvent);
+  ].filter((event) => {
+    if (!isRealEvidenceEvent(event, currentCaseId)) return false;
+    if (seen.has(event)) return false;
+    seen.add(event);
+    return true;
+  });
+}
+
+function isDiagnosticContinuationCase(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const caseData = normalized?.caseData || normalized?.caseSchema || {};
+  const pilotResult = normalized?.pilot_result || normalized?.pilotResult || {};
+  const caseIdSafe = resolveCaseId(normalized);
+  const evidenceEventCount = getEvidenceEvents(normalized).length;
+  const continuationStates = new Set([
+    "diagnostic_completed",
+    "result_ready",
+    "result",
+    "diagnostic",
+  ]);
+  const status = String(normalized?.status || caseData?.status || "").toLowerCase();
+  const stage = String(
+    normalized?.stage ||
+      normalized?.stageLabel ||
+      caseData?.stage ||
+      caseData?.stageLabel ||
+      ""
+  ).toLowerCase();
+  const currentStep = String(
+    normalized?.currentStep ||
+      normalized?.step ||
+      caseData?.currentStep ||
+      caseData?.step ||
+      ""
+  ).toLowerCase();
+  const hasPilotResult =
+    Boolean(pilotResult?.result) ||
+    (Array.isArray(pilotResult?.entries) && pilotResult.entries.length > 0) ||
+    (Array.isArray(pilotResult?.events) && pilotResult.events.length > 0);
+  const hasContinuationState =
+    continuationStates.has(status) ||
+    continuationStates.has(stage) ||
+    continuationStates.has(currentStep);
+
+  return Boolean(
+    caseIdSafe &&
+      (evidenceEventCount === 0 || !hasRealEventSignal(normalized)) &&
+      !hasActivatedReceipt(normalized) &&
+      !hasActivatedVerification(normalized) &&
+      !hasPilotResult &&
+      (hasDiagnosticResultData(normalized) || hasContinuationState)
+  );
 }
 
 function getDisplayStatus(item) {
@@ -167,6 +287,7 @@ function getDisplayStatus(item) {
   if (normalized?.paymentStatus === "checkout_created") return "Receipt checkout started";
   if (normalized?.receiptEligible) return "Receipt ready";
   if (evidenceEventCount > 0) return `Event captured (${evidenceEventCount})`;
+  if (isDiagnosticContinuationCase(normalized)) return "Diagnostic completed";
   return normalized?.status || "draft";
 }
 
@@ -242,8 +363,12 @@ function hasRealEventSignal(item) {
 function hasPostDiagnosticProgress(item) {
   const normalized = normalizeCaseItem(item);
   const pilotResult = normalized?.pilot_result || normalized?.pilotResult || {};
+  const pilotEvidenceEventCount = getEvidenceEvents({
+    ...normalized,
+    events: Array.isArray(pilotResult?.events) ? pilotResult.events : [],
+    entries: Array.isArray(pilotResult?.entries) ? pilotResult.entries : [],
+  }).length;
   const postDiagnosticStatuses = [
-    "active",
     "workspace_summary",
     "receipt_ready",
     "verification_ready",
@@ -262,8 +387,7 @@ function hasPostDiagnosticProgress(item) {
   return Boolean(
     hasRealEventSignal(normalized) ||
       pilotResult?.result ||
-      (Array.isArray(pilotResult?.entries) && pilotResult.entries.length > 0) ||
-      (Array.isArray(pilotResult?.events) && pilotResult.events.length > 0) ||
+      pilotEvidenceEventCount > 0 ||
       normalized?.receipt ||
       normalized?.verification ||
       postDiagnosticSteps.includes(String(normalized?.currentStep || "").toLowerCase()) ||
@@ -313,6 +437,32 @@ function hasActivatedReceipt(item) {
       receiptStatus === "paid" ||
       receiptStatus === "activated" ||
       paymentStatus === "paid"
+  );
+}
+
+function hasActivatedVerification(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const verificationStatus = String(
+    normalized?.verificationStatus ||
+      normalized?.verification?.status ||
+      normalized?.payment?.verificationStatus ||
+      normalized?.caseBilling?.verificationStatus ||
+      ""
+  ).toLowerCase();
+
+  return Boolean(
+    normalized?.caseBilling?.verificationActivated === true ||
+      normalized?.payment?.verificationActivated === true ||
+      normalized?.verification?.paid === true ||
+      normalized?.verificationPaid === true ||
+      normalized?.paidVerification === true ||
+      normalized?.formalVerificationUnlocked === true ||
+      verificationStatus === "paid" ||
+      verificationStatus === "activated" ||
+      verificationStatus === "ready" ||
+      verificationStatus === "pass" ||
+      verificationStatus === "passed" ||
+      verificationStatus === "final"
   );
 }
 
@@ -1052,7 +1202,10 @@ export default function CasesPage() {
               const hasDiagnosticData = hasDiagnosticResultData(normalizedItem);
               const hasProgress = hasPostDiagnosticProgress(normalizedItem);
               const isDiagnosticCompletedOnly =
-                hasDiagnosticData && !hasProgress;
+                (hasDiagnosticData && !hasProgress) ||
+                isDiagnosticContinuationCase(normalizedItem);
+              const isDiagnosticContinuation =
+                isDiagnosticContinuationCase(normalizedItem);
 
               const receiptBillingStatus = normalizedItem?.caseBilling?.receiptActivated
                 ? "Activated"
@@ -1066,10 +1219,10 @@ export default function CasesPage() {
                 : [];
               const detailPath = getCaseDetailRoute(normalizedItem);
               const primaryResolvedCaseId = resolveCaseId(normalizedItem);
-              const primaryActionPath = isDiagnosticCompletedOnly && primaryResolvedCaseId
-                ? `${ROUTES.PILOT_SETUP}?caseId=${encodeURIComponent(primaryResolvedCaseId)}`
+              const primaryActionPath = isDiagnosticContinuation && primaryResolvedCaseId
+                ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(primaryResolvedCaseId)}&from=case`
                 : detailPath;
-              const primaryActionLabel = isDiagnosticCompletedOnly ? "Continue Case" : "Detail";
+              const primaryActionLabel = isDiagnosticContinuation ? "Continue Case" : "Detail";
               const redoDiagnosticCaseId = primaryResolvedCaseId;
               const redoDiagnosticPath = redoDiagnosticCaseId
                 ? `${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(redoDiagnosticCaseId)}&redo=1`
@@ -1204,7 +1357,7 @@ export default function CasesPage() {
                         event.preventDefault();
 
                         const resolvedCaseId = resolveCaseId(normalizedItem);
-                        const targetPath = isDiagnosticCompletedOnly
+                        const targetPath = isDiagnosticContinuation
                           ? primaryActionPath
                           : getCaseDetailRoute(normalizedItem);
 
@@ -1237,7 +1390,7 @@ export default function CasesPage() {
                         });
 
                         navigate(targetPath, {
-                          state: isDiagnosticCompletedOnly
+                          state: isDiagnosticContinuation
                             ? {
                                 caseId: resolvedCaseId,
                                 case_id: resolvedCaseId,
