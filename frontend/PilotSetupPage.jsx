@@ -1581,6 +1581,12 @@ const handleConfirm = async () => {
       localStorage.getItem("savedEmail") ||
       ""
   );
+  const confirmSearchParams = new URLSearchParams(location.search || "");
+  const isCaseFlowSubmission =
+    Boolean(resolvedCaseId) &&
+    (location.state?.from === "case" ||
+      confirmSearchParams.get("from") === "case" ||
+      Boolean(confirmSearchParams.get("caseId")));
 
   const existingSessionEmail = normalizeEmail(existingTrialSession?.email || "");
 
@@ -1600,38 +1606,55 @@ const handleConfirm = async () => {
     isLocalFallbackTrialSession ||
     isMismatchedTrialSession
   ) {
-    try {
-      const registerRes = await registerTrialUser({
-        email: activeLeadEmail || "pilot@nimclea.local",
-        name: lead.name || "",
-        company: lead.company || "",
-      });
-
+    if (isCaseFlowSubmission) {
       existingTrialSession = {
-        userId: registerRes?.data?.userId || "",
-        trialId: registerRes?.data?.trialId || "",
-        email: registerRes?.data?.email || "pilot@nimclea.local",
-        status: registerRes?.data?.status || "registered",
-        createdAt: registerRes?.data?.createdAt || "",
+        userId:
+          stableUserId ||
+          localStorage.getItem("stableUserId") ||
+          `case_user_${resolvedCaseId}`,
+        trialId: `case_${resolvedCaseId}`,
+        caseId: resolvedCaseId,
+        email: activeLeadEmail || lead.email || "",
+        status: "case_flow",
+        createdAt: new Date().toISOString(),
         lockedScopeSnapshot: resolvedLockedScopeSnapshot,
       };
-  
-      if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
-        console.error("PilotSetupPage registerTrialUser returned empty session", {
-          registerRes,
-       });
+
+      setTrialSession(existingTrialSession);
+    } else {
+      try {
+        const registerRes = await registerTrialUser({
+          email: activeLeadEmail || "pilot@nimclea.local",
+          name: lead.name || "",
+          company: lead.company || "",
+        });
+
+        existingTrialSession = {
+          userId: registerRes?.data?.userId || "",
+          trialId: registerRes?.data?.trialId || "",
+          email: registerRes?.data?.email || "pilot@nimclea.local",
+          status: registerRes?.data?.status || "registered",
+          createdAt: registerRes?.data?.createdAt || "",
+          lockedScopeSnapshot: resolvedLockedScopeSnapshot,
+        };
+
+        if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
+          console.error("PilotSetupPage registerTrialUser returned empty session", {
+            registerRes,
+         });
+          confirmLockedRef.current = false;
+          alert("Workspace session was not created.");
+          return;
+        }
+
+        setTrialSession(existingTrialSession);
+        localStorage.setItem("stableUserId", existingTrialSession.userId);
+      } catch (error) {
+        console.error("PilotSetupPage registerTrialUser error:", error);
         confirmLockedRef.current = false;
-        alert("Workspace session was not created.");
+        alert(error?.message || "Failed to create workspace session.");
         return;
       }
-  
-      setTrialSession(existingTrialSession);
-      localStorage.setItem("stableUserId", existingTrialSession.userId);
-    } catch (error) {
-      console.error("PilotSetupPage registerTrialUser error:", error);
-      confirmLockedRef.current = false;
-      alert(error?.message || "Failed to create workspace session.");
-      return;
     }
   }
 
@@ -1640,44 +1663,59 @@ const handleConfirm = async () => {
   let didWriteRoutingDecision = false;
   let writtenRoutingCaseId = "";
 
-  try {
-    const startRes = await startTrial({
-      userId: existingTrialSession.userId,
-      trialId: existingTrialSession.trialId,
-      entryPoint: "pilot_setup_page",
-      pcCode: pcMeta?.pc_id || "PC-001",
-    });
-
+  if (isCaseFlowSubmission) {
     mergedTrialSession = {
       ...existingTrialSession,
+      status: "case_flow_active",
       lockedScopeSnapshot:
         existingTrialSession?.lockedScopeSnapshot ||
-        resolvedLockedScopeSnapshot ||
-        null,
-      trialSessionId:
-        startRes?.data?.trialSessionId ||
-        existingTrialSession?.trialSessionId ||
-        "",
-      startedAt:
-        startRes?.data?.startedAt ||
-        existingTrialSession?.startedAt ||
-        "",
-     expiresAt:
-        startRes?.data?.expiresAt ||
-        existingTrialSession?.expiresAt ||
-        "",
-      status:
-        startRes?.data?.status ||
-        existingTrialSession?.status ||
-        "active",
+        resolvedLockedScopeSnapshot,
     };
 
     setTrialSession(mergedTrialSession);
-  } catch (error) {
-    console.error("startTrial error:", error);
-    confirmLockedRef.current = false;
-    alert(error?.message || "Failed to start pilot.");
-    return;
+    console.info("PilotSetupPage skipping trial start for case flow", {
+      caseId: resolvedCaseId,
+    });
+  } else {
+    try {
+      const startRes = await startTrial({
+        userId: existingTrialSession.userId,
+        trialId: existingTrialSession.trialId,
+        entryPoint: "pilot_setup_page",
+        pcCode: pcMeta?.pc_id || "PC-001",
+      });
+
+      mergedTrialSession = {
+        ...existingTrialSession,
+        lockedScopeSnapshot:
+          existingTrialSession?.lockedScopeSnapshot ||
+          resolvedLockedScopeSnapshot ||
+          null,
+        trialSessionId:
+          startRes?.data?.trialSessionId ||
+          existingTrialSession?.trialSessionId ||
+          "",
+        startedAt:
+          startRes?.data?.startedAt ||
+          existingTrialSession?.startedAt ||
+          "",
+       expiresAt:
+          startRes?.data?.expiresAt ||
+          existingTrialSession?.expiresAt ||
+          "",
+        status:
+          startRes?.data?.status ||
+          existingTrialSession?.status ||
+          "active",
+      };
+
+      setTrialSession(mergedTrialSession);
+    } catch (error) {
+      console.error("startTrial error:", error);
+      confirmLockedRef.current = false;
+      alert(error?.message || "Failed to start pilot.");
+      return;
+    }
   }
 
   const evidenceState =
