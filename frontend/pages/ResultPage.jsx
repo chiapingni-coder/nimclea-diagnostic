@@ -3022,10 +3022,14 @@ const caseSchema = useMemo(() => {
   lockedScopeSnapshot,
 ]);
 
-const handleSaveCaseContactSubmit = useCallback(async (event) => {
+const handleSaveCaseContactSubmit = useCallback(async (event, emailOverride = "") => {
   event?.preventDefault();
 
-  const email = String(lead.email || "").trim().toLowerCase();
+  const email = String(emailOverride || lead.email || "").trim().toLowerCase();
+  const leadForSave = {
+    ...lead,
+    email,
+  };
 
   if (!email.includes("@")) {
     setEmailError("Enter a valid email address to continue.");
@@ -3048,9 +3052,9 @@ const handleSaveCaseContactSubmit = useCallback(async (event) => {
       source: "result_page_save_case",
       email,
       lead: {
-        name: lead.name,
+        name: leadForSave.name,
         email,
-        company: lead.company,
+        company: leadForSave.company,
       },
       result: enrichedResult,
       preview: enrichedResult,
@@ -3059,9 +3063,9 @@ const handleSaveCaseContactSubmit = useCallback(async (event) => {
     });
 
     updateCaseLead(resolvedCaseId, {
-      name: lead.name,
+      name: leadForSave.name,
       email,
-      company: lead.company,
+      company: leadForSave.company,
     });
 
     await saveCaseSnapshot({
@@ -3079,9 +3083,9 @@ const handleSaveCaseContactSubmit = useCallback(async (event) => {
       source: "result_page_save_case",
       email,
       lead: {
-        name: lead.name,
+        name: leadForSave.name,
         email,
-        company: lead.company,
+        company: leadForSave.company,
       },
       result: enrichedResult,
       preview: enrichedResult,
@@ -3091,9 +3095,9 @@ const handleSaveCaseContactSubmit = useCallback(async (event) => {
         caseId: resolvedCaseId,
         email,
         lead: {
-          name: lead.name,
+          name: leadForSave.name,
           email,
-          company: lead.company,
+          company: leadForSave.company,
         },
         result: enrichedResult,
         preview: enrichedResult,
@@ -3583,6 +3587,28 @@ if (!isValidPreview(result)) {
             onViewCases={() => {
               if (isCaseReview) {
                 navigate("/cases");
+                return;
+              }
+
+              const existingEmail = [
+                lead.email,
+                localStorage.getItem("nimclea_email"),
+                localStorage.getItem("savedEmail"),
+                location.state?.email,
+                location.state?.userEmail,
+                location.state?.lead?.email,
+              ]
+                .map((value) => String(value || "").trim().toLowerCase())
+                .find((value) => value.includes("@"));
+
+              if (existingEmail) {
+                localStorage.setItem("nimclea_email", existingEmail);
+                localStorage.setItem("savedEmail", existingEmail);
+                setLead((previousLead) => ({
+                  ...previousLead,
+                  email: existingEmail,
+                }));
+                handleSaveCaseContactSubmit(null, existingEmail);
                 return;
               }
 
