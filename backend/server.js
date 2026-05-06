@@ -337,6 +337,35 @@ app.get("/cases", (req, res) => {
           eventCount: mergedEventCount,
           email: item?.email || baseCase?.email || receiptCase?.email || email,
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
+          receiptEligible:
+            baseCase?.receiptEligible === true ||
+            receiptCase?.receiptEligible === true ||
+            baseCase?.caseReceiptEligible === true ||
+            receiptCase?.caseReceiptEligible === true ||
+            baseCase?.receiptStatus === "ready" ||
+            receiptCase?.receiptStatus === "ready" ||
+            baseCase?.stage === "receipt_ready" ||
+            receiptCase?.stage === "receipt_ready",
+          caseReceiptEligible:
+            baseCase?.receiptEligible === true ||
+            receiptCase?.receiptEligible === true ||
+            baseCase?.caseReceiptEligible === true ||
+            receiptCase?.caseReceiptEligible === true ||
+            baseCase?.receiptStatus === "ready" ||
+            receiptCase?.receiptStatus === "ready" ||
+            baseCase?.stage === "receipt_ready" ||
+            receiptCase?.stage === "receipt_ready",
+          receiptStatus:
+            baseCase?.receiptEligible === true ||
+            receiptCase?.receiptEligible === true ||
+            baseCase?.caseReceiptEligible === true ||
+            receiptCase?.caseReceiptEligible === true ||
+            baseCase?.receiptStatus === "ready" ||
+            receiptCase?.receiptStatus === "ready" ||
+            baseCase?.stage === "receipt_ready" ||
+            receiptCase?.stage === "receipt_ready"
+              ? "ready"
+              : receiptCase?.receiptStatus || baseCase?.receiptStatus || item?.receiptStatus || "",
         };
       })
       .filter(Boolean);

@@ -44,7 +44,8 @@ import {
   flattenSharedReceiptVerificationContract,
 } from "../utils/sharedReceiptVerificationContract";
 
-const HASH_LEDGER_API_BASE = "http://localhost:3000";
+const HASH_LEDGER_API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const CANONICAL_CASE_FLOW_STEPS = ["Result", "Pilot Result", "Receipt", "Verification"];
 
 function sanitizeReceiptId(value) {
@@ -1218,7 +1219,7 @@ const urlCaseId = String(
 
       try {
         const response = await fetch(
-          `http://localhost:3000/receipt-record?caseId=${encodeURIComponent(inferredCaseId)}`
+          `${HASH_LEDGER_API_BASE}/receipt-record?caseId=${encodeURIComponent(inferredCaseId)}`
         );
 
         if (!response.ok) {
@@ -1493,7 +1494,7 @@ const urlCaseId = String(
     if (!caseId) return;
 
     try {
-      const response = await fetch("http://localhost:3000/api/create-checkout-session", {
+      const response = await fetch(`${HASH_LEDGER_API_BASE}/api/create-checkout-session`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1779,6 +1780,12 @@ React.useEffect(() => {
         receiptEligible: true,
         status: "workspace_active",
         stage: "receipt_ready",
+        email:
+          String(
+            localStorage.getItem("nimclea_email") ||
+              localStorage.getItem("savedEmail") ||
+              ""
+          ).trim() || undefined,
       }),
     }
   ).catch((error) => {
