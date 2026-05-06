@@ -1769,7 +1769,7 @@ React.useEffect(() => {
   receiptReadyPersistedRef.current.add(targetCaseId);
 
   fetch(
-    `http://localhost:3000/case/${encodeURIComponent(targetCaseId)}/receipt-status`,
+    `${HASH_LEDGER_API_BASE}/case/${encodeURIComponent(targetCaseId)}/receipt-status`,
     {
       method: "PATCH",
       headers: {
