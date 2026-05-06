@@ -429,6 +429,49 @@ function hasDiagnosticResultData(item) {
   );
 }
 
+function hasReceiptDetailRouteSignal(item) {
+  const normalized = normalizeCaseItem(item);
+  const caseData = normalized?.caseData || normalized?.caseSchema || {};
+  const statusText = [
+    normalized?.status,
+    normalized?.stage,
+    normalized?.stageLabel,
+    normalized?.currentStep,
+    normalized?.paymentStatus,
+    normalized?.receiptStatus,
+    caseData?.status,
+    caseData?.stage,
+    getDisplayStatus(normalized),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const eventCount = Number(
+    normalized?.eventCount ||
+      normalized?.caseSnapshot?.eventCount ||
+      caseData?.eventCount ||
+      0
+  );
+
+  return Boolean(
+    normalized?.receiptEligible === true ||
+      normalized?.caseReceiptEligible === true ||
+      normalized?.verificationEligible === true ||
+      normalized?.eventCaptured === true ||
+      eventCount > 0 ||
+      hasNonEmptyArray(normalized?.eventLogs) ||
+      hasNonEmptyArray(normalized?.events) ||
+      hasNonEmptyArray(normalized?.supportingEvents) ||
+      hasNonEmptyArray(normalized?.structuredEvents) ||
+      statusText.includes("receipt_ready") ||
+      statusText.includes("receipt ready") ||
+      statusText.includes("receipt checkout started") ||
+      statusText.includes("checkout_created") ||
+      statusText.includes("paid") ||
+      statusText.includes("event captured")
+  );
+}
+
 function getCaseDetailRoute(item) {
   const caseIdSafe = resolveCaseId(item);
 
@@ -443,6 +486,10 @@ function getCaseDetailRoute(item) {
     normalized?.caseReceiptEligible === true ||
     String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
     String(normalized?.stage || "").toLowerCase() === "receipt_ready";
+
+  if (hasReceiptDetailRouteSignal(normalized)) {
+    return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
+  }
 
   if (hasActivatedReceipt(normalized)) {
     return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
@@ -707,13 +754,32 @@ export default function CasesPage() {
 
       const nextCases = Array.isArray(payload) ? payload : [];
 
+      const caseIdOf = (item = {}) =>
+        String(
+          item?.caseId ||
+            item?.case_id ||
+            item?.id ||
+            item?.caseSnapshot?.caseId ||
+            item?.caseSnapshot?.caseRecord?.caseId ||
+            ""
+        ).trim();
+
+      const activeEmail = email.trim().toLowerCase();
+      const backendCaseIds = new Set(nextCases.map(caseIdOf).filter(Boolean));
+
       const localCases = getAllCases()
         .flatMap((item) => (Array.isArray(item) ? item : [item]))
         .filter((item) => {
+          const itemCaseId = caseIdOf(item);
+          if (itemCaseId && backendCaseIds.has(itemCaseId)) return true;
+
           const caseEmail = String(
             item?.email ||
-            item?.lead?.email ||
             item?.ownerEmail ||
+            item?.userEmail ||
+            item?.contactEmail ||
+            item?.identity?.email ||
+            item?.lead?.email ||
             item?.metadata?.email ||
             item?.caseData?.email ||
             item?.caseRecord?.email ||
@@ -730,18 +796,8 @@ export default function CasesPage() {
             .trim()
             .toLowerCase();
 
-          return caseEmail === email.trim().toLowerCase();
+          return caseEmail === activeEmail;
         });
-
-      const caseIdOf = (item = {}) =>
-        String(
-          item?.caseId ||
-            item?.case_id ||
-            item?.id ||
-            item?.caseSnapshot?.caseId ||
-            item?.caseSnapshot?.caseRecord?.caseId ||
-            ""
-        ).trim();
 
       const mergedCaseMap = new Map();
 
@@ -907,6 +963,7 @@ export default function CasesPage() {
 
   const handleSwitchEmail = React.useCallback(() => {
     localStorage.removeItem(EMAIL_STORAGE_KEY);
+    localStorage.removeItem("savedEmail");
     localStorage.removeItem("nimclea_email_verified");
     localStorage.removeItem("nimclea_current_case_id");
 
@@ -1134,8 +1191,28 @@ export default function CasesPage() {
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <>
+            <div
+              style={{
+                marginLeft: "auto",
+                display: "inline-flex",
+                flexDirection: "column",
+                alignItems: "stretch",
+              }}
+            >
+              {formatEmail(savedEmail || resolvedEmail) && (
+                <div
+                  className="text-right text-[11px] font-normal text-slate-400"
+                  style={{
+                    paddingRight: "16px",
+                    whiteSpace: "nowrap",
+                    marginBottom: "10px",
+                  }}
+                >
+                  {formatEmail(savedEmail || resolvedEmail)}
+               </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1162,7 +1239,7 @@ export default function CasesPage() {
                 >
                   Switch email
                 </button>
-              </>
+              </div>
             </div>
           </header>
         )}
