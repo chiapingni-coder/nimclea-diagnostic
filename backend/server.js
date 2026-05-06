@@ -283,6 +283,47 @@ app.get("/cases", (req, res) => {
         .trim()
         .toLowerCase();
 
+    const normalizeStageValue = (value) => {
+      const normalized = String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^status:\s*/, "");
+
+      if (!normalized) return "";
+      if (normalized.includes("event captured")) return "event_captured";
+      if (normalized === "receipt ready") return "receipt_ready";
+      if (normalized === "paid") return "paid";
+      if (normalized === "verified") return "verified";
+
+      return normalized.replace(/\s+/g, "_");
+    };
+
+    const stageRank = (value) => {
+      const ranks = {
+        draft: 0,
+        diagnostic_completed: 1,
+        result_ready: 2,
+        event_captured: 3,
+        receipt_ready: 4,
+        receipt_issued: 5,
+        paid: 6,
+        verification_ready: 7,
+        verified: 8,
+      };
+
+      const normalized = normalizeStageValue(value);
+      return Object.prototype.hasOwnProperty.call(ranks, normalized)
+        ? ranks[normalized]
+        : -1;
+    };
+
+    const pickHigherStage = (...values) => {
+      return values.reduce((best, value) => {
+        const normalized = normalizeStageValue(value);
+        return stageRank(normalized) > stageRank(best) ? normalized : best;
+      }, "");
+    };
+
     const candidateMap = new Map();
     const addCandidate = (item = {}) => {
       const caseId = caseIdOf(item);
@@ -358,6 +399,28 @@ app.get("/cases", (req, res) => {
           mergedEvents.length
         );
 
+        const isReceiptReady =
+          baseCase?.receiptEligible === true ||
+          receiptCase?.receiptEligible === true ||
+          baseCase?.caseReceiptEligible === true ||
+          receiptCase?.caseReceiptEligible === true ||
+          baseCase?.receiptStatus === "ready" ||
+          receiptCase?.receiptStatus === "ready" ||
+          baseCase?.stage === "receipt_ready" ||
+          receiptCase?.stage === "receipt_ready";
+        const eventDerivedStage = mergedEventCount > 0 ? "event_captured" : "";
+        const finalStage = pickHigherStage(
+          item?.stage,
+          item?.status,
+          baseCase?.stage,
+          baseCase?.status,
+          receiptCase?.stage,
+          receiptCase?.status,
+          eventDerivedStage,
+          isReceiptReady ? "receipt_ready" : ""
+        );
+        const finalStatus = finalStage || receiptCase?.status || baseCase?.status || item?.status || "draft";
+
         const hasPersistedCase = Boolean(baseCase?.caseId || baseCase?.id || receiptCase?.caseId || receiptCase?.id);
         const isLegacyFirstCaseLog = item?.source === "cases_page_first_case";
 
@@ -383,41 +446,19 @@ app.get("/cases", (req, res) => {
           ...item,
           ...baseCase,
           ...receiptCase,
+          status: finalStatus,
+          stage: finalStage || undefined,
           events: mergedEvents.length > 0 ? mergedEvents : receiptCase?.events || baseCase?.events || [],
           eventLogs: mergedEvents.length > 0 ? mergedEvents : receiptCase?.eventLogs || baseCase?.eventLogs || [],
           entries: mergedEvents.length > 0 ? mergedEvents : receiptCase?.entries || baseCase?.entries || [],
           eventCount: mergedEventCount,
           email: item?.email || baseCase?.email || receiptCase?.email || email,
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
-          receiptEligible:
-            baseCase?.receiptEligible === true ||
-            receiptCase?.receiptEligible === true ||
-            baseCase?.caseReceiptEligible === true ||
-            receiptCase?.caseReceiptEligible === true ||
-            baseCase?.receiptStatus === "ready" ||
-            receiptCase?.receiptStatus === "ready" ||
-            baseCase?.stage === "receipt_ready" ||
-            receiptCase?.stage === "receipt_ready",
-          caseReceiptEligible:
-            baseCase?.receiptEligible === true ||
-            receiptCase?.receiptEligible === true ||
-            baseCase?.caseReceiptEligible === true ||
-            receiptCase?.caseReceiptEligible === true ||
-            baseCase?.receiptStatus === "ready" ||
-            receiptCase?.receiptStatus === "ready" ||
-            baseCase?.stage === "receipt_ready" ||
-            receiptCase?.stage === "receipt_ready",
-          receiptStatus:
-            baseCase?.receiptEligible === true ||
-            receiptCase?.receiptEligible === true ||
-            baseCase?.caseReceiptEligible === true ||
-            receiptCase?.caseReceiptEligible === true ||
-            baseCase?.receiptStatus === "ready" ||
-            receiptCase?.receiptStatus === "ready" ||
-            baseCase?.stage === "receipt_ready" ||
-            receiptCase?.stage === "receipt_ready"
-              ? "ready"
-              : receiptCase?.receiptStatus || baseCase?.receiptStatus || item?.receiptStatus || "",
+          receiptEligible: isReceiptReady,
+          caseReceiptEligible: isReceiptReady,
+          receiptStatus: isReceiptReady
+            ? "ready"
+            : receiptCase?.receiptStatus || baseCase?.receiptStatus || item?.receiptStatus || "",
         };
       })
       .filter(Boolean);
