@@ -169,8 +169,13 @@ function isEvidenceEventType(eventType = "") {
   return (
     normalizedType === "routed_input" ||
     normalizedType === "quick_capture" ||
+    normalizedType === "quick_capture_submitted" ||
     normalizedType === "receipt_quick_capture" ||
     normalizedType === "event_capture" ||
+    normalizedType === "resource_control_request" ||
+    normalizedType === "structured_event_submitted" ||
+    normalizedType === "pilot_entry_submitted" ||
+    normalizedType === "pilot_result_submitted" ||
     normalizedType === "pilot_event" ||
     normalizedType === "workflow_event" ||
     normalizedType === "case_event" ||
@@ -204,9 +209,32 @@ function isRealEvidenceEvent(event = {}, currentCaseId = "") {
 
   if (hasRealEvidenceText(event)) return true;
   if (evidenceSources.has(source)) return true;
+  if (String(event?.id || "").startsWith("entry_")) return true;
   if (!eventType) return false;
 
   return isEvidenceEventType(eventType);
+}
+
+function getEventDedupeKey(event = {}) {
+  if (!event || typeof event !== "object") return "";
+
+  const eventType = getCaseEventType(event);
+  const stableId =
+    event?.eventId ||
+    event?.event_id ||
+    event?.id ||
+    event?.quickCaptureId ||
+    event?.quick_capture_id ||
+    event?.meta?.eventId ||
+    event?.meta?.quickCaptureId ||
+    "";
+
+  if (stableId) return String(stableId);
+
+  return [
+    event?.timestamp || event?.createdAt || event?.submittedAt || "",
+    eventType,
+  ].join(":");
 }
 
 function getEvidenceEvents(item = {}) {
@@ -216,8 +244,12 @@ function getEvidenceEvents(item = {}) {
 
   return [
     ...(Array.isArray(item?.events) ? item.events : []),
+    ...(Array.isArray(item?.eventLogs) ? item.eventLogs : []),
+    ...(Array.isArray(item?.eventHistory) ? item.eventHistory : []),
     ...(Array.isArray(normalized?.events) ? normalized.events : []),
     ...(Array.isArray(normalized?.eventLogs) ? normalized.eventLogs : []),
+    ...(Array.isArray(normalized?.eventHistory) ? normalized.eventHistory : []),
+    ...(Array.isArray(normalized?.caseData?.eventHistory) ? normalized.caseData.eventHistory : []),
     ...(Array.isArray(normalized?.structuredEvents) ? normalized.structuredEvents : []),
     ...(Array.isArray(normalized?.caseEvents) ? normalized.caseEvents : []),
     ...(Array.isArray(normalized?.entries) ? normalized.entries : []),
@@ -225,12 +257,86 @@ function getEvidenceEvents(item = {}) {
     ...(Array.isArray(normalized?.eventEntries) ? normalized.eventEntries : []),
     ...(Array.isArray(normalized?.captureRecords) ? normalized.captureRecords : []),
     ...(Array.isArray(normalized?.captures) ? normalized.captures : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.events) ? normalized.caseSnapshot.events : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.eventLogs) ? normalized.caseSnapshot.eventLogs : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.eventHistory) ? normalized.caseSnapshot.eventHistory : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.caseRecord?.events) ? normalized.caseSnapshot.caseRecord.events : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.caseRecord?.eventLogs) ? normalized.caseSnapshot.caseRecord.eventLogs : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.caseRecord?.eventHistory) ? normalized.caseSnapshot.caseRecord.eventHistory : []),
+    ...(Array.isArray(normalized?.caseSnapshot?.caseRecord?.caseData?.eventHistory) ? normalized.caseSnapshot.caseRecord.caseData.eventHistory : []),
   ].filter((event) => {
     if (!isRealEvidenceEvent(event, currentCaseId)) return false;
-    if (seen.has(event)) return false;
-    seen.add(event);
+    const dedupeKey = getEventDedupeKey(event) || event;
+    if (seen.has(dedupeKey)) return false;
+    seen.add(dedupeKey);
     return true;
   });
+}
+
+async function hydrateCaseDetails(cases = []) {
+  const detailCache = new Map();
+
+  return Promise.all(
+    cases.map(async (caseItem) => {
+      const caseId = resolveCaseId(caseItem);
+
+      if (!caseId) return caseItem;
+
+      try {
+        if (!detailCache.has(caseId)) {
+          detailCache.set(
+            caseId,
+            fetch(`${API_BASE}/case/${encodeURIComponent(caseId)}`)
+              .then((response) =>
+                response.ok ? response.json().catch(() => ({})) : null
+              )
+              .then((payload) => payload?.data || null)
+              .catch((error) => {
+                console.warn("Failed to hydrate case detail", caseId, error);
+                return null;
+              })
+          );
+        }
+
+        const detail = await detailCache.get(caseId);
+
+        if (!detail || typeof detail !== "object") return caseItem;
+
+        return {
+          ...caseItem,
+          ...detail,
+          caseId,
+          id: caseItem?.id || detail?.id || caseId,
+          caseData: {
+            ...(caseItem?.caseData || {}),
+            ...(detail?.caseData || {}),
+            eventHistory:
+              detail?.caseData?.eventHistory ||
+              caseItem?.caseData?.eventHistory ||
+              [],
+          },
+          events: Array.isArray(detail?.events) ? detail.events : caseItem?.events,
+          eventLogs: Array.isArray(detail?.eventLogs)
+            ? detail.eventLogs
+            : caseItem?.eventLogs,
+          eventHistory: Array.isArray(detail?.eventHistory)
+            ? detail.eventHistory
+            : caseItem?.eventHistory,
+          receiptStatus:
+            detail?.receiptStatus ?? caseItem?.receiptStatus,
+          verificationStatus:
+            detail?.verificationStatus ?? caseItem?.verificationStatus,
+          currentStep:
+            detail?.currentStep ?? caseItem?.currentStep,
+          status:
+            detail?.status ?? caseItem?.status,
+        };
+      } catch (error) {
+        console.warn("Failed to hydrate case detail", caseId, error);
+        return caseItem;
+      }
+    })
+  );
 }
 
 function isDiagnosticContinuationCase(item = {}) {
@@ -651,7 +757,9 @@ export default function CasesPage() {
         });
       });
 
-      const mergedCases = Array.from(mergedCaseMap.values());
+      const mergedCases = await hydrateCaseDetails(
+        Array.from(mergedCaseMap.values())
+      );
 
       if (mergedCases.length === 0) {
         setCases([]);
@@ -671,22 +779,24 @@ export default function CasesPage() {
         const eventCandidates = [
           c.eventLogs,
           c.events,
+          c.eventHistory,
+          c.caseData?.eventHistory,
           c.capturedEvents,
           c.pilotTrail,
           c.trail,
           c.caseSnapshot?.eventLogs,
           c.caseSnapshot?.events,
+          c.caseSnapshot?.eventHistory,
           c.caseSnapshot?.caseRecord?.eventLogs,
           c.caseSnapshot?.caseRecord?.events,
+          c.caseSnapshot?.caseRecord?.eventHistory,
+          c.caseSnapshot?.caseRecord?.caseData?.eventHistory,
           c.caseSnapshot?.caseRecord?.capturedEvents,
           c.caseSnapshot?.caseRecord?.pilotTrail,
           c.caseSnapshot?.caseRecord?.trail,
         ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
 
-        const events = eventCandidates.reduce(
-          (best, candidate) => (candidate.length > best.length ? candidate : best),
-          []
-        );
+        const events = eventCandidates.flat();
 
         const eventCount = Math.max(
           Number(c.eventCount || 0),
