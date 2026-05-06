@@ -13,7 +13,7 @@ import {
 } from "../lib/trialApi";
 import { resolveAccessMode } from "../lib/accessMode";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
-import { resolveCaseId, upsertCase } from "../utils/caseRegistry.js";
+import { getAllCases, resolveCaseId, upsertCase } from "../utils/caseRegistry.js";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 
 const STORAGE_KEYS = {
@@ -90,6 +90,42 @@ function buildPilotRegisterEmail(stableUserId = "") {
 function getStoredEmail() {
   if (typeof window === "undefined") return "";
   return String(localStorage.getItem("nimclea_email") || "").trim();
+}
+
+function getCaseRecordEmail(caseId = "") {
+  if (!caseId) return "";
+
+  try {
+    const matchingCase = getAllCases()
+      .flatMap((item) => (Array.isArray(item) ? item : [item]))
+      .find((item) => {
+        const itemCaseId =
+          item?.caseId ||
+          item?.case_id ||
+          item?.id ||
+          item?.caseData?.caseId ||
+          item?.caseData?.id ||
+          item?.caseSnapshot?.caseId ||
+          item?.caseSnapshot?.caseRecord?.caseId ||
+          "";
+
+        return String(itemCaseId) === String(caseId);
+      });
+
+    return String(
+      matchingCase?.email ||
+        matchingCase?.lead?.email ||
+        matchingCase?.ownerEmail ||
+        matchingCase?.metadata?.email ||
+        matchingCase?.caseData?.email ||
+        matchingCase?.caseSnapshot?.email ||
+        matchingCase?.caseSnapshot?.caseRecord?.email ||
+        matchingCase?.caseSnapshot?.caseRecord?.caseData?.email ||
+        ""
+    ).trim();
+  } catch {
+    return "";
+  }
 }
 
 function createPilotId(sessionId = "") {
@@ -1240,12 +1276,32 @@ export default function PilotPage() {
       "";
 
     let caseIdForPilot = incomingCaseId || resolvedCaseId;
+    const resolvedLeadEmail = [
+      getStoredEmail(),
+      typeof window !== "undefined"
+        ? localStorage.getItem("nimclea_email")
+        : "",
+      typeof window !== "undefined"
+        ? localStorage.getItem("savedEmail")
+        : "",
+      location.state?.email,
+      location.state?.userEmail,
+      location.state?.lead?.email,
+      getCaseRecordEmail(caseIdForPilot),
+    ]
+      .map((value) => String(value || "").trim())
+      .find(Boolean) || "";
+
+    if (resolvedLeadEmail && typeof window !== "undefined") {
+      localStorage.setItem("nimclea_email", resolvedLeadEmail);
+      localStorage.setItem("savedEmail", resolvedLeadEmail);
+    }
 
     const scopedScopeLock = {
       ...scopeLock,
       caseId: caseIdForPilot,
     };
-    const storedEmail = getStoredEmail();
+    const storedEmail = resolvedLeadEmail;
 
     if (!incomingCaseId) {
       const createdCase = upsertCase({
@@ -1342,6 +1398,16 @@ export default function PilotPage() {
       result: stripBreadcrumbState(preview || {}),
       sourceInput: stripBreadcrumbState(preview || {}),
       trialSession,
+      email: resolvedLeadEmail,
+      userEmail: resolvedLeadEmail,
+      savedEmail: resolvedLeadEmail,
+      leadCaptured: Boolean(resolvedLeadEmail),
+      contactCaptured: Boolean(resolvedLeadEmail),
+      lead: {
+        ...(location.state?.lead || {}),
+        email: resolvedLeadEmail,
+      },
+      from: isCaseReview ? "case" : location.state?.from,
       caseSchema: fallbackCaseSchema,
       stage: resolvedStage,
       resolvedStage,

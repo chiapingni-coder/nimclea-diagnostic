@@ -426,14 +426,68 @@ function getCaseEmail(caseRecord = {}) {
 
   return normalizeEmail(
     caseRecord.email ||
+      caseRecord.customerEmail ||
       caseRecord.lead?.email ||
+      caseRecord.contact?.email ||
       caseRecord.ownerEmail ||
       caseRecord.metadata?.email ||
       caseRecord.caseData?.email ||
+      caseRecord.caseData?.customerEmail ||
+      caseRecord.caseData?.lead?.email ||
+      caseRecord.caseData?.contact?.email ||
       caseRecord.caseSnapshot?.email ||
       caseRecord.caseSnapshot?.caseRecord?.email ||
+      caseRecord.caseSnapshot?.caseRecord?.customerEmail ||
+      caseRecord.caseSnapshot?.caseRecord?.lead?.email ||
+      caseRecord.caseSnapshot?.caseRecord?.contact?.email ||
+      caseRecord.caseSnapshot?.caseRecord?.caseData?.email ||
+      caseRecord.caseSnapshot?.caseRecord?.caseData?.customerEmail ||
+      caseRecord.caseSnapshot?.caseRecord?.caseData?.lead?.email ||
+      caseRecord.caseSnapshot?.caseRecord?.caseData?.contact?.email ||
       ""
   );
+}
+
+function getCaseRecordId(caseRecord = {}) {
+  if (!caseRecord || typeof caseRecord !== "object") return "";
+
+  return String(
+    caseRecord.caseId ||
+      caseRecord.case_id ||
+      caseRecord.id ||
+      caseRecord.caseData?.caseId ||
+      caseRecord.caseData?.id ||
+      caseRecord.caseSnapshot?.caseId ||
+      caseRecord.caseSnapshot?.caseRecord?.caseId ||
+      ""
+  ).trim();
+}
+
+function getCaseRecordData(caseRecord = {}) {
+  if (!caseRecord || typeof caseRecord !== "object") return null;
+
+  const candidate =
+    caseRecord.caseData ||
+    caseRecord.caseSchema ||
+    caseRecord.caseSnapshot?.caseRecord?.caseData ||
+    caseRecord.caseSnapshot?.caseData ||
+    caseRecord;
+
+  return candidate && typeof candidate === "object" ? candidate : null;
+}
+
+function findLocalCaseRecord(caseId = "") {
+  if (!caseId) return null;
+
+  try {
+    return (
+      getAllCases()
+        .flatMap((item) => (Array.isArray(item) ? item : [item]))
+        .find((caseRecord) => getCaseRecordId(caseRecord) === caseId) || null
+    );
+  } catch {
+    return null;
+  }
 }
 
 function hasLocalCaseForEmail(email) {
@@ -1024,53 +1078,102 @@ export default function PilotSetupPage() {
     let cancelled = false;
 
     async function restoreCaseSchema() {
-      if (!resolvedCaseId || incomingCaseSchema) {
+      const restoreCaseId =
+        setupUrlCaseId ||
+        location.state?.caseId ||
+        location.state?.case_id ||
+        location.state?.trialSession?.caseId ||
+        location.state?.trialSession?.case_id ||
+        pilotSetup?.caseId ||
+        pilotSetup?.case_id ||
+        trialSession?.caseId ||
+        trialSession?.case_id ||
+        "";
+      const hasIncomingSetupContext = Boolean(
+        incomingCaseSchema ||
+          (location.state?.preview && typeof location.state.preview === "object")
+      );
+
+      if (!restoreCaseId || hasIncomingSetupContext) {
         setRestoredCaseLoading(false);
         return;
       }
 
+      const applyRestoredCaseRecord = (caseRecord = null) => {
+        const caseData = getCaseRecordData(caseRecord);
+
+        if (!caseData || typeof caseData !== "object") return false;
+
+        setRestoredCaseSchema(normalizeCaseInput(caseData));
+
+        const restoredLead =
+          caseRecord?.lead ||
+          caseData?.lead ||
+          caseData?.contact ||
+          caseRecord?.contact ||
+          {};
+        const restoredEmail = normalizeEmail(
+          restoredLead?.email ||
+            caseData?.email ||
+            caseRecord?.email ||
+            ""
+        );
+
+        if (isValidEmail(restoredEmail)) {
+          setLead((prev) => ({
+            name: restoredLead?.name || prev.name || "",
+            email: restoredEmail,
+            company: restoredLead?.company || prev.company || "",
+          }));
+          setLeadCaptured(true);
+          setShowContactModal(false);
+          markLaunchFallbackEmailVerified(restoredEmail);
+        }
+
+        return true;
+      };
+
       setRestoredCaseLoading(true);
+      let restoredFromBackend = false;
 
       try {
         const response = await fetch(
-          `${API_BASE}/case/${encodeURIComponent(resolvedCaseId)}`
+          `${API_BASE}/case/${encodeURIComponent(restoreCaseId)}`
         );
         const payload = await response.json().catch(() => ({}));
-        const caseData = payload?.data?.caseData;
-        const restoredLead =
-          payload?.data?.lead ||
-          caseData?.lead ||
-          caseData?.contact ||
-          payload?.data?.contact ||
-          {};
 
-        if (!cancelled && caseData && typeof caseData === "object") {
-          setRestoredCaseSchema(normalizeCaseInput(caseData));
-        
-          const restoredEmail = normalizeEmail(
-            restoredLead?.email ||
-              caseData?.email ||
-              payload?.data?.email ||
-              ""
-          );
-        
-          if (isValidEmail(restoredEmail)) {
-            setLead((prev) => ({
-              name: restoredLead?.name || prev.name || "",
-              email: restoredEmail,
-              company: restoredLead?.company || prev.company || "",
-            }));
-            setLeadCaptured(true);
-            setShowContactModal(false);
-            markLaunchFallbackEmailVerified(restoredEmail);
-          }
+        if (!cancelled && payload?.data) {
+          restoredFromBackend = applyRestoredCaseRecord(payload.data);
         }
       } catch (error) {
         console.warn("PilotSetupPage caseId restore failed:", error);
       } finally {
-        if (!cancelled) {
-          setRestoredCaseLoading(false);
+        if (cancelled) return;
+
+        if (!restoredFromBackend) {
+          const trialSessionForRestore = getTrialSession() || {};
+          const trialSessionCaseId =
+            trialSessionForRestore.caseId ||
+            trialSessionForRestore.case_id ||
+            trialSessionForRestore.caseData?.caseId ||
+            trialSessionForRestore.caseData?.id ||
+            "";
+          const localCaseRecord = findLocalCaseRecord(restoreCaseId);
+          const trialCaseRecord =
+            trialSessionForRestore?.caseData &&
+            String(trialSessionCaseId) === String(restoreCaseId)
+            ? {
+                caseId: restoreCaseId,
+                caseData: trialSessionForRestore.caseData,
+                lead: trialSessionForRestore.lead,
+                email: trialSessionForRestore.email,
+              }
+            : null;
+
+          applyRestoredCaseRecord(localCaseRecord || trialCaseRecord);
         }
+
+        setRestoredCaseLoading(false);
       }
     }
 
@@ -1079,7 +1182,13 @@ export default function PilotSetupPage() {
     return () => {
       cancelled = true;
     };
-  }, [resolvedCaseId, incomingCaseSchema]);
+  }, [
+    setupUrlCaseId,
+    incomingCaseSchema,
+    location.state,
+    pilotSetup,
+    trialSession,
+  ]);
 
   const effectiveCaseId =
     selectedCaseOverrideId === "STANDALONE"
@@ -1335,6 +1444,17 @@ export default function PilotSetupPage() {
     entrySource,
     location.state,
   ]);
+
+  useEffect(() => {
+    if (!setupUrlCaseId) return;
+    if (restoredCaseLoading) return;
+    if (hasRequiredContext) return;
+
+    navigate(
+      `${ROUTES.PILOT}?caseId=${encodeURIComponent(setupUrlCaseId)}&from=case`,
+      { replace: true }
+    );
+  }, [setupUrlCaseId, restoredCaseLoading, hasRequiredContext, navigate]);
 
   const handleBack = () => {
     const pilotBackParams = new URLSearchParams();
@@ -2629,7 +2749,43 @@ const handleConfirm = async () => {
 };
 
 const handlePrimarySubmit = async () => {
+  const resolvedLeadEmail = normalizeEmail(
+    lead.email ||
+      location.state?.email ||
+      location.state?.userEmail ||
+      location.state?.savedEmail ||
+      location.state?.lead?.email ||
+      location.state?.contact?.email ||
+      location.state?.customerEmail ||
+      (typeof localStorage !== "undefined"
+        ? localStorage.getItem("nimclea_email")
+        : "") ||
+      (typeof localStorage !== "undefined"
+        ? localStorage.getItem("savedEmail")
+        : "") ||
+      effectiveCaseSchema?.email ||
+      effectiveCaseSchema?.customerEmail ||
+      effectiveCaseSchema?.lead?.email ||
+      effectiveCaseSchema?.contact?.email ||
+      getCaseEmail(findLocalCaseRecord(setupUrlCaseId || resolvedCaseId)) ||
+      trialSession?.email ||
+      ""
+  );
+
   if (showContactModal) {
+    if (resolvedLeadEmail) {
+      setLead((prev) => ({
+        ...(location.state?.lead || {}),
+        ...prev,
+        email: resolvedLeadEmail,
+      }));
+      setLeadCaptured(true);
+      setShowContactModal(false);
+      markLaunchFallbackEmailVerified(resolvedLeadEmail);
+      await handleConfirm();
+      return;
+    }
+
     const normalizedEmail = requireValidEmailBeforeEntry(lead.email);
     if (!normalizedEmail) return;
 
@@ -2644,9 +2800,20 @@ const handlePrimarySubmit = async () => {
     return;
   }
 
-  if (!leadCaptured) {
+  if (!leadCaptured && !resolvedLeadEmail) {
     setShowContactModal(true);
     return;
+  }
+
+  if (resolvedLeadEmail) {
+    setLead((prev) => ({
+      ...(location.state?.lead || {}),
+      ...prev,
+      email: resolvedLeadEmail,
+    }));
+    setLeadCaptured(true);
+    setShowContactModal(false);
+    markLaunchFallbackEmailVerified(resolvedLeadEmail);
   }
 
   await handleConfirm();
@@ -2696,7 +2863,21 @@ if (restoredCaseLoading && !hasRequiredContext) {
       <div className="mx-auto max-w-3xl px-6 py-10">
         <Card className="p-8">
           <p className="text-sm leading-6 text-slate-600">
-            Restoring saved case setup context...
+            Restoring case setup...
+          </p>
+        </Card>
+      </div>
+    </main>
+  );
+}
+
+if (setupUrlCaseId && !hasRequiredContext) {
+  return (
+    <main className="pilot-setup-page pilot-setup-compact min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Card className="p-8">
+          <p className="text-sm leading-6 text-slate-600">
+            Restoring case setup...
           </p>
         </Card>
       </div>
