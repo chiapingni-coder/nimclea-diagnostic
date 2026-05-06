@@ -244,9 +244,19 @@ app.get("/cases", (req, res) => {
       ? storedEventLogs.logs
       : [];
 
-    const matches = logs
-      .filter((item) => {
-      const caseEmail = String(
+    const caseIdOf = (item = {}) =>
+      String(
+        item?.caseId ||
+          item?.id ||
+          item?.caseSnapshot?.caseId ||
+          item?.caseSnapshot?.caseRecord?.caseId ||
+          item?.caseData?.caseId ||
+          item?.caseRecord?.caseId ||
+          ""
+      ).trim();
+
+    const emailFromLog = (item = {}) =>
+      String(
         item?.email ||
           item?.userEmail ||
           item?.leadEmail ||
@@ -257,8 +267,50 @@ app.get("/cases", (req, res) => {
         .trim()
         .toLowerCase();
 
-      return caseEmail && caseEmail === email;
-      })
+    const emailFromPersistedCase = (item = {}) =>
+      String(
+        item?.email ||
+          item?.ownerEmail ||
+          item?.userEmail ||
+          item?.contactEmail ||
+          item?.lead?.email ||
+          item?.metadata?.email ||
+          item?.caseData?.email ||
+          item?.caseRecord?.email ||
+          item?.caseSnapshot?.caseRecord?.email ||
+          ""
+      )
+        .trim()
+        .toLowerCase();
+
+    const candidateMap = new Map();
+    const addCandidate = (item = {}) => {
+      const caseId = caseIdOf(item);
+      if (!caseId) return;
+      const existing = candidateMap.get(caseId) || {};
+      candidateMap.set(caseId, { ...existing, ...item, caseId });
+    };
+
+    logs.forEach((item) => {
+      if (emailFromLog(item) === email) {
+        addCandidate(item);
+      }
+    });
+
+    cases.forEach((item) => {
+      if (emailFromPersistedCase(item) === email) {
+        addCandidate(item);
+      }
+    });
+
+    receiptRecords.forEach((item) => {
+      const normalizedItem = normalizeCaseRecord(item);
+      if (emailFromPersistedCase(item) === email || emailFromPersistedCase(normalizedItem) === email) {
+        addCandidate(normalizedItem);
+      }
+    });
+
+    const matches = Array.from(candidateMap.values())
       .map((item) => {
         const caseId = String(item?.caseId || item?.id || "").trim();
         const baseCase = findLastMatchingRecord(cases, caseId) || {};
