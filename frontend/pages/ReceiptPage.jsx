@@ -800,6 +800,7 @@ export default function ReceiptPage() {
   const receiptViewedLoggedRef = React.useRef(false);
   const receiptDebugLoggedRef = React.useRef(false);
   const hashComputedForReceiptRef = React.useRef("");
+  const receiptReadyPersistedRef = React.useRef(new Set());
   const routeEnvelope = location.state || null;
   const receiptUrlParams = React.useMemo(
     () => new URLSearchParams(location.search || ""),
@@ -1284,9 +1285,33 @@ const urlCaseId = String(
     activeCurrentCase?.pilotResult?.events,
   ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
 
-  const currentCaseEventSource = currentCaseEventCandidates.reduce(
-    (best, candidate) => (candidate.length > best.length ? candidate : best),
-    []
+  const currentCaseEventSource = Array.from(
+    new Map(
+      currentCaseEventCandidates
+        .flat()
+        .filter((event) => event && typeof event === "object")
+        .map((event, index) => {
+          const key = String(
+            event?.eventId ||
+              event?.id ||
+              event?.meta?.eventId ||
+              event?.meta?.id ||
+              event?.metadata?.eventId ||
+              event?.metadata?.id ||
+              event?.rawEventText ||
+              event?.eventText ||
+              event?.captureText ||
+              event?.userEventText ||
+              event?.note ||
+              event?.description ||
+              event?.text ||
+              event?.summary ||
+              index
+          ).trim();
+
+          return [key || String(index), event];
+        })
+    ).values()
   );
 
   const fallbackCapturedEvents =
@@ -1309,23 +1334,78 @@ const urlCaseId = String(
     if (!event || typeof event !== "object") return false;
 
     const readableText = String(
-      event?.note ||
-      event?.description ||
-      event?.text ||
-      event?.input ||
-      event?.rawText ||
-      event?.summary ||
-      event?.eventInput?.description ||
-      event?.eventInput?.summaryContext ||
-      event?.sourceInput?.description ||
-      ""
+      event?.rawEventText ||
+        event?.eventText ||
+        event?.captureText ||
+        event?.userEventText ||
+        event?.note ||
+        event?.description ||
+        event?.text ||
+        event?.input ||
+        event?.rawText ||
+        event?.summary ||
+        event?.meta?.rawEventText ||
+        event?.meta?.eventText ||
+        event?.meta?.captureText ||
+        event?.meta?.userEventText ||
+        event?.metadata?.rawEventText ||
+        event?.metadata?.eventText ||
+        event?.metadata?.captureText ||
+        event?.metadata?.userEventText ||
+        event?.eventInput?.description ||
+        event?.eventInput?.summaryContext ||
+        event?.sourceInput?.description ||
+        ""
     ).trim();
+
+    const eventType = String(
+      event?.eventType ||
+        event?.type ||
+        event?.selectedEventType ||
+        event?.meta?.eventType ||
+        event?.meta?.selectedEventType ||
+        event?.metadata?.eventType ||
+        event?.metadata?.selectedEventType ||
+        ""
+    ).toLowerCase();
+    const page = String(event?.page || event?.meta?.page || "").toLowerCase();
+    const source = String(event?.source || event?.meta?.source || "").toLowerCase();
+    const nonEvidenceEventTypes = new Set([
+      "receipt_viewed",
+      "verification_viewed",
+      "pilot_setup_viewed",
+      "page_viewed",
+      "score_computed",
+      "deterministic_score",
+      "cases_viewed",
+      "case_opened",
+      "access_continue_clicked",
+    ]);
+    const evidenceEventTypes = new Set([
+      "quick_capture",
+      "receipt_quick_capture",
+      "event_capture",
+      "pilot_event",
+      "workflow_event",
+      "case_event",
+      "structured_event",
+    ]);
+    const evidenceSources = new Set([
+      "quick_capture",
+      "receipt_quick_capture",
+      "event_capture",
+      "pilot_setup",
+    ]);
+
+    if (nonEvidenceEventTypes.has(eventType)) return false;
+    if (eventType.startsWith("diagnostic_")) return false;
+    if (page.includes("diagnostic") && eventType.startsWith("entry_")) return false;
 
     return (
       readableText.length > 0 ||
-      Boolean(event?.eventType) ||
-      Boolean(event?.eventId) ||
-      Boolean(event?.meta)
+      evidenceEventTypes.has(eventType) ||
+      eventType.includes("capture") ||
+      evidenceSources.has(source)
     );
   });
 
@@ -1678,6 +1758,34 @@ const backendReceiptReady =
 
 const receiptEligible =
   backendReceiptReady || (hasEventBackedRecord && hasPassingScore);
+
+React.useEffect(() => {
+  const targetCaseId =
+    inferredCaseId || data?.caseData?.caseId || data?.caseData?.id || "";
+
+  if (!receiptEligible || !targetCaseId) return;
+  if (receiptReadyPersistedRef.current.has(targetCaseId)) return;
+
+  receiptReadyPersistedRef.current.add(targetCaseId);
+
+  fetch(
+    `http://localhost:3000/case/${encodeURIComponent(targetCaseId)}/receipt-status`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        receiptEligible: true,
+        status: "workspace_active",
+        stage: "receipt_ready",
+      }),
+    }
+  ).catch((error) => {
+    console.warn("[ReceiptPage] Failed to persist receipt ready status", error);
+    receiptReadyPersistedRef.current.delete(targetCaseId);
+  });
+}, [receiptEligible, inferredCaseId, data?.caseData?.caseId, data?.caseData?.id]);
 
 const receiptExpressionModel = (() => {
   if (isVerified || data.decisionStatus === "Verified") {

@@ -156,6 +156,54 @@ router.post("/save", (req, res) => {
   }
 });
 
+router.patch("/:caseId/receipt-status", (req, res) => {
+  try {
+    const resolvedCaseId = normalizeValidCaseId(req.params.caseId);
+
+    if (!resolvedCaseId) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid caseId is required",
+      });
+    }
+
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
+    const existingIndex = findCaseIndex(cases, resolvedCaseId);
+    const existing = existingIndex >= 0 ? cases[existingIndex] || {} : {};
+
+    const receiptEligible = req.body?.receiptEligible !== false;
+    const now = new Date().toISOString();
+
+    const savedCase = upsertCaseRecord({
+      ...existing,
+      ...(req.body || {}),
+      id: existing.id || resolvedCaseId,
+      caseId: existing.caseId || resolvedCaseId,
+      status: req.body?.status || existing.status || "workspace_active",
+      stage: req.body?.stage || existing.stage || "receipt_ready",
+      receiptEligible,
+      caseReceiptEligible: receiptEligible,
+      receiptStatus: receiptEligible ? "ready" : "not_ready",
+      receiptReadyAt: receiptEligible
+        ? existing.receiptReadyAt || req.body?.receiptReadyAt || now
+        : existing.receiptReadyAt || null,
+    });
+
+    return res.json({
+      success: true,
+      message: "Receipt status updated",
+      data: savedCase,
+    });
+  } catch (error) {
+    console.error("PATCH /case/:caseId/receipt-status error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update receipt status",
+    });
+  }
+});
+
 router.get("/:caseId", (req, res) => {
   try {
     const { caseId } = req.params;

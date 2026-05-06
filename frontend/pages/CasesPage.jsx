@@ -437,17 +437,27 @@ function getCaseDetailRoute(item) {
   }
 
   const encodedCaseId = encodeURIComponent(caseIdSafe);
+  const normalized = normalizeCaseItem(item);
+  const isReceiptReadyCase =
+    normalized?.receiptEligible === true ||
+    normalized?.caseReceiptEligible === true ||
+    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
+    String(normalized?.stage || "").toLowerCase() === "receipt_ready";
 
-  if (!hasDiagnosticResultData(item)) {
+  if (hasActivatedReceipt(normalized)) {
+    return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
+  }
+
+  if (isReceiptReadyCase) {
+    return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
+  }
+
+  if (!hasDiagnosticResultData(normalized)) {
     return `${ROUTES.DIAGNOSTIC}?caseId=${encodedCaseId}`;
   }
 
-  if (!hasRealEventSignal(item)) {
+  if (!hasRealEventSignal(normalized)) {
     return `${ROUTES.RESULT}?caseId=${encodedCaseId}`;
-  }
-
-  if (hasActivatedReceipt(item)) {
-    return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
   }
 
   return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
@@ -1329,10 +1339,17 @@ export default function CasesPage() {
                 : [];
               const detailPath = getCaseDetailRoute(normalizedItem);
               const primaryResolvedCaseId = resolveCaseId(normalizedItem);
-              const primaryActionPath = isDiagnosticContinuation && primaryResolvedCaseId
+              const isReceiptReadyCase =
+                normalizedItem?.receiptEligible === true ||
+                normalizedItem?.caseReceiptEligible === true ||
+                normalizedItem?.receiptStatus === "ready" ||
+                normalizedItem?.stage === "receipt_ready";
+              const shouldContinueDiagnostic =
+                isDiagnosticContinuation && !isReceiptReadyCase;
+              const primaryActionPath = shouldContinueDiagnostic && primaryResolvedCaseId
                 ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(primaryResolvedCaseId)}&from=case`
                 : detailPath;
-              const primaryActionLabel = isDiagnosticContinuation ? "Continue Case" : "Detail";
+              const primaryActionLabel = shouldContinueDiagnostic ? "Continue Case" : "Detail";
               const redoDiagnosticCaseId = primaryResolvedCaseId;
               const redoDiagnosticPath = redoDiagnosticCaseId
                 ? `${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(redoDiagnosticCaseId)}&redo=1`
@@ -1467,7 +1484,7 @@ export default function CasesPage() {
                         event.preventDefault();
 
                         const resolvedCaseId = resolveCaseId(normalizedItem);
-                        const targetPath = isDiagnosticContinuation
+                        const targetPath = shouldContinueDiagnostic
                           ? primaryActionPath
                           : getCaseDetailRoute(normalizedItem);
 
@@ -1500,7 +1517,7 @@ export default function CasesPage() {
                         });
 
                         navigate(targetPath, {
-                          state: isDiagnosticContinuation
+                          state: shouldContinueDiagnostic
                             ? {
                                 caseId: resolvedCaseId,
                                 case_id: resolvedCaseId,
