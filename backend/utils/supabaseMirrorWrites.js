@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { isSupabaseEnabled, supabase } from "./supabaseClient.js";
 
 function normalizeCaseId(record = {}) {
@@ -14,6 +15,14 @@ function cleanText(value = "") {
 
 function jsonValue(value, fallback = null) {
   return value === undefined ? fallback : value;
+}
+
+function stableHash(value) {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(value || {}))
+    .digest("hex")
+    .slice(0, 24);
 }
 
 export async function mirrorCaseToSupabase(caseRecord = {}) {
@@ -166,6 +175,91 @@ export async function mirrorCasePlanToSupabase(payload = {}) {
     return { ok: true };
   } catch (error) {
     console.warn("[supabase:case-plan] failed but ignored:", error?.message || error);
+    return { ok: false, error };
+  }
+}
+
+export async function mirrorEventLogToSupabase(eventRecord = {}) {
+  if (!isSupabaseEnabled || !supabase) {
+    console.warn("[supabase:event] skipped, env missing");
+    return { ok: false, skipped: true };
+  }
+
+  try {
+    const eventId =
+      cleanText(eventRecord?.eventId || eventRecord?.event_id || eventRecord?.id) ||
+      `evt_${stableHash(eventRecord)}`;
+    const record = {
+      event_id: eventId,
+      case_id: cleanText(eventRecord?.caseId || eventRecord?.case_id || eventRecord?.meta?.caseId),
+      user_id: cleanText(eventRecord?.userId || eventRecord?.user_id),
+      trial_id: cleanText(eventRecord?.trialId || eventRecord?.trial_id),
+      event_type: cleanText(eventRecord?.eventType || eventRecord?.event_type || eventRecord?.type),
+      page: cleanText(eventRecord?.page),
+      meta: jsonValue(eventRecord?.meta, {}),
+      raw_record: eventRecord,
+      created_at: eventRecord?.createdAt || eventRecord?.created_at || new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("event_logs")
+      .upsert(record, { onConflict: "event_id" });
+
+    if (error) throw error;
+
+    console.log(`[supabase:event] mirrored event ${eventId || record.case_id || "unknown"}`);
+    return { ok: true };
+  } catch (error) {
+    console.warn("[supabase:event] failed but ignored:", error?.message || error);
+    return { ok: false, error };
+  }
+}
+
+export async function mirrorReceiptRecordToSupabase(receiptRecord = {}) {
+  if (!isSupabaseEnabled || !supabase) {
+    console.warn("[supabase:receipt] skipped, env missing");
+    return { ok: false, skipped: true };
+  }
+
+  try {
+    const caseId = cleanText(receiptRecord?.caseId || receiptRecord?.case_id);
+    const receiptId = cleanText(
+      receiptRecord?.receiptId ||
+        receiptRecord?.receipt_id ||
+        receiptRecord?.hash ||
+        receiptRecord?.receiptHash ||
+        receiptRecord?.caseSnapshotHash
+    ) || (caseId ? `receipt_${caseId}` : "");
+
+    if (!receiptId || !caseId) {
+      console.warn("[supabase:receipt] skipped, missing receipt_id or case_id");
+      return { ok: false, skipped: true };
+    }
+
+    const record = {
+      receipt_id: receiptId,
+      case_id: caseId,
+      hash: cleanText(receiptRecord?.hash || receiptRecord?.receiptHash || receiptRecord?.receipt_hash),
+      payment_status: cleanText(receiptRecord?.paymentStatus || receiptRecord?.payment_status),
+      verification_status: cleanText(receiptRecord?.verificationStatus || receiptRecord?.verification_status),
+      paid: receiptRecord?.paid === true,
+      source: cleanText(receiptRecord?.source),
+      case_snapshot: jsonValue(receiptRecord?.caseSnapshot),
+      raw_record: receiptRecord,
+      created_at: receiptRecord?.createdAt || receiptRecord?.created_at || new Date().toISOString(),
+      updated_at: receiptRecord?.updatedAt || receiptRecord?.updated_at || new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("receipt_records")
+      .upsert(record, { onConflict: "receipt_id" });
+
+    if (error) throw error;
+
+    console.log(`[supabase:receipt] mirrored receipt ${receiptId || record.case_id || "unknown"}`);
+    return { ok: true };
+  } catch (error) {
+    console.warn("[supabase:receipt] failed but ignored:", error?.message || error);
     return { ok: false, error };
   }
 }

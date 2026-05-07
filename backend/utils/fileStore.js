@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { mirrorEventLogToSupabase } from "./supabaseMirrorWrites.js";
 
 export function ensureJsonFile(filePath, defaultValue = []) {
   const dir = path.dirname(filePath);
@@ -34,6 +35,9 @@ export function appendJsonFile(filePath, item, defaultValue = []) {
   const current = readJsonFile(filePath, defaultValue);
   current.push(item);
   writeJsonFile(filePath, current);
+  if (path.basename(filePath) === "eventLogs.json") {
+    void mirrorEventLogToSupabase(item);
+  }
   return item;
 }
 
