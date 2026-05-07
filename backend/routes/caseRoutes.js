@@ -126,21 +126,35 @@ router.post("/save", async (req, res) => {
     });
 
     await mirrorCaseToSupabase(savedCase);
-    await mirrorDiagnosticRecordToSupabase({
-      ...(req.body || {}),
-      caseId: savedCase.caseId,
-      email: savedCase.email,
-      name: savedCase.name || savedCase.lead?.name,
-      company: savedCase.company || savedCase.lead?.company,
-      source: savedCase.source,
-      answers: req.body?.answers,
-      result: req.body?.result,
-      caseSchema: req.body?.caseSchema,
-      caseData: savedCase.caseData,
-      preview: req.body?.preview,
-      rawRecord: savedCase,
-      createdAt: savedCase.createdAt || now,
-    });
+    const hasDiagnosticSignal = Boolean(
+      req.body?.answers ||
+        req.body?.result ||
+        req.body?.caseSchema ||
+        req.body?.preview ||
+        req.body?.diagnostic ||
+        req.body?.diagnosticResult ||
+        req.body?.source === "result_page_save_case" ||
+        req.body?.source === "diagnostic_save" ||
+        req.body?.source === "diagnostic_completed"
+    );
+
+    if (hasDiagnosticSignal) {
+      await mirrorDiagnosticRecordToSupabase({
+        ...(req.body || {}),
+        caseId: savedCase.caseId,
+        email: savedCase.email,
+        name: savedCase.name || savedCase.lead?.name,
+        company: savedCase.company || savedCase.lead?.company,
+        source: savedCase.source,
+        answers: req.body?.answers,
+        result: req.body?.result,
+        caseSchema: req.body?.caseSchema,
+        caseData: savedCase.caseData,
+        preview: req.body?.preview,
+        rawRecord: savedCase,
+        createdAt: savedCase.createdAt || now,
+      });
+    }
     const hasCasePlanSignal = Boolean(
       req.body?.workflow ||
         req.body?.caseData?.workflow ||
