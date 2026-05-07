@@ -24,6 +24,7 @@ import analyticsRoutes from "./routes/analyticsRoutes.js";
 import hashLedgerRoutes from "./routes/hashLedgerRoutes.js";
 import { ensureDataFiles } from "./utils/ensureDataFiles.js";
 import { readJsonFile } from "./utils/jsonStore.js";
+import { persistEmailRecord } from "./db/emailStore.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -569,6 +570,19 @@ app.post("/email/log", async (req, res) => {
 
   try {
     await appendEmailLog(record);
+
+    try {
+      await persistEmailRecord({
+        ...req.body,
+        ...record,
+        raw_payload: {
+          ...req.body,
+          ...record,
+        },
+      });
+    } catch (dbError) {
+      console.warn("[email-log] database write failed:", dbError?.message || dbError);
+    }
 
     return res.status(200).json({
       ok: true,

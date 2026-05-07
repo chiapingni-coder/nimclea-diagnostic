@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { appendJsonFile, makeId, readJsonFile } from "../utils/fileStore.js";
+import { persistEmailRecord } from "../db/emailStore.js";
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const usersFile = path.join(__dirname, "../data/users.json");
 const trialsFile = path.join(__dirname, "../data/trials.json");
 
-router.post("/register", (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     const { email, name = "", company = "" } = req.body || {};
 
@@ -53,6 +54,23 @@ router.post("/register", (req, res) => {
     };
 
     appendJsonFile(trialsFile, trialRecord, []);
+
+    try {
+      await persistEmailRecord({
+        ...req.body,
+        email: normalizedEmail,
+        name: userRecord.name,
+        company: userRecord.company,
+        source: "trial_register",
+        raw_payload: {
+          ...req.body,
+          userRecord,
+          trialRecord,
+        },
+      });
+    } catch (dbError) {
+      console.warn("[trial-register] database write failed:", dbError?.message || dbError);
+    }
 
     return res.json({
       success: true,

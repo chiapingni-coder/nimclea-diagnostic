@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { appendJsonFile, makeId } from "../utils/fileStore.js";
+import { persistEmailRecord } from "../db/emailStore.js";
 
 const router = express.Router();
 
@@ -49,6 +50,20 @@ router.post("/send", async (req, res) => {
     };
 
     appendJsonFile(emailLogsFile, emailRecord, []);
+
+    try {
+      await persistEmailRecord({
+        ...req.body,
+        ...emailRecord,
+        source: emailType,
+        raw_payload: {
+          ...req.body,
+          ...emailRecord,
+        },
+      });
+    } catch (dbError) {
+      console.warn("[email-send] database write failed:", dbError?.message || dbError);
+    }
 
     return res.json({
       success: true,
