@@ -6,6 +6,7 @@ import {
 } from "../utils/jsonStore.js";
 import {
   mirrorCaseToSupabase,
+  mirrorCasePlanToSupabase,
   mirrorDiagnosticRecordToSupabase,
 } from "../utils/supabaseMirrorWrites.js";
 
@@ -140,6 +141,50 @@ router.post("/save", async (req, res) => {
       rawRecord: savedCase,
       createdAt: savedCase.createdAt || now,
     });
+    const hasCasePlanSignal = Boolean(
+      req.body?.workflow ||
+        req.body?.caseData?.workflow ||
+        req.body?.scopeLock ||
+        req.body?.caseData?.scopeLock ||
+        req.body?.acceptanceChecklist ||
+        req.body?.caseData?.acceptanceChecklist ||
+        req.body?.pilot_setup?.workflow ||
+        savedCase?.workflow ||
+        savedCase?.caseData?.workflow ||
+        savedCase?.pilot_setup?.workflow
+    );
+
+    if (hasCasePlanSignal) {
+      await mirrorCasePlanToSupabase({
+        ...(req.body || {}),
+        caseId: savedCase.caseId,
+        email: savedCase.email,
+        source: req.body?.source || savedCase.source || "case_plan",
+        workflow:
+          req.body?.workflow ||
+          req.body?.caseData?.workflow ||
+          savedCase?.workflow ||
+          savedCase?.caseData?.workflow ||
+          savedCase?.pilot_setup?.workflow ||
+          null,
+        caseData: savedCase.caseData,
+        scopeLock:
+          req.body?.scopeLock ||
+          req.body?.caseData?.scopeLock ||
+          savedCase?.scopeLock ||
+          savedCase?.caseData?.scopeLock ||
+          null,
+        acceptanceChecklist:
+          req.body?.acceptanceChecklist ||
+          req.body?.caseData?.acceptanceChecklist ||
+          savedCase?.acceptanceChecklist ||
+          savedCase?.caseData?.acceptanceChecklist ||
+          null,
+        pilot_setup: req.body?.pilot_setup || savedCase?.pilot_setup || null,
+        rawRecord: savedCase,
+        createdAt: savedCase.createdAt || now,
+      });
+    }
 
     if (existingIndex >= 0) {
       return res.json({
