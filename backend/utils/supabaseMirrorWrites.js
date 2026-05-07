@@ -13,6 +13,13 @@ function cleanText(value = "") {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function nullableUuid(value) {
+  const text = cleanText(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+    ? text
+    : null;
+}
+
 function jsonValue(value, fallback = null) {
   return value === undefined ? fallback : value;
 }
@@ -192,10 +199,11 @@ export async function mirrorEventLogToSupabase(eventRecord = {}) {
     const record = {
       event_id: eventId,
       case_id: cleanText(eventRecord?.caseId || eventRecord?.case_id || eventRecord?.meta?.caseId),
-      user_id: cleanText(eventRecord?.userId || eventRecord?.user_id),
+      user_id: nullableUuid(eventRecord?.userId || eventRecord?.user_id),
       trial_id: cleanText(eventRecord?.trialId || eventRecord?.trial_id),
       event_type: cleanText(eventRecord?.eventType || eventRecord?.event_type || eventRecord?.type),
       page: cleanText(eventRecord?.page),
+      source: cleanText(eventRecord?.source),
       meta: jsonValue(eventRecord?.meta, {}),
       raw_record: eventRecord,
       created_at: eventRecord?.createdAt || eventRecord?.created_at || new Date().toISOString(),
