@@ -4,6 +4,10 @@ import {
   writeJsonFile,
   appendJsonRecord,
 } from "../utils/jsonStore.js";
+import {
+  mirrorCaseToSupabase,
+  mirrorDiagnosticRecordToSupabase,
+} from "../utils/supabaseMirrorWrites.js";
 
 const router = express.Router();
 
@@ -76,7 +80,7 @@ function upsertCaseRecord(input = {}) {
   return createdRecord;
 }
 
-router.post("/save", (req, res) => {
+router.post("/save", async (req, res) => {
   try {
     const {
       userId,
@@ -118,6 +122,23 @@ router.post("/save", (req, res) => {
       version: previousVersion + 1,
       savedAt: now,
       status: req.body?.status || "draft",
+    });
+
+    await mirrorCaseToSupabase(savedCase);
+    await mirrorDiagnosticRecordToSupabase({
+      ...(req.body || {}),
+      caseId: savedCase.caseId,
+      email: savedCase.email,
+      name: savedCase.name || savedCase.lead?.name,
+      company: savedCase.company || savedCase.lead?.company,
+      source: savedCase.source,
+      answers: req.body?.answers,
+      result: req.body?.result,
+      caseSchema: req.body?.caseSchema,
+      caseData: savedCase.caseData,
+      preview: req.body?.preview,
+      rawRecord: savedCase,
+      createdAt: savedCase.createdAt || now,
     });
 
     if (existingIndex >= 0) {
