@@ -5,12 +5,13 @@ import { getRoutingResultFromCoreAnswers } from "../routingLogic.js";
 import { ROUTES } from "../routes.js";
 import { extractStructure } from "../engines/structureExtraction.js";
 import { buildResultSeed } from "./resultSeedBuilder";
-import { logTrialEvent } from "../lib/trialApi";
+import { logTrialEvent, saveCaseSnapshot } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { createCaseId } from "../utils/caseRegistry.js";
 import { routeInput } from "../lib/inputRouter";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 
 const PHASE = {
   LANDING: "landing",
@@ -654,6 +655,46 @@ if (!apiResult?.preview && !apiResult) {
         }
       } catch (storageError) {
         console.error("localStorage write error:", storageError);
+      }
+
+      try {
+        const now = new Date().toISOString();
+        const snapshotEmail =
+          session?.email ||
+          session?.lead?.email ||
+          localStorage.getItem("nimclea_email") ||
+          localStorage.getItem("savedEmail") ||
+          window.history.state?.usr?.email ||
+          window.history.state?.usr?.userEmail ||
+          window.history.state?.usr?.lead?.email ||
+          "";
+
+        await saveCaseSnapshot({
+          userId:
+            session?.userId ||
+            localStorage.getItem("nimclea_user_id") ||
+            localStorage.getItem("nimclea_user_id_v1") ||
+            "anonymous_user",
+          trialId:
+            session?.trialId ||
+            session?.sessionId ||
+            sessionId ||
+            diagnosticCaseId,
+          stage: "result",
+          caseId: diagnosticCaseId,
+          id: diagnosticCaseId,
+          status: "diagnostic_completed",
+          currentStep: "result",
+          source: "questionnaire_diagnostic_completed",
+          preview,
+          result,
+          session_id: sessionId,
+          email: snapshotEmail,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } catch (snapshotError) {
+        console.warn("Questionnaire saveCaseSnapshot failed:", snapshotError);
       }
 
       setPhase(PHASE.DONE);
