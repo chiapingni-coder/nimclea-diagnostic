@@ -1440,6 +1440,7 @@ export default function VerificationPage() {
   const verificationViewedLoggedRef = React.useRef(false);
   const verificationResultLoggedRef = React.useRef(false);
   const recoverySectionRef = React.useRef(null);
+  const verificationLedgerSyncKeyRef = React.useRef("");
 
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
@@ -2219,6 +2220,49 @@ const consistencyRepairCard = getConsistencyRepairCardData({
 
   const verificationHash =
     persistedVerificationHash || generatedVerificationHash;
+
+  React.useEffect(() => {
+    const safeCaseId =
+      typeof resolvedVerificationCaseId === "string"
+        ? resolvedVerificationCaseId.trim()
+        : "";
+
+    const safeReceiptHash =
+      typeof proofReceiptHash === "string" ? proofReceiptHash.trim() : "";
+
+    const safeVerificationHash =
+      typeof verificationHash === "string" ? verificationHash.trim() : "";
+
+    if (!safeCaseId) return;
+    if (!/^H-[A-F0-9]{24}$/i.test(safeReceiptHash)) return;
+    if (!/^VH?-[A-F0-9]{24}$/i.test(safeVerificationHash)) return;
+
+    const syncKey = `${safeCaseId}|${safeReceiptHash}|${safeVerificationHash}`;
+    if (verificationLedgerSyncKeyRef.current === syncKey) return;
+    verificationLedgerSyncKeyRef.current = syncKey;
+
+    void syncVerificationHashToLedger({
+      caseId: safeCaseId,
+      receiptHash: safeReceiptHash,
+      verificationHash: safeVerificationHash,
+      verificationStatus: "verification_ready",
+      source: "verification_page_frontend_5_11b",
+      payload: {
+        trigger: "stable_verification_hash_effect",
+        receiptMode,
+        receiptSource,
+        resolvedVerificationEligible:
+          verificationFlat?.resolvedVerificationEligible === true,
+      },
+    });
+  }, [
+    resolvedVerificationCaseId,
+    proofReceiptHash,
+    verificationHash,
+    receiptMode,
+    receiptSource,
+    verificationFlat,
+  ]);
 
   React.useEffect(() => {
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
