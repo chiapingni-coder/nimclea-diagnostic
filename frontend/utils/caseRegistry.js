@@ -316,6 +316,9 @@ export function markCaseAsPaid(caseId = "") {
   });
 }
 
+// Local cache helper only: this writes case events to localStorage and does not
+// persist to backend eventLogs.json. Do not treat it as a durable evidence
+// writer; formal evidence events should use logTrialEvent or POST /event/log.
 export function addCaseEvent(caseId, eventPayload) {
   if (!caseId || !eventPayload) return null;
 

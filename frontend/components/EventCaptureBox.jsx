@@ -2,6 +2,10 @@ import React from "react";
 import { routeInput } from "../lib/inputRouter";
 import { addCaseEvent } from "../utils/caseRegistry.js";
 
+// Dormant/legacy component: this is not the formal Receipt or Verification
+// evidence capture path. It only writes through addCaseEvent, which is a
+// localStorage cache helper. Do not use this for formal evidence unless it is
+// wired to logTrialEvent or POST /event/log.
 export default function EventCaptureBox({ caseId }) {
   const [text, setText] = React.useState("");
   const [hint, setHint] = React.useState("");
