@@ -7,6 +7,7 @@ const REQUIRED_FILES = {
   "eventLogs.json": [],
   "cases.json": [],
   "receiptRecords.json": [],
+  "verificationRecords.json": [],
 };
 
 export function ensureDataFiles() {

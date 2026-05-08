@@ -19,7 +19,9 @@ const __dirname = path.dirname(__filename);
 
 const ledgerFile = path.join(__dirname, "../data/hashLedger.json");
 const RECEIPT_RECORDS_FILE = "receiptRecords.json";
+const VERIFICATION_RECORDS_FILE = "verificationRecords.json";
 const RECEIPT_HASH_PATTERN = /^H-[A-F0-9]{24}$/i;
+const VERIFICATION_HASH_PATTERN = /^V-[A-F0-9]{24}$/i;
 const CASE_ID_PATTERN = /^CASE-\d+-[A-Z0-9]{6}$/;
 
 function normalizeReceiptHash(value = "") {
@@ -27,6 +29,13 @@ function normalizeReceiptHash(value = "") {
 
   const trimmed = value.trim();
   return RECEIPT_HASH_PATTERN.test(trimmed) ? trimmed.toUpperCase() : "";
+}
+
+function normalizeVerificationHash(value = "") {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  return VERIFICATION_HASH_PATTERN.test(trimmed) ? trimmed.toUpperCase() : "";
 }
 
 function normalizeCaseId(input) {
@@ -328,6 +337,127 @@ router.get("/receipt/:caseId", (req, res) => {
     return res.status(500).json({
       ok: false,
       message: "Failed to read receipt hash ledger",
+    });
+  }
+});
+
+router.post("/verification", (req, res) => {
+  try {
+    const caseId = String(req.body?.caseId || "").trim();
+    const receiptHash = normalizeReceiptHash(req.body?.receiptHash);
+    const verificationHash = normalizeVerificationHash(req.body?.verificationHash);
+    const verificationStatus = String(
+      req.body?.verificationStatus || "verification_ready"
+    ).trim();
+    const source = String(req.body?.source || "verification_page").trim() || "verification_page";
+    const now = new Date().toISOString();
+
+    if (!CASE_ID_PATTERN.test(caseId)) {
+      return res.status(400).json({
+        ok: false,
+        message: "caseId must match CASE-<timestamp>-<6 character suffix>",
+      });
+    }
+
+    if (!verificationHash) {
+      return res.status(400).json({
+        ok: false,
+        message: "verificationHash must be V- followed by 24 hex characters",
+      });
+    }
+
+    const recordsRaw = readJsonFile(VERIFICATION_RECORDS_FILE, []);
+    const records = Array.isArray(recordsRaw) ? recordsRaw : [];
+    const existingIndex = records.findIndex(
+      (item) => String(item?.caseId || "").trim() === caseId
+    );
+    const patch = {
+      caseId,
+      receiptHash,
+      verificationHash,
+      verificationStatus,
+      source,
+      payload: req.body?.payload || null,
+      rawPayload: req.body || {},
+      updatedAt: now,
+    };
+
+    if (existingIndex >= 0) {
+      const existing = records[existingIndex] || {};
+      const record = {
+        ...existing,
+        ...patch,
+        createdAt: existing.createdAt || now,
+      };
+
+      records[existingIndex] = record;
+      writeJsonFile(VERIFICATION_RECORDS_FILE, records);
+
+      return res.json({
+        ok: true,
+        created: false,
+        record,
+      });
+    }
+
+    const record = {
+      ...patch,
+      createdAt: now,
+    };
+
+    records.push(record);
+    writeJsonFile(VERIFICATION_RECORDS_FILE, records);
+
+    return res.json({
+      ok: true,
+      created: true,
+      record,
+    });
+  } catch (error) {
+    console.error("POST /hash-ledger/verification error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to write verification record",
+    });
+  }
+});
+
+router.get("/verification", (req, res) => {
+  try {
+    const caseId = String(req.query?.caseId || "").trim();
+
+    if (!caseId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing caseId",
+      });
+    }
+
+    const recordsRaw = readJsonFile(VERIFICATION_RECORDS_FILE, []);
+    const records = Array.isArray(recordsRaw) ? recordsRaw : [];
+    const record = records.find(
+      (item) => String(item?.caseId || "").trim() === caseId
+    ) || null;
+
+    if (!record) {
+      return res.status(404).json({
+        ok: false,
+        exists: false,
+        error: "Verification record not found",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      exists: true,
+      verificationHash: normalizeVerificationHash(record.verificationHash),
+      record,
+    });
+  } catch (error) {
+    console.error("GET /hash-ledger/verification error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to read verification record",
     });
   }
 });

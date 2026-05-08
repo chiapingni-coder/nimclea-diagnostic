@@ -393,3 +393,51 @@ export async function mirrorReceiptRecordToSupabase(receiptRecord = {}) {
     return { ok: false, error };
   }
 }
+
+export async function mirrorVerificationRecordToSupabase(verificationRecord = {}) {
+  if (!isSupabaseEnabled || !supabase) {
+    console.warn("[supabase:verification] skipped, env missing");
+    return { ok: false, skipped: true };
+  }
+
+  try {
+    const caseId = cleanText(verificationRecord?.caseId || verificationRecord?.case_id);
+
+    if (!caseId) {
+      console.warn("[supabase:verification] skipped, missing case_id");
+      return { ok: false, skipped: true };
+    }
+
+    const record = {
+      case_id: caseId,
+      receipt_hash: cleanText(verificationRecord?.receiptHash || verificationRecord?.receipt_hash),
+      verification_hash: cleanText(
+        verificationRecord?.verificationHash ||
+          verificationRecord?.verification_hash ||
+          verificationRecord?.hash
+      ),
+      verification_status: cleanText(
+        verificationRecord?.verificationStatus ||
+          verificationRecord?.verification_status ||
+          verificationRecord?.status
+      ),
+      source: cleanText(verificationRecord?.source),
+      raw_record: verificationRecord,
+      raw_payload: verificationRecord?.rawPayload || verificationRecord?.payload || verificationRecord,
+      created_at: verificationRecord?.createdAt || verificationRecord?.created_at || new Date().toISOString(),
+      updated_at: verificationRecord?.updatedAt || verificationRecord?.updated_at || new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("verification_records")
+      .upsert(record, { onConflict: "case_id" });
+
+    if (error) throw error;
+
+    console.log(`[supabase:verification] mirrored ${caseId}`);
+    return { ok: true };
+  } catch (error) {
+    console.warn("[supabase:verification] failed:", error?.message || error);
+    return { ok: false, error };
+  }
+}

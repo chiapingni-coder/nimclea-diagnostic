@@ -1,7 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { mirrorReceiptRecordToSupabase } from "./supabaseMirrorWrites.js";
+import {
+  mirrorReceiptRecordToSupabase,
+  mirrorVerificationRecordToSupabase,
+} from "./supabaseMirrorWrites.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +70,12 @@ export function writeJsonFile(fileName, data) {
   if (fileName === "receiptRecords.json" && Array.isArray(data)) {
     data.forEach((record) => {
       void mirrorReceiptRecordToSupabase(record);
+    });
+  }
+
+  if (fileName === "verificationRecords.json" && Array.isArray(data)) {
+    data.forEach((record) => {
+      void mirrorVerificationRecordToSupabase(record);
     });
   }
 
