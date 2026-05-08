@@ -818,8 +818,8 @@ export default function CasesPage() {
 
         const existing = mergedCaseMap.get(id) || {};
         mergedCaseMap.set(id, {
-          ...existing,
           ...item,
+          ...existing,
           caseId: id,
           id,
         });
