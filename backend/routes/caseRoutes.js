@@ -7,6 +7,7 @@ import {
 import {
   mirrorCaseToSupabase,
   mirrorCasePlanToSupabase,
+  mirrorCaseResultToSupabase,
   mirrorDiagnosticRecordToSupabase,
 } from "../utils/supabaseMirrorWrites.js";
 
@@ -126,6 +127,37 @@ router.post("/save", async (req, res) => {
     });
 
     await mirrorCaseToSupabase(savedCase);
+    const hasCaseResultSignal = Boolean(
+      req.body?.result ||
+        req.body?.caseSchema ||
+        req.body?.caseData ||
+        req.body?.preview ||
+        req.body?.source === "result_page_save_case" ||
+        req.body?.status === "result_ready"
+    );
+
+    if (hasCaseResultSignal) {
+      await mirrorCaseResultToSupabase({
+        ...(req.body || {}),
+        caseId: savedCase.caseId,
+        userId: savedCase.userId,
+        email: savedCase.email,
+        status:
+          req.body?.status ||
+          (savedCase.status === "draft" ? "result_ready" : savedCase.status) ||
+          "result_ready",
+        score: savedCase.score ?? req.body?.score,
+        eventCount: savedCase.eventCount ?? req.body?.eventCount,
+        receiptEligible: savedCase.receiptEligible,
+        verificationEligible: savedCase.verificationEligible,
+        result: req.body?.result || savedCase.result,
+        preview: req.body?.preview || savedCase.preview,
+        caseSchema: req.body?.caseSchema || savedCase.caseSchema,
+        caseData: savedCase.caseData || req.body?.caseData,
+        rawRecord: savedCase,
+        createdAt: savedCase.createdAt || now,
+      });
+    }
     const hasDiagnosticSignal = Boolean(
       req.body?.answers ||
         req.body?.result ||

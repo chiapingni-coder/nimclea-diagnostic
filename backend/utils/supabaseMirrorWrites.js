@@ -120,6 +120,111 @@ export async function mirrorDiagnosticRecordToSupabase(payload = {}) {
   }
 }
 
+export async function mirrorCaseResultToSupabase(payload = {}) {
+  if (!isSupabaseEnabled || !supabase) {
+    console.warn("[supabase:case-result] skipped, env missing");
+    return { ok: false, skipped: true };
+  }
+
+  const rawRecord = payload?.rawRecord || payload || {};
+  const caseId = normalizeCaseId(payload) || normalizeCaseId(rawRecord);
+
+  if (!caseId) {
+    console.warn("[supabase:case-result] missing caseId");
+    return { ok: false, skipped: true };
+  }
+
+  try {
+    const score = Number(
+      payload?.score ??
+        payload?.totalScore ??
+        rawRecord?.score ??
+        rawRecord?.totalScore ??
+        0
+    );
+    const eventCount = Number(
+      payload?.eventCount ??
+        rawRecord?.eventCount ??
+        rawRecord?.events?.length ??
+        rawRecord?.eventLogs?.length ??
+        0
+    );
+    const receiptEligible = Boolean(
+      payload?.receiptEligible ??
+        rawRecord?.receiptEligible ??
+        rawRecord?.caseReceiptEligible ??
+        false
+    );
+    const verificationEligible = Boolean(
+      payload?.verificationEligible ??
+        rawRecord?.verificationEligible ??
+        false
+    );
+    const record = {
+      case_id: caseId,
+      user_id: nullableUuid(payload?.userId || payload?.user_id || rawRecord?.userId || rawRecord?.user_id),
+      email: normalizeEmail(payload?.email || rawRecord?.email),
+      result_status: cleanText(payload?.status || rawRecord?.status || "result_ready"),
+      score,
+      event_count: eventCount,
+      receipt_eligible: receiptEligible,
+      verification_eligible: verificationEligible,
+      created_at: payload?.createdAt || rawRecord?.createdAt || new Date().toISOString(),
+      summary_payload: jsonValue({
+        result: payload?.result || rawRecord?.result || null,
+        preview: payload?.preview || rawRecord?.preview || null,
+        caseSchema: payload?.caseSchema || rawRecord?.caseSchema || null,
+        caseData: payload?.caseData || rawRecord?.caseData || null,
+        summary: payload?.summary || rawRecord?.summary || "",
+        title: payload?.title || rawRecord?.title || "",
+      }),
+      scoring_payload: jsonValue({
+        score,
+        structureScore:
+          payload?.structureScore ??
+          payload?.structureScoreFromCase ??
+          payload?.caseData?.structureScore ??
+          rawRecord?.structureScore ??
+          rawRecord?.structureScoreFromCase ??
+          rawRecord?.caseData?.structureScore ??
+          null,
+        structureStatus:
+          payload?.structureStatus ||
+          payload?.structureStatusFromCase ||
+          payload?.caseData?.structureStatus ||
+          rawRecord?.structureStatus ||
+          rawRecord?.structureStatusFromCase ||
+          rawRecord?.caseData?.structureStatus ||
+          "",
+        routeDecision:
+          payload?.routeDecision ||
+          payload?.routeDecisionFromCase ||
+          payload?.caseData?.routeDecision ||
+          rawRecord?.routeDecision ||
+          rawRecord?.routeDecisionFromCase ||
+          rawRecord?.caseData?.routeDecision ||
+          null,
+        receiptEligible,
+        verificationEligible,
+        eventCount,
+      }),
+      raw_payload: jsonValue(rawRecord),
+    };
+
+    const { error } = await supabase
+      .from("case_result_records")
+      .insert(record);
+
+    if (error) throw error;
+
+    console.log(`[supabase:case-result] mirrored case result ${caseId}`);
+    return { ok: true };
+  } catch (error) {
+    console.warn("[supabase:case-result] failed but ignored:", error?.message || error);
+    return { ok: false, error };
+  }
+}
+
 export async function mirrorCasePlanToSupabase(payload = {}) {
   if (!isSupabaseEnabled || !supabase) {
     console.warn("[supabase:case-plan] skipped, env missing");
