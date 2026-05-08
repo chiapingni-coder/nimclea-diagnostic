@@ -802,6 +802,7 @@ export default function ReceiptPage() {
   const receiptDebugLoggedRef = React.useRef(false);
   const hashComputedForReceiptRef = React.useRef("");
   const receiptReadyPersistedRef = React.useRef(new Set());
+  const checkoutConfirmAttemptedRef = React.useRef(new Set());
   const routeEnvelope = location.state || null;
   const receiptUrlParams = React.useMemo(
     () => new URLSearchParams(location.search || ""),
@@ -1196,6 +1197,59 @@ const urlCaseId = String(
         getCurrentCaseId() ||
         "",
     });
+
+  React.useEffect(() => {
+    const paidStatus = receiptUrlParams.get("paid");
+    const sessionId = String(receiptUrlParams.get("session_id") || "").trim();
+    const caseId = String(inferredCaseId || "").trim();
+
+    if (paidStatus !== "success" || !sessionId || !caseId) return;
+
+    const confirmationKey = `${caseId}:${sessionId}`;
+    if (checkoutConfirmAttemptedRef.current.has(confirmationKey)) return;
+
+    checkoutConfirmAttemptedRef.current.add(confirmationKey);
+
+    async function confirmCheckoutSession() {
+      try {
+        const response = await fetch(
+          `${HASH_LEDGER_API_BASE}/api/confirm-checkout-session`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ caseId, sessionId }),
+          }
+        );
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || payload?.success !== true) {
+          throw new Error(
+            payload?.message ||
+              payload?.error ||
+              `Checkout confirmation failed (${response.status})`
+          );
+        }
+
+        const confirmedCase = payload?.caseRecord || {};
+
+        upsertCase({
+          ...confirmedCase,
+          caseId,
+        });
+
+        if (confirmedCase?.caseBilling) {
+          setCaseBillingOverride(confirmedCase.caseBilling);
+        }
+      } catch (error) {
+        console.warn("[ReceiptPage] Failed to confirm checkout session", error);
+      }
+    }
+
+    confirmCheckoutSession();
+  }, [inferredCaseId, receiptUrlParams]);
 
   React.useEffect(() => {
     let cancelled = false;
