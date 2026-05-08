@@ -268,7 +268,7 @@ router.post("/save", async (req, res) => {
   }
 });
 
-router.patch("/:caseId/receipt-status", (req, res) => {
+router.patch("/:caseId/receipt-status", async (req, res) => {
   try {
     const resolvedCaseId = normalizeValidCaseId(req.params.caseId);
 
@@ -301,6 +301,8 @@ router.patch("/:caseId/receipt-status", (req, res) => {
         ? existing.receiptReadyAt || req.body?.receiptReadyAt || now
         : existing.receiptReadyAt || null,
     });
+
+    await mirrorCaseToSupabase(savedCase);
 
     return res.json({
       success: true,
