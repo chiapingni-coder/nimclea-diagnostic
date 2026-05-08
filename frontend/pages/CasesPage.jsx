@@ -1447,17 +1447,66 @@ export default function CasesPage() {
                 : ROUTES.DIAGNOSTIC;
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
-              const rawEventCount =
-                normalizedItem?.eventCount ??
-                normalizedItem?.caseSnapshot?.eventCount;
-              const eventCountFromArray = Array.isArray(normalizedItem?.events)
-                ? normalizedItem.events.length
-                : Array.isArray(normalizedItem?.eventLogs)
-                ? normalizedItem.eventLogs.length
-                : 0;
-              const eventCount = Number.isFinite(Number(rawEventCount))
-                ? Number(rawEventCount)
-                : eventCountFromArray;
+              const evidenceCandidates = [
+                ...(Array.isArray(normalizedItem?.events) ? normalizedItem.events : []),
+                ...(Array.isArray(normalizedItem?.eventLogs) ? normalizedItem.eventLogs : []),
+                ...(Array.isArray(normalizedItem?.entries) ? normalizedItem.entries : []),
+                ...(Array.isArray(normalizedItem?.caseSnapshot?.events) ? normalizedItem.caseSnapshot.events : []),
+                ...(Array.isArray(normalizedItem?.caseSnapshot?.eventLogs) ? normalizedItem.caseSnapshot.eventLogs : []),
+                ...(Array.isArray(normalizedItem?.caseSnapshot?.entries) ? normalizedItem.caseSnapshot.entries : []),
+                ...(Array.isArray(normalizedItem?.caseSnapshot?.caseRecord?.events)
+                  ? normalizedItem.caseSnapshot.caseRecord.events
+                  : []),
+                ...(Array.isArray(normalizedItem?.caseSnapshot?.caseRecord?.eventLogs)
+                  ? normalizedItem.caseSnapshot.caseRecord.eventLogs
+                  : []),
+                ...(Array.isArray(normalizedItem?.caseData?.events) ? normalizedItem.caseData.events : []),
+                ...(Array.isArray(normalizedItem?.caseData?.eventLogs) ? normalizedItem.caseData.eventLogs : []),
+                ...(Array.isArray(normalizedItem?.caseData?.eventHistory) ? normalizedItem.caseData.eventHistory : []),
+              ].filter(Boolean);
+
+              const evidenceEventMap = new Map();
+
+              evidenceCandidates.forEach((event) => {
+                const type = String(event?.eventType || event?.type || "").trim();
+              
+                const inputText =
+                  event?.rawText ||
+                  event?.userInput ||
+                  event?.description ||
+                  event?.eventInput?.rawText ||
+                  event?.eventInput?.userInput ||
+                  event?.eventInput?.description ||
+                  event?.note ||
+                  event?.meta?.note ||
+                  event?.reviewResult ||
+                  (event?.eventInput ? JSON.stringify(event.eventInput) : "") ||
+                  "";
+
+                const hasRealEvidenceInput =
+                  Boolean(inputText) ||
+                  Boolean(event?.reviewResult) ||
+                  Boolean(event?.eventInput);
+
+                const isKnownEvidenceType =
+                  type === "resource_control_request" ||
+                  type === "quick_capture_submitted";
+
+                if (!isKnownEvidenceType || !hasRealEvidenceInput) {
+                  return;
+                }
+
+                const key =
+                  event?.eventId ||
+                  event?.id ||
+                  `${type}:${event?.createdAt || event?.timestamp || ""}:${String(inputText).slice(0, 120)}`;
+
+                if (key && !evidenceEventMap.has(key)) {
+                  evidenceEventMap.set(key, event);
+                }
+              });
+
+              const eventCount = evidenceEventMap.size;
               const humanizeStatus = (value = "") =>
                 String(value || "")
                   .trim()
