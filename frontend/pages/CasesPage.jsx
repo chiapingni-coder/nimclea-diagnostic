@@ -1,7 +1,6 @@
 ﻿import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
-import { getAccessMode } from "../utils/accessMode";
 import { sanitizeText } from "../lib/sanitizeText";
 import { saveCaseSnapshot } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
@@ -9,11 +8,6 @@ import { createCaseId, upsertCase, getAllCases } from "../utils/caseRegistry.js"
 import { resolveSafeCaseId } from "../utils/caseIdResolver.js";
 import { runClientStateGuard } from "../utils/clientStateGuard.js";
 import { getStableUserId } from "../utils/eventLogger";
-
-import {
-  getDecisionStabilityLabel,
-  getWeakestDimensionDisplay,
-} from "../lib/customerDecisionDisplay";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const EMAIL_STORAGE_KEY = "nimclea_email";
@@ -1427,9 +1421,6 @@ export default function CasesPage() {
             {visibleActiveCases.map((item, index) => {
               const normalizedItem = normalizeCaseItem(item);
               const caseId = normalizedItem?.caseId || normalizedItem?.case_id || normalizedItem?.id || "";
-              const accessMode = getAccessMode(normalizedItem);
-              const isPaid = accessMode === "paid";
-              const caseSchema = normalizedItem?.caseSchema || normalizedItem?.caseData || normalizedItem || {};
               const hasDiagnosticData = hasDiagnosticResultData(normalizedItem);
               const hasProgress = hasPostDiagnosticProgress(normalizedItem);
               const isDiagnosticCompletedOnly =
@@ -1437,17 +1428,6 @@ export default function CasesPage() {
                 isDiagnosticContinuationCase(normalizedItem);
               const isDiagnosticContinuation =
                 isDiagnosticContinuationCase(normalizedItem);
-
-              const receiptBillingStatus = normalizedItem?.caseBilling?.receiptActivated
-                ? "Activated"
-                : "Preview";
-              const verificationBillingStatus = normalizedItem?.caseBilling?.verificationActivated
-                ? "Activated"
-                : "Preview";
-              const scopeLock = normalizedItem?.scopeLock || null;
-              const acceptanceChecklist = Array.isArray(normalizedItem?.acceptanceChecklist)
-                ? normalizedItem.acceptanceChecklist
-                : [];
               const detailPath = getCaseDetailRoute(normalizedItem);
               const primaryResolvedCaseId = resolveCaseId(normalizedItem);
               const isReceiptReadyCase =
@@ -1467,6 +1447,42 @@ export default function CasesPage() {
                 : ROUTES.DIAGNOSTIC;
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
+              const rawEventCount =
+                normalizedItem?.eventCount ??
+                normalizedItem?.caseSnapshot?.eventCount;
+              const eventCountFromArray = Array.isArray(normalizedItem?.events)
+                ? normalizedItem.events.length
+                : Array.isArray(normalizedItem?.eventLogs)
+                ? normalizedItem.eventLogs.length
+                : 0;
+              const eventCount = Number.isFinite(Number(rawEventCount))
+                ? Number(rawEventCount)
+                : eventCountFromArray;
+              const humanizeStatus = (value = "") =>
+                String(value || "")
+                  .trim()
+                  .replace(/[_-]+/g, " ")
+                  .replace(/\b\w/g, (letter) => letter.toUpperCase());
+              const receiptDisplay =
+                normalizedItem?.receiptEligible === true ||
+                normalizedItem?.caseReceiptEligible === true
+                  ? "Ready, not issued"
+                  : normalizedItem?.receiptStatus
+                  ? humanizeStatus(normalizedItem.receiptStatus)
+                  : "Not ready";
+              const verificationDisplay = normalizedItem?.verificationStatus
+                ? humanizeStatus(normalizedItem.verificationStatus)
+                : "Not activated";
+              const updatedAt = normalizedItem?.updatedAt || item?.updatedAt || "";
+              const formattedUpdatedAt = updatedAt
+                ? new Date(updatedAt).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })
+                : "";
 
               return (
               <article
@@ -1502,9 +1518,6 @@ export default function CasesPage() {
                         <h2 className="text-lg font-semibold text-slate-900">
                           {sanitizeText(item?.title, "Untitled case")}
                         </h2>
-                        <p className="mt-1 text-xs font-medium text-slate-500">
-                          {isPaid ? "Formal case record" : "Trial workspace"}
-                        </p>
                       </div>
                     </div>
 
@@ -1512,36 +1525,22 @@ export default function CasesPage() {
                       <p>Status: {sanitizeText(getDisplayStatus(normalizedItem))}</p>
                       {isExpanded && (
                         <>
-                          <p>{sanitizeText(getDecisionStabilityLabel(item?.score))}</p>
-                          <p>Where it is weakest: {sanitizeText(getWeakestDimensionDisplay(item?.weakestDimension))}</p>
                           <p>
-                            Updated:{" "}
-                            {item?.updatedAt
-                              ? new Date(item.updatedAt).toLocaleString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                })
-                              : "N/A"}
+                            Evidence captured: {eventCount}{" "}
+                            {eventCount === 1 ? "event" : "events"}
                           </p>
-                          <p>Receipt: {sanitizeText(isPaid ? receiptBillingStatus : "Preview only")}</p>
-                          <p>Verification: {sanitizeText(isPaid ? verificationBillingStatus : "Not activated")}</p>
+                          <p>Receipt: {sanitizeText(receiptDisplay)}</p>
+                          <p>Verification: {sanitizeText(verificationDisplay)}</p>
+                          {formattedUpdatedAt ? (
+                            <p>Updated: {formattedUpdatedAt}</p>
+                          ) : null}
                         </>
                       )}
                     </div>
 
                     {isExpanded && (
                       <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs text-slate-600">
-                        <div>
-                          <h3 className="font-semibold text-slate-800">Scope Lock</h3>
-                          <p className="mt-1 leading-5">
-                            {sanitizeText(scopeLock?.scopeStatement, "No scope lock recorded yet.")}
-                          </p>
-                        </div>
-
-                        <div className="mt-5 flex flex-row flex-wrap items-center justify-start gap-3 border-t border-slate-100 py-4">
+                        <div className="flex flex-row flex-wrap items-center justify-start gap-3 py-4">
                           <a
                             href={redoDiagnosticPath}
                             onClick={(event) => {
