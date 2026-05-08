@@ -211,9 +211,26 @@ export async function mirrorCaseResultToSupabase(payload = {}) {
       raw_payload: jsonValue(rawRecord),
     };
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from("case_result_records")
       .insert(record);
+
+    if (
+      error &&
+      String(error.message || "").includes("case_result_records_user_id_fkey")
+    ) {
+      console.warn("[supabase:case-result] user_id fk failed; retrying with null user_id");
+      const retryRecord = {
+        ...record,
+        user_id: null,
+      };
+
+      const retry = await supabase
+        .from("case_result_records")
+        .insert(retryRecord);
+
+      error = retry.error;
+    }
 
     if (error) throw error;
 
