@@ -231,40 +231,40 @@ export async function mirrorReceiptRecordToSupabase(receiptRecord = {}) {
 
   try {
     const caseId = cleanText(receiptRecord?.caseId || receiptRecord?.case_id);
-    const receiptId = cleanText(
-      receiptRecord?.receiptId ||
-        receiptRecord?.receipt_id ||
-        receiptRecord?.hash ||
+    const receiptHash = cleanText(
+      receiptRecord?.hash ||
         receiptRecord?.receiptHash ||
+        receiptRecord?.receipt_hash ||
         receiptRecord?.caseSnapshotHash
-    ) || (caseId ? `receipt_${caseId}` : "");
+    );
 
-    if (!receiptId || !caseId) {
-      console.warn("[supabase:receipt] skipped, missing receipt_id or case_id");
+    if (!caseId) {
+      console.warn("[supabase:receipt] skipped, missing case_id");
       return { ok: false, skipped: true };
     }
 
     const record = {
-      receipt_id: receiptId,
       case_id: caseId,
-      hash: cleanText(receiptRecord?.hash || receiptRecord?.receiptHash || receiptRecord?.receipt_hash),
+      receipt_hash: receiptHash,
+      hash: receiptHash,
       payment_status: cleanText(receiptRecord?.paymentStatus || receiptRecord?.payment_status),
       verification_status: cleanText(receiptRecord?.verificationStatus || receiptRecord?.verification_status),
       paid: receiptRecord?.paid === true,
       source: cleanText(receiptRecord?.source),
       case_snapshot: jsonValue(receiptRecord?.caseSnapshot),
       raw_record: receiptRecord,
+      raw_payload: receiptRecord,
       created_at: receiptRecord?.createdAt || receiptRecord?.created_at || new Date().toISOString(),
       updated_at: receiptRecord?.updatedAt || receiptRecord?.updated_at || new Date().toISOString(),
     };
 
     const { error } = await supabase
       .from("receipt_records")
-      .upsert(record, { onConflict: "receipt_id" });
+      .upsert(record, { onConflict: "case_id" });
 
     if (error) throw error;
 
-    console.log(`[supabase:receipt] mirrored receipt ${receiptId || record.case_id || "unknown"}`);
+    console.log(`[supabase:receipt] mirrored receipt ${record.case_id || "unknown"}`);
     return { ok: true };
   } catch (error) {
     console.warn("[supabase:receipt] failed but ignored:", error?.message || error);
