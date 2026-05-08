@@ -175,7 +175,7 @@ async function syncVerificationHashToLedger({
 
   if (!safeCaseId) return null;
   if (!safeReceiptHash || safeReceiptHash === "Unavailable") return null;
-  if (!/^V-[A-F0-9]{24}$/i.test(safeVerificationHash)) return null;
+  if (!/^VH?-[A-F0-9]{24}$/i.test(safeVerificationHash)) return null;
 
   try {
     const response = await fetch(`${API_BASE}/hash-ledger/verification`, {

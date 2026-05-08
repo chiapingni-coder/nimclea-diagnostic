@@ -21,7 +21,7 @@ const ledgerFile = path.join(__dirname, "../data/hashLedger.json");
 const RECEIPT_RECORDS_FILE = "receiptRecords.json";
 const VERIFICATION_RECORDS_FILE = "verificationRecords.json";
 const RECEIPT_HASH_PATTERN = /^H-[A-F0-9]{24}$/i;
-const VERIFICATION_HASH_PATTERN = /^V-[A-F0-9]{24}$/i;
+const VERIFICATION_HASH_PATTERN = /^VH?-[A-F0-9]{24}$/i;
 const CASE_ID_PATTERN = /^CASE-\d+-[A-Z0-9]{6}$/;
 
 function normalizeReceiptHash(value = "") {
@@ -362,7 +362,7 @@ router.post("/verification", (req, res) => {
     if (!verificationHash) {
       return res.status(400).json({
         ok: false,
-        message: "verificationHash must be V- followed by 24 hex characters",
+        message: "verificationHash must be V- or VH- followed by 24 hex characters",
       });
     }
 
