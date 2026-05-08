@@ -382,6 +382,15 @@ router.post("/confirm-checkout-session", async (req, res) => {
       updatedAt: now,
       source: "stripe_checkout_confirmed",
     });
+    const receiptPaymentRecord = updateReceiptPaymentRecord({
+      receiptId: session?.metadata?.receiptId || session.id,
+      caseId,
+      hash: session?.metadata?.hash || "",
+      paymentTier: "formal_receipt",
+      paymentStatus: "paid",
+      paid: true,
+      source: "stripe_checkout_confirmed",
+    });
 
     return res.json({
       success: true,
@@ -389,6 +398,7 @@ router.post("/confirm-checkout-session", async (req, res) => {
       paymentStatus: session.payment_status,
       caseId,
       caseRecord: updatedCase,
+      receiptPaymentRecord,
     });
   } catch (error) {
     console.error("[STRIPE_CONFIRM_ERROR]", {
