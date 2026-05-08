@@ -160,11 +160,56 @@ function saveStoredVerificationHash(caseId = "", receiptHash = "", verificationH
   }
 }
 
+async function syncVerificationHashToLedger({
+  caseId = "",
+  receiptHash = "",
+  verificationHash = "",
+  verificationStatus = "verification_ready",
+  source = "verification_page_frontend_5_11b",
+  payload = {},
+} = {}) {
+  const safeCaseId = typeof caseId === "string" ? caseId.trim() : "";
+  const safeReceiptHash = typeof receiptHash === "string" ? receiptHash.trim() : "";
+  const safeVerificationHash =
+    typeof verificationHash === "string" ? verificationHash.trim() : "";
+
+  if (!safeCaseId) return null;
+  if (!safeReceiptHash || safeReceiptHash === "Unavailable") return null;
+  if (!/^V-[A-F0-9]{24}$/i.test(safeVerificationHash)) return null;
+
+  try {
+    const response = await fetch(`${API_BASE}/hash-ledger/verification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        caseId: safeCaseId,
+        receiptHash: safeReceiptHash,
+        verificationHash: safeVerificationHash,
+        verificationStatus,
+        source,
+        payload,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn("Failed to sync verification hash ledger:", response.status);
+      return null;
+    }
+
+    return response.json().catch(() => null);
+  } catch (error) {
+    console.warn("Failed to sync verification hash ledger:", error);
+    return null;
+  }
+}
+
 async function fetchReceiptLedgerRecord(caseId) {
   if (!caseId) return null;
 
   const response = await fetch(
-    `http://localhost:3000/hash-ledger/receipt?caseId=${encodeURIComponent(caseId)}`
+    `${API_BASE}/hash-ledger/receipt?caseId=${encodeURIComponent(caseId)}`
   );
 
   if (response.status === 404) return null;
@@ -2184,6 +2229,19 @@ const consistencyRepairCard = getConsistencyRepairCardData({
       proofReceiptHash,
       verificationHash
     );
+    void syncVerificationHashToLedger({
+      caseId: resolvedVerificationCaseId,
+      receiptHash: proofReceiptHash,
+      verificationHash,
+      verificationStatus: "verification_ready",
+      source: "verification_page_frontend_5_11b",
+      payload: {
+        receiptMode,
+        receiptSource,
+        resolvedVerificationEligible:
+          verificationFlat?.resolvedVerificationEligible === true,
+      },
+    });
     try {
       if (
         resolvedVerificationCaseId &&
@@ -2210,6 +2268,8 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     verificationHash,
     currentCase,
     verificationFlat,
+    receiptMode,
+    receiptSource,
   ]);
 
 const displayReceiptHash =
