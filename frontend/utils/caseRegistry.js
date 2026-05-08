@@ -192,11 +192,12 @@ export function upsertCase(input = {}) {
     !hasCaseEvents(input) &&
     (input.status === CASE_STATUS.DRAFT ||
       input.status === CASE_STATUS.RESULT_READY);
-  const existingDraft = wantsDraftCase ? getDraftCase() : null;
+  const existingDraft = wantsDraftCase && !explicitCaseId ? getDraftCase() : null;
   const caseId =
-    wantsDraftCase && existingDraft && (!explicitCase || isDraftCaseRecord(explicitCase))
+    explicitCaseId ||
+    (wantsDraftCase && existingDraft && (!explicitCase || isDraftCaseRecord(explicitCase))
       ? existingDraft.caseId
-      : explicitCaseId || getCurrentCaseId() || createCaseId();
+      : getCurrentCaseId() || createCaseId());
   const existing = cases.find((item) => item.caseId === caseId) || null;
 
   const nextCase = {
