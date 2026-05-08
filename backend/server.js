@@ -25,6 +25,7 @@ import hashLedgerRoutes from "./routes/hashLedgerRoutes.js";
 import { ensureDataFiles } from "./utils/ensureDataFiles.js";
 import { readJsonFile } from "./utils/jsonStore.js";
 import { persistEmailRecord } from "./db/emailStore.js";
+import { isSupabaseEnabled, supabase } from "./utils/supabaseClient.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -221,7 +222,132 @@ function normalizeCaseRecord(record = {}) {
   };
 }
 
-app.get("/cases", (req, res) => {
+function objectOrEmpty(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function normalizeSupabaseCaseRow(row = {}) {
+  const raw = objectOrEmpty(row?.raw_record);
+
+  return {
+    ...raw,
+    caseId: row?.case_id,
+    id: raw?.id || row?.case_id,
+    email: row?.email || raw?.email,
+    name: row?.name || raw?.name,
+    company: row?.company || raw?.company,
+    status: row?.status || raw?.status,
+    stage: row?.stage || raw?.stage,
+    source: row?.source || raw?.source || "supabase_cases",
+    result: row?.result || raw?.result || raw?.preview,
+    caseData:
+      row?.case_data ||
+      raw?.caseData ||
+      raw?.caseSchema ||
+      raw?.caseSnapshot,
+    createdAt: raw?.createdAt || row?.created_at,
+    updatedAt: raw?.updatedAt || row?.updated_at,
+    _supabaseSource: "cases",
+  };
+}
+
+function normalizeSupabaseReceiptRow(row = {}) {
+  const raw = objectOrEmpty(row?.raw_record || row?.raw_payload);
+
+  return {
+    ...raw,
+    caseId: row?.case_id,
+    id: raw?.id || row?.case_id,
+    hash: row?.hash || row?.receipt_hash || raw?.hash,
+    receiptHash: row?.receipt_hash || raw?.receiptHash,
+    paymentStatus: row?.payment_status || raw?.paymentStatus,
+    verificationStatus: row?.verification_status || raw?.verificationStatus,
+    paid: row?.paid === true || raw?.paid === true,
+    source: row?.source || raw?.source || "supabase_receipt",
+    caseSnapshot: row?.case_snapshot || raw?.caseSnapshot,
+    createdAt: raw?.createdAt || row?.created_at,
+    updatedAt: raw?.updatedAt || row?.updated_at,
+    _supabaseSource: "receipt_records",
+  };
+}
+
+function normalizeSupabaseEventRow(row = {}) {
+  const raw = objectOrEmpty(row?.raw_record);
+
+  return {
+    ...raw,
+    eventId: row?.event_id,
+    id: raw?.id || row?.event_id,
+    caseId: row?.case_id,
+    userId: row?.user_id || raw?.userId,
+    trialId: row?.trial_id || raw?.trialId,
+    eventType: row?.event_type || raw?.eventType || raw?.type,
+    type: row?.event_type || raw?.type,
+    page: row?.page || raw?.page,
+    source: row?.source || raw?.source || "supabase_event",
+    meta: row?.meta || raw?.meta || {},
+    createdAt: raw?.createdAt || row?.created_at,
+    timestamp: raw?.timestamp || row?.created_at,
+    _supabaseSource: "event_logs",
+  };
+}
+
+async function loadSupabaseCaseSourcesForEmail(email) {
+  const emptySources = { cases: [], receiptRecords: [], eventLogs: [] };
+
+  if (!isSupabaseEnabled || !supabase) {
+    return emptySources;
+  }
+
+  try {
+    const { data: caseRows = [], error: casesError } = await supabase
+      .from("cases")
+      .select("*")
+      .eq("email", email);
+
+    if (casesError) throw casesError;
+
+    const caseIds = Array.from(
+      new Set(
+        (Array.isArray(caseRows) ? caseRows : [])
+          .map((row) => String(row?.case_id || "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    let receiptRows = [];
+    let eventRows = [];
+
+    if (caseIds.length > 0) {
+      const { data: nextReceiptRows = [], error: receiptError } = await supabase
+        .from("receipt_records")
+        .select("*")
+        .in("case_id", caseIds);
+
+      if (receiptError) throw receiptError;
+      receiptRows = Array.isArray(nextReceiptRows) ? nextReceiptRows : [];
+
+      const { data: nextEventRows = [], error: eventError } = await supabase
+        .from("event_logs")
+        .select("*")
+        .in("case_id", caseIds);
+
+      if (eventError) throw eventError;
+      eventRows = Array.isArray(nextEventRows) ? nextEventRows : [];
+    }
+
+    return {
+      cases: (Array.isArray(caseRows) ? caseRows : []).map(normalizeSupabaseCaseRow),
+      receiptRecords: receiptRows.map(normalizeSupabaseReceiptRow),
+      eventLogs: eventRows.map(normalizeSupabaseEventRow),
+    };
+  } catch {
+    console.warn("[supabase:/cases] reader failed; using JSON fallback");
+    return emptySources;
+  }
+}
+
+app.get("/cases", async (req, res) => {
   const email = String(req.query?.email || "").trim().toLowerCase();
 
   if (!email) {
@@ -234,16 +360,24 @@ app.get("/cases", (req, res) => {
     const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
     const storedEventLogs = readJsonFile("eventLogs.json", []);
 
-    const logs = Array.isArray(storedLogs) ? storedLogs : [];
-    const cases = Array.isArray(storedCases) ? storedCases : [];
-    const receiptRecords = Array.isArray(storedReceiptRecords) ? storedReceiptRecords : [];
-    const eventLogs = Array.isArray(storedEventLogs)
+    const localLogs = Array.isArray(storedLogs) ? storedLogs : [];
+    const localCases = Array.isArray(storedCases) ? storedCases : [];
+    const localReceiptRecords = Array.isArray(storedReceiptRecords) ? storedReceiptRecords : [];
+    const localEventLogs = Array.isArray(storedEventLogs)
       ? storedEventLogs
       : Array.isArray(storedEventLogs?.events)
       ? storedEventLogs.events
       : Array.isArray(storedEventLogs?.logs)
       ? storedEventLogs.logs
       : [];
+    const supabaseSources = await loadSupabaseCaseSourcesForEmail(email);
+    const logs = localLogs;
+    const cases = [...localCases, ...supabaseSources.cases];
+    const receiptRecords = [
+      ...localReceiptRecords,
+      ...supabaseSources.receiptRecords,
+    ];
+    const eventLogs = [...localEventLogs, ...supabaseSources.eventLogs];
 
     const caseIdOf = (item = {}) =>
       String(
