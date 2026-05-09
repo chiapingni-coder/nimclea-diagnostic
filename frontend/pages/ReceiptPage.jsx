@@ -2337,8 +2337,13 @@ const verificationBlockedReason = !guardedReceiptEligible
 const canFormalizeProof =
   guardedReceiptEligible && canShowFormalPaymentEntry && caseStatus !== "draft";
 
+const shouldUnlockFormalReceiptFromReceiptCta =
+  receiptEligible && !receiptActivated && canFormalizeProof;
+
 const receiptCtaLabel = !receiptEligible
   ? "Improve Record to Issue Receipt"
+  : shouldUnlockFormalReceiptFromReceiptCta
+  ? "Unlock Formal Receipt"
   : "Open Verification";
 
 const handleActivateReceiptForCase = () => {
@@ -3997,7 +4002,7 @@ if (!canRenderReceipt) {
                 }
 
                 if (receiptEligible) {
-                 if (!receiptActivated) {
+                 if (shouldUnlockFormalReceiptFromReceiptCta) {
                     handleUnlockFormalReceipt();
                     return;
                   }
