@@ -1620,18 +1620,6 @@ export default function VerificationPage() {
         const list = Array.isArray(payload) ? payload : [];
         const found = list.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
 
-        console.log("[VerificationPage backend hydrate result]", {
-          email,
-          safeCaseId,
-          count: list.length,
-          found: Boolean(found),
-          foundCaseId: getCaseIdFromAny(found || {}),
-          foundStage: found?.stage,
-          foundStatus: found?.status,
-          foundReceiptEligible: found?.receiptEligible,
-          foundEventCount: found?.eventCount,
-        });
-
         if (!cancelled) {
           setBackendCaseRecord(found);
         }
@@ -1982,21 +1970,6 @@ export default function VerificationPage() {
     !!routeEnvelope?.receiptPageData ||
     !!routeEnvelope?.sharedReceiptVerificationContract ||
     !!sharedContract;
-
-  console.log("[VerificationPage case source trace]", {
-    caseId: inferredCaseId || caseId,
-    hasBackendCaseRecord: Boolean(backendCaseRecord),
-    backendStage: backendCaseRecord?.stage,
-    backendStatus: backendCaseRecord?.status,
-    backendReceiptEligible: backendCaseRecord?.receiptEligible,
-    backendEventCount: backendCaseRecord?.eventCount,
-    hasRestoredCaseRecord: Boolean(restoredCaseRecord),
-    hasLocalCurrentCase: Boolean(currentCase),
-    effectiveEventCount: effectiveCaseRecord?.eventCount,
-    hasEventBackedBaseline,
-    receiptAllowsVerification,
-    cameFromIssuedReceipt,
-  });
 
   const resolvedPayload = resolveVerificationPayload(
     routeEnvelope || {},
