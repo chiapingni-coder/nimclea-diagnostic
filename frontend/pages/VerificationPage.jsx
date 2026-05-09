@@ -100,6 +100,27 @@ function getStoredVerificationData() {
   }
 }
 
+function resolveVerificationEmailSource(locationState = {}) {
+  return (
+    locationState?.email ||
+    locationState?.userEmail ||
+    localStorage.getItem("nimclea_email") ||
+    localStorage.getItem("savedEmail") ||
+    ""
+  );
+}
+
+function getCaseIdFromAny(item = {}) {
+  return String(
+    item?.caseId ||
+      item?.case_id ||
+      item?.id ||
+      item?.caseSnapshot?.caseId ||
+      item?.caseSnapshot?.caseRecord?.caseId ||
+      ""
+  ).trim();
+}
+
 function getStoredStableHash(key = "") {
   if (!key) return "";
 
@@ -1480,6 +1501,9 @@ export default function VerificationPage() {
   const [workflowEventLogs, setWorkflowEventLogs] = useState([]);
   const [restoredCaseRecord, setRestoredCaseRecord] = useState(null);
   const [restoredCaseLoading, setRestoredCaseLoading] = useState(false);
+  const [backendCaseRecord, setBackendCaseRecord] = useState(null);
+  const [backendCaseLoading, setBackendCaseLoading] = useState(false);
+  const [backendCaseError, setBackendCaseError] = useState(null);
   const [modalSource, setModalSource] = useState("verification_cta");
 
   const routeEnvelope = location.state || null;
@@ -1564,6 +1588,59 @@ export default function VerificationPage() {
       cancelled = true;
     };
   }, [caseId, inferredCaseId]);
+
+  React.useEffect(() => {
+    const safeCaseId = String(inferredCaseId || caseId || "").trim();
+    const email = String(resolveVerificationEmailSource(location.state || "") || "")
+      .trim()
+      .toLowerCase();
+
+    if (!safeCaseId || !email || !email.includes("@")) return;
+
+    let cancelled = false;
+
+    async function hydrateBackendCaseRecord() {
+      setBackendCaseLoading(true);
+      setBackendCaseError(null);
+
+      try {
+        const response = await fetch(
+          `${API_BASE}/cases?email=${encodeURIComponent(email)}`
+        );
+        const payload = await response.json().catch(() => []);
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error ||
+              payload?.message ||
+              `Failed to load cases (${response.status})`
+          );
+        }
+
+        const list = Array.isArray(payload) ? payload : [];
+        const found = list.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
+
+        if (!cancelled) {
+          setBackendCaseRecord(found);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[VerificationPage backend case hydrate failed]", error);
+          setBackendCaseError(error);
+        }
+      } finally {
+        if (!cancelled) {
+          setBackendCaseLoading(false);
+        }
+      }
+    }
+
+    void hydrateBackendCaseRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inferredCaseId, caseId, location.state]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1664,7 +1741,8 @@ export default function VerificationPage() {
     console.warn("Failed to read case registry for verification gate", error);
   }
 
-  const effectiveCaseRecord = restoredCaseRecord || currentCase || null;
+  const effectiveCaseRecord =
+    backendCaseRecord || restoredCaseRecord || currentCase || null;
 
   const verificationFlat =
     sharedContract
@@ -1892,6 +1970,22 @@ export default function VerificationPage() {
     !!routeEnvelope?.receiptPageData ||
     !!routeEnvelope?.sharedReceiptVerificationContract ||
     !!sharedContract;
+
+  console.log("[VerificationPage case source trace]", {
+    caseId: inferredCaseId || caseId,
+    hasBackendCaseRecord: Boolean(backendCaseRecord),
+    backendStage: backendCaseRecord?.stage,
+    backendStatus: backendCaseRecord?.status,
+    backendReceiptEligible: backendCaseRecord?.receiptEligible,
+    backendEventCount: backendCaseRecord?.eventCount,
+    hasRestoredCaseRecord: Boolean(restoredCaseRecord),
+    hasLocalCurrentCase: Boolean(currentCase),
+    effectiveEventCount: effectiveCaseRecord?.eventCount,
+    hasEventBackedBaseline,
+    receiptAllowsVerification,
+    cameFromIssuedReceipt,
+  });
+
   const resolvedPayload = resolveVerificationPayload(
     routeEnvelope || {},
     receiptBackedContext,
