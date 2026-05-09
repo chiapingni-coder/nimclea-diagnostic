@@ -20,6 +20,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const RECEIPT_RECORDS_FILE = "receiptRecords.json";
 const SUBSCRIPTION_RECORDS_FILE = "subscriptionRecords.json";
 const RECEIPT_PRICE_ID = String(process.env.STRIPE_RECEIPT_PRICE_ID || "").trim();
+const FORMAL_VERIFICATION_PRICE_ID = String(process.env.STRIPE_FORMAL_VERIFICATION_PRICE_ID || "").trim();
 const FRONTEND_URL = String(process.env.FRONTEND_URL || "http://localhost:5173").trim();
 const PILOT_EXTENSION_FRONTEND_URL = "http://localhost:5173";
 const CASES_FILE = "cases.json";
@@ -210,6 +211,31 @@ function updateReceiptPaymentRecord({
 
   appendJsonRecord(RECEIPT_RECORDS_FILE, record);
   return record;
+}
+
+function normalizeLifecycleValue(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getVerificationLifecycleRank(value = "") {
+  const ranks = {
+    active: 1,
+    verification_active: 1,
+    ready: 2,
+    verification_ready: 2,
+    issued: 3,
+    verification_issued: 3,
+    completed: 4,
+    verification_completed: 4,
+  };
+
+  return ranks[normalizeLifecycleValue(value)] || 0;
+}
+
+function preserveStrongerVerificationValue(currentValue = "", proposedValue = "") {
+  return getVerificationLifecycleRank(currentValue) > getVerificationLifecycleRank(proposedValue)
+    ? currentValue
+    : proposedValue;
 }
 
 function updateSubscriptionCheckoutRecord({
@@ -413,6 +439,48 @@ export async function createCheckoutSession(req, res) {
       return res.json({ url: session.url, subscriptionRecord });
     }
 
+    if (priceType === "formal_verification" || paymentType === "formal_verification") {
+      const safeCaseId = String(caseId || "").trim();
+      const customerEmail = String(email || "").trim();
+
+      if (!safeCaseId) {
+        return res.status(400).json({ error: "Missing caseId" });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer_email: customerEmail || undefined,
+        metadata: {
+          paymentType: "formal_verification",
+          priceType: "formal_verification",
+          caseId: safeCaseId,
+          email: customerEmail,
+        },
+        line_items: [
+          FORMAL_VERIFICATION_PRICE_ID
+            ? {
+                price: FORMAL_VERIFICATION_PRICE_ID,
+                quantity: 1,
+              }
+            : {
+                price_data: {
+                  currency: "usd",
+                  product_data: {
+                    name: "Nimclea Formal Verification",
+                    description: `Formal verification activation for case ${safeCaseId}`,
+                  },
+                  unit_amount: 19900,
+                },
+                quantity: 1,
+              },
+        ],
+        success_url: `${FRONTEND_URL}/verification?caseId=${encodeURIComponent(safeCaseId)}&checkout=success&session_id={CHECKOUT_SESSION_ID}&paymentType=formal_verification`,
+        cancel_url: `${FRONTEND_URL}/verification?caseId=${encodeURIComponent(safeCaseId)}&checkout=cancel&paymentType=formal_verification`,
+      });
+
+      return res.json({ url: session.url });
+    }
+
     if (!caseId) {
       return res.status(400).json({ error: "Missing caseId" });
     }
@@ -571,6 +639,95 @@ router.post("/confirm-checkout-session", async (req, res) => {
         subscriptionRecord,
         userRecord,
         caseRecord,
+      });
+    }
+
+    if (sessionPaymentType === "formal_verification") {
+      const safeCaseId = String(caseId || sessionCaseId || "").trim();
+
+      if (!safeCaseId) {
+        return res.status(400).json({
+          error: "Missing caseId",
+        });
+      }
+
+      if (sessionCaseId && sessionCaseId !== safeCaseId) {
+        return res.status(400).json({
+          error: "Case mismatch for checkout session",
+          message: "The checkout session does not belong to the supplied caseId.",
+        });
+      }
+
+      if (session.payment_status !== "paid") {
+        return res.status(409).json({
+          error: "Checkout session not paid",
+          message: `Session payment_status is ${session.payment_status || "unknown"}`,
+          payment_status: session.payment_status || null,
+        });
+      }
+
+      const casesRaw = readJsonFile(CASES_FILE, []);
+      const cases = Array.isArray(casesRaw) ? casesRaw : [];
+      const existingIndex = findCaseIndex(cases, safeCaseId);
+      const existingCase = existingIndex >= 0 ? cases[existingIndex] || {} : {};
+      const now = new Date().toISOString();
+      const existingVerificationStatus =
+        existingCase.verificationStatus ||
+        existingCase.verification?.status ||
+        "";
+      const verificationStatus = preserveStrongerVerificationValue(
+        existingVerificationStatus,
+        "active"
+      );
+      const verificationPayment = {
+        ...(existingCase.verificationPayment || {}),
+        paymentType: "formal_verification",
+        paymentStatus: "paid",
+        status: "paid",
+        stripeSessionId: session.id,
+        stripeCustomerId: String(session.customer || ""),
+        paymentIntentId: session.payment_intent || "",
+        paidAt: now,
+        activatedAt: now,
+        source: "stripe_checkout_confirmed",
+      };
+
+      const updatedCase = upsertCaseRecord({
+        ...existingCase,
+        caseId: safeCaseId,
+        verificationPayment,
+        verificationPaid: true,
+        verificationActivated: true,
+        verificationPaymentStatus: "paid",
+        verificationPaidAt: now,
+        verificationActivatedAt: now,
+        verificationStatus,
+        payment: {
+          ...(existingCase.payment || {}),
+          verificationPaid: true,
+          verificationActivated: true,
+          verificationPaymentStatus: "paid",
+          formalVerificationStripeSessionId: session.id,
+        },
+        caseBilling: {
+          ...(existingCase.caseBilling || {}),
+          verificationActivated: true,
+          verificationActivatedAt: now,
+          verificationPaymentStatus: "paid",
+          verificationPaymentSessionId: session.id,
+          verificationPaymentIntentId: session.payment_intent || "",
+          source: "stripe_checkout_confirmed",
+        },
+        updatedAt: now,
+      });
+
+      return res.json({
+        success: true,
+        sessionId: session.id,
+        paymentType: "formal_verification",
+        paymentStatus: session.payment_status,
+        caseId: safeCaseId,
+        caseRecord: updatedCase,
       });
     }
 

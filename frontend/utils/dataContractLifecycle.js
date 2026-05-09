@@ -58,6 +58,56 @@ function hasFallbackSource(record = {}) {
   });
 }
 
+function isBackendOwnedSourceValue(value) {
+  const normalized = normalizeLifecycleValue(value);
+  if (!normalized) return false;
+
+  return (
+    normalized.includes("backend") ||
+    normalized.includes("stripe") ||
+    normalized.includes("confirmed") ||
+    normalized.includes("supabase")
+  );
+}
+
+function hasBackendOwnedVerificationPayment(record = {}) {
+  if (!record || hasFallbackSource(record)) return false;
+
+  const verificationPaymentStatus = normalizeLifecycleValue(
+    record?.verificationPayment?.paymentStatus ||
+      record?.verificationPayment?.status ||
+      record?.verificationPaymentStatus ||
+      record?.payment?.verificationPaymentStatus
+  );
+  const verificationPaymentSource =
+    record?.verificationPayment?.source ||
+    record?.payment?.verificationPaymentSource ||
+    record?.payment?.source ||
+    record?.source;
+  const hasTrustedVerificationPaymentSource = isBackendOwnedSourceValue(
+    verificationPaymentSource
+  );
+  const caseBillingVerificationSource =
+    record?.caseBilling?.source ||
+    record?.caseBilling?.verificationSource ||
+    record?.caseBilling?.verificationPaymentSource;
+
+  return Boolean(
+    ((record?.verificationPaid === true ||
+      record?.verificationActivated === true ||
+      record?.verificationPayment?.paid === true ||
+      record?.verificationPayment?.activated === true ||
+      record?.payment?.verificationPaid === true ||
+      record?.payment?.verificationActivated === true ||
+      verificationPaymentStatus === "paid" ||
+      verificationPaymentStatus === "active" ||
+      verificationPaymentStatus === "activated") &&
+      hasTrustedVerificationPaymentSource) ||
+      (record?.caseBilling?.verificationActivated === true &&
+        isBackendOwnedSourceValue(caseBillingVerificationSource))
+  );
+}
+
 export function normalizeLifecycleValue(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -189,7 +239,8 @@ export function isBackendVerificationEligible(record = {}) {
   return Boolean(
     record?.verificationEligible === true ||
       record?.verification_ready === true ||
-      record?.verification?.eligible === true
+      record?.verification?.eligible === true ||
+      hasBackendOwnedVerificationPayment(record)
   );
 }
 

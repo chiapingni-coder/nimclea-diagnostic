@@ -1502,6 +1502,7 @@ export default function VerificationPage() {
   const verificationResultLoggedRef = React.useRef(false);
   const recoverySectionRef = React.useRef(null);
   const verificationLedgerSyncKeyRef = React.useRef("");
+  const formalVerificationConfirmAttemptedRef = React.useRef(new Set());
 
   const pcMeta = location.state?.pcMeta || {
     pc_id: "PC-001",
@@ -1527,6 +1528,8 @@ export default function VerificationPage() {
   const [backendCaseLoading, setBackendCaseLoading] = useState(false);
   const [backendCaseError, setBackendCaseError] = useState(null);
   const [modalSource, setModalSource] = useState("verification_cta");
+  const [startingFormalVerificationCheckout, setStartingFormalVerificationCheckout] = useState(false);
+  const [formalVerificationCheckoutError, setFormalVerificationCheckoutError] = useState("");
 
   const routeEnvelope = location.state || null;
   const routeDecision = routeEnvelope?.routeDecision || null;
@@ -1568,6 +1571,100 @@ export default function VerificationPage() {
         "",
     });
   const caseId = inferredCaseId;
+
+  React.useEffect(() => {
+    const checkoutStatus = verificationUrlParams.get("checkout");
+    const paymentType = verificationUrlParams.get("paymentType");
+    const sessionId = String(verificationUrlParams.get("session_id") || "").trim();
+    const safeCaseId = String(caseId || inferredCaseId || "").trim();
+
+    if (checkoutStatus === "cancel" && paymentType === "formal_verification") {
+      setFormalVerificationCheckoutError("");
+      setStartingFormalVerificationCheckout(false);
+      return;
+    }
+
+    if (checkoutStatus !== "success" || paymentType !== "formal_verification") {
+      return;
+    }
+
+    if (!sessionId) {
+      console.warn("[VerificationPage] Formal verification checkout returned without session_id; ignoring as payment authority.");
+      setFormalVerificationCheckoutError("Checkout returned without a session reference. Please retry checkout.");
+      return;
+    }
+
+    if (!safeCaseId) {
+      console.warn("[VerificationPage] Formal verification checkout returned without caseId; ignoring as payment authority.");
+      setFormalVerificationCheckoutError("Checkout returned without a case reference. Please reopen from the receipt.");
+      return;
+    }
+
+    const confirmationKey = `formal_verification:${safeCaseId}:${sessionId}`;
+    if (formalVerificationConfirmAttemptedRef.current.has(confirmationKey)) {
+      return;
+    }
+    formalVerificationConfirmAttemptedRef.current.add(confirmationKey);
+
+    let cancelled = false;
+
+    async function confirmFormalVerificationCheckout() {
+      try {
+        const response = await fetch(`${API_BASE}/api/confirm-checkout-session`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            caseId: safeCaseId,
+            paymentType: "formal_verification",
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || payload?.success !== true) {
+          throw new Error(
+            payload?.message ||
+              payload?.error ||
+              `Formal verification confirmation failed (${response.status})`
+          );
+        }
+
+        if (cancelled) return;
+
+        const confirmedCase = payload?.caseRecord || {};
+        if (confirmedCase?.caseId || safeCaseId) {
+          const nextCase = {
+            ...confirmedCase,
+            caseId: confirmedCase?.caseId || safeCaseId,
+            _backendConfirmed: true,
+          };
+          setBackendCaseRecord(nextCase);
+          setRestoredCaseRecord(nextCase);
+          upsertCase(nextCase);
+        }
+
+        setFormalVerificationCheckoutError("");
+      } catch (error) {
+        console.warn("[VerificationPage] Failed to confirm formal verification checkout", error);
+        if (!cancelled) {
+          setFormalVerificationCheckoutError("Could not confirm formal verification payment. Please try again.");
+        }
+      } finally {
+        if (!cancelled) {
+          setStartingFormalVerificationCheckout(false);
+        }
+      }
+    }
+
+    void confirmFormalVerificationCheckout();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId, inferredCaseId, verificationUrlParams]);
 
   React.useEffect(() => {
     const restoreCaseId = caseId || inferredCaseId;
@@ -2886,6 +2983,49 @@ const recommendedPathLabel =
     }
   };
 
+  const handleStartFormalVerificationCheckout = async () => {
+    const safeCaseId = String(
+      resolvedVerificationCaseId || activeCaseId || caseId || ""
+    ).trim();
+
+    if (!safeCaseId || !backendFormalVerificationGate) {
+      handleOpenSubscriptionModal("verification_activation_locked");
+      return;
+    }
+
+    setFormalVerificationCheckoutError("");
+    setStartingFormalVerificationCheckout(true);
+
+    try {
+      const email = String(resolveVerificationEmailSource(location.state || {}) || "")
+        .trim()
+        .toLowerCase();
+      const response = await fetch(`${API_BASE}/api/create-checkout-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          paymentType: "formal_verification",
+          priceType: "formal_verification",
+          caseId: safeCaseId,
+          email,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.message || payload?.error || "Checkout session failed.");
+      }
+
+      window.location.href = payload.url;
+    } catch (error) {
+      console.warn("[VerificationPage] Failed to start formal verification checkout", error);
+      setFormalVerificationCheckoutError("Could not start formal verification checkout. Please try again.");
+      setStartingFormalVerificationCheckout(false);
+    }
+  };
+
   const handleFileUpload = (event) => {
     if (!verificationActivated) {
       handleOpenSubscriptionModal("evidence_upload_locked");
@@ -3604,7 +3744,7 @@ const recommendedPathLabel =
                   }
 
                   if (!verificationActivated) {
-                    handleOpenSubscriptionModal("verification_activation_locked");
+                    handleStartFormalVerificationCheckout();
                     return;
                   }
 
@@ -3617,13 +3757,18 @@ const recommendedPathLabel =
                   e.currentTarget.style.backgroundColor = "#059669";
                 }}
                 className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold shadow-sm transition"
+                disabled={startingFormalVerificationCheckout}
                 style={{
                   backgroundColor: "#059669",
                   color: "#FFFFFF",
                   boxShadow: "0 6px 16px rgba(5,150,105,0.35)",
                 }}
               >
-                {verificationActivated ? "Verify Record" : "Activate Verification"}
+                {startingFormalVerificationCheckout
+                  ? "Starting checkout..."
+                  : verificationActivated
+                  ? "Verify Record"
+                  : "Activate Verification"}
               </button>
             ) : (
               <button
@@ -3655,6 +3800,12 @@ const recommendedPathLabel =
               </button>
             )}
           </div>
+
+          {formalVerificationCheckoutError ? (
+            <p className="mt-3 text-xs font-medium text-red-600">
+              {sanitizeText(formalVerificationCheckoutError)}
+            </p>
+          ) : null}
 
           {showRecoveryPanel && !canActivateFormalVerification && (
             <div className="mt-6 space-y-4" ref={recoverySectionRef}>
