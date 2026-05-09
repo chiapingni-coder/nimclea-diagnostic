@@ -101,6 +101,27 @@ function getStoredReceiptData() {
   }
 }
 
+function resolveReceiptEmailSource(locationState = {}) {
+  return (
+    locationState?.email ||
+    locationState?.userEmail ||
+    localStorage.getItem("nimclea_email") ||
+    localStorage.getItem("savedEmail") ||
+    ""
+  );
+}
+
+function getCaseIdFromAny(item = {}) {
+  return String(
+    item?.caseId ||
+      item?.case_id ||
+      item?.id ||
+      item?.caseSnapshot?.caseId ||
+      item?.caseSnapshot?.caseRecord?.caseId ||
+      ""
+  ).trim();
+}
+
 function getStoredStableHash(key = "") {
   if (!key) return "";
 
@@ -801,6 +822,9 @@ export default function ReceiptPage() {
   const [isReceiptEligibilityOpen, setIsReceiptEligibilityOpen] = React.useState(false);
   const [hydratedReceiptRecord, setHydratedReceiptRecord] = React.useState(null);
   const [receiptRecordHydrationComplete, setReceiptRecordHydrationComplete] = React.useState(false);
+  const [backendCaseRecord, setBackendCaseRecord] = React.useState(null);
+  const [backendCaseLoading, setBackendCaseLoading] = React.useState(false);
+  const [backendCaseError, setBackendCaseError] = React.useState(null);
 
   const [quickCaptureOpen, setQuickCaptureOpen] = React.useState(false);
   const [quickCaptureType, setQuickCaptureType] = React.useState("decision_accepted");
@@ -1327,6 +1351,74 @@ const urlCaseId = String(
     };
   }, [inferredCaseId, routeDataCaseId, storedDataCaseId]);
 
+  React.useEffect(() => {
+    const safeCaseId = typeof inferredCaseId === "string" ? inferredCaseId.trim() : "";
+    const email = String(resolveReceiptEmailSource(routeEnvelope) || "").trim();
+
+    if (!safeCaseId || !email) {
+      setBackendCaseRecord(null);
+      setBackendCaseLoading(false);
+      setBackendCaseError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadBackendCaseRecord() {
+      setBackendCaseLoading(true);
+      setBackendCaseError(null);
+
+      try {
+        const response = await fetch(
+          `${HASH_LEDGER_API_BASE}/cases?email=${encodeURIComponent(email)}`
+        );
+
+        if (response.status === 404) {
+          if (!cancelled) {
+            setBackendCaseRecord(null);
+          }
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch backend case record: ${response.status}`);
+        }
+
+        const payload = await response.json().catch(() => null);
+        const items = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.cases)
+          ? payload.cases
+          : Array.isArray(payload?.records)
+          ? payload.records
+          : [];
+        const matchedRecord =
+          items.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
+
+        if (!cancelled) {
+          setBackendCaseRecord(matchedRecord);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[ReceiptPage] Failed to hydrate backend case record", error);
+          setBackendCaseError(error);
+        }
+      } finally {
+        if (!cancelled) {
+          setBackendCaseLoading(false);
+        }
+      }
+    }
+
+    void loadBackendCaseRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inferredCaseId, routeEnvelope]);
+
   let currentCase = null;
 
   try {
@@ -1334,11 +1426,13 @@ const urlCaseId = String(
   } catch (error) {
     console.warn("Failed to read case registry for receipt gate", error);
   }
-  const activeCurrentCase = hydratedReceiptRecord || currentCase || null;
-  const activeCurrentCaseSource = hydratedReceiptRecord
-    ? "hydratedReceiptRecord"
+  const activeCurrentCase = backendCaseRecord || currentCase || hydratedReceiptRecord || null;
+  const activeCurrentCaseSource = backendCaseRecord
+    ? "backendCasesEndpoint"
     : currentCase
     ? "localCaseRegistry"
+    : hydratedReceiptRecord
+    ? "hydratedReceiptRecord"
     : "none";
   const isReceiptCaseHydrating =
     Boolean(inferredCaseId) &&
@@ -1495,7 +1589,18 @@ const urlCaseId = String(
   const hasEvents =
     Array.isArray(realCapturedEvents) &&
     realCapturedEvents.length > 0;
-  const explicitBackendReceiptReady = deriveExplicitReceiptReady(activeCurrentCase);
+  const explicitBackendReceiptReady = Boolean(
+    deriveExplicitReceiptReady(backendCaseRecord) ||
+    deriveExplicitReceiptReady(activeCurrentCase) ||
+    deriveExplicitReceiptReady(currentCase) ||
+    deriveExplicitReceiptReady(normalized?.caseData) ||
+    deriveExplicitReceiptReady(resolvedPayload?.caseData) ||
+    hydratedReceiptRecord?.receiptEligible === true ||
+      hydratedReceiptRecord?.caseReceiptEligible === true ||
+      String(hydratedReceiptRecord?.receiptStatus || "").toLowerCase() === "ready" ||
+      String(hydratedReceiptRecord?.stage || "").toLowerCase() === "receipt_ready" ||
+      String(hydratedReceiptRecord?.status || "").toLowerCase() === "receipt_ready"
+  );
   const effectiveEventCaptured =
     activeCurrentCase?.eventCaptured === true || hasEvents;
   const rawStructureStatus =
@@ -1534,7 +1639,11 @@ const urlCaseId = String(
       : 0;
 
   const deterministicScoreSource = {
-    ...(activeCurrentCase || normalized?.caseData || resolvedPayload?.caseData || {}),
+    ...(backendCaseRecord ||
+      activeCurrentCase ||
+      normalized?.caseData ||
+      resolvedPayload?.caseData ||
+      {}),
     caseId: inferredCaseId || activeCurrentCase?.caseId || "",
     eventCaptured: effectiveEventCaptured,
     explicitReceiptReady: explicitBackendReceiptReady,
@@ -1888,7 +1997,9 @@ const hasEventBackedBaseline =
 const hasEventBackedRecord = Number(deterministicScore.eventCount || 0) > 0;
 const normalizedScore = deterministicScore.totalScore;
 const hasPassingScore = Number(normalizedScore || 0) >= 3.0;
-const backendReceiptReady = explicitBackendReceiptReady;
+const backendReceiptReady = Boolean(
+  explicitBackendReceiptReady || deriveExplicitReceiptReady(data?.caseData)
+);
 
 const receiptEligible = readinessContract.receiptReady;
 
