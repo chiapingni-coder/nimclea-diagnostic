@@ -37,6 +37,15 @@ import {
 import {
   flattenSharedReceiptVerificationContract,
 } from "../utils/sharedReceiptVerificationContract";
+import {
+  getBackendReceiptHash,
+  getBackendVerificationHash,
+  isBackendReceiptPaidOrActivated as hasBackendReceiptPaidActivationOrIssued,
+  isBackendReceiptReady as hasBackendReceiptReadySignal,
+  isBackendVerificationEligible as hasBackendVerificationEligibleSignal,
+  isBackendVerificationIssued as hasBackendVerificationIssuedSignal,
+  isBackendVerificationReady as hasBackendVerificationReadySignal,
+} from "../utils/dataContractLifecycle";
 
 const CANONICAL_CASE_FLOW_STEPS = ["Result", "Pilot Result", "Receipt", "Verification"];
 
@@ -146,164 +155,12 @@ function getStableHashValue(value) {
   return typeof value === "string" && value.trim() ? value : "";
 }
 
-function normalizeContractValue(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
 function isValidReceiptHash(value) {
   return /^H-[A-F0-9]{24}$/i.test(String(value || "").trim());
 }
 
 function isValidVerificationHash(value) {
   return /^VH?-[A-F0-9]{24}$/i.test(String(value || "").trim());
-}
-
-function getBackendReceiptHash(caseRecord = {}) {
-  return (
-    caseRecord?.receiptHash ||
-    caseRecord?.receipt?.hash ||
-    caseRecord?.receipt?.receiptHash ||
-    caseRecord?.receiptRecord?.receiptHash ||
-    caseRecord?.receiptRecord?.hash ||
-    caseRecord?.hashLedger?.receiptHash ||
-    ""
-  );
-}
-
-function getBackendVerificationHash(record = {}) {
-  return (
-    record?.verificationHash ||
-    record?.hash ||
-    record?.data?.verificationHash ||
-    record?.payload?.verificationHash ||
-    ""
-  );
-}
-
-function hasBackendReceiptReadySignal(caseRecord = {}) {
-  if (!caseRecord) return false;
-
-  const stage = normalizeContractValue(caseRecord.stage);
-  const status = normalizeContractValue(caseRecord.status);
-  const receiptStatus = normalizeContractValue(
-    caseRecord.receiptStatus || caseRecord.receipt?.status
-  );
-
-  return (
-    caseRecord.receiptEligible === true ||
-    caseRecord.caseReceiptEligible === true ||
-    caseRecord.receipt_ready === true ||
-    caseRecord.receipt?.eligible === true ||
-    receiptStatus === "ready" ||
-    receiptStatus === "paid" ||
-    receiptStatus === "activated" ||
-    receiptStatus === "issued" ||
-    stage === "receipt_ready" ||
-    stage === "receipt_paid" ||
-    stage === "verification_ready" ||
-    stage === "verification_issued" ||
-    status === "receipt_ready" ||
-    status === "receipt_paid" ||
-    status === "verification_ready" ||
-    status === "verification_issued"
-  );
-}
-
-function hasBackendReceiptPaidActivationOrIssued(caseRecord = {}) {
-  if (!caseRecord) return false;
-
-  const paymentStatus = normalizeContractValue(
-    caseRecord.paymentStatus ||
-      caseRecord.payment?.status ||
-      caseRecord.receipt?.paymentStatus
-  );
-  const receiptStatus = normalizeContractValue(
-    caseRecord.receiptStatus || caseRecord.receipt?.status
-  );
-  const stage = normalizeContractValue(caseRecord.stage);
-  const status = normalizeContractValue(caseRecord.status);
-
-  return (
-    caseRecord.receipt_paid === true ||
-    caseRecord.paid === true ||
-    caseRecord.receiptPaid === true ||
-    caseRecord.receiptActivated === true ||
-    caseRecord.receiptIssued === true ||
-    caseRecord.receipt?.paid === true ||
-    caseRecord.receipt?.activated === true ||
-    caseRecord.receipt?.issued === true ||
-    caseRecord.payment?.receiptPaid === true ||
-    caseRecord.payment?.receiptActivated === true ||
-    paymentStatus === "paid" ||
-    paymentStatus === "activated" ||
-    paymentStatus === "issued" ||
-    paymentStatus === "succeeded" ||
-    receiptStatus === "paid" ||
-    receiptStatus === "activated" ||
-    receiptStatus === "issued" ||
-    stage === "receipt_paid" ||
-    stage === "verification_ready" ||
-    stage === "verification_issued" ||
-    status === "receipt_paid" ||
-    status === "verification_ready" ||
-    status === "verification_issued"
-  );
-}
-
-function hasBackendVerificationEligibleSignal(caseRecord = {}) {
-  if (!caseRecord) return false;
-
-  return (
-    caseRecord.verificationEligible === true ||
-    caseRecord.verification_ready === true ||
-    caseRecord.verification?.eligible === true
-  );
-}
-
-function hasBackendVerificationReadySignal(caseRecord = {}) {
-  if (!caseRecord) return false;
-
-  const stage = normalizeContractValue(caseRecord.stage);
-  const status = normalizeContractValue(caseRecord.status);
-  const verificationStatus = normalizeContractValue(
-    caseRecord.verificationStatus || caseRecord.verification?.status
-  );
-
-  return (
-    hasBackendVerificationEligibleSignal(caseRecord) ||
-    verificationStatus === "ready" ||
-    verificationStatus === "issued" ||
-    verificationStatus === "completed" ||
-    stage === "verification_ready" ||
-    stage === "verification_issued" ||
-    status === "verification_ready" ||
-    status === "verification_issued"
-  );
-}
-
-function hasBackendVerificationIssuedSignal(caseRecord = {}) {
-  if (!caseRecord) return false;
-
-  const stage = normalizeContractValue(caseRecord.stage);
-  const status = normalizeContractValue(caseRecord.status);
-  const verificationStatus = normalizeContractValue(
-    caseRecord.verificationStatus || caseRecord.verification?.status
-  );
-  const verificationResult = normalizeContractValue(
-    caseRecord.verificationResult || caseRecord.verification?.result
-  );
-
-  return (
-    caseRecord.verification_issued === true ||
-    caseRecord.verificationIssued === true ||
-    caseRecord.verification?.issued === true ||
-    verificationStatus === "issued" ||
-    verificationStatus === "completed" ||
-    verificationResult === "issued" ||
-    verificationResult === "completed" ||
-    stage === "verification_issued" ||
-    status === "verification_issued"
-  );
 }
 
 function saveStoredVerificationHash(caseId = "", receiptHash = "", verificationHash = "") {

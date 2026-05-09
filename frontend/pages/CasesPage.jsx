@@ -9,6 +9,12 @@ import { resolveSafeCaseId } from "../utils/caseIdResolver.js";
 import { runClientStateGuard } from "../utils/clientStateGuard.js";
 import { getStableUserId } from "../utils/eventLogger";
 import { buildReadinessContract } from "../utils/deterministicScore";
+import {
+  hasBackendOwnedReceiptAccess,
+  hasBackendOwnedVerificationAccess,
+  isBackendReceiptPaidOrActivated,
+  isBackendReceiptReady,
+} from "../utils/dataContractLifecycle";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const EMAIL_STORAGE_KEY = "nimclea_email";
@@ -385,15 +391,7 @@ function isDiagnosticContinuationCase(item = {}) {
 }
 
 function hasCanonicalBackendReceiptReadySignal(item = {}) {
-  const normalized = normalizeCaseItem(item);
-
-  return Boolean(
-    normalized?.receiptEligible === true ||
-      normalized?.caseReceiptEligible === true ||
-      String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
-      String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
-      String(normalized?.status || "").toLowerCase() === "receipt_ready"
-  );
+  return isBackendReceiptReady(normalizeCaseItem(item));
 }
 
 function deriveCaseListState(item) {
@@ -498,6 +496,7 @@ function deriveCaseListState(item) {
     normalized?.paymentStatus === "checkout_created";
 
   const paid =
+    isBackendReceiptPaidOrActivated(normalized) ||
     normalized?.paid === true ||
     normalized?.paymentStatus === "paid";
 
@@ -616,7 +615,8 @@ function hasReceiptDetailRouteSignal(item) {
 
   return Boolean(
     hasCanonicalBackendReceiptReadySignal(normalized) ||
-      normalized?.verificationEligible === true ||
+      hasBackendOwnedReceiptAccess(normalized) ||
+      hasBackendOwnedVerificationAccess(normalized) ||
       trustedEvidenceEventCount > 0 ||
       readinessContract.receiptReady === true ||
       statusText.includes("receipt_ready") ||
@@ -724,60 +724,11 @@ function isVisibleActiveCase(item) {
 }
 
 function hasActivatedReceipt(item) {
-  const normalized = normalizeCaseItem(item);
-  const receiptStatus = String(
-    normalized?.receiptStatus ||
-      normalized?.receipt?.status ||
-      normalized?.payment?.receiptStatus ||
-      normalized?.paymentStatus ||
-      ""
-  ).toLowerCase();
-  const paymentStatus = String(
-    normalized?.payment?.status ||
-      normalized?.caseBilling?.receiptStatus ||
-      ""
-  ).toLowerCase();
-
-  return Boolean(
-    normalized?.caseBilling?.receiptActivated === true ||
-      normalized?.payment?.receiptActivated === true ||
-      normalized?.payment?.receiptPaid === true ||
-      normalized?.receipt?.paid === true ||
-      normalized?.receiptPaid === true ||
-      normalized?.paidReceipt === true ||
-      normalized?.formalReceiptUnlocked === true ||
-      normalized?.paid === true ||
-      normalized?.isPaid === true ||
-      receiptStatus === "paid" ||
-      receiptStatus === "activated" ||
-      paymentStatus === "paid"
-  );
+  return isBackendReceiptPaidOrActivated(normalizeCaseItem(item));
 }
 
 function hasActivatedVerification(item = {}) {
-  const normalized = normalizeCaseItem(item);
-  const verificationStatus = String(
-    normalized?.verificationStatus ||
-      normalized?.verification?.status ||
-      normalized?.payment?.verificationStatus ||
-      normalized?.caseBilling?.verificationStatus ||
-      ""
-  ).toLowerCase();
-
-  return Boolean(
-    normalized?.caseBilling?.verificationActivated === true ||
-      normalized?.payment?.verificationActivated === true ||
-      normalized?.verification?.paid === true ||
-      normalized?.verificationPaid === true ||
-      normalized?.paidVerification === true ||
-      normalized?.formalVerificationUnlocked === true ||
-      verificationStatus === "paid" ||
-      verificationStatus === "activated" ||
-      verificationStatus === "ready" ||
-      verificationStatus === "pass" ||
-      verificationStatus === "passed" ||
-      verificationStatus === "final"
-  );
+  return hasBackendOwnedVerificationAccess(normalizeCaseItem(item));
 }
 
 function resolveEmailFromCaseId(caseId = "") {

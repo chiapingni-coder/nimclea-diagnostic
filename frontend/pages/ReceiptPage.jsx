@@ -45,6 +45,13 @@ import {
   buildReceiptContract,
   flattenSharedReceiptVerificationContract,
 } from "../utils/sharedReceiptVerificationContract";
+import {
+  buildBackendLifecycleSignals,
+  isBackendReceiptPaidOrActivated,
+  isBackendReceiptReady,
+  preserveStrongerLifecycleFields,
+  shouldSkipReceiptReadyPatch,
+} from "../utils/dataContractLifecycle";
 
 const HASH_LEDGER_API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
@@ -793,41 +800,6 @@ function normalizeReceiptData(input = {}) {
     structureStatusFromCase: normalizedCaseData?.structureStatus || null,
     routeDecisionFromCase: normalizedCaseData?.routeDecision || null,
   };
-}
-
-function deriveExplicitReceiptReady(caseLike = {}) {
-  const receiptStatus = String(caseLike?.receiptStatus || caseLike?.receipt?.status || "").toLowerCase();
-  const stage = String(caseLike?.stage || caseLike?.receipt?.stage || "").toLowerCase();
-  const status = String(caseLike?.status || "").toLowerCase();
-
-  return Boolean(
-    caseLike?.receiptEligible === true ||
-      caseLike?.caseReceiptEligible === true ||
-      receiptStatus === "ready" ||
-      stage === "receipt_ready" ||
-      status === "receipt_ready"
-  );
-}
-
-function getCanonicalStageRank(value = "") {
-  const normalized = String(value || "").trim().toLowerCase();
-  const ranks = {
-    intake: 0,
-    diagnostic: 1,
-    result_ready: 2,
-    receipt_ready: 3,
-    ready: 3,
-    receipt_paid: 4,
-    receipt_activated: 4,
-    paid: 4,
-    activated: 4,
-    issued: 4,
-    verification_ready: 5,
-    verification_issued: 6,
-    verification_activated: 6,
-  };
-
-  return ranks[normalized] ?? -1;
 }
 
 function isBackendConfirmedReceiptSource({
@@ -1701,16 +1673,9 @@ const urlCaseId = String(
     Array.isArray(realCapturedEvents) &&
     realCapturedEvents.length > 0;
   const explicitBackendReceiptReady = Boolean(
-    deriveExplicitReceiptReady(backendCaseRecord) ||
-    deriveExplicitReceiptReady(activeCurrentCase) ||
-    deriveExplicitReceiptReady(currentCase) ||
-    deriveExplicitReceiptReady(normalized?.caseData) ||
-    deriveExplicitReceiptReady(resolvedPayload?.caseData) ||
-    hydratedReceiptRecord?.receiptEligible === true ||
-      hydratedReceiptRecord?.caseReceiptEligible === true ||
-      String(hydratedReceiptRecord?.receiptStatus || "").toLowerCase() === "ready" ||
-      String(hydratedReceiptRecord?.stage || "").toLowerCase() === "receipt_ready" ||
-      String(hydratedReceiptRecord?.status || "").toLowerCase() === "receipt_ready"
+    isBackendReceiptReady(backendCaseRecord) ||
+      (hydratedReceiptRecord?._backendConfirmed === true &&
+        isBackendReceiptReady(hydratedReceiptRecord))
   );
   const effectiveEventCaptured =
     activeCurrentCase?.eventCaptured === true || hasEvents;
@@ -1851,12 +1816,7 @@ const urlCaseId = String(
       receiptPaid:
         (caseBillingOverride?._backendConfirmed === true &&
           caseBillingOverride?.receiptActivated === true) ||
-        backendCaseRecord?.caseBilling?.receiptActivated === true ||
-        backendCaseRecord?.payment?.receiptActivated === true ||
-        backendCaseRecord?.receipt?.paid === true ||
-        String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase() === "paid" ||
-        String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase() === "activated" ||
-        String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase() === "issued",
+        isBackendReceiptPaidOrActivated(backendCaseRecord),
       verificationPaid:
         backendCaseRecord?.caseBilling?.verificationActivated === true ||
         backendCaseRecord?.payment?.verificationActivated === true ||
@@ -1892,12 +1852,7 @@ const urlCaseId = String(
   const receiptActivated =
     (caseBillingOverride?._backendConfirmed === true &&
       caseBillingOverride?.receiptActivated === true) ||
-    backendCaseRecord?.caseBilling?.receiptActivated === true ||
-    backendCaseRecord?.payment?.receiptActivated === true ||
-    backendCaseRecord?.receipt?.paid === true ||
-    ["paid", "activated", "issued"].includes(
-      String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase()
-    );
+    isBackendReceiptPaidOrActivated(backendCaseRecord);
 
   const data = {
     ...rawData,
@@ -2111,9 +2066,7 @@ const submittedEvents = displayedTotalEvents;
 
 const decisionPathEvents = displayedStructuredEvents;
 
-const backendReceiptReady = Boolean(
-  explicitBackendReceiptReady || deriveExplicitReceiptReady(data?.caseData)
-);
+const backendReceiptReady = Boolean(explicitBackendReceiptReady);
 
 const hasEventBackedBaseline =
   backendReceiptReady ||
@@ -2164,14 +2117,12 @@ React.useEffect(() => {
   if (receiptReadyPersistedRef.current.has(targetCaseId)) return;
 
   const currentCanonicalCase = backendCaseRecord || activeCurrentCase || {};
-  const currentStageRank = Math.max(
-    getCanonicalStageRank(currentCanonicalCase?.stage),
-    getCanonicalStageRank(currentCanonicalCase?.status),
-    getCanonicalStageRank(currentCanonicalCase?.receiptStatus)
-  );
-  const receiptReadyRank = getCanonicalStageRank("receipt_ready");
+  if (shouldSkipReceiptReadyPatch(currentCanonicalCase)) return;
 
-  if (currentStageRank > receiptReadyRank) return;
+  const receiptReadyPatch = preserveStrongerLifecycleFields(currentCanonicalCase, {
+    receiptEligible: true,
+    stage: "receipt_ready",
+  });
 
   receiptReadyPersistedRef.current.add(targetCaseId);
 
@@ -2183,8 +2134,7 @@ React.useEffect(() => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        receiptEligible: true,
-        stage: "receipt_ready",
+        ...receiptReadyPatch,
         email:
           String(
             localStorage.getItem("nimclea_email") ||
@@ -2338,34 +2288,32 @@ const isEvidenceLockedConsistent =
     evidenceLock.receiptMode === receiptMode
   );
 
+const backendCaseLifecycleSignals = buildBackendLifecycleSignals(backendCaseRecord);
+const hydratedReceiptLifecycleSignals =
+  hydratedReceiptRecord?._backendConfirmed === true
+    ? buildBackendLifecycleSignals(hydratedReceiptRecord)
+    : {};
+
 const backendOwnedReceiptReady = Boolean(
-  deriveExplicitReceiptReady(backendCaseRecord) ||
-    (
-      hydratedReceiptRecord?._backendConfirmed === true &&
-      deriveExplicitReceiptReady(hydratedReceiptRecord)
-    )
+  backendCaseLifecycleSignals.receiptReady ||
+    hydratedReceiptLifecycleSignals.receiptReady
 );
 
 const backendReceiptPaidActivatedIssued = Boolean(
   receiptActivated ||
-    ["paid", "activated", "issued"].includes(
-      String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase()
-    ) ||
-    ["paid", "activated", "issued"].includes(
-      String(
-        hydratedReceiptRecord?._backendConfirmed === true
-          ? hydratedReceiptRecord?.receiptStatus || hydratedReceiptRecord?.receipt?.status || ""
-          : ""
-      ).toLowerCase()
-    )
+    backendCaseLifecycleSignals.receiptPaidOrActivated ||
+    backendCaseLifecycleSignals.receiptIssued ||
+    hydratedReceiptLifecycleSignals.receiptPaidOrActivated ||
+    hydratedReceiptLifecycleSignals.receiptIssued
 );
 
 const backendVerificationEligible = Boolean(
-  backendCaseRecord?.verificationEligible === true ||
-    (
-      hydratedReceiptRecord?._backendConfirmed === true &&
-      hydratedReceiptRecord?.verificationEligible === true
-    )
+  backendCaseLifecycleSignals.verificationEligible ||
+    backendCaseLifecycleSignals.verificationReady ||
+    backendCaseLifecycleSignals.verificationIssued ||
+    hydratedReceiptLifecycleSignals.verificationEligible ||
+    hydratedReceiptLifecycleSignals.verificationReady ||
+    hydratedReceiptLifecycleSignals.verificationIssued
 );
 
 const receiptAllowsVerification =
