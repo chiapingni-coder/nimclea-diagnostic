@@ -1,0 +1,79 @@
+# ReceiptPage Data Contract Audit v1
+
+Scope: `frontend/pages/ReceiptPage.jsx` audited against `docs/DATA_CONSISTENCY_CONTRACT_v1.md`.
+
+No frontend or backend code was modified. This report only documents findings and suggested fixes.
+
+## Findings
+
+| Status | Location | Contract rule affected | Risk | Suggested fix |
+| --- | --- | --- | --- | --- |
+| WARNING | `ReceiptPage()` backend hydration, approx. lines 1354-1420 | Truth Source Priority | Backend case data is loaded from `/cases?email` and matched by `caseId`, but there is no direct `/case/:caseId` read for the canonical consolidated case. If email is missing or stale, backend case truth is skipped. | Hydrate the canonical case directly by `caseId` before using email-scoped discovery as a secondary source. |
+| PASS | `activeCurrentCase` selection, approx. lines 1422-1439 | Truth Source Priority | When `backendCaseRecord` exists, it is selected before local `currentCase` and `hydratedReceiptRecord`. This preserves backend precedence for readiness inputs in that path. | Keep backend record first in the active source chain. |
+| FAIL | `hydrateReceiptRecord()` shortcut, approx. lines 1301-1319 | Truth Source Priority; Page Consumption Contract | If `storedData` has the same `caseId`, it becomes `hydratedReceiptRecord` and the backend `/receipt-record?caseId=` fetch is skipped. Stale `localStorage` receipt data can override backend receipt records, receipt hash, receipt status, and eligibility context. | Treat stored receipt data as a temporary render fallback only, then always fetch backend receipt record and replace local data when available. |
+| WARNING | `resolveReceiptPayload()` and `resolvedPayload`, approx. lines 529-638 and 893-897 | Truth Source Priority | Receipt payload fields are resolved from `location.state`, route data, and hydrated receipt record. Backend case data is not part of this payload merge, so display values can remain route/local even after backend case hydration. | Merge backend case/receipt fields into the resolved payload at higher priority than route or stored data. |
+| PASS | Hash ledger read priority, approx. lines 931-978 and 1125-1133 | Hash ledger consistency | Displayed receipt hash prioritizes ledger record hash, then ledger state, then case registry hash, then route/stored hashes. Valid hash format is enforced by `getStableHashValue()`. | Keep ledger hash first and continue rejecting invalid hash formats. |
+| FAIL | Hash creation and ledger POST, approx. lines 1018-1091 | Hash ledger consistency; Page Consumption Contract | When no persisted hash exists, the page computes a new hash from locally resolved receipt payload and posts it to the ledger. If payload came from stale `location.state` or `localStorage`, the page can create a ledger entry from fallback data rather than backend canonical case/receipt state. | Only create ledger hashes from backend-confirmed case/receipt records, or require backend to create/accept the ledger entry. |
+| FAIL | `receiptEligible`, approx. lines 1592-1713 and 2000-2005 | No Downgrade Rule; Derived Fields Contract | Backend receipt-ready signals are detected in `explicitBackendReceiptReady`, but final `receiptEligible` is only `readinessContract.receiptReady`. `buildReadinessContract()` can still return false when local events are missing or score recalculation fails, so backend `receiptEligible`, `caseReceiptEligible`, `receiptStatus: ready`, `stage: receipt_ready`, or `status: receipt_ready` can be downgraded to not ready. | Make backend receipt-ready signals monotonic for display and routing, e.g. `receiptEligible = explicitBackendReceiptReady || readinessContract.receiptReady`. |
+| FAIL | Readiness display model, approx. lines 1854-1872, 2069-2095, 3177-3194, and 3844-3856 | No Downgrade Rule; UI status labels | UI labels such as `"Insufficient Record"`, `"Record not structured yet"`, `"Your formal receipt is still locked"`, and `"not ready for verification"` are driven by recomputed event/score state. A backend-ready receipt can display locked/not-ready labels when local event evidence is absent. | Gate not-ready labels behind the monotonic backend-ready signal so backend receipt-ready always displays as ready/issued state. |
+| PASS | Loading guard, approx. lines 1437-1439 and 2452-2471 | Receipt readiness contract usage | The page shows `"Checking receipt status..."` while receipt-record hydration is incomplete, reducing temporary red/green flashes during receipt-record loading. | Extend the guard to canonical backend case hydration as well. |
+| WARNING | Backend case loading guard, approx. lines 1354-1420 and 2452-2471 | Receipt readiness contract usage | The loading UI waits on receipt-record hydration but not `backendCaseLoading`. If `/cases?email` is still loading, the page can render from `currentCase`, location state, or stored data before backend case truth arrives. | Include backend case loading in the readiness/hydration guard when a `caseId` is present. |
+| WARNING | Readiness contract inputs, approx. lines 1604-1713 | Receipt readiness contract usage | ReceiptPage uses `buildReadinessContract()`, but it builds a custom `deterministicScoreSource` with page-level interpretations for event capture, structure score/status, receipt record formability, and fallback events. | Move this adapter logic into a shared contract adapter or align it with the CasesPage receipt-ready adapter. |
+| FAIL | `realCapturedEvents` filtering, approx. lines 1450-1587 | Event Trust Boundary | Raw arrays from local case registry, active case, route/shared execution summaries, and structured event fallbacks can count as evidence. The filter checks text/type/source but does not require event `caseId` to match `inferredCaseId`. Cross-case or stale route events can directly affect readiness. | Require case-scoped trusted evidence: every event used for readiness should carry matching `caseId` or come from backend event records already scoped to the case. |
+| WARNING | `effectiveEventCaptured`, approx. lines 1604-1605 | Event Trust Boundary | `activeCurrentCase.eventCaptured === true` can mark event capture without checking trusted event records. If sourced from local registry or stale fallback, it can inflate readiness. | Treat `eventCaptured` as a progress hint unless backed by trusted case-scoped events or backend-owned readiness. |
+| PASS | Quick capture write, approx. lines 2250-2308 | Routing and caseId propagation; Event Trust Boundary | Capture Event writes include `caseId: inferredCaseId` on the local event and in `logTrialEvent` metadata. | Keep requiring `inferredCaseId`; block submit if it is missing. |
+| WARNING | Quick capture persistence, approx. lines 2267-2270 | Event Trust Boundary; Page Consumption Contract | Quick capture writes only to `caseRegistry` via `upsertCase()`. Until backend accepts the event, it is local fallback data but can immediately influence readiness through the event pipeline. | Mark local quick captures as pending or exclude them from receipt readiness until backend event persistence confirms them. |
+| FAIL | Receipt-ready backend write, approx. lines 2035-2067 | Receipt write boundary; No Downgrade Rule | The page patches `/case/:caseId/receipt-status` with `receiptEligible: true`, `status: "workspace_active"`, and `stage: "receipt_ready"` whenever local `receiptEligible` is true. It does not check existing backend stage/payment/verification state before writing, so it can downgrade `receipt_paid`, `verification_ready`, or `verification_issued` stage/status. | Before PATCH, compare current backend canonical state and only write monotonic upgrades; avoid writing non-canonical `status` over backend lifecycle state. |
+| WARNING | Receipt-ready backend write, approx. lines 2035-2067 | Receipt write boundary | The write depends on page-computed `receiptEligible`, which may be affected by local/fallback events. This can persist readiness created by page-local calculations. | Persist receipt readiness only from backend-owned eligibility or a backend-validated endpoint response. |
+| PASS | Stripe return confirmation, approx. lines 1248-1299 | Payment Trust Boundary | `paid=success` and `session_id` from the URL do not directly mark paid locally. The page calls `/api/confirm-checkout-session` and uses the returned `caseRecord`, which is a safer payment-owned/backend-owned source. | Keep payment confirmation backend-mediated. |
+| WARNING | `accessMode`, `isPaid`, and `receiptActivated`, approx. lines 1732-1779 | Payment Trust Boundary | Payment display/activation is derived from `activeCaseBilling`, `activeCurrentCase.payment`, and `activeCurrentCase.isPaid`. If backend case is unavailable, `activeCurrentCase` may be local registry data. Snapshot-only or stale local payment fields can affect paid/activated UI. | Apply backend/payment provenance checks before treating local `isPaid` or payment fields as paid/activated. |
+| FAIL | `handleActivateReceiptForCase()`, approx. lines 2228-2248 | Payment Trust Boundary; Receipt write boundary | The handler locally sets `caseBilling.receiptActivated: true` with `source: "local_test"` through `upsertCase()`. This can create activated state without backend/payment ownership and can unlock Verification paths in local state. | Remove local activation as a source of truth or restrict it to a clearly isolated dev/test mode that cannot influence production readiness or verification unlocks. |
+| FAIL | Verification unlock, approx. lines 2201-2213, 3094-3160, and 3900-4011 | Verification unlock boundary | Verification can be unlocked from `receiptEligible`, `Verified` status, or shared/local status, plus local event-backed baseline. Because `receiptEligible` and `Verified` can be derived from fallback data, stale local state can unlock Verification. One lower CTA path also navigates to Verification without including `caseId` in state when falling through the final branch. | Require backend receipt-ready plus paid/activated/issued or backend `verificationEligible` before navigating to Verification, and always pass `caseId`. |
+| WARNING | Evidence lock selection, approx. lines 2178-2199 | Hash ledger / receipt record consistency | `finalEvidenceLock` is always truthy, so fallback `location.state.evidenceLock` and shared-contract locks are never used. Consistency is checked only against the page-computed `data.receiptHash` and receipt metadata. | Build the evidence lock from backend/ledger receipt record first, then compare route/local locks as fallback context. |
+| PASS | Hash display and copy, approx. lines 2702-2794 | Hash ledger / receipt record consistency | Ledger/hash display is read-only in the UI, and copy action does not mutate readiness or backend state. | Keep hash display read-only. |
+| WARNING | View all cases action, approx. lines 2560-2576 | Routing and caseId propagation | The action derives `currentCaseId` for logging, but navigates to Cases without passing `caseId` or email state. Cases may recover context from storage, but route context is dropped. | Pass `caseId`/email in navigation state if the destination depends on current case context. |
+| PASS | Checkout action, approx. lines 1751-1775 | Routing and caseId propagation | Payment checkout sends `caseId` to `/api/create-checkout-session` and aborts if no case id exists. | Keep case id required for payment creation. |
+| WARNING | Back to Pilot actions, approx. lines 2490-2499 and 4018-4027 | Routing and caseId propagation | The URL includes `caseId`, but the state object is raw `location.state` and may carry stale fields. | Strip stale receipt/verification state and pass only case context needed by Pilot Result. |
+| WARNING | UI labels, approx. lines 1854-1872, 2460-2488, 2915-3028, 3177-3194, and 3844-3856 | UI status labels | Labels cover checking, insufficient record, receipt not ready, ready, and paid/activated previews, but they are not consistently canonical-first. Backend-ready or paid state can be under-labeled if recomputed readiness is false; local paid/activated can be over-labeled. | Derive labels from backend canonical stage/flags first, then show contract details as explanation. |
+
+## Specific Area Results
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Backend truth precedence | FAIL | Backend case record has priority when available, but stored receipt data can skip backend receipt fetch, and receipt payload/hash can be built from route/local fallback data. |
+| No-downgrade rule | FAIL | Backend receipt-ready is detected but not used as the final monotonic `receiptEligible`; recomputed score/events can downgrade ready state. |
+| Receipt readiness contract usage | WARNING | The page uses `buildReadinessContract()`, but substantial page-local adapter logic and hydration timing remain outside the shared contract. |
+| Event trust boundary | FAIL | Raw/fallback event arrays and text fields can affect readiness without case-id validation. |
+| Receipt write boundary | FAIL | `PATCH /case/:caseId/receipt-status` can write `stage: receipt_ready` and `status: workspace_active` without checking current backend monotonic state. |
+| Payment trust boundary | FAIL | Stripe return is backend-confirmed, but local activation and local payment fields can still affect paid/activated UI and unlocks. |
+| Verification unlock boundary | FAIL | Verification unlock can depend on fallback-derived readiness/status and one navigation branch can omit `caseId` in state. |
+| Hash ledger / receipt record consistency | FAIL | Ledger reads are prioritized, but missing ledger entries can be created from locally resolved payloads. |
+| Routing and caseId propagation | WARNING | Core payment, capture, and many navigation paths carry `caseId`, but View all cases drops context and one Verification branch omits state `caseId`. |
+| UI status labels | WARNING | Loading guard exists, but labels can still mismatch canonical backend state due to local/fallback readiness and payment signals. |
+
+## Overall Compliance
+
+| Metric | Result |
+| --- | --- |
+| Compliance score | 52 / 100 |
+| Safe enough to proceed to next layer? | No. ReceiptPage still has unresolved FAIL items around no-downgrade readiness, local receipt/hash precedence, receipt writes, event trust, payment activation, and verification unlock. |
+
+## Remaining FAIL Items
+
+| Area | FAIL |
+| --- | --- |
+| Stored receipt precedence | Same-case `localStorage` receipt data can skip backend `/receipt-record` hydration. |
+| Ledger creation | A receipt hash can be computed and posted from route/local fallback payloads. |
+| Receipt readiness no-downgrade | Backend receipt-ready can be downgraded by missing local events or score recalculation. |
+| Event trust | Events used for readiness are not required to match `inferredCaseId`. |
+| Receipt status write | The page can patch `stage: receipt_ready` and `status: workspace_active` without monotonic backend comparison. |
+| Local activation | `handleActivateReceiptForCase()` creates local activated state with `source: "local_test"`. |
+| Verification unlock | Verification can unlock from fallback-derived readiness/status and one branch omits `caseId` in navigation state. |
+
+## Top 3 Risks
+
+| Rank | Risk | Why it matters |
+| --- | --- | --- |
+| 1 | Backend receipt-ready can be displayed and treated as not ready when local events are missing or score recalculation fails. | Directly violates the no-downgrade rule for receipt readiness. |
+| 2 | ReceiptPage can write lifecycle state back to backend without checking current canonical stage/payment/verification state. | Can downgrade or pollute backend case state from page-local logic. |
+| 3 | Local/stale receipt, hash, event, payment, and activation signals can unlock receipt or Verification flows. | Blurs fallback context with permanent truth and can create false readiness or false activation. |
