@@ -4102,10 +4102,6 @@ if (!canRenderReceipt) {
                   { once: true }
                 ).catch(() => {});
 
-                if (!canEnterVerification) {
-                  return;
-                }
-
                 navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
                   state: {
                     ...stripCanonicalCaseFlowState(location.state || {}),
