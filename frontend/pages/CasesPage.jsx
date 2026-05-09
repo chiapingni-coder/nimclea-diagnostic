@@ -395,29 +395,59 @@ function deriveCaseListState(item) {
       String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
       String(normalized?.status || "").toLowerCase() === "receipt_ready",
   });
-  const statusText = [
-    normalized?.status,
-    normalized?.stage,
-    normalized?.stageLabel,
-    normalized?.currentStep,
-    normalized?.receiptStatus,
-    normalized?.paymentStatus,
-    normalized?.caseData?.status,
-    normalized?.caseData?.stage,
-  ].filter(Boolean).join(" ").toLowerCase();
-  const hasReceiptStageSignal =
-    hasPostDiagnosticProgress(normalized) ||
-    hasReceiptDetailRouteSignal(normalized) ||
-    statusText.includes("pilot") ||
-    statusText.includes("receipt") ||
-    statusText.includes("result_ready") ||
-    statusText.includes("case_result") ||
-    statusText.includes("receipt_ready") ||
-    Boolean(normalized?.pilotResult) ||
-    Boolean(normalized?.receipt) ||
-    Boolean(normalized?.receiptHash) ||
-    Boolean(normalized?.receiptId);
+  const snapshotOnly = normalized?.source === "receipt_snapshot";
   const evidenceEventCount = getEvidenceEvents(normalized).length;
+  const hasMeaningfulPilotResult =
+    Boolean(normalized?.pilotResult?.result) ||
+    (Array.isArray(normalized?.pilotResult?.entries) &&
+      normalized.pilotResult.entries.length > 0) ||
+    (Array.isArray(normalized?.pilotResult?.events) &&
+      normalized.pilotResult.events.length > 0);
+  const paymentStatusText = String(normalized?.paymentStatus || "").toLowerCase();
+  const hasRealPaymentObject =
+    Boolean(normalized?.payment?.id) ||
+    Boolean(normalized?.payment?.sessionId) ||
+    Boolean(normalized?.payment?.checkoutSessionId) ||
+    Boolean(normalized?.caseBilling?.id) ||
+    Boolean(normalized?.caseBilling?.sessionId) ||
+    Boolean(normalized?.caseBilling?.checkoutSessionId) ||
+    Boolean(normalized?.stripeSessionId) ||
+    Boolean(normalized?.checkoutSessionId);
+  const paymentCheckoutOrPaid =
+    !snapshotOnly &&
+    (paymentStatusText.includes("checkout") || paymentStatusText.includes("paid"));
+  const trustedPaymentProgress = paymentCheckoutOrPaid || hasRealPaymentObject;
+  const hasReceiptObjectId =
+    hasNonEmptyText(normalized?.receipt?.receiptId) ||
+    (!snapshotOnly && hasNonEmptyText(normalized?.receipt?.id));
+  const hasIssuedReceiptObject =
+    hasReceiptObjectId ||
+    (!snapshotOnly &&
+      ["issued", "activated", "paid"].includes(
+        String(normalized?.receipt?.status || "").toLowerCase()
+      ));
+  const concreteProgressReasons = {
+    evidenceEventCountPositive: evidenceEventCount > 0,
+    eventCaptured: normalized?.eventCaptured === true,
+    hasMeaningfulPilotResult,
+    hasIssuedReceiptObject,
+    hasReceiptId: hasNonEmptyText(normalized?.receiptId),
+    paymentCheckoutOrPaid,
+  };
+  const hasConcreteReceiptProgress =
+    evidenceEventCount > 0 ||
+    normalized?.eventCaptured === true ||
+    hasMeaningfulPilotResult ||
+    hasIssuedReceiptObject ||
+    hasNonEmptyText(normalized?.receiptId) ||
+    trustedPaymentProgress;
+  const legacyReceiptReadySignal =
+    normalized?.receiptEligible === true ||
+    normalized?.caseReceiptEligible === true ||
+    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
+    String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
+    String(normalized?.status || "").toLowerCase() === "receipt_ready";
+  const hasReceiptStageSignal = hasConcreteReceiptProgress;
 
   const receiptReady = readinessContract.receiptReady;
 
@@ -447,7 +477,15 @@ function deriveCaseListState(item) {
   } else if (readinessContract.receiptReady) {
     displayStatus = "Receipt ready";
   } else if (hasReceiptStageSignal) {
-    displayStatus = "Receipt not ready";
+    if (readinessContract.readinessLevel === "pending_review") {
+      displayStatus = "Receipt not ready · Pending review";
+    } else if (readinessContract.readinessLevel === "insufficient_record") {
+      displayStatus = "Receipt not ready · Insufficient record";
+    } else if (readinessContract.readinessLevel === "failed") {
+      displayStatus = "Receipt failed";
+    } else {
+      displayStatus = "Receipt not ready";
+    }
   } else if (hasEvidenceEvent) {
     displayStatus = `Event captured (${evidenceEventCount})`;
   } else if (isDiagnosticContinuationCase(normalized)) {
@@ -464,6 +502,13 @@ function deriveCaseListState(item) {
     displayStatus,
     readinessContract,
     hasReceiptStageSignal,
+    hasConcreteReceiptProgress,
+    legacyReceiptReadySignal,
+    snapshotOnly,
+    concreteProgressReasons,
+    paymentStatusText,
+    hasRealPaymentObject,
+    trustedPaymentProgress,
     readinessDetailLabel,
   };
 }
@@ -1503,6 +1548,12 @@ export default function CasesPage() {
                 isDiagnosticContinuationCase(normalizedItem);
               const detailPath = getCaseDetailRoute(normalizedItem);
               const primaryResolvedCaseId = resolveCaseId(normalizedItem);
+              const eventCount = derived.evidenceEventCount;
+              const humanizeStatus = (value = "") =>
+                String(value || "")
+                  .trim()
+                  .replace(/[_-]+/g, " ")
+                  .replace(/\b\w/g, (letter) => letter.toUpperCase());
               console.log("[CasesPage state trace]", {
                 caseId: primaryResolvedCaseId,
                 displayStatus: derived.displayStatus,
@@ -1515,6 +1566,16 @@ export default function CasesPage() {
                 receiptEligible: derived.normalized?.receiptEligible,
                 caseReceiptEligible: derived.normalized?.caseReceiptEligible,
                 hasReceiptStageSignal: derived.hasReceiptStageSignal,
+                hasConcreteReceiptProgress: derived.hasConcreteReceiptProgress,
+                legacyReceiptReadySignal: derived.legacyReceiptReadySignal,
+                snapshotOnly: derived.snapshotOnly,
+                concreteProgressReasons: derived.concreteProgressReasons,
+                paymentStatusText: derived.paymentStatusText,
+                hasRealPaymentObject: derived.hasRealPaymentObject,
+                trustedPaymentProgress: derived.trustedPaymentProgress,
+                rawEventCount: derived.normalized?.eventCount,
+                trustedEvidenceEventCount: derived.evidenceEventCount,
+                source: derived.normalized?.source,
                 readinessScore: derived.readinessContract?.readinessScore,
                 readinessLevel: derived.readinessContract?.readinessLevel,
                 contractReceiptReady: derived.readinessContract?.receiptReady,
@@ -1536,18 +1597,6 @@ export default function CasesPage() {
                 : ROUTES.DIAGNOSTIC;
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
-              const eventCount = derived.evidenceEventCount;
-              const humanizeStatus = (value = "") =>
-                String(value || "")
-                  .trim()
-                  .replace(/[_-]+/g, " ")
-                  .replace(/\b\w/g, (letter) => letter.toUpperCase());
-              const receiptDisplay =
-                derived.receiptReady
-                  ? "Ready, not issued"
-                  : normalizedItem?.receiptStatus
-                  ? humanizeStatus(normalizedItem.receiptStatus)
-                  : "Not ready";
               const verificationDisplay = normalizedItem?.verificationStatus
                 ? humanizeStatus(normalizedItem.verificationStatus)
                 : "Not activated";
@@ -1607,13 +1656,6 @@ export default function CasesPage() {
                             Evidence captured: {eventCount}{" "}
                             {eventCount === 1 ? "event" : "events"}
                           </p>
-                          <p>Receipt: {sanitizeText(receiptDisplay)}</p>
-                          {derived.readinessDetailLabel ? (
-                            <p>
-                              Readiness:{" "}
-                              {sanitizeText(derived.readinessDetailLabel)}
-                            </p>
-                          ) : null}
                           <p>Verification: {sanitizeText(verificationDisplay)}</p>
                           {formattedUpdatedAt ? (
                             <p>Updated: {formattedUpdatedAt}</p>
@@ -1785,6 +1827,16 @@ export default function CasesPage() {
                   receiptEligible: derived.normalized?.receiptEligible,
                   caseReceiptEligible: derived.normalized?.caseReceiptEligible,
                   hasReceiptStageSignal: derived.hasReceiptStageSignal,
+                  hasConcreteReceiptProgress: derived.hasConcreteReceiptProgress,
+                  legacyReceiptReadySignal: derived.legacyReceiptReadySignal,
+                  snapshotOnly: derived.snapshotOnly,
+                  concreteProgressReasons: derived.concreteProgressReasons,
+                  paymentStatusText: derived.paymentStatusText,
+                  hasRealPaymentObject: derived.hasRealPaymentObject,
+                  trustedPaymentProgress: derived.trustedPaymentProgress,
+                  rawEventCount: derived.normalized?.eventCount,
+                  trustedEvidenceEventCount: derived.evidenceEventCount,
+                  source: derived.normalized?.source,
                   readinessScore: derived.readinessContract?.readinessScore,
                   readinessLevel: derived.readinessContract?.readinessLevel,
                   contractReceiptReady: derived.readinessContract?.receiptReady,
