@@ -3068,6 +3068,92 @@ const recommendedPathLabel =
     setShowRecoveryPanel((prev) => !prev);
   };
 
+  const formalVerificationIssuedOrCompleted = backendVerificationIssued;
+  const verificationPaymentStatus = String(
+    backendCanonicalCase?.verificationPayment?.paymentStatus ||
+      backendCanonicalCase?.verificationPayment?.status ||
+      backendCanonicalCase?.verificationPaymentStatus ||
+      backendCanonicalCase?.payment?.verificationPaymentStatus ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  const formalVerificationPaidOrActive = Boolean(
+    backendCanonicalCase?.verificationPaid === true ||
+      backendCanonicalCase?.verificationActivated === true ||
+      backendCanonicalCase?.verificationPayment?.paid === true ||
+      backendCanonicalCase?.verificationPayment?.activated === true ||
+      backendCanonicalCase?.payment?.verificationPaid === true ||
+      backendCanonicalCase?.payment?.verificationActivated === true ||
+      backendCanonicalCase?.caseBilling?.verificationActivated === true ||
+      verificationPaymentStatus === "paid" ||
+      verificationPaymentStatus === "active" ||
+      verificationPaymentStatus === "activated"
+  );
+  const verificationNeedsRepair = Boolean(
+    !verificationPass ||
+      access.needsEvent ||
+      !hasLedgerReceipt ||
+      access.needsScore ||
+      !isEvidenceLockedConsistent ||
+      !hasCompleteStructure ||
+      finalOverallStatus === "Verification Warning" ||
+      finalOverallStatus === "Verification Failed"
+  );
+  const primaryVerificationCtaState = formalVerificationIssuedOrCompleted
+    ? "issued"
+    : formalVerificationPaidOrActive
+    ? "continue"
+    : verificationNeedsRepair
+    ? "repair"
+    : "payment";
+  const primaryVerificationCtaLabel =
+    primaryVerificationCtaState === "issued"
+      ? "View Final Package"
+      : primaryVerificationCtaState === "continue"
+      ? "Continue Verification"
+      : primaryVerificationCtaState === "payment"
+      ? "Start Formal Verification"
+      : "Show recovery path";
+  const primaryVerificationCtaStyle =
+    primaryVerificationCtaState === "issued"
+      ? {
+          backgroundColor: "#0F172A",
+          color: "#FFFFFF",
+          border: "1px solid #0F172A",
+          boxShadow: "0 6px 16px rgba(15,23,42,0.24)",
+        }
+      : primaryVerificationCtaState === "continue"
+      ? {
+          backgroundColor: "#059669",
+          color: "#FFFFFF",
+          border: "1px solid #059669",
+          boxShadow: "0 6px 16px rgba(5,150,105,0.35)",
+        }
+      : {
+          backgroundColor: "#FFFBEB",
+          color: "#B45309",
+          border: "1px solid #FDE68A",
+          boxShadow: "0 3px 8px rgba(245,158,11,0.18)",
+        };
+  const handlePrimaryVerificationCta = () => {
+    if (primaryVerificationCtaState === "payment") {
+      handleStartFormalVerificationCheckout();
+      return;
+    }
+
+    if (primaryVerificationCtaState === "repair") {
+      handleRecoveryPath("verification_primary_repair_cta");
+      return;
+    }
+
+    handleOpenSubscriptionModal(
+      primaryVerificationCtaState === "issued"
+        ? "verification_final_package_cta"
+        : "verification_continue_cta"
+    );
+  };
+
   return (
   <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto">
@@ -3624,54 +3710,6 @@ const recommendedPathLabel =
         </section>
 
 
-        <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-6">
-            <div className="max-w-[300px]">
-              <p className="text-[10px] font-medium tracking-[0.08em] uppercase text-slate-400 mb-1">
-                Evidence-based verification
-              </p>
-
-              <h3 className="text-[12px] font-medium text-slate-800 mb-1 leading-[1.35]">
-                File upload is available after verification activation
-              </h3>
-
-              <p className="text-[11px] text-slate-500 leading-[1.5]">
-                Text-only verification can be previewed from the current record. File-based review requires activation before documents are uploaded or processed.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!verificationActivated) {
-                  handleOpenSubscriptionModal("evidence_upload_locked");
-                  return;
-                }
-              }}
-              style={{
-                flexShrink: 0,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "999px",
-                backgroundColor: "#ECFDF5",
-                color: "#047857",
-                border: "1px solid #A7F3D0",
-                padding: "8px 20px",
-                fontSize: "11px",
-                fontWeight: 500,
-                lineHeight: 1.2,
-                boxShadow: "0 2px 6px rgba(4, 120, 87, 0.08)",
-                cursor: "pointer",
-              }}
-            >
-              {verificationActivated ? "File upload unlocked" : "Activate file-based"}
-              <br />
-              verification
-            </button>
-          </div>
-        </section>
-        
         <section className="mt-3 p-0">
           <p className="text-xs font-medium tracking-[0.08em] uppercase text-slate-400 mb-2">
             Next procedural step
@@ -3686,10 +3724,12 @@ const recommendedPathLabel =
                 : "text-emerald-800"
             }`}
           >
-            {verificationPass && !verificationActivated
+            {primaryVerificationCtaState === "issued"
+              ? "Formal verification completed"
+              : primaryVerificationCtaState === "continue"
+              ? "Formal verification active"
+              : primaryVerificationCtaState === "payment"
               ? "Formal verification activation required"
-              : canActivateFormalVerification
-              ? "Record eligible for formal issuance"
               : access.needsEvent
               ? "Capture event before verification"
               : !hasLedgerReceipt
@@ -3712,10 +3752,12 @@ const recommendedPathLabel =
               color: "#64748B",
             }}
           >
-            {verificationPass && !verificationActivated
+            {primaryVerificationCtaState === "issued"
+              ? "The verification record is complete. The final package can be viewed from the completed verification state."
+              : primaryVerificationCtaState === "continue"
+              ? "Formal verification is active. Continue the paid workflow without starting another checkout."
+              : primaryVerificationCtaState === "payment"
               ? "The current record is eligible for verification preview. Formal activation is required before verification can run."
-              : canActivateFormalVerification
-              ? "The current record is sufficient for formal verification issuance when this decision must be carried forward outside the workspace."
               : access.needsEvent
               ? "Verification requires at least one captured event before this record can move into formal review."
               : !hasLedgerReceipt
@@ -3734,71 +3776,21 @@ const recommendedPathLabel =
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            {verificationPass ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!backendFormalVerificationGate) {
-                    handleOpenSubscriptionModal("verification_activation_locked");
-                    return;
-                  }
-
-                  if (!verificationActivated) {
-                    handleStartFormalVerificationCheckout();
-                    return;
-                  }
-
-                  handleOpenSubscriptionModal("verification_success_cta");
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#047857";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#059669";
-                }}
-                className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold shadow-sm transition"
-                disabled={startingFormalVerificationCheckout}
-                style={{
-                  backgroundColor: "#059669",
-                  color: "#FFFFFF",
-                  boxShadow: "0 6px 16px rgba(5,150,105,0.35)",
-                }}
-              >
-                {startingFormalVerificationCheckout
-                  ? "Starting checkout..."
-                  : verificationActivated
-                  ? "Verify Record"
-                  : "Activate Verification"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleRecoveryPath("verification_failed_cta")}
-                className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
-                style={{
-                  boxShadow: "0 3px 8px rgba(245, 158, 11, 0.18)"
-                }}
-              >
-                <span className="flex items-center gap-2">
-                  <span>Show recovery path</span>
-
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "0",
-                      height: "0",
-                      borderLeft: "5px solid transparent",
-                      borderRight: "5px solid transparent",
-                      borderTop: "6px solid #B45309", // amber-700
-                      transform: showRecoveryPanel ? "rotate(180deg)" : "rotate(0deg)",
-                      transition: "transform 0.2s ease",
-                    }}
-                  />
-                </span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handlePrimaryVerificationCta}
+              className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold shadow-sm transition"
+              disabled={
+                primaryVerificationCtaState === "payment" &&
+                startingFormalVerificationCheckout
+              }
+              style={primaryVerificationCtaStyle}
+            >
+              {primaryVerificationCtaState === "payment" &&
+              startingFormalVerificationCheckout
+                ? "Starting checkout..."
+                : primaryVerificationCtaLabel}
+            </button>
           </div>
 
           {formalVerificationCheckoutError ? (
@@ -3807,7 +3799,7 @@ const recommendedPathLabel =
             </p>
           ) : null}
 
-          {showRecoveryPanel && !canActivateFormalVerification && (
+          {showRecoveryPanel && primaryVerificationCtaState === "repair" && (
             <div className="mt-6 space-y-4" ref={recoverySectionRef}>
               {consistencyRepairCard ? (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 sm:px-5">
