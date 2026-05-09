@@ -1808,6 +1808,7 @@ export default function VerificationPage() {
   const receiptPath = activeCaseId
     ? `/receipt?caseId=${encodeURIComponent(activeCaseId)}&from=verification`
     : "/cases";
+  const canOpenVerificationPage = Boolean(activeCaseId || inferredCaseId);
 
   const accessMode = getAccessMode(backendCanonicalCase);
   const isPaid = backendReceiptPaidActivatedIssued || accessMode === "paid";
@@ -2010,6 +2011,9 @@ export default function VerificationPage() {
 
   const cameFromIssuedReceipt =
     backendFormalVerificationGate;
+  const canStartFormalVerification = backendFormalVerificationGate;
+  const isVerificationReviewOnly =
+    canOpenVerificationPage && !canStartFormalVerification;
 
   const resolvedPayload = resolveVerificationPayload(
     routeEnvelope || {},
@@ -2776,7 +2780,7 @@ const displayReceiptHash =
     isEvidenceLockedConsistent,
   ]);
 
-  if (!cameFromIssuedReceipt || !receiptAllowsVerification) {
+  if (!canOpenVerificationPage) {
     return (
       <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
         <div className="max-w-3xl mx-auto">
@@ -2803,10 +2807,10 @@ const displayReceiptHash =
               Verification not available
             </p>
             <h1 className="text-2xl font-bold mb-3">
-              This receipt has not been issued for verification
+              No case record is attached
             </h1>
             <p className="text-slate-700 leading-7">
-              Verification can only be opened from an issued receipt that is eligible for verification.
+              Open Verification from a case or receipt record so the review can stay attached to a case id.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -2817,47 +2821,6 @@ const displayReceiptHash =
               >
                 Back to Receipt
               </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasEventBackedBaseline) {
-    return (
-      <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-        <div className="max-w-3xl mx-auto">
-          <TopRightCasesCapsule />
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <p className="text-xs font-medium text-slate-400 mb-2">
-              Verification blocked
-            </p>
-            <h1 className="text-2xl font-bold mb-3">
-              Verification not activated
-            </h1>
-            <p className="text-slate-700 leading-7">
-              This record has no event-backed baseline yet. Capture at least one real event before requesting formal verification.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(receiptPath, {
-                    state: {
-                      ...stripCanonicalCaseFlowState(routeEnvelope || {}),
-                      openQuickCapture: true,
-                      quickCaptureIntent: "first_event_from_verification",
-                      returnToVerification: true,
-                      returnToVerificationState: routeEnvelope || {},
-                    },
-                  })
-                }
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-[12px] font-medium text-white shadow-sm transition hover:bg-slate-800"
-              >
-                Capture first event
-              </button>
             </div>
           </div>
         </div>
@@ -2974,7 +2937,9 @@ const recommendedPathLabel =
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-3xl font-bold mb-3">
-                {backendFormalVerificationGate
+                {isVerificationReviewOnly
+                  ? "Verification Review"
+                  : backendFormalVerificationGate
                   ? verificationActivated || isPaid
                     ? "Verification Ready"
                     : "Verification Not Activated"
@@ -2997,7 +2962,9 @@ const recommendedPathLabel =
               </p>
 
               <div className="text-sm text-slate-500 mt-2">
-                Receipt records the decision. Verification checks that the record holds under review.
+                {isVerificationReviewOnly
+                  ? "This record can be reviewed here. Formal verification is not active yet."
+                  : "Receipt records the decision. Verification checks that the record holds under review."}
               </div>
 
               <p
