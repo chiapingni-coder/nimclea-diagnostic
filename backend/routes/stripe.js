@@ -123,6 +123,7 @@ function updateReceiptPaymentRecord({
   hash = "",
   paymentTier = "formal_receipt",
   paymentStatus = "checkout_created",
+  paymentType = "receipt_activation",
   paid = false,
   source = "stripe_checkout",
 }) {
@@ -135,6 +136,7 @@ function updateReceiptPaymentRecord({
     hash,
     paymentTier,
     paymentStatus,
+    paymentType,
     paid,
     source,
   };
@@ -162,6 +164,7 @@ function updateReceiptPaymentRecord({
         paid: safeRecords[existingIndex]?.paid === true ? true : paid,
         paymentTier,
         paymentStatus,
+        paymentType,
         caseSnapshot,
         caseSnapshotHash,
         snapshotStatus: "active",
@@ -183,6 +186,7 @@ function updateReceiptPaymentRecord({
       paid: safeRecords[existingIndex]?.paid === true ? true : paid,
       paymentTier,
       paymentStatus,
+      paymentType,
       caseSnapshot,
       caseSnapshotHash,
       snapshotVersion: safeRecords[existingIndex]?.snapshotVersion || 1,
@@ -201,6 +205,7 @@ function updateReceiptPaymentRecord({
     paid,
     paymentTier,
     paymentStatus,
+    paymentType,
     verificationStatus: "",
     caseSnapshot,
     caseSnapshotHash,
@@ -488,6 +493,8 @@ export async function createCheckoutSession(req, res) {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       metadata: {
+        paymentType: "receipt_activation",
+        priceType: "receipt_activation",
         caseId,
         receiptId: receiptId || "",
         hash: hash || "",
@@ -510,8 +517,8 @@ export async function createCheckoutSession(req, res) {
               quantity: 1,
             },
       ],
-      success_url: `${FRONTEND_URL}/receipt?caseId=${encodeURIComponent(caseId)}&session_id={CHECKOUT_SESSION_ID}&paid=success`,
-      cancel_url: `${FRONTEND_URL}/receipt?caseId=${encodeURIComponent(caseId)}&paid=cancel`,
+      success_url: `${FRONTEND_URL}/receipt?caseId=${encodeURIComponent(caseId)}&session_id={CHECKOUT_SESSION_ID}&paid=success&paymentType=receipt_activation`,
+      cancel_url: `${FRONTEND_URL}/receipt?caseId=${encodeURIComponent(caseId)}&paid=cancel&paymentType=receipt_activation`,
     });
 
     updateReceiptPaymentRecord({
@@ -520,6 +527,7 @@ export async function createCheckoutSession(req, res) {
       hash: hash || "",
       paymentTier: "formal_receipt",
       paymentStatus: "checkout_created",
+      paymentType: "receipt_activation",
       paid: false,
       source: "stripe_checkout",
     });
@@ -731,6 +739,13 @@ router.post("/confirm-checkout-session", async (req, res) => {
       });
     }
 
+    if (sessionPaymentType !== "receipt_activation") {
+      return res.status(400).json({
+        error: "Unsupported paymentType",
+        message: "Checkout session paymentType is required for payment confirmation.",
+      });
+    }
+
     if (!caseId) {
       return res.status(400).json({
         error: "Missing caseId",
@@ -753,11 +768,31 @@ router.post("/confirm-checkout-session", async (req, res) => {
     }
 
     const now = new Date().toISOString();
+    const existingCasesRaw = readJsonFile(CASES_FILE, []);
+    const existingCases = Array.isArray(existingCasesRaw) ? existingCasesRaw : [];
+    const existingIndex = findCaseIndex(existingCases, caseId);
+    const existingCase = existingIndex >= 0 ? existingCases[existingIndex] || {} : {};
+    const receiptPayment = {
+      ...(existingCase.receiptPayment || {}),
+      paymentType: "receipt_activation",
+      paymentStatus: "paid",
+      status: "paid",
+      stripeSessionId: session.id,
+      stripeCustomerId: String(session.customer || ""),
+      paymentIntentId: session.payment_intent || "",
+      paidAt: now,
+      activatedAt: now,
+      source: "stripe_checkout_confirmed",
+    };
     const updatedCase = upsertCaseRecord({
+      ...existingCase,
       caseId,
+      receiptPayment,
+      receiptActivated: true,
+      paymentStatus: "paid",
       caseBilling: {
+        ...(existingCase.caseBilling || {}),
         receiptActivated: true,
-        verificationActivated: false,
         activatedAt: now,
         source: "stripe_checkout_confirmed",
         paymentStatus: "paid",
@@ -765,16 +800,17 @@ router.post("/confirm-checkout-session", async (req, res) => {
         paymentIntentId: session.payment_intent || "",
       },
       receipt: {
+        ...(existingCase.receipt || {}),
         paid: true,
         receiptActivated: true,
-        verified: false,
       },
       payment: {
+        ...(existingCase.payment || {}),
         status: "paid",
         receiptActivated: true,
-        verificationActivated: false,
         stripeSessionId: session.id,
         stripePaymentStatus: session.payment_status,
+        receiptPaymentStatus: "paid",
       },
       isPaid: true,
       updatedAt: now,
@@ -786,6 +822,7 @@ router.post("/confirm-checkout-session", async (req, res) => {
       hash: session?.metadata?.hash || "",
       paymentTier: "formal_receipt",
       paymentStatus: "paid",
+      paymentType: "receipt_activation",
       paid: true,
       source: "stripe_checkout_confirmed",
     });
@@ -793,6 +830,7 @@ router.post("/confirm-checkout-session", async (req, res) => {
     return res.json({
       success: true,
       sessionId: session.id,
+      paymentType: "receipt_activation",
       paymentStatus: session.payment_status,
       caseId,
       caseRecord: updatedCase,

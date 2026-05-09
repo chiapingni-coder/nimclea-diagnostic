@@ -300,18 +300,49 @@ export function updateCaseLead(caseId = "", lead = {}) {
   });
 }
 
-export function markCaseAsPaid(caseId = "") {
+export function markCaseAsPaid(caseId = "", options = {}) {
   if (!caseId) return null;
 
   const existing = getCaseById(caseId);
   if (!existing) return null;
 
+  const backendConfirmed = options?.backendConfirmed === true;
+  const paymentType = String(options?.paymentType || "").trim();
+  const isReceiptActivation = paymentType === "receipt_activation";
+
+  if (!backendConfirmed || !isReceiptActivation) {
+    return upsertCase({
+      ...existing,
+      caseId,
+      receiptPaymentCache: {
+        paymentType: paymentType || "receipt_activation",
+        status: "unconfirmed",
+        backendConfirmed: false,
+        source: "local_cache_marker",
+        cachedAt: nowIso(),
+      },
+    });
+  }
+
   return upsertCase({
     ...existing,
     caseId,
+    receiptPayment: {
+      ...(existing.receiptPayment || {}),
+      ...(options.receiptPayment || {}),
+      paymentType: "receipt_activation",
+      paymentStatus: "paid",
+      backendConfirmed: true,
+      source:
+        options?.source ||
+        options?.receiptPayment?.source ||
+        "stripe_checkout_confirmed_cache",
+      cachedAt: nowIso(),
+    },
     receipt: {
       ...(existing.receipt || {}),
       paid: true,
+      receiptActivated: true,
     },
   });
 }

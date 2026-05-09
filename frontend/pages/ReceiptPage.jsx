@@ -1312,7 +1312,11 @@ const urlCaseId = String(
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ caseId, sessionId }),
+            body: JSON.stringify({
+              caseId,
+              sessionId,
+              paymentType: "receipt_activation",
+            }),
           }
         );
 
@@ -1834,7 +1838,11 @@ const urlCaseId = String(
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ caseId }),
+        body: JSON.stringify({
+          caseId,
+          paymentType: "receipt_activation",
+          priceType: "receipt_activation",
+        }),
       });
 
       const data = await response.json();
