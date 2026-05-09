@@ -305,6 +305,60 @@ router.post("/receipt", (req, res) => {
   }
 });
 
+router.get("/receipt-record", (req, res) => {
+  try {
+    const caseId = String(req.query?.caseId || "").trim();
+
+    if (!caseId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing caseId",
+      });
+    }
+
+    const recordsRaw = readJsonFile(RECEIPT_RECORDS_FILE, []);
+    const records = Array.isArray(recordsRaw) ? recordsRaw : [];
+
+    const matchingRecords = records.filter(
+      (item) => String(item?.caseId || item?.case_id || "").trim() === caseId
+    );
+
+    if (matchingRecords.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        exists: false,
+        error: "Receipt payment record not found",
+      });
+    }
+
+    const record = matchingRecords
+      .slice()
+      .sort((a, b) => {
+        const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
+        const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
+        return bTime - aTime;
+      })[0];
+
+    return res.json({
+      ok: true,
+      exists: true,
+      caseId,
+      paymentStatus: record?.paymentStatus || record?.payment_status || "",
+      paid: record?.paid === true,
+      paymentTier: record?.paymentTier || record?.payment_tier || "",
+      receiptHash: record?.hash || record?.receiptHash || record?.receipt_hash || "",
+      source: record?.source || "",
+      record,
+    });
+  } catch (error) {
+    console.error("GET /hash-ledger/receipt-record error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to read receipt payment record",
+    });
+  }
+});
+
 router.get("/receipt/:caseId", (req, res) => {
   try {
     const caseId = String(req.params?.caseId || "").trim();
