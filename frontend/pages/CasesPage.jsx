@@ -429,6 +429,14 @@ function deriveCaseListState(item) {
     normalized?.paymentStatus === "paid";
 
   const hasEvidenceEvent = evidenceEventCount > 0;
+  const readinessDetailLabel =
+    readinessContract.readinessLevel === "pending_review"
+      ? "Pending review"
+      : readinessContract.readinessLevel === "insufficient_record"
+      ? "Insufficient record"
+      : readinessContract.readinessLevel === "failed"
+      ? "Receipt failed"
+      : "";
 
   let displayStatus = normalized?.status || "draft";
 
@@ -438,21 +446,6 @@ function deriveCaseListState(item) {
     displayStatus = "Receipt checkout started";
   } else if (readinessContract.receiptReady) {
     displayStatus = "Receipt ready";
-  } else if (
-    hasReceiptStageSignal &&
-    readinessContract.readinessLevel === "pending_review"
-  ) {
-    displayStatus = "Receipt pending review";
-  } else if (
-    hasReceiptStageSignal &&
-    readinessContract.readinessLevel === "insufficient_record"
-  ) {
-    displayStatus = "Insufficient record";
-  } else if (
-    hasReceiptStageSignal &&
-    readinessContract.readinessLevel === "failed"
-  ) {
-    displayStatus = "Receipt failed";
   } else if (hasReceiptStageSignal) {
     displayStatus = "Receipt not ready";
   } else if (hasEvidenceEvent) {
@@ -471,6 +464,7 @@ function deriveCaseListState(item) {
     displayStatus,
     readinessContract,
     hasReceiptStageSignal,
+    readinessDetailLabel,
   };
 }
 
@@ -1614,6 +1608,12 @@ export default function CasesPage() {
                             {eventCount === 1 ? "event" : "events"}
                           </p>
                           <p>Receipt: {sanitizeText(receiptDisplay)}</p>
+                          {derived.readinessDetailLabel ? (
+                            <p>
+                              Readiness:{" "}
+                              {sanitizeText(derived.readinessDetailLabel)}
+                            </p>
+                          ) : null}
                           <p>Verification: {sanitizeText(verificationDisplay)}</p>
                           {formattedUpdatedAt ? (
                             <p>Updated: {formattedUpdatedAt}</p>
