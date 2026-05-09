@@ -802,11 +802,63 @@ function deriveExplicitReceiptReady(caseLike = {}) {
 
   return Boolean(
     caseLike?.receiptEligible === true ||
-    caseLike?.caseReceiptEligible === true ||
-    receiptStatus === "ready" ||
-    stage === "receipt_ready" ||
-    status === "receipt_ready"
+      caseLike?.caseReceiptEligible === true ||
+      receiptStatus === "ready" ||
+      stage === "receipt_ready" ||
+      status === "receipt_ready"
   );
+}
+
+function getCanonicalStageRank(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  const ranks = {
+    intake: 0,
+    diagnostic: 1,
+    result_ready: 2,
+    receipt_ready: 3,
+    ready: 3,
+    receipt_paid: 4,
+    receipt_activated: 4,
+    paid: 4,
+    activated: 4,
+    issued: 4,
+    verification_ready: 5,
+    verification_issued: 6,
+    verification_activated: 6,
+  };
+
+  return ranks[normalized] ?? -1;
+}
+
+function isBackendConfirmedReceiptSource({
+  backendCaseRecord = null,
+  hydratedReceiptRecord = null,
+  caseBillingOverride = null,
+} = {}) {
+  return Boolean(
+    backendCaseRecord ||
+      hydratedReceiptRecord?._backendConfirmed === true ||
+      caseBillingOverride?._backendConfirmed === true
+  );
+}
+
+function isEventScopedToCase(event = {}, inferredCaseId = "", sourceTrusted = false) {
+  if (sourceTrusted) return true;
+
+  const currentCaseId = String(inferredCaseId || "").trim();
+  if (!currentCaseId) return false;
+
+  const eventCaseId = String(
+    event?.caseId ||
+      event?.case_id ||
+      event?.meta?.caseId ||
+      event?.meta?.case_id ||
+      event?.metadata?.caseId ||
+      event?.metadata?.case_id ||
+      ""
+  ).trim();
+
+  return eventCaseId === currentCaseId;
 }
 
 export default function ReceiptPage() {
@@ -962,20 +1014,28 @@ const urlCaseId = String(
     };
   }, [receiptHashCaseId, receiptHashReceiptId]);
 
+  const hasBackendConfirmedReceiptSource = isBackendConfirmedReceiptSource({
+    backendCaseRecord,
+    hydratedReceiptRecord,
+    caseBillingOverride,
+  });
+
   const persistedReceiptHash =
     getReceiptLedgerRecordHash(receiptLedgerRecord) ||
     getStableHashValue(ledgerReceiptHash) ||
-    getStableHashValue(persistedCaseReceiptHash) ||
-    getStableHashValue(resolvedPayload?.receiptHash) ||
-    getStableHashValue(routeData?.receiptHash) ||
-    getStableHashValue(storedData?.receiptHash) ||
-    getStableHashValue(
-      getStoredStableHash(
-        receiptHashCaseId || receiptHashReceiptId
-          ? `receiptHash:${receiptHashCaseId || receiptHashReceiptId}`
-          : ""
-      )
-    );
+    (hasBackendConfirmedReceiptSource
+      ? getStableHashValue(persistedCaseReceiptHash) ||
+        getStableHashValue(resolvedPayload?.receiptHash) ||
+        getStableHashValue(routeData?.receiptHash) ||
+        getStableHashValue(storedData?.receiptHash) ||
+        getStableHashValue(
+          getStoredStableHash(
+            receiptHashCaseId || receiptHashReceiptId
+              ? `receiptHash:${receiptHashCaseId || receiptHashReceiptId}`
+              : ""
+          )
+        )
+      : "");
 
   const generatedAtRef = React.useRef(
     resolvedPayload.generatedAt || new Date().toLocaleString()
@@ -1028,6 +1088,9 @@ const urlCaseId = String(
             currentReceiptId,
             persistedReceiptHash
           );
+          if (!hasBackendConfirmedReceiptSource) {
+            return;
+          }
           postLedgerReceiptHash(receiptHashCaseId, persistedReceiptHash).then((ledgerHash) => {
             if (ledgerHash) {
               readReceiptLedger(receiptHashCaseId).then((existingRecord) => {
@@ -1047,6 +1110,11 @@ const urlCaseId = String(
         }
 
         if (computedReceiptHash && hashComputedForReceiptRef.current === currentReceiptId) {
+          return;
+        }
+
+        if (!hasBackendConfirmedReceiptSource) {
+          setComputedReceiptHash("");
           return;
         }
 
@@ -1074,6 +1142,9 @@ const urlCaseId = String(
               currentReceiptId,
               safeNextHash
             );
+            if (!hasBackendConfirmedReceiptSource) {
+              return;
+            }
             postLedgerReceiptHash(receiptHashCaseId, safeNextHash).then((ledgerHash) => {
               if (ledgerHash) {
                 readReceiptLedger(receiptHashCaseId).then((existingRecord) => {
@@ -1108,6 +1179,7 @@ const urlCaseId = String(
         normalized.generatedAt,
         receiptHashCaseId,
         receiptHashReceiptId,
+        hasBackendConfirmedReceiptSource,
       ]);
         
     const normalizedWithoutDecisionStatus = normalized;
@@ -1126,10 +1198,12 @@ const urlCaseId = String(
         getReceiptLedgerRecordHash(receiptLedgerRecord) ||
         persistedReceiptHash ||
         getStableHashValue(computedReceiptHash) ||
-        getStableHashValue(normalized.receiptHash) ||
-        getStableHashValue(resolvedPayload.receiptHash) ||
-        getStableHashValue(routeData?.receiptHash) ||
-        getStableHashValue(storedData?.receiptHash) ||
+        (hasBackendConfirmedReceiptSource
+          ? getStableHashValue(normalized.receiptHash) ||
+            getStableHashValue(resolvedPayload.receiptHash) ||
+            getStableHashValue(routeData?.receiptHash) ||
+            getStableHashValue(storedData?.receiptHash)
+          : "") ||
         "",
     };
   const rawData = {
@@ -1288,7 +1362,10 @@ const urlCaseId = String(
         });
 
         if (confirmedCase?.caseBilling) {
-          setCaseBillingOverride(confirmedCase.caseBilling);
+          setCaseBillingOverride({
+            ...confirmedCase.caseBilling,
+            _backendConfirmed: true,
+          });
         }
       } catch (error) {
         console.warn("[ReceiptPage] Failed to confirm checkout session", error);
@@ -1313,9 +1390,11 @@ const urlCaseId = String(
       const currentStoredCaseId = routeDataCaseId || storedDataCaseId || "";
 
       if (currentStoredCaseId === inferredCaseId && storedData) {
-        setHydratedReceiptRecord(storedData);
-        setReceiptRecordHydrationComplete(true);
-        return;
+        setHydratedReceiptRecord({
+          ...storedData,
+          _fallbackOnly: true,
+          _backendConfirmed: false,
+        });
       }
 
       try {
@@ -1333,7 +1412,11 @@ const urlCaseId = String(
         const record = await response.json().catch(() => null);
 
         if (!cancelled && record) {
-          setHydratedReceiptRecord(record);
+          setHydratedReceiptRecord({
+            ...record,
+            _backendConfirmed: true,
+            _fallbackOnly: false,
+          });
         }
       } catch (error) {
         console.warn("Failed to hydrate receipt record", error);
@@ -1447,25 +1530,47 @@ const urlCaseId = String(
   const [leadError, setLeadError] = React.useState("");
   const hasValidLead = lead.email && lead.email.includes("@");
 
-  const currentCaseEventCandidates = [
+  const backendEventCandidates = [
+    backendCaseRecord?.eventLogs,
+    backendCaseRecord?.events,
+    backendCaseRecord?.capturedEvents,
+    backendCaseRecord?.pilotTrail,
+    backendCaseRecord?.trail,
+    backendCaseRecord?.workspaceSummary?.events,
+    backendCaseRecord?.pilotSummary?.events,
+    backendCaseRecord?.pilotResult?.events,
+  ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
+
+  const fallbackEventCandidates = [
     currentCase?.eventLogs,
     currentCase?.events,
     currentCase?.pilotTrail,
     currentCase?.trail,
-    activeCurrentCase?.eventLogs,
-    activeCurrentCase?.events,
-    activeCurrentCase?.capturedEvents,
-    activeCurrentCase?.pilotTrail,
-    activeCurrentCase?.trail,
-    activeCurrentCase?.workspaceSummary?.events,
-    activeCurrentCase?.pilotSummary?.events,
-    activeCurrentCase?.pilotResult?.events,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.eventLogs,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.events,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.capturedEvents,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.pilotTrail,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.trail,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.workspaceSummary?.events,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.pilotSummary?.events,
+    activeCurrentCaseSource === "backendCasesEndpoint" ? null : activeCurrentCase?.pilotResult?.events,
   ].filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
+
+  const currentCaseEventCandidates = [
+    ...backendEventCandidates.map((events) => ({ events, sourceTrusted: true })),
+    ...fallbackEventCandidates.map((events) => ({ events, sourceTrusted: false })),
+  ];
 
   const currentCaseEventSource = Array.from(
     new Map(
       currentCaseEventCandidates
-        .flat()
+        .flatMap(({ events, sourceTrusted }) =>
+          events.map((event) =>
+            event && typeof event === "object"
+              ? { ...event, _sourceTrustedForReceipt: sourceTrusted }
+              : event
+          )
+        )
         .filter((event) => event && typeof event === "object")
         .map((event, index) => {
           const key = String(
@@ -1504,8 +1609,12 @@ const urlCaseId = String(
       ? normalized.executionSummary.structuredEvents
       : [];
 
+  const scopedFallbackCapturedEvents = fallbackCapturedEvents
+    .filter((event) => event && typeof event === "object")
+    .filter((event) => isEventScopedToCase(event, inferredCaseId, false));
+
   const currentCaseQuickCaptures =
-    currentCaseEventSource.length > 0 ? currentCaseEventSource : fallbackCapturedEvents;
+    currentCaseEventSource.length > 0 ? currentCaseEventSource : scopedFallbackCapturedEvents;
 
   const realCapturedEvents = currentCaseQuickCaptures.filter((event) => {
     if (!event || typeof event !== "object") return false;
@@ -1547,6 +1656,7 @@ const urlCaseId = String(
     ).toLowerCase();
     const page = String(event?.page || event?.meta?.page || "").toLowerCase();
     const source = String(event?.source || event?.meta?.source || "").toLowerCase();
+    const sourceTrusted = event?._sourceTrustedForReceipt === true;
     const nonEvidenceEventTypes = new Set([
       "receipt_viewed",
       "verification_viewed",
@@ -1574,6 +1684,7 @@ const urlCaseId = String(
       "pilot_setup",
     ]);
 
+    if (!isEventScopedToCase(event, inferredCaseId, sourceTrusted)) return false;
     if (nonEvidenceEventTypes.has(eventType)) return false;
     if (eventType.startsWith("diagnostic_")) return false;
     if (page.includes("diagnostic") && eventType.startsWith("entry_")) return false;
@@ -1738,13 +1849,18 @@ const urlCaseId = String(
       eventCount: deterministicScore.eventCount,
       events: deterministicScore.events,
       receiptPaid:
-        activeCaseBilling?.receiptActivated === true ||
-        activeCurrentCase?.payment?.receiptActivated === true ||
-        activeCurrentCase?.isPaid === true,
+        (caseBillingOverride?._backendConfirmed === true &&
+          caseBillingOverride?.receiptActivated === true) ||
+        backendCaseRecord?.caseBilling?.receiptActivated === true ||
+        backendCaseRecord?.payment?.receiptActivated === true ||
+        backendCaseRecord?.receipt?.paid === true ||
+        String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase() === "paid" ||
+        String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase() === "activated" ||
+        String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase() === "issued",
       verificationPaid:
-        activeCaseBilling?.verificationActivated === true ||
-        activeCurrentCase?.payment?.verificationActivated === true ||
-        activeCurrentCase?.isPaid === true,
+        backendCaseRecord?.caseBilling?.verificationActivated === true ||
+        backendCaseRecord?.payment?.verificationActivated === true ||
+        backendCaseRecord?.verificationEligible === true,
     }
   );
   const isPaid = accessMode === "paid";
@@ -1774,9 +1890,14 @@ const urlCaseId = String(
     }
   };
   const receiptActivated =
-    activeCaseBilling?.receiptActivated === true ||
-    activeCurrentCase?.payment?.receiptActivated === true ||
-    activeCurrentCase?.isPaid === true;
+    (caseBillingOverride?._backendConfirmed === true &&
+      caseBillingOverride?.receiptActivated === true) ||
+    backendCaseRecord?.caseBilling?.receiptActivated === true ||
+    backendCaseRecord?.payment?.receiptActivated === true ||
+    backendCaseRecord?.receipt?.paid === true ||
+    ["paid", "activated", "issued"].includes(
+      String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase()
+    );
 
   const data = {
     ...rawData,
@@ -1856,7 +1977,7 @@ const urlCaseId = String(
 
     if (hasVerifiedAt) return "Verified";
 
-    if (readinessContract.readinessLevel === "ready") {
+    if (explicitBackendReceiptReady || readinessContract.readinessLevel === "ready") {
       return "READY FOR FORMAL DETERMINATION";
     }
 
@@ -1990,18 +2111,21 @@ const submittedEvents = displayedTotalEvents;
 
 const decisionPathEvents = displayedStructuredEvents;
 
-const hasEventBackedBaseline =
-  Number(submittedEvents || 0) > 0 ||
-  Number(decisionPathEvents || 0) > 0;
-
-const hasEventBackedRecord = Number(deterministicScore.eventCount || 0) > 0;
-const normalizedScore = deterministicScore.totalScore;
-const hasPassingScore = Number(normalizedScore || 0) >= 3.0;
 const backendReceiptReady = Boolean(
   explicitBackendReceiptReady || deriveExplicitReceiptReady(data?.caseData)
 );
 
-const receiptEligible = readinessContract.receiptReady;
+const hasEventBackedBaseline =
+  backendReceiptReady ||
+  Number(submittedEvents || 0) > 0 ||
+  Number(decisionPathEvents || 0) > 0;
+
+const hasEventBackedRecord =
+  backendReceiptReady || Number(deterministicScore.eventCount || 0) > 0;
+const normalizedScore = deterministicScore.totalScore;
+const hasPassingScore = backendReceiptReady || Number(normalizedScore || 0) >= 3.0;
+
+const receiptEligible = backendReceiptReady || readinessContract.receiptReady;
 
 console.log("[ReceiptPage readiness trace]", {
   caseId: inferredCaseId,
@@ -2039,6 +2163,16 @@ React.useEffect(() => {
   if (!receiptEligible || !targetCaseId) return;
   if (receiptReadyPersistedRef.current.has(targetCaseId)) return;
 
+  const currentCanonicalCase = backendCaseRecord || activeCurrentCase || {};
+  const currentStageRank = Math.max(
+    getCanonicalStageRank(currentCanonicalCase?.stage),
+    getCanonicalStageRank(currentCanonicalCase?.status),
+    getCanonicalStageRank(currentCanonicalCase?.receiptStatus)
+  );
+  const receiptReadyRank = getCanonicalStageRank("receipt_ready");
+
+  if (currentStageRank > receiptReadyRank) return;
+
   receiptReadyPersistedRef.current.add(targetCaseId);
 
   fetch(
@@ -2050,7 +2184,6 @@ React.useEffect(() => {
       },
       body: JSON.stringify({
         receiptEligible: true,
-        status: "workspace_active",
         stage: "receipt_ready",
         email:
           String(
@@ -2064,7 +2197,14 @@ React.useEffect(() => {
     console.warn("[ReceiptPage] Failed to persist receipt ready status", error);
     receiptReadyPersistedRef.current.delete(targetCaseId);
   });
-}, [receiptEligible, inferredCaseId, data?.caseData?.caseId, data?.caseData?.id]);
+}, [
+  receiptEligible,
+  inferredCaseId,
+  data?.caseData?.caseId,
+  data?.caseData?.id,
+  backendCaseRecord,
+  activeCurrentCase,
+]);
 
 const receiptExpressionModel = (() => {
   if (isVerified || data.decisionStatus === "Verified") {
@@ -2198,16 +2338,44 @@ const isEvidenceLockedConsistent =
     evidenceLock.receiptMode === receiptMode
   );
 
+const backendOwnedReceiptReady = Boolean(
+  deriveExplicitReceiptReady(backendCaseRecord) ||
+    (
+      hydratedReceiptRecord?._backendConfirmed === true &&
+      deriveExplicitReceiptReady(hydratedReceiptRecord)
+    )
+);
+
+const backendReceiptPaidActivatedIssued = Boolean(
+  receiptActivated ||
+    ["paid", "activated", "issued"].includes(
+      String(backendCaseRecord?.receiptStatus || backendCaseRecord?.receipt?.status || "").toLowerCase()
+    ) ||
+    ["paid", "activated", "issued"].includes(
+      String(
+        hydratedReceiptRecord?._backendConfirmed === true
+          ? hydratedReceiptRecord?.receiptStatus || hydratedReceiptRecord?.receipt?.status || ""
+          : ""
+      ).toLowerCase()
+    )
+);
+
+const backendVerificationEligible = Boolean(
+  backendCaseRecord?.verificationEligible === true ||
+    (
+      hydratedReceiptRecord?._backendConfirmed === true &&
+      hydratedReceiptRecord?.verificationEligible === true
+    )
+);
+
 const receiptAllowsVerification =
-  receiptEligible ||
-  data.decisionStatus === "Verified" ||
-  data.overallStatus === "Verified" ||
-  sharedFlat?.overallStatus === "Verified";
+  (backendOwnedReceiptReady && backendReceiptPaidActivatedIssued) ||
+  backendVerificationEligible;
 
 const existingReceiptEligible = receiptAllowsVerification;
 
 const guardedReceiptEligible =
-  hasEventBackedBaseline && existingReceiptEligible;
+  existingReceiptEligible;
 
 const canEnterVerification =
   guardedReceiptEligible && isEvidenceLockedConsistent;
@@ -2226,25 +2394,8 @@ const receiptCtaLabel = !receiptEligible
   : "Open Verification";
 
 const handleActivateReceiptForCase = () => {
-  if (!inferredCaseId) return;
-
-  const nextCaseBilling = {
-    ...activeCaseBilling,
-    receiptActivated: true,
-    verificationActivated: activeCaseBilling?.verificationActivated === true,
-    activatedAt: new Date().toISOString(),
-    source: "local_test",
-  };
-
-  try {
-    upsertCase({
-      caseId: inferredCaseId,
-      caseBilling: nextCaseBilling,
-    });
-    setCaseBillingOverride(nextCaseBilling);
-  } catch (error) {
-    console.warn("Failed to activate receipt for case", error);
-  }
+  console.warn("Local receipt activation is disabled; activation must come from backend/payment confirmation.");
+  return false;
 };
 
 const handleQuickCaptureSubmit = () => {
@@ -2311,7 +2462,7 @@ const handleQuickCaptureSubmit = () => {
   setQuickCaptureOpen(false);
   setQuickCaptureNote("");
 
-  if (location.state?.returnToVerification) {
+  if (location.state?.returnToVerification && canEnterVerification) {
     navigate(`${ROUTES.VERIFICATION}?caseId=${encodeURIComponent(inferredCaseId)}`, {
       state: {
         ...stripCanonicalCaseFlowState(
@@ -3108,7 +3259,7 @@ if (!canRenderReceipt) {
                   }
 
                   if (buttonState === "ready") {
-                    if (!receiptActivated) {
+                    if (!canEnterVerification) {
                       handleUnlockFormalReceipt();
                       return;
                     }
@@ -3898,6 +4049,11 @@ if (!canRenderReceipt) {
                 }
 
                 if (receiptEligible) {
+                  if (!canEnterVerification) {
+                    handleUnlockFormalReceipt();
+                    return;
+                  }
+
                   const session =
                     location.state?.trialSession || getTrialSession();
 
@@ -3993,6 +4149,10 @@ if (!canRenderReceipt) {
                   { once: true }
                 ).catch(() => {});
 
+                if (!canEnterVerification) {
+                  return;
+                }
+
                 navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
                   state: {
                     ...stripCanonicalCaseFlowState(location.state || {}),
@@ -4007,6 +4167,7 @@ if (!canRenderReceipt) {
                     routeDecision,
                     receiptSource,
                     evidenceLock: finalEvidenceLock,
+                    caseId: inferredCaseId,
                   },
                 });
               }}
