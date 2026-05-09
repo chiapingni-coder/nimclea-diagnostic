@@ -1620,6 +1620,18 @@ export default function VerificationPage() {
         const list = Array.isArray(payload) ? payload : [];
         const found = list.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
 
+        console.log("[VerificationPage backend hydrate result]", {
+          email,
+          safeCaseId,
+          count: list.length,
+          found: Boolean(found),
+          foundCaseId: getCaseIdFromAny(found || {}),
+          foundStage: found?.stage,
+          foundStatus: found?.status,
+          foundReceiptEligible: found?.receiptEligible,
+          foundEventCount: found?.eventCount,
+        });
+
         if (!cancelled) {
           setBackendCaseRecord(found);
         }
