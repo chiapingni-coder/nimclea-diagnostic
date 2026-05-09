@@ -42,6 +42,31 @@ Intended helper names:
 | Start Formal Verification | Starts verification checkout only. |
 | Export Evidence Package | Exports only after formal verification is paid/issued. |
 
+## VerificationPage Single Primary Action Rule
+
+VerificationPage should show only one primary action at a time.
+
+The primary action is determined by the verification state:
+
+| State | Primary action | Cost | Purpose | Payment rule |
+| --- | --- | --- | --- | --- |
+| Not ready / insufficient materials / correction required | Show recovery path or View required corrections | Free action | Explain what is missing and what the user should fix. | Must not start payment. |
+| Ready for formal verification, but not paid | Start Formal Verification | Paid action | Begin the formal verification payment/workflow. | This is the main verification payment point. |
+| Formal verification paid or active, but not issued | Continue Verification | No repeat payment | Continue file/evidence preparation or formal workflow. | Must not charge again. |
+| Formal verification issued | Export Evidence Package | Included in the formal verification fee | Download the official verification output/package. | First standard evidence package export is included. |
+
+Product rule:
+
+If the record is not ready, the action is repair. If the record is ready, the action is payment. If payment is complete, the action is continuation. If verification is issued, the action is export.
+
+Forbidden:
+
+- Showing "Show recovery path" and "Activate verification" as two competing primary buttons.
+- Showing a paid activation button while the page also says structural sufficiency is not met.
+- Starting payment from a button whose visible meaning is repair/recovery.
+- Making users pay before they understand what needs correction.
+- Charging again for the first standard evidence package export after formal verification is paid/issued.
+
 ## Anti-patterns
 
 Forbidden:
@@ -60,4 +85,4 @@ ReceiptPage and VerificationPage should consume a shared helper in a later step.
 
 Status: Draft contract
 
-Next step: implement shared verification access helper
+Next step: Implement VerificationPage CTA state machine so the page renders one primary action based on readiness/payment/issued state.
