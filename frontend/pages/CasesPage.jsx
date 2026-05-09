@@ -386,17 +386,57 @@ function isDiagnosticContinuationCase(item = {}) {
 
 function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
+  const evidenceEventCount = getEvidenceEvents(normalized).length;
+  const effectiveEventCaptured =
+    normalized?.eventCaptured === true || evidenceEventCount > 0;
+  const explicitBackendReady =
+    normalized?.receiptEligible === true ||
+    normalized?.caseReceiptEligible === true ||
+    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
+    String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
+    String(normalized?.status || "").toLowerCase() === "receipt_ready";
+  const rawStructureStatus =
+    normalized?.structureStatus ||
+    normalized?.structureStatusFromCase ||
+    normalized?.caseData?.structureStatus ||
+    "";
+
+  const normalizedStructureStatusText = String(rawStructureStatus || "")
+    .trim()
+    .toLowerCase();
+
+  const hasUsableStructureStatus =
+    Boolean(String(rawStructureStatus || "").trim()) &&
+    !["empty", "missing", "none", "null", "undefined", "unknown"].includes(
+      normalizedStructureStatusText
+    );
+
+  const effectiveStructureStatus = hasUsableStructureStatus
+    ? rawStructureStatus
+    : explicitBackendReady && effectiveEventCaptured
+    ? "receipt_ready_case_structure"
+    : "";
+  const rawStructureScore = Number(
+    normalized?.structureScore ??
+      normalized?.structureScoreFromCase ??
+      normalized?.caseData?.structureScore ??
+      0
+  );
+  const effectiveStructureScore =
+    Number.isFinite(rawStructureScore) && rawStructureScore > 0
+      ? rawStructureScore
+      : explicitBackendReady && effectiveEventCaptured
+      ? 1
+      : 0;
+
   const readinessContract = buildReadinessContract({
     ...normalized,
-    explicitBackendReady:
-      normalized?.receiptEligible === true ||
-      normalized?.caseReceiptEligible === true ||
-      String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
-      String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
-      String(normalized?.status || "").toLowerCase() === "receipt_ready",
+    eventCaptured: effectiveEventCaptured,
+    explicitBackendReady,
+    structureStatus: effectiveStructureStatus,
+    structureScore: effectiveStructureScore,
   });
   const snapshotOnly = normalized?.source === "receipt_snapshot";
-  const evidenceEventCount = getEvidenceEvents(normalized).length;
   const hasMeaningfulPilotResult =
     Boolean(normalized?.pilotResult?.result) ||
     (Array.isArray(normalized?.pilotResult?.entries) &&
@@ -428,7 +468,7 @@ function deriveCaseListState(item) {
       ));
   const concreteProgressReasons = {
     evidenceEventCountPositive: evidenceEventCount > 0,
-    eventCaptured: normalized?.eventCaptured === true,
+    eventCaptured: effectiveEventCaptured,
     hasMeaningfulPilotResult,
     hasIssuedReceiptObject,
     hasReceiptId: hasNonEmptyText(normalized?.receiptId),
@@ -436,7 +476,7 @@ function deriveCaseListState(item) {
   };
   const hasConcreteReceiptProgress =
     evidenceEventCount > 0 ||
-    normalized?.eventCaptured === true ||
+    effectiveEventCaptured ||
     hasMeaningfulPilotResult ||
     hasIssuedReceiptObject ||
     hasNonEmptyText(normalized?.receiptId) ||

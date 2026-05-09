@@ -1496,12 +1496,53 @@ const urlCaseId = String(
     Array.isArray(realCapturedEvents) &&
     realCapturedEvents.length > 0;
   const explicitBackendReceiptReady = deriveExplicitReceiptReady(activeCurrentCase);
+  const effectiveEventCaptured =
+    activeCurrentCase?.eventCaptured === true || hasEvents;
+  const rawStructureStatus =
+    activeCurrentCase?.structureStatus ||
+    activeCurrentCase?.structureStatusFromCase ||
+    activeCurrentCase?.caseData?.structureStatus ||
+    normalized?.caseData?.structureStatus ||
+    resolvedPayload?.caseData?.structureStatus ||
+    "";
+  const normalizedStructureStatusText = String(rawStructureStatus || "")
+    .trim()
+    .toLowerCase();
+  const hasUsableStructureStatus =
+    Boolean(String(rawStructureStatus || "").trim()) &&
+    !["empty", "missing", "none", "null", "undefined", "unknown"].includes(
+      normalizedStructureStatusText
+    );
+  const effectiveStructureStatus = hasUsableStructureStatus
+    ? rawStructureStatus
+    : explicitBackendReceiptReady && effectiveEventCaptured
+    ? "receipt_ready_case_structure"
+    : "";
+  const rawStructureScore = Number(
+    activeCurrentCase?.structureScore ??
+      activeCurrentCase?.structureScoreFromCase ??
+      activeCurrentCase?.caseData?.structureScore ??
+      normalized?.caseData?.structureScore ??
+      resolvedPayload?.caseData?.structureScore ??
+      0
+  );
+  const effectiveStructureScore =
+    Number.isFinite(rawStructureScore) && rawStructureScore > 0
+      ? rawStructureScore
+      : explicitBackendReceiptReady && effectiveEventCaptured
+      ? 1
+      : 0;
 
   const deterministicScoreSource = {
     ...(activeCurrentCase || normalized?.caseData || resolvedPayload?.caseData || {}),
     caseId: inferredCaseId || activeCurrentCase?.caseId || "",
+    eventCaptured: effectiveEventCaptured,
     explicitReceiptReady: explicitBackendReceiptReady,
     backendReceiptReady: explicitBackendReceiptReady,
+    structureStatus: effectiveStructureStatus,
+    structureScore: effectiveStructureScore,
+    structureStatusFromCase: effectiveStructureStatus,
+    structureScoreFromCase: effectiveStructureScore,
     receiptRecordFormable:
       explicitBackendReceiptReady ||
       Boolean(
