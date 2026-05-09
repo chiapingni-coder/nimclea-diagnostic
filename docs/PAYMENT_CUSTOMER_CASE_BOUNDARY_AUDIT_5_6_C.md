@@ -4,6 +4,8 @@
 
 This audit verifies current payment persistence against the Customer / Case Boundary Contract 5.6-B4. It checks whether customer/workspace subscription state, case-scoped receipt payment, case-scoped formal verification payment, and future package/version state remain separated across frontend, backend, and local cache paths.
 
+Re-audit note: This document was updated after commit `a294740` to specifically re-check the two previous FAIL items: typed receipt activation payment persistence and `caseRegistry.markCaseAsPaid()` local-only authority risk.
+
 ## References
 
 - `docs/CUSTOMER_CASE_BOUNDARY_CONTRACT_5_6_B4.md`
@@ -86,13 +88,13 @@ This audit verifies current payment persistence against the Customer / Case Boun
 - Risk: Low. Receipt confirmation writes `receiptActivated: true`, `receipt.paid: true`, `payment.receiptActivated: true`, and `isPaid: true`, while explicitly setting `verificationActivated: false`.
 - Suggested fix: Preserve this separation when adding typed receipt payment fields.
 
-### 9. Receipt activation still writes payment state without explicit paymentType
+### 9. Receipt activation writes payment state with explicit paymentType
 
-- Status: FAIL
-- Location: `backend/routes/stripe.js`, receipt checkout/confirm branch, approx. lines 484-529 and 743-793; `frontend/pages/ReceiptPage.jsx`, approx. lines 1828-1848
+- Status: PASS
+- Location: `backend/routes/stripe.js`, receipt checkout/confirm branch, approx. lines 493-530 and 739-833; `frontend/pages/ReceiptPage.jsx`, approx. lines 1309-1318 and 1836-1844
 - Boundary affected: Anti-pattern scan / Case payment boundary
-- Risk: Medium. Receipt activation is safely case-scoped, but the checkout request and Stripe metadata do not include an explicit `paymentType: "receipt_activation"` or equivalent. The confirm endpoint relies on falling through to the default branch. This violates the audit rule to flag payment writes without paymentType and leaves future payment paths easier to confuse.
-- Suggested fix: Add a typed receipt payment branch or metadata value such as `paymentType: "receipt_activation"` while preserving existing ReceiptPage behavior.
+- Risk: Low. Receipt activation now sends `paymentType: "receipt_activation"` and `priceType: "receipt_activation"` from ReceiptPage, stores those values in Stripe metadata and receipt return URLs, rejects unsupported confirmation payment types, and persists typed receipt payment state into both the case `receiptPayment` object and `receiptRecords.json`.
+- Suggested fix: Keep receipt activation confirmation type-gated and preserve `paymentType: "receipt_activation"` in future receipt payment migrations.
 
 ### 10. Formal verification checkout is distinct from receipt and subscription checkout
 
@@ -158,13 +160,13 @@ This audit verifies current payment persistence against the Customer / Case Boun
 - Risk: Medium. The helper blocks fallback sources, but still treats generic top-level `paid`, `isPaid`, and `paymentStatus: "paid"` as receipt payment. Backend receipt confirmation currently writes those fields, but typed receipt payment would reduce ambiguity with future case-level payments.
 - Suggested fix: Add typed `receiptPayment` detection and gradually prefer it over generic fields.
 
-### 18. caseRegistry has a local-only markCaseAsPaid helper
+### 18. caseRegistry markCaseAsPaid no longer writes local-only authority-shaped receipt payment
 
-- Status: FAIL
-- Location: `frontend/utils/caseRegistry.js`, `markCaseAsPaid()`, approx. lines 303-318
+- Status: PASS
+- Location: `frontend/utils/caseRegistry.js`, `markCaseAsPaid()`, approx. lines 303-342
 - Boundary affected: Local/cache risk / Case payment boundary
-- Risk: Medium. The helper can write `receipt.paid: true` to localStorage without backend confirmation. It was not found in active payment flow usage during this audit, but it remains a local-only authority-shaped payment writer.
-- Suggested fix: Remove it, rename it as cache-only, or guard it so it can only store backend-confirmed payment payloads.
+- Risk: Low. The helper now requires `backendConfirmed === true` and `paymentType === "receipt_activation"` before writing `receiptPayment` and `receipt.paid: true`. Unconfirmed calls write only `receiptPaymentCache` with `status: "unconfirmed"`, `backendConfirmed: false`, and `source: "local_cache_marker"`, so the helper no longer acts as a local-only authority-shaped receipt payment writer.
+- Suggested fix: Keep this helper cache-only in practice. If it is reintroduced into a payment flow, pass through a backend-confirmed receipt activation payload and avoid treating `receiptPaymentCache` as payment truth.
 
 ### 19. PaymentSuccessPage local cache write remains backend-confirmed but outside audit file list
 
@@ -218,18 +220,17 @@ This audit verifies current payment persistence against the Customer / Case Boun
 
 | Metric | Result |
 | --- | --- |
-| Overall boundary compliance score | 82 / 100 |
-| Remaining FAIL items | 2 |
+| Overall boundary compliance score | 92 / 100 |
+| Remaining FAIL items | 0 |
 | Remaining WARNING items | 8 |
-| 5.6-C passes | No, because two boundary anti-patterns remain |
-| Safe to proceed to 5.6-D / full payment smoke test | Yes, if the smoke test explicitly tracks the two remaining FAIL risks |
+| 5.6-C passes | Yes, with warnings |
+| Safe to proceed to 5.6-D / full payment smoke test | Yes |
 
 ## Remaining FAIL Items
 
 | # | Issue |
 | --- | --- |
-| 1 | Receipt activation still writes payment state without explicit `paymentType`. |
-| 2 | `caseRegistry.markCaseAsPaid()` remains a local-only authority-shaped receipt payment writer. |
+| None | No remaining FAIL items after commit `a294740`. |
 
 ## Remaining WARNING Items
 
@@ -246,9 +247,9 @@ This audit verifies current payment persistence against the Customer / Case Boun
 
 ## Top 3 Risks
 
-1. Receipt payment remains the only payment branch without explicit `paymentType`, making future payment routing easier to confuse.
-2. Customer subscription is currently copied into case-shaped list records, which is safe today but can be misread by future UI as case-owned state.
-3. Local cache helpers can still write authority-looking receipt payment fields if called outside backend-confirmed flows.
+1. Customer subscription is currently copied into case-shaped list records, which is safe today but can be misread by future UI as case-owned state.
+2. Local cache still contains authority-looking payment fields after backend confirmation, so pages must continue treating it as cache rather than canonical payment truth.
+3. Receipt payment compatibility readers still accept generic `paid`, `isPaid`, and `paymentStatus` fields, so typed `receiptPayment` should become the preferred canonical path.
 
 ## 5.6-D Smoke Test Focus
 
@@ -261,7 +262,7 @@ This audit verifies current payment persistence against the Customer / Case Boun
 
 ## Final 5.6-C Status
 
-Status: WARNING
+Status: PASS with warnings
 
 Boundary audit complete: Yes
 
@@ -269,4 +270,12 @@ Frontend/backend code modified: No
 
 Routes modified: No
 
-Ready for 5.6-D / full payment smoke test: Yes, with the two remaining FAIL risks documented
+Updated boundary compliance score: 92 / 100
+
+Remaining FAIL items: None
+
+Remaining WARNING items: 8
+
+5.6-C now passes: Yes
+
+Safe to proceed to 5.6-D / full payment smoke test: Yes
