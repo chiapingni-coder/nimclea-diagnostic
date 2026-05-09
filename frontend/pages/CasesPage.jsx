@@ -797,6 +797,7 @@ export default function CasesPage() {
   const [showSubscriptionOptions, setShowSubscriptionOptions] = React.useState(false);
   const [subscriptionCheckoutError, setSubscriptionCheckoutError] = React.useState("");
   const [startingSubscriptionCheckout, setStartingSubscriptionCheckout] = React.useState(false);
+  const [pilotExtensionAccess, setPilotExtensionAccess] = React.useState(null);
 
   const [cases, setCases] = React.useState([]);
   const [archivedCases, setArchivedCases] = React.useState([]);
@@ -807,9 +808,14 @@ export default function CasesPage() {
   const [loadingCases, setLoadingCases] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
   const [caseView, setCaseView] = React.useState("active");
+  const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
   const hasWorkspaceIdentity =
     Boolean(formatEmail(savedEmail || resolvedEmail)) &&
     (cases.length > 0 || archivedCases.length > 0);
+  const hasBackendConfirmedPilotExtension =
+    pilotExtensionAccess?._backendConfirmed === true &&
+    pilotExtensionAccess?.pilotExtensionPaid === true &&
+    pilotExtensionAccess?.paymentType === "pilot_extension";
 
   console.log("[CasesPage identity]", {
     resolvedCaseId,
@@ -994,6 +1000,17 @@ export default function CasesPage() {
         };
       });
 
+      const confirmedPilotExtension = hydratedCases
+        .map((caseItem) => caseItem?.subscription || null)
+        .find(
+          (subscription) =>
+            subscription?._backendConfirmed === true &&
+            subscription?.pilotExtensionPaid === true &&
+            subscription?.paymentType === "pilot_extension"
+        );
+
+      setPilotExtensionAccess(confirmedPilotExtension || null);
+
       const archivedCaseIds = getArchivedCaseIds();
 
       const activeCases = [];
@@ -1043,12 +1060,104 @@ export default function CasesPage() {
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search || "");
+    const checkoutStatus = params.get("checkout");
+    const paymentType = params.get("paymentType");
+    const sessionId = String(params.get("session_id") || "").trim();
 
-    if (params.get("checkout") === "success") {
-      localStorage.setItem("nimclea_pilot_extension_paid", "true");
-      setShowSubscriptionOptions(false);
+    if (checkoutStatus === "cancel" && paymentType === "pilot_extension") {
+      setSubscriptionCheckoutError("");
+      setStartingSubscriptionCheckout(false);
+      return;
     }
-  }, [location.search]);
+
+    if (checkoutStatus !== "success" || paymentType !== "pilot_extension") {
+      return;
+    }
+
+    if (!sessionId) {
+      console.warn("[CasesPage] Pilot extension checkout returned without session_id; ignoring as payment authority.");
+      setSubscriptionCheckoutError("Checkout returned without a session reference. Please retry checkout.");
+      return;
+    }
+
+    const confirmationKey = `pilot_extension:${sessionId}`;
+    if (pilotExtensionConfirmAttemptedRef.current.has(confirmationKey)) {
+      return;
+    }
+    pilotExtensionConfirmAttemptedRef.current.add(confirmationKey);
+
+    let cancelled = false;
+
+    async function confirmPilotExtensionCheckout() {
+      try {
+        const email = formatEmail(savedEmail || resolvedEmail);
+        const response = await fetch(`${API_BASE}/api/confirm-checkout-session`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            paymentType: "pilot_extension",
+            email,
+            caseId:
+              resolvedCaseId ||
+              cases[0]?.caseId ||
+              cases[0]?.id ||
+              archivedCases[0]?.caseId ||
+              archivedCases[0]?.id ||
+              "",
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || payload?.success !== true) {
+          throw new Error(
+            payload?.message ||
+              payload?.error ||
+              `Pilot extension confirmation failed (${response.status})`
+          );
+        }
+
+        if (cancelled) return;
+
+        const subscription = {
+          ...(payload?.subscription || payload?.subscriptionRecord || {}),
+          _backendConfirmed: true,
+        };
+
+        setPilotExtensionAccess(subscription);
+        localStorage.setItem(
+          "nimclea_pilot_extension_paid",
+          JSON.stringify({
+            paid: true,
+            source: "stripe_checkout_confirmed_cache",
+            paymentType: "pilot_extension",
+            stripeSessionId: sessionId,
+            cachedAt: new Date().toISOString(),
+          })
+        );
+        setShowSubscriptionOptions(false);
+        setSubscriptionCheckoutError("");
+      } catch (error) {
+        console.warn("[CasesPage] Failed to confirm pilot extension checkout", error);
+        if (!cancelled) {
+          setSubscriptionCheckoutError("Could not confirm checkout. Please try again.");
+        }
+      } finally {
+        if (!cancelled) {
+          setStartingSubscriptionCheckout(false);
+        }
+      }
+    }
+
+    void confirmPilotExtensionCheckout();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [archivedCases, cases, location.search, resolvedCaseId, resolvedEmail, savedEmail]);
 
   const handleContinueWithEmail = React.useCallback(() => {
     console.log("[access continue clicked]", { emailInput });
@@ -1213,7 +1322,15 @@ export default function CasesPage() {
         },
         body: JSON.stringify({
           priceType: "pilot_extension",
+          paymentType: "pilot_extension",
           email: savedEmail,
+          caseId:
+            resolvedCaseId ||
+            cases[0]?.caseId ||
+            cases[0]?.id ||
+            archivedCases[0]?.caseId ||
+            archivedCases[0]?.id ||
+            "",
         }),
       });
 
@@ -1229,7 +1346,7 @@ export default function CasesPage() {
       setSubscriptionCheckoutError("Could not start checkout. Please try again.");
       setStartingSubscriptionCheckout(false);
     }
-  }, [savedEmail]);
+  }, [archivedCases, cases, resolvedCaseId, savedEmail]);
 
   const handleCreateNewCase = async () => {
 
@@ -1350,7 +1467,7 @@ export default function CasesPage() {
                   }}
                   className="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
                 >
-                  View Subscription Options
+                  {hasBackendConfirmedPilotExtension ? "Subscription Active" : "View Subscription Options"}
                 </button>
 
                 <button
@@ -2122,11 +2239,15 @@ export default function CasesPage() {
                 <button
                   type="button"
                   onClick={handlePilotExtensionCheckout}
-                  disabled={startingSubscriptionCheckout}
+                  disabled={startingSubscriptionCheckout || hasBackendConfirmedPilotExtension}
                   className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                   style={{ marginTop: "16px" }}
                 >
-                  {startingSubscriptionCheckout ? "Starting checkout..." : "Continue for $9"}
+                  {hasBackendConfirmedPilotExtension
+                    ? "Subscription Active"
+                    : startingSubscriptionCheckout
+                    ? "Starting checkout..."
+                    : "Continue for $9"}
                 </button>
                 {subscriptionCheckoutError ? (
                   <p

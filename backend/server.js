@@ -359,6 +359,8 @@ app.get("/cases", async (req, res) => {
     const storedCases = readJsonFile("cases.json", []);
     const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
     const storedEventLogs = readJsonFile("eventLogs.json", []);
+    const storedSubscriptionRecords = readJsonFile("subscriptionRecords.json", []);
+    const storedUsers = readJsonFile("users.json", []);
 
     const localLogs = Array.isArray(storedLogs) ? storedLogs : [];
     const localCases = Array.isArray(storedCases) ? storedCases : [];
@@ -370,6 +372,10 @@ app.get("/cases", async (req, res) => {
       : Array.isArray(storedEventLogs?.logs)
       ? storedEventLogs.logs
       : [];
+    const subscriptionRecords = Array.isArray(storedSubscriptionRecords)
+      ? storedSubscriptionRecords
+      : [];
+    const users = Array.isArray(storedUsers) ? storedUsers : [];
     const supabaseSources = await loadSupabaseCaseSourcesForEmail(email);
     const logs = localLogs;
     const cases = [...localCases, ...supabaseSources.cases];
@@ -417,6 +423,33 @@ app.get("/cases", async (req, res) => {
       )
         .trim()
         .toLowerCase();
+
+    const latestSubscriptionRecord = subscriptionRecords
+      .filter((item) => {
+        const itemEmail = String(item?.email || "").trim().toLowerCase();
+        return itemEmail && itemEmail === email;
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
+        const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
+        return bTime - aTime;
+      })[0] || null;
+
+    const userSubscriptionRecord =
+      users.find(
+        (item) => String(item?.email || "").trim().toLowerCase() === email
+      ) || null;
+
+    const backendSubscription =
+      latestSubscriptionRecord || userSubscriptionRecord?.subscription
+        ? {
+            ...(userSubscriptionRecord?.subscription || {}),
+            ...(latestSubscriptionRecord || {}),
+            _backendConfirmed:
+              latestSubscriptionRecord?.source === "stripe_checkout_confirmed" ||
+              userSubscriptionRecord?.subscription?.source === "stripe_checkout_confirmed",
+          }
+        : null;
 
     const normalizeStageValue = (value) => {
       const normalized = String(value || "")
@@ -594,6 +627,21 @@ app.get("/cases", async (req, res) => {
           receiptStatus: isReceiptReady
             ? "ready"
             : receiptCase?.receiptStatus || baseCase?.receiptStatus || item?.receiptStatus || "",
+          subscription: {
+            ...(baseCase?.subscription || {}),
+            ...(backendSubscription || {}),
+          },
+          pilotExtensionPaid:
+            backendSubscription?._backendConfirmed === true &&
+            backendSubscription?.pilotExtensionPaid === true,
+          subscriptionStatus:
+            backendSubscription?.subscriptionStatus ||
+            baseCase?.subscriptionStatus ||
+            "",
+          pilotExtensionPaymentStatus:
+            backendSubscription?.pilotExtensionPaymentStatus ||
+            baseCase?.pilotExtensionPaymentStatus ||
+            "",
         };
       })
       .filter(Boolean);

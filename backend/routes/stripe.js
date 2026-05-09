@@ -214,37 +214,151 @@ function updateReceiptPaymentRecord({
 
 function updateSubscriptionCheckoutRecord({
   email = "",
+  caseId = "",
   stripeSessionId = "",
   subscriptionStatus = "checkout_created",
   paymentStatus = "checkout_created",
   priceType = "pilot_extension",
+  paymentType = "pilot_extension",
+  pilotExtensionPaid = false,
+  pilotExtensionPaidAt = "",
+  pilotExtensionPaymentStatus = paymentStatus,
+  stripeCustomerId = "",
+  stripeSubscriptionId = "",
   source = "stripe_subscription_checkout",
 }) {
   const records = readJsonFile(SUBSCRIPTION_RECORDS_FILE, []);
   const safeRecords = Array.isArray(records) ? records : [];
   const now = new Date().toISOString();
   const safeEmail = String(email || "").trim().toLowerCase();
+  const safeCaseId = String(caseId || "").trim();
   const safeSessionId = String(stripeSessionId || "").trim();
 
-  const record = {
+  const patch = {
     email: safeEmail,
+    caseId: safeCaseId,
     stripeSessionId: safeSessionId,
+    pilotExtensionStripeSessionId: safeSessionId,
+    stripeCustomerId,
+    stripeSubscriptionId,
     priceType,
+    paymentType,
     subscriptionStatus,
     paymentStatus,
+    pilotExtensionPaid,
+    pilotExtensionPaymentStatus,
+    pilotExtensionPaidAt,
     source,
-    createdAt: now,
     updatedAt: now,
   };
 
-  safeRecords.push(record);
+  const existingIndex = safeRecords.findIndex((item) => {
+    const itemSessionId = String(item?.stripeSessionId || item?.pilotExtensionStripeSessionId || "").trim();
+    const itemEmail = String(item?.email || "").trim().toLowerCase();
+
+    return (
+      (safeSessionId && itemSessionId === safeSessionId) ||
+      (!safeSessionId && safeEmail && itemEmail === safeEmail)
+    );
+  });
+
+  const record =
+    existingIndex >= 0
+      ? {
+          ...(safeRecords[existingIndex] || {}),
+          ...patch,
+          createdAt: safeRecords[existingIndex]?.createdAt || now,
+        }
+      : {
+          ...patch,
+          createdAt: now,
+        };
+
+  if (existingIndex >= 0) {
+    safeRecords[existingIndex] = record;
+  } else {
+    safeRecords.push(record);
+  }
+
   writeJsonFile(SUBSCRIPTION_RECORDS_FILE, safeRecords);
+  return record;
+}
+
+function updateUserSubscriptionRecord({
+  email = "",
+  subscription = {},
+}) {
+  const safeEmail = String(email || "").trim().toLowerCase();
+  if (!safeEmail) return null;
+
+  const usersRaw = readJsonFile("users.json", []);
+  const users = Array.isArray(usersRaw) ? usersRaw : [];
+  const now = new Date().toISOString();
+  const existingIndex = users.findIndex(
+    (item) => String(item?.email || "").trim().toLowerCase() === safeEmail
+  );
+  const existing = existingIndex >= 0 ? users[existingIndex] || {} : {};
+  const record = {
+    ...existing,
+    email: existing.email || safeEmail,
+    subscription: {
+      ...(existing.subscription || {}),
+      ...subscription,
+    },
+    subscriptionStatus: subscription.subscriptionStatus || existing.subscriptionStatus || "",
+    pilotExtensionPaid:
+      subscription.pilotExtensionPaid === true || existing.pilotExtensionPaid === true,
+    pilotExtensionPaidAt:
+      subscription.pilotExtensionPaidAt || existing.pilotExtensionPaidAt || "",
+    pilotExtensionPaymentStatus:
+      subscription.pilotExtensionPaymentStatus ||
+      existing.pilotExtensionPaymentStatus ||
+      "",
+    updatedAt: now,
+    createdAt: existing.createdAt || now,
+  };
+
+  if (existingIndex >= 0) {
+    users[existingIndex] = record;
+  } else {
+    users.push(record);
+  }
+
+  writeJsonFile("users.json", users);
+  return record;
+}
+
+function attachCaseSubscriptionRecord({
+  caseId = "",
+  subscription = {},
+}) {
+  const safeCaseId = String(caseId || "").trim();
+  if (!safeCaseId) return null;
+
+  const casesRaw = readJsonFile(CASES_FILE, []);
+  const cases = Array.isArray(casesRaw) ? casesRaw : [];
+  const existingIndex = findCaseIndex(cases, safeCaseId);
+  if (existingIndex < 0) return null;
+
+  const now = new Date().toISOString();
+  const existing = cases[existingIndex] || {};
+  const record = {
+    ...existing,
+    subscription: {
+      ...(existing.subscription || {}),
+      ...subscription,
+    },
+    updatedAt: now,
+  };
+
+  cases[existingIndex] = record;
+  writeJsonFile(CASES_FILE, cases);
   return record;
 }
 
 export async function createCheckoutSession(req, res) {
   try {
-    const { caseId, receiptId, hash, priceType, email } = req.body || {};
+    const { caseId, receiptId, hash, priceType, paymentType, email } = req.body || {};
 
     console.log("[STRIPE_ENV_CHECK]", {
       hasStripeSecretKey: Boolean(process.env.STRIPE_SECRET_KEY),
@@ -252,14 +366,18 @@ export async function createCheckoutSession(req, res) {
       frontendUrl: process.env.FRONTEND_URL,
     });
 
-    if (priceType === "pilot_extension") {
+    if (priceType === "pilot_extension" || paymentType === "pilot_extension") {
       const customerEmail = String(email || "").trim();
+      const safeCaseId = String(caseId || "").trim();
 
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer_email: customerEmail || undefined,
         metadata: {
           priceType: "pilot_extension",
+          paymentType: "pilot_extension",
+          email: customerEmail,
+          caseId: safeCaseId,
         },
         line_items: [
           {
@@ -277,16 +395,18 @@ export async function createCheckoutSession(req, res) {
           },
         ],
         // TODO: Upgrade to $79/month after the first month using Stripe Billing configuration.
-        success_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=success`,
-        cancel_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=cancel`,
+        success_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=success&session_id={CHECKOUT_SESSION_ID}&paymentType=pilot_extension`,
+        cancel_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=cancel&paymentType=pilot_extension`,
       });
 
       const subscriptionRecord = updateSubscriptionCheckoutRecord({
         email: customerEmail,
+        caseId: safeCaseId,
         stripeSessionId: session.id,
         subscriptionStatus: "checkout_created",
         paymentStatus: "checkout_created",
         priceType: "pilot_extension",
+        paymentType: "pilot_extension",
         source: "stripe_subscription_checkout",
       });
 
@@ -368,16 +488,97 @@ router.post("/create-checkout-session", createCheckoutSession);
 
 router.post("/confirm-checkout-session", async (req, res) => {
   try {
-    const { caseId = "", sessionId = "" } = req.body || {};
+    const { caseId = "", sessionId = "", paymentType: requestedPaymentType = "" } = req.body || {};
 
-    if (!caseId || !sessionId) {
+    if (!sessionId) {
       return res.status(400).json({
-        error: "Missing caseId or sessionId",
+        error: "Missing sessionId",
       });
     }
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const sessionCaseId = String(session?.metadata?.caseId || "").trim();
+    const sessionPaymentType = String(
+      session?.metadata?.paymentType ||
+        session?.metadata?.priceType ||
+        requestedPaymentType ||
+        ""
+    ).trim();
+
+    if (sessionPaymentType === "pilot_extension") {
+      if (session.payment_status !== "paid") {
+        return res.status(409).json({
+          error: "Checkout session not paid",
+          message: `Session payment_status is ${session.payment_status || "unknown"}`,
+          payment_status: session.payment_status || null,
+        });
+      }
+
+      const now = new Date().toISOString();
+      const safeEmail = String(
+        session?.customer_details?.email ||
+          session?.customer_email ||
+          session?.metadata?.email ||
+          req.body?.email ||
+          ""
+      ).trim().toLowerCase();
+      const safeCaseId = String(caseId || sessionCaseId || "").trim();
+      const subscription = {
+        subscriptionStatus: "active",
+        pilotExtensionPaid: true,
+        pilotExtensionPaidAt: now,
+        pilotExtensionPaymentStatus: "paid",
+        pilotExtensionStripeSessionId: session.id,
+        stripeSessionId: session.id,
+        stripeCustomerId: String(session.customer || ""),
+        stripeSubscriptionId: String(session.subscription || ""),
+        paymentType: "pilot_extension",
+        priceType: "pilot_extension",
+        source: "stripe_checkout_confirmed",
+      };
+      const subscriptionRecord = updateSubscriptionCheckoutRecord({
+        email: safeEmail,
+        caseId: safeCaseId,
+        stripeSessionId: session.id,
+        subscriptionStatus: "active",
+        paymentStatus: "paid",
+        priceType: "pilot_extension",
+        paymentType: "pilot_extension",
+        pilotExtensionPaid: true,
+        pilotExtensionPaidAt: now,
+        pilotExtensionPaymentStatus: "paid",
+        stripeCustomerId: String(session.customer || ""),
+        stripeSubscriptionId: String(session.subscription || ""),
+        source: "stripe_checkout_confirmed",
+      });
+      const userRecord = updateUserSubscriptionRecord({
+        email: safeEmail,
+        subscription,
+      });
+      const caseRecord = safeCaseId
+        ? attachCaseSubscriptionRecord({
+            caseId: safeCaseId,
+            subscription,
+          })
+        : null;
+
+      return res.json({
+        success: true,
+        sessionId: session.id,
+        paymentType: "pilot_extension",
+        paymentStatus: session.payment_status,
+        subscription,
+        subscriptionRecord,
+        userRecord,
+        caseRecord,
+      });
+    }
+
+    if (!caseId) {
+      return res.status(400).json({
+        error: "Missing caseId",
+      });
+    }
 
     if (sessionCaseId && sessionCaseId !== String(caseId).trim()) {
       return res.status(400).json({
