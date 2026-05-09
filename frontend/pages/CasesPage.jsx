@@ -8,6 +8,7 @@ import { createCaseId, upsertCase, getAllCases } from "../utils/caseRegistry.js"
 import { resolveSafeCaseId } from "../utils/caseIdResolver.js";
 import { runClientStateGuard } from "../utils/clientStateGuard.js";
 import { getStableUserId } from "../utils/eventLogger";
+import { buildReadinessContract } from "../utils/deterministicScore";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const EMAIL_STORAGE_KEY = "nimclea_email";
@@ -385,13 +386,40 @@ function isDiagnosticContinuationCase(item = {}) {
 
 function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
+  const readinessContract = buildReadinessContract({
+    ...normalized,
+    explicitBackendReady:
+      normalized?.receiptEligible === true ||
+      normalized?.caseReceiptEligible === true ||
+      String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
+      String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
+      String(normalized?.status || "").toLowerCase() === "receipt_ready",
+  });
+  const statusText = [
+    normalized?.status,
+    normalized?.stage,
+    normalized?.stageLabel,
+    normalized?.currentStep,
+    normalized?.receiptStatus,
+    normalized?.paymentStatus,
+    normalized?.caseData?.status,
+    normalized?.caseData?.stage,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const hasReceiptStageSignal =
+    hasPostDiagnosticProgress(normalized) ||
+    hasReceiptDetailRouteSignal(normalized) ||
+    statusText.includes("pilot") ||
+    statusText.includes("receipt") ||
+    statusText.includes("result_ready") ||
+    statusText.includes("case_result") ||
+    statusText.includes("receipt_ready") ||
+    Boolean(normalized?.pilotResult) ||
+    Boolean(normalized?.receipt) ||
+    Boolean(normalized?.receiptHash) ||
+    Boolean(normalized?.receiptId);
   const evidenceEventCount = getEvidenceEvents(normalized).length;
 
-  const receiptReady =
-    normalized?.receiptEligible === true ||
-    normalized?.caseReceiptEligible === true ||
-    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
-    String(normalized?.stage || "").toLowerCase() === "receipt_ready";
+  const receiptReady = readinessContract.receiptReady;
 
   const checkoutStarted =
     normalized?.paymentStatus === "checkout_created";
@@ -408,8 +436,25 @@ function deriveCaseListState(item) {
     displayStatus = "Paid";
   } else if (checkoutStarted) {
     displayStatus = "Receipt checkout started";
-  } else if (receiptReady) {
+  } else if (readinessContract.receiptReady) {
     displayStatus = "Receipt ready";
+  } else if (
+    hasReceiptStageSignal &&
+    readinessContract.readinessLevel === "pending_review"
+  ) {
+    displayStatus = "Receipt pending review";
+  } else if (
+    hasReceiptStageSignal &&
+    readinessContract.readinessLevel === "insufficient_record"
+  ) {
+    displayStatus = "Insufficient record";
+  } else if (
+    hasReceiptStageSignal &&
+    readinessContract.readinessLevel === "failed"
+  ) {
+    displayStatus = "Receipt failed";
+  } else if (hasReceiptStageSignal) {
+    displayStatus = "Receipt not ready";
   } else if (hasEvidenceEvent) {
     displayStatus = `Event captured (${evidenceEventCount})`;
   } else if (isDiagnosticContinuationCase(normalized)) {
@@ -424,6 +469,8 @@ function deriveCaseListState(item) {
     checkoutStarted,
     paid,
     displayStatus,
+    readinessContract,
+    hasReceiptStageSignal,
   };
 }
 
@@ -475,7 +522,6 @@ function hasReceiptDetailRouteSignal(item) {
     normalized?.receiptStatus,
     caseData?.status,
     caseData?.stage,
-    getDisplayStatus(normalized),
   ]
     .filter(Boolean)
     .join(" ")
@@ -1474,9 +1520,18 @@ export default function CasesPage() {
                 receiptStatus: derived.normalized?.receiptStatus,
                 receiptEligible: derived.normalized?.receiptEligible,
                 caseReceiptEligible: derived.normalized?.caseReceiptEligible,
+                hasReceiptStageSignal: derived.hasReceiptStageSignal,
+                readinessScore: derived.readinessContract?.readinessScore,
+                readinessLevel: derived.readinessContract?.readinessLevel,
+                contractReceiptReady: derived.readinessContract?.receiptReady,
+                blockers: derived.readinessContract?.blockers,
+                criticalBlockers: derived.readinessContract?.criticalBlockers,
+                checks: derived.readinessContract?.checks,
               });
               const shouldContinueDiagnostic =
-                isDiagnosticContinuation && !derived.receiptReady;
+                isDiagnosticContinuation &&
+                !derived.hasReceiptStageSignal &&
+                !derived.receiptReady;
               const primaryActionPath = shouldContinueDiagnostic && primaryResolvedCaseId
                 ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(primaryResolvedCaseId)}&from=case`
                 : detailPath;
@@ -1729,6 +1784,13 @@ export default function CasesPage() {
                   receiptStatus: derived.normalized?.receiptStatus,
                   receiptEligible: derived.normalized?.receiptEligible,
                   caseReceiptEligible: derived.normalized?.caseReceiptEligible,
+                  hasReceiptStageSignal: derived.hasReceiptStageSignal,
+                  readinessScore: derived.readinessContract?.readinessScore,
+                  readinessLevel: derived.readinessContract?.readinessLevel,
+                  contractReceiptReady: derived.readinessContract?.receiptReady,
+                  blockers: derived.readinessContract?.blockers,
+                  criticalBlockers: derived.readinessContract?.criticalBlockers,
+                  checks: derived.readinessContract?.checks,
                 });
                 const caseKey = caseId || normalizedItem?.resultId || String(index);
 

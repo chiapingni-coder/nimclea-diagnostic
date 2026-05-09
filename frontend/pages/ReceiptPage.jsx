@@ -1568,6 +1568,7 @@ const urlCaseId = String(
     readinessLevel: readinessContract.readinessLevel,
     receiptReady: readinessContract.receiptReady,
     blockers: readinessContract.blockers,
+    criticalBlockers: readinessContract.criticalBlockers,
     checks: readinessContract.checks,
     deterministicScore: readinessContract.deterministicScore,
   });
@@ -1933,6 +1934,24 @@ const receiptExpressionModel = (() => {
     structureLabel: "Structured but unstable",
     statusText: "The record contains event evidence, but the structure is not strong enough for receipt issuance yet.",
   };
+})();
+
+const decisionTone = (() => {
+  const status = String(data.decisionStatus || "").toLowerCase();
+
+  if (status === "verified" || status === "ready for formal determination") {
+    return "ready";
+  }
+
+  if (status === "receipt pending review" || status === "insufficient record") {
+    return "warning";
+  }
+
+  if (status === "receipt failed" || status === "failed") {
+    return "failed";
+  }
+
+  return "warning";
 })();
 
 const formatEventText = (event) => {
@@ -2742,19 +2761,15 @@ if (!canRenderReceipt) {
                   marginRight: "6px",
                   borderRadius: "16px",
                   background:
-                    data.decisionStatus === "Verified"
-                      ? "#ECFDF5"
-                      : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                    decisionTone === "ready"
                       ? "#F0FDF4"
-                      : data.decisionStatus === "Insufficient Record"
+                      : decisionTone === "warning"
                       ? "#FFFBEB"
                       : "#FEF2F2",
                   border:
-                    data.decisionStatus === "Verified"
-                     ? "1px solid #86EFAC"
-                      : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                    decisionTone === "ready"
                       ? "1px solid #86EFAC"
-                      : data.decisionStatus === "Insufficient Record"
+                      : decisionTone === "warning"
                       ? "1px solid #FCD34D"
                       : "1px solid #FCA5A5",
                 }}
@@ -2763,10 +2778,9 @@ if (!canRenderReceipt) {
                   style={{
                     fontSize: "13px",
                     color:
-                      data.decisionStatus === "Verified" ||
-                      data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                      decisionTone === "ready"
                         ? "#059669"
-                        : data.decisionStatus === "Insufficient Record"
+                        : decisionTone === "warning"
                         ? "#92400E"
                         : "#B91C1C",
                     margin: "0 0 10px 0",
@@ -2791,10 +2805,9 @@ if (!canRenderReceipt) {
                       justifyContent: "center",
                       borderRadius: "999px",
                       background:
-                        data.decisionStatus === "Verified" ||
-                        data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                        decisionTone === "ready"
                           ? "#059669"
-                          : data.decisionStatus === "Insufficient Record"
+                          : decisionTone === "warning"
                           ? "#F59E0B"
                           : "#DC2626",
                       color: "#ffffff",
@@ -2802,27 +2815,7 @@ if (!canRenderReceipt) {
                       flexShrink: 0,
                     }}
                   >
-                    {data.decisionStatus === "Verified"
-                      ? (
-                        <svg
-                          aria-hidden="true"
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M12 3v18" />
-                          <path d="M5 7h14" />
-                          <path d="M7 7 4.5 12.5A3 3 0 0 0 7.1 17h.8a3 3 0 0 0 2.6-4.5Z" />
-                          <path d="M17 7 14.5 12.5A3 3 0 0 0 17.1 17h.8a3 3 0 0 0 2.6-4.5Z" />
-                          <path d="M12 7v10" />
-                        </svg>
-                      )
-                      : data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                    {decisionTone === "ready"
                       ? (
                         <svg
                           aria-hidden="true"
@@ -2853,10 +2846,9 @@ if (!canRenderReceipt) {
                         fontWeight: 800,
                         letterSpacing: "0.02em",
                         color:
-                          data.decisionStatus === "Verified" ||
-                          data.decisionStatus === "READY FOR FORMAL DETERMINATION"
+                          decisionTone === "ready"
                             ? "#047857"
-                            : data.decisionStatus === "Insufficient Record"
+                            : decisionTone === "warning"
                             ? "#92400E"
                             : "#991B1B",
                       }}

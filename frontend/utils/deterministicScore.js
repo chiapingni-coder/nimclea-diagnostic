@@ -315,6 +315,7 @@ function hasExplicitReceiptReady(input = {}) {
 
   return Boolean(
     input?.explicitReceiptReady === true ||
+      input?.explicitBackendReady === true ||
       input?.backendReceiptReady === true ||
       input?.receiptEligible === true ||
       input?.caseReceiptEligible === true ||
@@ -387,8 +388,7 @@ export function buildReadinessContract(input = {}) {
       0
   );
   const structurePassed =
-    explicitReceiptReady ||
-    (!isMissingStatus(structureStatus) && Number.isFinite(structureScore) && structureScore > 0);
+    !isMissingStatus(structureStatus) && Number.isFinite(structureScore) && structureScore > 0;
 
   const consistencyStatus =
     raw?.consistencyStatus ||
@@ -417,8 +417,7 @@ export function buildReadinessContract(input = {}) {
     !isMissingStatus(raw?.status) ||
     !isMissingStatus(raw?.currentStep);
   const continuityPassed =
-    explicitReceiptReady ||
-    (!isMissingStatus(continuityStatus) && enoughProgression);
+    !isMissingStatus(continuityStatus) && enoughProgression;
 
   const receiptRecordFormable = Boolean(
     explicitReceiptReady ||
@@ -481,6 +480,29 @@ export function buildReadinessContract(input = {}) {
       label: check.label,
       reason: check.reason,
     }));
+  const criticalBlockers = [
+    !checks.evidence.passed
+      ? {
+          key: "evidence",
+          label: checks.evidence.label,
+          reason: checks.evidence.reason,
+        }
+      : null,
+    !checks.consistency.passed
+      ? {
+          key: "consistency",
+          label: checks.consistency.label,
+          reason: checks.consistency.reason,
+        }
+      : null,
+    !checks.receiptRecord.passed
+      ? {
+          key: "receiptRecord",
+          label: checks.receiptRecord.label,
+          reason: checks.receiptRecord.reason,
+        }
+      : null,
+  ].filter(Boolean);
 
   const rawReadinessScore = Object.values(checks).reduce(
     (sum, check) => sum + Number(check.score || 0),
@@ -504,26 +526,23 @@ export function buildReadinessContract(input = {}) {
   readinessScore = Number(readinessScore.toFixed(2));
 
   const receiptReady =
-    checks.evidence.passed &&
-    checks.structure.passed &&
-    checks.consistency.passed &&
-    checks.continuity.passed &&
-    checks.receiptRecord.passed &&
-    blockers.length === 0;
+    readinessScore >= 3.0 &&
+    criticalBlockers.length === 0;
 
   const readinessLevel = receiptReady
     ? "ready"
     : !checks.consistency.passed
     ? "failed"
-    : checks.evidence.passed
-    ? "pending_review"
-    : "insufficient_record";
+    : !checks.evidence.passed
+    ? "insufficient_record"
+    : "pending_review";
 
   return {
     readinessScore,
     readinessLevel,
     checks,
     blockers,
+    criticalBlockers,
     receiptReady,
     deterministicScore,
   };
