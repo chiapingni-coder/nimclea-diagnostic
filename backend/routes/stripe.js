@@ -18,6 +18,7 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const RECEIPT_RECORDS_FILE = "receiptRecords.json";
+const SUBSCRIPTION_RECORDS_FILE = "subscriptionRecords.json";
 const RECEIPT_PRICE_ID = String(process.env.STRIPE_RECEIPT_PRICE_ID || "").trim();
 const FRONTEND_URL = String(process.env.FRONTEND_URL || "http://localhost:5173").trim();
 const PILOT_EXTENSION_FRONTEND_URL = "http://localhost:5173";
@@ -211,6 +212,36 @@ function updateReceiptPaymentRecord({
   return record;
 }
 
+function updateSubscriptionCheckoutRecord({
+  email = "",
+  stripeSessionId = "",
+  subscriptionStatus = "checkout_created",
+  paymentStatus = "checkout_created",
+  priceType = "pilot_extension",
+  source = "stripe_subscription_checkout",
+}) {
+  const records = readJsonFile(SUBSCRIPTION_RECORDS_FILE, []);
+  const safeRecords = Array.isArray(records) ? records : [];
+  const now = new Date().toISOString();
+  const safeEmail = String(email || "").trim().toLowerCase();
+  const safeSessionId = String(stripeSessionId || "").trim();
+
+  const record = {
+    email: safeEmail,
+    stripeSessionId: safeSessionId,
+    priceType,
+    subscriptionStatus,
+    paymentStatus,
+    source,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  safeRecords.push(record);
+  writeJsonFile(SUBSCRIPTION_RECORDS_FILE, safeRecords);
+  return record;
+}
+
 export async function createCheckoutSession(req, res) {
   try {
     const { caseId, receiptId, hash, priceType, email } = req.body || {};
@@ -250,7 +281,16 @@ export async function createCheckoutSession(req, res) {
         cancel_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=cancel`,
       });
 
-      return res.json({ url: session.url });
+      const subscriptionRecord = updateSubscriptionCheckoutRecord({
+        email: customerEmail,
+        stripeSessionId: session.id,
+        subscriptionStatus: "checkout_created",
+        paymentStatus: "checkout_created",
+        priceType: "pilot_extension",
+        source: "stripe_subscription_checkout",
+      });
+
+      return res.json({ url: session.url, subscriptionRecord });
     }
 
     if (!caseId) {
