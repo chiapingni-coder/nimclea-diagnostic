@@ -384,17 +384,24 @@ function isDiagnosticContinuationCase(item = {}) {
   );
 }
 
+function hasCanonicalBackendReceiptReadySignal(item = {}) {
+  const normalized = normalizeCaseItem(item);
+
+  return Boolean(
+    normalized?.receiptEligible === true ||
+      normalized?.caseReceiptEligible === true ||
+      String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
+      String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
+      String(normalized?.status || "").toLowerCase() === "receipt_ready"
+  );
+}
+
 function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
   const evidenceEventCount = getEvidenceEvents(normalized).length;
   const effectiveEventCaptured =
     normalized?.eventCaptured === true || evidenceEventCount > 0;
-  const explicitBackendReady =
-    normalized?.receiptEligible === true ||
-    normalized?.caseReceiptEligible === true ||
-    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
-    String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
-    String(normalized?.status || "").toLowerCase() === "receipt_ready";
+  const explicitBackendReady = hasCanonicalBackendReceiptReadySignal(normalized);
   const rawStructureStatus =
     normalized?.structureStatus ||
     normalized?.structureStatusFromCase ||
@@ -482,14 +489,10 @@ function deriveCaseListState(item) {
     hasNonEmptyText(normalized?.receiptId) ||
     trustedPaymentProgress;
   const legacyReceiptReadySignal =
-    normalized?.receiptEligible === true ||
-    normalized?.caseReceiptEligible === true ||
-    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
-    String(normalized?.stage || "").toLowerCase() === "receipt_ready" ||
-    String(normalized?.status || "").toLowerCase() === "receipt_ready";
-  const hasReceiptStageSignal = hasConcreteReceiptProgress;
+    explicitBackendReady;
+  const hasReceiptStageSignal = explicitBackendReady || hasConcreteReceiptProgress;
 
-  const receiptReady = readinessContract.receiptReady;
+  const receiptReady = explicitBackendReady || readinessContract.receiptReady;
 
   const checkoutStarted =
     normalized?.paymentStatus === "checkout_created";
@@ -514,7 +517,7 @@ function deriveCaseListState(item) {
     displayStatus = "Paid";
   } else if (checkoutStarted) {
     displayStatus = "Receipt checkout started";
-  } else if (readinessContract.receiptReady) {
+  } else if (receiptReady) {
     displayStatus = "Receipt ready";
   } else if (hasReceiptStageSignal) {
     if (readinessContract.readinessLevel === "pending_review") {
@@ -605,29 +608,22 @@ function hasReceiptDetailRouteSignal(item) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-  const eventCount = Number(
-    normalized?.eventCount ||
-      normalized?.caseSnapshot?.eventCount ||
-      caseData?.eventCount ||
-      0
-  );
+  const trustedEvidenceEventCount = getEvidenceEvents(normalized).length;
+  const readinessContract = buildReadinessContract({
+    ...normalized,
+    eventCaptured: trustedEvidenceEventCount > 0,
+  });
 
   return Boolean(
-    normalized?.receiptEligible === true ||
-      normalized?.caseReceiptEligible === true ||
+    hasCanonicalBackendReceiptReadySignal(normalized) ||
       normalized?.verificationEligible === true ||
-      normalized?.eventCaptured === true ||
-      eventCount > 0 ||
-      hasNonEmptyArray(normalized?.eventLogs) ||
-      hasNonEmptyArray(normalized?.events) ||
-      hasNonEmptyArray(normalized?.supportingEvents) ||
-      hasNonEmptyArray(normalized?.structuredEvents) ||
+      trustedEvidenceEventCount > 0 ||
+      readinessContract.receiptReady === true ||
       statusText.includes("receipt_ready") ||
       statusText.includes("receipt ready") ||
       statusText.includes("receipt checkout started") ||
       statusText.includes("checkout_created") ||
-      statusText.includes("paid") ||
-      statusText.includes("event captured")
+      statusText.includes("paid")
   );
 }
 
@@ -1040,10 +1036,7 @@ export default function CasesPage() {
           events,
           eventCount,
           score: c.score ?? c.caseSnapshot?.caseRecord?.score,
-          receiptEligible: Boolean(c.receiptEligible || c.caseReceiptEligible),
-          paymentStatus: c.paymentStatus || "",
-          paid: Boolean(c.paid),
-          status:
+          listDisplayStatus:
             getEvidenceEvents({ ...c, events, eventLogs: events }).length > 0
               ? "active"
               : c.status || "draft",
