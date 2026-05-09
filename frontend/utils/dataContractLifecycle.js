@@ -4,6 +4,7 @@ const FALLBACK_SOURCE_TOKENS = new Set([
   "local",
   "preview",
   "cache",
+  "snapshot",
 ]);
 
 const LIFECYCLE_RANKS = {
@@ -39,6 +40,7 @@ function hasFallbackSource(record = {}) {
     record?.origin,
     record?._source,
     record?.dataSource,
+    record?.caseSource,
     record?.receipt?.source,
     record?.verification?.source,
     record?.caseBilling?.source,
@@ -47,7 +49,12 @@ function hasFallbackSource(record = {}) {
 
   return values.some((value) => {
     const normalized = normalizeLifecycleValue(value);
-    return normalized && FALLBACK_SOURCE_TOKENS.has(normalized);
+    if (!normalized) return false;
+    if (FALLBACK_SOURCE_TOKENS.has(normalized)) return true;
+
+    return Array.from(FALLBACK_SOURCE_TOKENS).some((token) =>
+      normalized.includes(token)
+    );
   });
 }
 
