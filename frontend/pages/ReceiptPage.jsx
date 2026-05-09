@@ -3207,27 +3207,27 @@ if (!canRenderReceipt) {
                   }
 
                   if (buttonState === "ready") {
-                    if (!canEnterVerification) {
+                    if (!receiptActivated) {
                       handleUnlockFormalReceipt();
                       return;
                     }
 
-                  navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
-                    state: {
-                      ...stripCanonicalCaseFlowState(location.state || {}),
-                      receiptPageData: data,
-                      sharedReceiptVerificationContract: sharedContract,
-                        caseData: data.caseData || null,
-                        verificationPageData: location.state?.verificationPageData || null,
-                        routeDecision,
-                        receiptSource,
-                        evidenceLock: finalEvidenceLock,
-                        caseId: inferredCaseId,
-                      },
-                    });
-                    return;
-                  }
-                }}
+                    navigate(`${ROUTES.VERIFICATION}${location.search || ""}`, {
+                      state: {
+                        ...stripCanonicalCaseFlowState(location.state || {}),
+                        receiptPageData: data,
+                        sharedReceiptVerificationContract: sharedContract,
+                          caseData: data.caseData || null,
+                          verificationPageData: location.state?.verificationPageData || null,
+                          routeDecision,
+                          receiptSource,
+                          evidenceLock: finalEvidenceLock,
+                          caseId: inferredCaseId,
+                        },
+                      });
+                      return;
+                    }
+                  }}
                 style={{
                   backgroundColor:
                     buttonState === "ready"
@@ -3997,7 +3997,7 @@ if (!canRenderReceipt) {
                 }
 
                 if (receiptEligible) {
-                  if (!canEnterVerification) {
+                 if (!receiptActivated) {
                     handleUnlockFormalReceipt();
                     return;
                   }
