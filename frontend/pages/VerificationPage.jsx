@@ -146,6 +146,166 @@ function getStableHashValue(value) {
   return typeof value === "string" && value.trim() ? value : "";
 }
 
+function normalizeContractValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isValidReceiptHash(value) {
+  return /^H-[A-F0-9]{24}$/i.test(String(value || "").trim());
+}
+
+function isValidVerificationHash(value) {
+  return /^VH?-[A-F0-9]{24}$/i.test(String(value || "").trim());
+}
+
+function getBackendReceiptHash(caseRecord = {}) {
+  return (
+    caseRecord?.receiptHash ||
+    caseRecord?.receipt?.hash ||
+    caseRecord?.receipt?.receiptHash ||
+    caseRecord?.receiptRecord?.receiptHash ||
+    caseRecord?.receiptRecord?.hash ||
+    caseRecord?.hashLedger?.receiptHash ||
+    ""
+  );
+}
+
+function getBackendVerificationHash(record = {}) {
+  return (
+    record?.verificationHash ||
+    record?.hash ||
+    record?.data?.verificationHash ||
+    record?.payload?.verificationHash ||
+    ""
+  );
+}
+
+function hasBackendReceiptReadySignal(caseRecord = {}) {
+  if (!caseRecord) return false;
+
+  const stage = normalizeContractValue(caseRecord.stage);
+  const status = normalizeContractValue(caseRecord.status);
+  const receiptStatus = normalizeContractValue(
+    caseRecord.receiptStatus || caseRecord.receipt?.status
+  );
+
+  return (
+    caseRecord.receiptEligible === true ||
+    caseRecord.caseReceiptEligible === true ||
+    caseRecord.receipt_ready === true ||
+    caseRecord.receipt?.eligible === true ||
+    receiptStatus === "ready" ||
+    receiptStatus === "paid" ||
+    receiptStatus === "activated" ||
+    receiptStatus === "issued" ||
+    stage === "receipt_ready" ||
+    stage === "receipt_paid" ||
+    stage === "verification_ready" ||
+    stage === "verification_issued" ||
+    status === "receipt_ready" ||
+    status === "receipt_paid" ||
+    status === "verification_ready" ||
+    status === "verification_issued"
+  );
+}
+
+function hasBackendReceiptPaidActivationOrIssued(caseRecord = {}) {
+  if (!caseRecord) return false;
+
+  const paymentStatus = normalizeContractValue(
+    caseRecord.paymentStatus ||
+      caseRecord.payment?.status ||
+      caseRecord.receipt?.paymentStatus
+  );
+  const receiptStatus = normalizeContractValue(
+    caseRecord.receiptStatus || caseRecord.receipt?.status
+  );
+  const stage = normalizeContractValue(caseRecord.stage);
+  const status = normalizeContractValue(caseRecord.status);
+
+  return (
+    caseRecord.receipt_paid === true ||
+    caseRecord.paid === true ||
+    caseRecord.receiptPaid === true ||
+    caseRecord.receiptActivated === true ||
+    caseRecord.receiptIssued === true ||
+    caseRecord.receipt?.paid === true ||
+    caseRecord.receipt?.activated === true ||
+    caseRecord.receipt?.issued === true ||
+    caseRecord.payment?.receiptPaid === true ||
+    caseRecord.payment?.receiptActivated === true ||
+    paymentStatus === "paid" ||
+    paymentStatus === "activated" ||
+    paymentStatus === "issued" ||
+    paymentStatus === "succeeded" ||
+    receiptStatus === "paid" ||
+    receiptStatus === "activated" ||
+    receiptStatus === "issued" ||
+    stage === "receipt_paid" ||
+    stage === "verification_ready" ||
+    stage === "verification_issued" ||
+    status === "receipt_paid" ||
+    status === "verification_ready" ||
+    status === "verification_issued"
+  );
+}
+
+function hasBackendVerificationEligibleSignal(caseRecord = {}) {
+  if (!caseRecord) return false;
+
+  return (
+    caseRecord.verificationEligible === true ||
+    caseRecord.verification_ready === true ||
+    caseRecord.verification?.eligible === true
+  );
+}
+
+function hasBackendVerificationReadySignal(caseRecord = {}) {
+  if (!caseRecord) return false;
+
+  const stage = normalizeContractValue(caseRecord.stage);
+  const status = normalizeContractValue(caseRecord.status);
+  const verificationStatus = normalizeContractValue(
+    caseRecord.verificationStatus || caseRecord.verification?.status
+  );
+
+  return (
+    hasBackendVerificationEligibleSignal(caseRecord) ||
+    verificationStatus === "ready" ||
+    verificationStatus === "issued" ||
+    verificationStatus === "completed" ||
+    stage === "verification_ready" ||
+    stage === "verification_issued" ||
+    status === "verification_ready" ||
+    status === "verification_issued"
+  );
+}
+
+function hasBackendVerificationIssuedSignal(caseRecord = {}) {
+  if (!caseRecord) return false;
+
+  const stage = normalizeContractValue(caseRecord.stage);
+  const status = normalizeContractValue(caseRecord.status);
+  const verificationStatus = normalizeContractValue(
+    caseRecord.verificationStatus || caseRecord.verification?.status
+  );
+  const verificationResult = normalizeContractValue(
+    caseRecord.verificationResult || caseRecord.verification?.result
+  );
+
+  return (
+    caseRecord.verification_issued === true ||
+    caseRecord.verificationIssued === true ||
+    caseRecord.verification?.issued === true ||
+    verificationStatus === "issued" ||
+    verificationStatus === "completed" ||
+    verificationResult === "issued" ||
+    verificationResult === "completed" ||
+    stage === "verification_issued" ||
+    status === "verification_issued"
+  );
+}
+
 function saveStoredVerificationHash(caseId = "", receiptHash = "", verificationHash = "") {
   if (!verificationHash) return;
 
@@ -163,6 +323,8 @@ function saveStoredVerificationHash(caseId = "", receiptHash = "", verificationH
       JSON.stringify({
         ...current,
         verificationHash,
+        source: "verification_page_preview_cache",
+        fallbackOnly: true,
       })
     );
   } catch (error) {
@@ -173,7 +335,11 @@ function saveStoredVerificationHash(caseId = "", receiptHash = "", verificationH
     if (caseId) {
       upsertCase({
         caseId,
-        verificationHash,
+        verificationPreview: {
+          verificationHash,
+          source: "verification_page_preview_cache",
+          fallbackOnly: true,
+        },
       });
     }
   } catch (error) {
@@ -1491,7 +1657,6 @@ export default function VerificationPage() {
   const [verificationHashCopied, setVerificationHashCopied] = useState(false);
   const [receiptHashCopied, setReceiptHashCopied] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [caseBillingOverride, setCaseBillingOverride] = useState(null);
   const [receiptLedgerRecord, setReceiptLedgerRecord] = useState(null);
   const [receiptLedgerLoading, setReceiptLedgerLoading] = useState(false);
   const [receiptLedgerError, setReceiptLedgerError] = useState(null);
@@ -1741,8 +1906,27 @@ export default function VerificationPage() {
     console.warn("Failed to read case registry for verification gate", error);
   }
 
+  const backendCanonicalCase =
+    backendCaseRecord || restoredCaseRecord || null;
+
   const effectiveCaseRecord =
-    backendCaseRecord || restoredCaseRecord || currentCase || null;
+    backendCanonicalCase || currentCase || null;
+
+  const backendVerificationEligible =
+    hasBackendVerificationEligibleSignal(backendCanonicalCase);
+  const backendVerificationReady =
+    hasBackendVerificationReadySignal(backendCanonicalCase);
+  const backendVerificationIssued =
+    hasBackendVerificationIssuedSignal(backendCanonicalCase);
+  const backendReceiptReady =
+    hasBackendReceiptReadySignal(backendCanonicalCase);
+  const backendReceiptPaidActivatedIssued =
+    hasBackendReceiptPaidActivationOrIssued(backendCanonicalCase);
+  const backendFormalVerificationGate =
+    backendVerificationEligible ||
+    backendVerificationReady ||
+    backendVerificationIssued ||
+    (backendReceiptReady && backendReceiptPaidActivatedIssued);
 
   const verificationFlat =
     sharedContract
@@ -1768,16 +1952,17 @@ export default function VerificationPage() {
     ? `/receipt?caseId=${encodeURIComponent(activeCaseId)}&from=verification`
     : "/cases";
 
-  const accessMode = getAccessMode(
-    verificationFlat?.caseData || receiptContext?.caseData || effectiveCaseRecord
-  );
-  const isPaid = accessMode === "paid";
+  const accessMode = getAccessMode(backendCanonicalCase);
+  const isPaid = backendReceiptPaidActivatedIssued || accessMode === "paid";
 
-  const activeCaseBilling = caseBillingOverride || effectiveCaseRecord?.caseBilling || {};
+  const activeCaseBilling = backendCanonicalCase?.caseBilling || {};
   const verificationActivated =
+    backendVerificationEligible ||
+    backendVerificationReady ||
+    backendVerificationIssued ||
     activeCaseBilling?.verificationActivated === true ||
-    effectiveCaseRecord?.payment?.verificationActivated === true ||
-    effectiveCaseRecord?.isPaid === true;
+    backendCanonicalCase?.payment?.verificationActivated === true ||
+    backendCanonicalCase?.verificationActivated === true;
   const effectiveCaseEvents = [
     ...(Array.isArray(effectiveCaseRecord?.events) ? effectiveCaseRecord.events : []),
     ...(Array.isArray(effectiveCaseRecord?.eventLogs) ? effectiveCaseRecord.eventLogs : []),
@@ -1896,17 +2081,23 @@ export default function VerificationPage() {
 
   const decisionPathEvents = currentCaseEvents.length;
 
-  const restoredEventCount = Number(effectiveCaseRecord?.eventCount || 0);
-  const restoredEventsLength = Array.isArray(effectiveCaseRecord?.events)
-    ? effectiveCaseRecord.events.length
+  const restoredEventCount = Number(backendCanonicalCase?.eventCount || 0);
+  const restoredEventsLength = Array.isArray(backendCanonicalCase?.events)
+    ? backendCanonicalCase.events.length
     : 0;
-  const restoredEventLogsLength = Array.isArray(effectiveCaseRecord?.eventLogs)
-    ? effectiveCaseRecord.eventLogs.length
+  const restoredEventLogsLength = Array.isArray(backendCanonicalCase?.eventLogs)
+    ? backendCanonicalCase.eventLogs.length
     : 0;
-  const restoredEntriesLength = Array.isArray(effectiveCaseRecord?.entries)
-    ? effectiveCaseRecord.entries.length
+  const restoredEntriesLength = Array.isArray(backendCanonicalCase?.entries)
+    ? backendCanonicalCase.entries.length
     : 0;
-  const hasLatestEvent = Boolean(effectiveCaseRecord?.latestEvent);
+  const hasLatestEvent = Boolean(backendCanonicalCase?.latestEvent);
+  const hasTrustedReceiptEvidence =
+    backendReceiptReady ||
+    backendReceiptPaidActivatedIssued ||
+    backendVerificationEligible ||
+    backendVerificationReady ||
+    backendVerificationIssued;
 
   const hasEventBackedBaseline =
     restoredEventCount > 0 ||
@@ -1915,8 +2106,7 @@ export default function VerificationPage() {
     restoredEntriesLength > 0 ||
     hasLatestEvent ||
     (Array.isArray(workflowEventLogs) && workflowEventLogs.length > 0) ||
-    Number(submittedEvents || 0) > 0 ||
-    Number(decisionPathEvents || 0) > 0;
+    hasTrustedReceiptEvidence;
 
   const activeSummaryBuffer =
     summaryBufferFromRoute ||
@@ -1924,7 +2114,13 @@ export default function VerificationPage() {
     null;
 
   const ledgerReceiptHash = getReceiptLedgerRecordHash(receiptLedgerRecord);
-  const hasLedgerReceipt = Boolean(ledgerReceiptHash);
+  const backendCaseReceiptHash = getBackendReceiptHash(backendCanonicalCase);
+  const backendOwnedReceiptHash = isValidReceiptHash(ledgerReceiptHash)
+    ? ledgerReceiptHash
+    : isValidReceiptHash(backendCaseReceiptHash)
+    ? backendCaseReceiptHash
+    : "";
+  const hasLedgerReceipt = Boolean(backendOwnedReceiptHash);
   const receiptSourceData =
     receiptLedgerRecord?.data ||
     receiptLedgerRecord?.payload ||
@@ -1953,23 +2149,10 @@ export default function VerificationPage() {
     "";
 
   const receiptAllowsVerification =
-    deterministicScore.receiptEligible ||
-    access.verificationEligible ||
-    hasLedgerReceipt ||
-    effectiveCaseRecord?.receipt?.eligible === true ||
-    receiptDecisionStatus === "Eligible for Verification" ||
-    receiptDecisionStatus === "READY FOR FORMAL DETERMINATION" ||
-    receiptDecisionStatus === "Verified";
+    backendFormalVerificationGate;
 
   const cameFromIssuedReceipt =
-    caseId ||
-    receiptLedgerLoading ||
-    hasLedgerReceipt ||
-    !!effectiveCaseRecord?.receipt ||
-    !!receiptContext ||
-    !!routeEnvelope?.receiptPageData ||
-    !!routeEnvelope?.sharedReceiptVerificationContract ||
-    !!sharedContract;
+    backendFormalVerificationGate;
 
   const resolvedPayload = resolveVerificationPayload(
     routeEnvelope || {},
@@ -2018,7 +2201,7 @@ const liveReceiptId =
   ) || "";
 
 const liveReceiptHash =
-  ledgerReceiptHash ||
+  backendOwnedReceiptHash ||
   verificationFlat?.receiptHash ||
   baseData?.receiptHash ||
   resolvedPayload?.receiptHash ||
@@ -2092,12 +2275,10 @@ const workflowEvidenceSummary =
       getCaseSummary(verificationFlat) ||
       getCaseContext(verificationFlat),
     overallStatus:
-      hasVerificationPayload && verificationFlat?.resolvedVerificationEligible
+      backendFormalVerificationGate
         ? "Verification Ready"
-        : hasVerificationPayload
-        ? access.verificationEligible
-          ? "Verification Ready"
-          : evaluated.verificationStatus
+      : hasVerificationPayload
+        ? evaluated.verificationStatus
         : "Verification Warning",
     checks: hasVerificationPayload
       ? evaluated.checks
@@ -2197,8 +2378,7 @@ const consistencyCheck = verificationFlat?.consistencyCheck || {
 };
 
 const finalOverallStatus =
-  verificationFlat?.resolvedVerificationEligible === true ||
-  data.overallStatus === "Verification Ready"
+  backendFormalVerificationGate
     ? "Verification Ready"
     : hasVerificationPayload
     ? "Verification Warning"
@@ -2249,8 +2429,7 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     "Not recorded yet";
 
   const proofReceiptHash =
-    getStableHashValue(ledgerReceiptHash) ||
-    (!caseId ? getStableHashValue(data.receiptHash) : "") ||
+    backendOwnedReceiptHash ||
     "Unavailable";
 
   const resolvedVerificationCaseId =
@@ -2307,49 +2486,10 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     };
   }, [resolvedVerificationCaseId]);
 
-  const handleActivateVerificationForCase = () => {
-    const caseIdToActivate = resolvedVerificationCaseId || inferredCaseId;
-    if (!caseIdToActivate) return;
-
-    const nextCaseBilling = {
-      ...activeCaseBilling,
-      receiptActivated: activeCaseBilling?.receiptActivated === true,
-      verificationActivated: true,
-      activatedAt: new Date().toISOString(),
-      source: "local_test",
-    };
-
-    try {
-      upsertCase({
-        caseId: caseIdToActivate,
-        caseBilling: nextCaseBilling,
-      });
-      setCaseBillingOverride(nextCaseBilling);
-    } catch (error) {
-      console.warn("Failed to activate verification for case", error);
-    }
-  };
-
-  let persistedCaseVerificationHash = "";
-
-  try {
-    persistedCaseVerificationHash = resolvedVerificationCaseId
-      ? getCaseById(resolvedVerificationCaseId)?.verification?.verificationHash ||
-        getCaseById(resolvedVerificationCaseId)?.verificationHash ||
-        ""
-      : "";
-  } catch (error) {
-    console.warn("Failed to read verification hash from case registry:", error);
-  }
-
   const persistedVerificationHash =
-    getStableHashValue(persistedCaseVerificationHash) ||
-    getStableHashValue(data.verificationHash) ||
-    getStoredStableHash(
-      resolvedVerificationCaseId || proofReceiptHash
-        ? `verificationHash:${resolvedVerificationCaseId || proofReceiptHash}:${proofReceiptHash || "no-receipt"}`
-        : ""
-    );
+    isValidVerificationHash(getBackendVerificationHash(verificationLedgerRecord))
+      ? getStableHashValue(getBackendVerificationHash(verificationLedgerRecord))
+      : "";
 
   const generatedVerificationHash = generateVerificationHash({
     receiptHash: proofReceiptHash,
@@ -2360,6 +2500,12 @@ const consistencyRepairCard = getConsistencyRepairCardData({
 
   const verificationHash =
     persistedVerificationHash || generatedVerificationHash;
+
+  const backendCanWriteVerificationLedger =
+    backendFormalVerificationGate &&
+    hasEventBackedBaseline &&
+    isValidReceiptHash(proofReceiptHash) &&
+    isValidVerificationHash(verificationHash);
 
   React.useEffect(() => {
     const safeCaseId =
@@ -2373,6 +2519,7 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     const safeVerificationHash =
       typeof verificationHash === "string" ? verificationHash.trim() : "";
 
+    if (!backendCanWriteVerificationLedger) return;
     if (!safeCaseId) return;
     if (!/^H-[A-F0-9]{24}$/i.test(safeReceiptHash)) return;
     if (!/^VH?-[A-F0-9]{24}$/i.test(safeVerificationHash)) return;
@@ -2399,12 +2546,14 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     resolvedVerificationCaseId,
     proofReceiptHash,
     verificationHash,
+    backendCanWriteVerificationLedger,
     receiptMode,
     receiptSource,
     verificationFlat,
   ]);
 
   React.useEffect(() => {
+    if (!backendCanWriteVerificationLedger) return;
     if (!cameFromIssuedReceipt || !receiptAllowsVerification) return;
     if (!hasEventBackedBaseline) return;
 
@@ -2433,9 +2582,11 @@ const consistencyRepairCard = getConsistencyRepairCardData({
       ) {
         upsertCase({
           caseId: resolvedVerificationCaseId,
-          verification: {
+          verificationPreview: {
             eligible: verificationFlat?.resolvedVerificationEligible === true,
-            verifiedAt: new Date().toISOString(),
+            source: "verification_page_preview_cache",
+            fallbackOnly: true,
+            cachedAt: new Date().toISOString(),
             verificationHash,
           },
         });
@@ -2454,6 +2605,7 @@ const consistencyRepairCard = getConsistencyRepairCardData({
     verificationFlat,
     receiptMode,
     receiptSource,
+    backendCanWriteVerificationLedger,
   ]);
 
 const displayReceiptHash =
@@ -2462,7 +2614,7 @@ const displayReceiptHash =
     : proofReceiptHash;
 
   const hasReceiptHash = hasVerificationPayload
-    ? Boolean(ledgerReceiptHash) && (evaluated.hasReceiptHash || Boolean(data.receiptHash))
+    ? Boolean(backendOwnedReceiptHash) && (evaluated.hasReceiptHash || Boolean(data.receiptHash))
     : false;
   const hasCompleteStructure = hasVerificationPayload ? evaluated.hasCompleteStructure : false;
 
@@ -2550,17 +2702,18 @@ const displayReceiptHash =
   ).length;
 
   const contractVerificationReady =
-    currentCase?.verification?.eligible === true ||
-    verificationFlat?.resolvedVerificationEligible === true;
+    backendVerificationEligible ||
+    backendVerificationReady ||
+    backendVerificationIssued;
 
   const acceptanceReady =
     finalOverallStatus === "Verification Ready";
 
   const verificationPass =
-    contractVerificationReady && access.verificationEligible;
+    backendFormalVerificationGate;
   const verificationBlock = !verificationPass;
   const canActivateFormalVerification =
-    hasLedgerReceipt && verificationPass && access.canRunVerification;
+    verificationPass;
   const canShowSubscriptionOptions = verificationPass;
   
   const verdictTheme =
@@ -2598,6 +2751,8 @@ const displayReceiptHash =
         JSON.stringify({
           ...data,
           verificationHash,
+          source: "verification_page_preview_cache",
+          fallbackOnly: true,
         })
       );
       localStorage.setItem(
@@ -2912,7 +3067,7 @@ const recommendedPathLabel =
   };
 
   const handleFileUpload = (event) => {
-    if (!access.canUploadFiles) {
+    if (!verificationActivated) {
       handleOpenSubscriptionModal("evidence_upload_locked");
       return;
     }
@@ -2962,7 +3117,11 @@ const recommendedPathLabel =
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-3xl font-bold mb-3">
-                {isPaid ? "Verification Ready" : "Verification Not Activated"}
+                {backendFormalVerificationGate
+                  ? verificationActivated || isPaid
+                    ? "Verification Ready"
+                    : "Verification Not Activated"
+                  : "Verification Not Available"}
               </h1>
 
               <p
@@ -3520,7 +3679,7 @@ const recommendedPathLabel =
             <button
               type="button"
               onClick={() => {
-                if (!access.canUploadFiles) {
+                if (!verificationActivated) {
                   handleOpenSubscriptionModal("evidence_upload_locked");
                   return;
                 }
@@ -3542,7 +3701,7 @@ const recommendedPathLabel =
                 cursor: "pointer",
               }}
             >
-              {access.canUploadFiles ? "File upload unlocked" : "Activate file-based"}
+              {verificationActivated ? "File upload unlocked" : "Activate file-based"}
               <br />
               verification
             </button>
@@ -3563,16 +3722,16 @@ const recommendedPathLabel =
                 : "text-emerald-800"
             }`}
           >
-            {access.needsEvent
+            {verificationPass && !verificationActivated
+              ? "Formal verification activation required"
+              : canActivateFormalVerification
+              ? "Record eligible for formal issuance"
+              : access.needsEvent
               ? "Capture event before verification"
               : !hasLedgerReceipt
               ? "Receipt ledger required"
               : access.needsScore
               ? "Score not ready for verification"
-              : access.verificationEligible && !access.canRunVerification
-              ? "Formal verification activation required"
-              : canActivateFormalVerification
-              ? "Record eligible for formal issuance"
               : !isEvidenceLockedConsistent
               ? "Record chain recovery required"
               : finalOverallStatus === "Verification Warning"
@@ -3589,7 +3748,11 @@ const recommendedPathLabel =
               color: "#64748B",
             }}
           >
-            {access.needsEvent
+            {verificationPass && !verificationActivated
+              ? "The current record is eligible for verification preview. Formal activation is required before verification can run."
+              : canActivateFormalVerification
+              ? "The current record is sufficient for formal verification issuance when this decision must be carried forward outside the workspace."
+              : access.needsEvent
               ? "Verification requires at least one captured event before this record can move into formal review."
               : !hasLedgerReceipt
               ? receiptLedgerLoading
@@ -3599,10 +3762,6 @@ const recommendedPathLabel =
                 : "Receipt ledger not found. Generate the case receipt before activating verification."
               : access.needsScore
               ? "The current score is not high enough for verification eligibility yet."
-              : access.verificationEligible && !access.canRunVerification
-              ? "The current record is eligible for verification preview. Formal activation is required before verification can run."
-              : canActivateFormalVerification
-              ? "The current record is sufficient for formal verification issuance when this decision must be carried forward outside the workspace."
               : !isEvidenceLockedConsistent
               ? "The current verification record is no longer aligned with the issued receipt baseline. Restore the source record before further review."
               : finalOverallStatus === "Verification Warning"
@@ -3611,17 +3770,17 @@ const recommendedPathLabel =
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            {verificationPass && hasLedgerReceipt ? (
+            {verificationPass ? (
               <button
                 type="button"
                 onClick={() => {
-                  if (!access.canRunVerification) {
+                  if (!backendFormalVerificationGate) {
                     handleOpenSubscriptionModal("verification_activation_locked");
                     return;
                   }
 
                   if (!verificationActivated) {
-                    handleActivateVerificationForCase();
+                    handleOpenSubscriptionModal("verification_activation_locked");
                     return;
                   }
 
@@ -3640,7 +3799,7 @@ const recommendedPathLabel =
                   boxShadow: "0 6px 16px rgba(5,150,105,0.35)",
                 }}
               >
-                {isPaid ? "Verify Record" : "Activate Verification"}
+                {verificationActivated ? "Verify Record" : "Activate Verification"}
               </button>
             ) : (
               <button
