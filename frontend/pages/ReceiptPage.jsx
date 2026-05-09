@@ -1170,8 +1170,14 @@ const urlCaseId = String(
     routeDecision?.mode === "case_receipt" ||
     routeDecision?.mode === "final_receipt" ||
     Boolean(hydratedReceiptRecord);
+  const hasReceiptRouteCaseIdentity =
+    Boolean(urlCaseId) ||
+    Boolean(receiptUrlParams.get("caseId")) ||
+    Boolean(location.state?.caseId) ||
+    Boolean(location.state?.case_id);
 
   const canRenderReceipt =
+    hasReceiptRouteCaseIdentity ||
     (hasReceiptIdentity && hasReceiptSource) ||
     (hasReceiptIdentity && hasReceiptProof) ||
     (hasReceiptIdentity && hasReceiptMode) ||
