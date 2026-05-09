@@ -222,6 +222,23 @@ async function fetchReceiptLedgerRecord(caseId) {
   return data?.record || data || null;
 }
 
+async function fetchVerificationLedgerRecord(caseId) {
+  if (!caseId) return null;
+
+  const response = await fetch(
+    `${API_BASE}/hash-ledger/verification?caseId=${encodeURIComponent(caseId)}`
+  );
+
+  if (response.status === 404) return null;
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch verification ledger: ${response.status}`);
+  }
+
+  const json = await response.json();
+  return json?.record || null;
+}
+
 function getReceiptLedgerRecordHash(record) {
   return (
     record?.hash ||
@@ -1457,6 +1474,9 @@ export default function VerificationPage() {
   const [receiptLedgerRecord, setReceiptLedgerRecord] = useState(null);
   const [receiptLedgerLoading, setReceiptLedgerLoading] = useState(false);
   const [receiptLedgerError, setReceiptLedgerError] = useState(null);
+  const [verificationLedgerRecord, setVerificationLedgerRecord] = useState(null);
+  const [verificationLedgerLoading, setVerificationLedgerLoading] = useState(false);
+  const [verificationLedgerError, setVerificationLedgerError] = useState(null);
   const [workflowEventLogs, setWorkflowEventLogs] = useState([]);
   const [restoredCaseRecord, setRestoredCaseRecord] = useState(null);
   const [restoredCaseLoading, setRestoredCaseLoading] = useState(false);
@@ -2166,6 +2186,47 @@ const consistencyRepairCard = getConsistencyRepairCardData({
         getCurrentCaseId() ||
         "",
     });
+
+  React.useEffect(() => {
+    const caseId =
+      typeof resolvedVerificationCaseId === "string"
+        ? resolvedVerificationCaseId.trim()
+        : "";
+
+    if (!caseId) return;
+
+    let cancelled = false;
+
+    async function loadVerificationLedgerRecord() {
+      setVerificationLedgerLoading(true);
+      setVerificationLedgerError(null);
+
+      try {
+        const record = await fetchVerificationLedgerRecord(caseId);
+
+        if (cancelled) return;
+
+        if (record) {
+          setVerificationLedgerRecord(record);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[verification ledger read failed]", error);
+          setVerificationLedgerError(error);
+        }
+      } finally {
+        if (!cancelled) {
+          setVerificationLedgerLoading(false);
+        }
+      }
+    }
+
+    void loadVerificationLedgerRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedVerificationCaseId]);
 
   const handleActivateVerificationForCase = () => {
     const caseIdToActivate = resolvedVerificationCaseId || inferredCaseId;
