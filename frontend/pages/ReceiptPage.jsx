@@ -17,7 +17,9 @@ import {
   getWeakestDimensionDisplay,
 } from "../lib/customerDecisionDisplay";
 import { getAccessMode } from "../utils/accessMode";
-import { calculateDeterministicScore } from "../utils/deterministicScore";
+import {
+  buildReadinessContract,
+} from "../utils/deterministicScore";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 // import { writeSummaryBuffer, createSummaryBuffer } from "../lib/summaryBuffer";
 // import { shouldRebuildSummaryBuffer } from "../lib/summaryBuffer";
@@ -747,7 +749,7 @@ function normalizeReceiptData(input = {}) {
     decisionStatus:
       input.decisionStatus ||
       resolvedReviewSummary.decisionStatus ||
-      "READY FOR FORMAL DETERMINATION",
+      "Insufficient Record",
 
     confidenceLabel:
       input.confidenceLabel ||
@@ -770,6 +772,20 @@ function normalizeReceiptData(input = {}) {
     structureStatusFromCase: normalizedCaseData?.structureStatus || null,
     routeDecisionFromCase: normalizedCaseData?.routeDecision || null,
   };
+}
+
+function deriveExplicitReceiptReady(caseLike = {}) {
+  const receiptStatus = String(caseLike?.receiptStatus || caseLike?.receipt?.status || "").toLowerCase();
+  const stage = String(caseLike?.stage || caseLike?.receipt?.stage || "").toLowerCase();
+  const status = String(caseLike?.status || "").toLowerCase();
+
+  return Boolean(
+    caseLike?.receiptEligible === true ||
+    caseLike?.caseReceiptEligible === true ||
+    receiptStatus === "ready" ||
+    stage === "receipt_ready" ||
+    status === "receipt_ready"
+  );
 }
 
 export default function ReceiptPage() {
@@ -1144,12 +1160,13 @@ const urlCaseId = String(
       : [],
     source: receiptEligibilityScoreSource,
   });
-  const receiptEligibilityScore = calculateDeterministicScore(
+  const receiptEligibilityContract = buildReadinessContract(
     receiptEligibilityScoreSource
   );
 
   const hasReceiptEligibilitySignal =
-    receiptEligibilityScore.receiptEligible === true ||
+    receiptEligibilityContract.checks.evidence.passed === true ||
+    receiptEligibilityContract.receiptReady === true ||
     routeDecision?.mode === "case_receipt" ||
     routeDecision?.mode === "final_receipt" ||
     Boolean(hydratedReceiptRecord);
@@ -1312,6 +1329,11 @@ const urlCaseId = String(
     console.warn("Failed to read case registry for receipt gate", error);
   }
   const activeCurrentCase = hydratedReceiptRecord || currentCase || null;
+  const activeCurrentCaseSource = hydratedReceiptRecord
+    ? "hydratedReceiptRecord"
+    : currentCase
+    ? "localCaseRegistry"
+    : "none";
   const isReceiptCaseHydrating =
     Boolean(inferredCaseId) &&
     !receiptRecordHydrationComplete;
@@ -1467,10 +1489,26 @@ const urlCaseId = String(
   const hasEvents =
     Array.isArray(realCapturedEvents) &&
     realCapturedEvents.length > 0;
+  const explicitBackendReceiptReady = deriveExplicitReceiptReady(activeCurrentCase);
 
   const deterministicScoreSource = {
     ...(activeCurrentCase || normalized?.caseData || resolvedPayload?.caseData || {}),
     caseId: inferredCaseId || activeCurrentCase?.caseId || "",
+    explicitReceiptReady: explicitBackendReceiptReady,
+    backendReceiptReady: explicitBackendReceiptReady,
+    receiptRecordFormable:
+      explicitBackendReceiptReady ||
+      Boolean(
+        hydratedReceiptRecord ||
+          activeCurrentCase?.receiptId ||
+          activeCurrentCase?.receiptHash ||
+          activeCurrentCase?.receipt?.receiptId ||
+          activeCurrentCase?.receipt?.hash ||
+          normalized?.receiptId ||
+          normalized?.receiptHash ||
+          rawData?.receiptId ||
+          rawData?.receiptHash
+      ),
     events:
       currentCaseQuickCaptures.length > 0
         ? currentCaseQuickCaptures
@@ -1513,15 +1551,25 @@ const urlCaseId = String(
       source: scoringSource,
     });
   }
-  const deterministicScore = calculateDeterministicScore(
+  const readinessContract = buildReadinessContract(
     deterministicScoreSource
   );
+  const deterministicScore = readinessContract.deterministicScore;
 
   console.log("[DETERMINISTIC_SCORE]", {
     page: "ReceiptPage",
     caseId: inferredCaseId,
     score: deterministicScore,
     eventCount: deterministicScore.eventCount,
+  });
+  console.log("[ReadinessContract trace]", {
+    caseId: inferredCaseId,
+    readinessScore: readinessContract.readinessScore,
+    readinessLevel: readinessContract.readinessLevel,
+    receiptReady: readinessContract.receiptReady,
+    blockers: readinessContract.blockers,
+    checks: readinessContract.checks,
+    deterministicScore: readinessContract.deterministicScore,
   });
 
   const activeCaseBilling = caseBillingOverride || activeCurrentCase?.caseBilling || {};
@@ -1651,31 +1699,19 @@ const urlCaseId = String(
 
     if (hasVerifiedAt) return "Verified";
 
-    const backendReady =
-      activeCurrentCase?.receiptEligible === true ||
-      activeCurrentCase?.caseReceiptEligible === true ||
-      activeCurrentCase?.receiptStatus === "ready" ||
-      activeCurrentCase?.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
-      activeCurrentCase?.receipt?.decisionStatus === "READY FOR FORMAL DETERMINATION";
-
-    if (backendReady) return "READY FOR FORMAL DETERMINATION";
-
-    // Event-backed records are required before ready status.
-    if (!hasEvents) {
-      return "Insufficient Record";
+    if (readinessContract.readinessLevel === "ready") {
+      return "READY FOR FORMAL DETERMINATION";
     }
 
-    const isEligible =
-      deterministicScore.eventCount > 0 &&
-      Number(deterministicScore.totalScore || 0) >= 3.0;
+    if (readinessContract.readinessLevel === "pending_review") {
+      return "Receipt Pending Review";
+    }
 
-    if (isEligible) return "READY FOR FORMAL DETERMINATION";
-
-    if (returnedFromFailedVerification) {
+    if (readinessContract.readinessLevel === "failed") {
       return "Receipt Failed";
     }
 
-    return "Receipt Failed";
+    return "Insufficient Record";
     })(),
   };
 
@@ -1804,15 +1840,38 @@ const hasEventBackedBaseline =
 const hasEventBackedRecord = Number(deterministicScore.eventCount || 0) > 0;
 const normalizedScore = deterministicScore.totalScore;
 const hasPassingScore = Number(normalizedScore || 0) >= 3.0;
-const backendReceiptReady =
-  activeCurrentCase?.receiptEligible === true ||
-  activeCurrentCase?.caseReceiptEligible === true ||
-  activeCurrentCase?.receiptStatus === "ready" ||
-  activeCurrentCase?.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
-  activeCurrentCase?.receipt?.decisionStatus === "READY FOR FORMAL DETERMINATION";
+const backendReceiptReady = explicitBackendReceiptReady;
 
-const receiptEligible =
-  backendReceiptReady || (hasEventBackedRecord && hasPassingScore);
+const receiptEligible = readinessContract.receiptReady;
+
+console.log("[ReceiptPage readiness trace]", {
+  caseId: inferredCaseId,
+  activeCurrentCaseSource,
+  hasHydratedReceiptRecord: Boolean(hydratedReceiptRecord),
+  hasLocalCurrentCase: Boolean(currentCase),
+  backendReceiptReady,
+  receiptEligible,
+  hasEventBackedRecord,
+  hasPassingScore,
+  eventCount: deterministicScore.eventCount,
+  totalScore: deterministicScore.totalScore,
+  activeReceiptEligible: activeCurrentCase?.receiptEligible,
+  activeCaseReceiptEligible: activeCurrentCase?.caseReceiptEligible,
+  activeReceiptStatus: activeCurrentCase?.receiptStatus,
+  activeStage: activeCurrentCase?.stage,
+  activeStatus: activeCurrentCase?.status,
+  hydratedReceiptEligible: hydratedReceiptRecord?.receiptEligible,
+  hydratedCaseReceiptEligible: hydratedReceiptRecord?.caseReceiptEligible,
+  hydratedReceiptStatus: hydratedReceiptRecord?.receiptStatus,
+  hydratedStage: hydratedReceiptRecord?.stage,
+  hydratedStatus: hydratedReceiptRecord?.status,
+  localReceiptEligible: currentCase?.receiptEligible,
+  localCaseReceiptEligible: currentCase?.caseReceiptEligible,
+  localReceiptStatus: currentCase?.receiptStatus,
+  localStage: currentCase?.stage,
+  localStatus: currentCase?.status,
+  decisionStatus: data?.decisionStatus,
+});
 
 React.useEffect(() => {
   const targetCaseId =

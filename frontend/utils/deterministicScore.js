@@ -277,3 +277,254 @@ export function calculateDeterministicScore(caseData = {}) {
       : "Receipt locked until deterministic four-check score reaches threshold.",
   };
 }
+
+function normalizeStatusText(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isMissingStatus(value = "") {
+  const normalized = normalizeStatusText(value);
+
+  return (
+    !normalized ||
+    normalized === "unknown" ||
+    normalized === "missing" ||
+    normalized === "empty" ||
+    normalized === "none" ||
+    normalized === "n/a"
+  );
+}
+
+function hasBrokenSignal(value = "") {
+  const normalized = normalizeStatusText(value);
+
+  return (
+    normalized === "broken" ||
+    normalized === "failed" ||
+    normalized === "fail" ||
+    normalized.includes("broken") ||
+    normalized.includes("mismatch") ||
+    normalized.includes("inconsistent")
+  );
+}
+
+function hasExplicitReceiptReady(input = {}) {
+  const receiptStatus = normalizeStatusText(input?.receiptStatus || input?.receipt?.status);
+  const stage = normalizeStatusText(input?.stage || input?.receipt?.stage);
+  const status = normalizeStatusText(input?.status);
+
+  return Boolean(
+    input?.explicitReceiptReady === true ||
+      input?.backendReceiptReady === true ||
+      input?.receiptEligible === true ||
+      input?.caseReceiptEligible === true ||
+      receiptStatus === "ready" ||
+      stage === "receipt_ready" ||
+      status === "receipt_ready"
+  );
+}
+
+function isReadinessEvidenceEvent(event = {}) {
+  const text = String(event?.text || "").trim();
+  const type = normalizeStatusText(event?.type);
+  const nonEvidenceTypes = new Set([
+    "entry_viewed",
+    "entry_clicked",
+    "diagnostic_started",
+    "diagnostic_completed",
+    "diagnostic_submitted",
+    "result_viewed",
+    "case_viewed",
+    "case_opened",
+    "cases_viewed",
+    "receipt_viewed",
+    "verification_viewed",
+    "page_viewed",
+    "score_computed",
+    "deterministic_score",
+  ]);
+
+  if (nonEvidenceTypes.has(type)) return false;
+  if (type.startsWith("diagnostic_")) return false;
+  if (text.length > 0) return true;
+
+  return (
+    type === "quick_capture" ||
+    type === "quick_capture_submitted" ||
+    type === "receipt_quick_capture" ||
+    type === "event_capture" ||
+    type === "pilot_event" ||
+    type === "workflow_event" ||
+    type === "case_event" ||
+    type === "structured_event" ||
+    type.includes("capture")
+  );
+}
+
+export function buildReadinessContract(input = {}) {
+  const safeInput = input && typeof input === "object" ? input : {};
+  const deterministicScore = calculateDeterministicScore(safeInput);
+  const normalizedInput = normalizeScoreInput(safeInput);
+  const raw = normalizedInput.raw || {};
+  const explicitReceiptReady = hasExplicitReceiptReady(raw);
+  const hasEvidence = normalizedInput.events.some(isReadinessEvidenceEvent);
+
+  const structureStatus =
+    raw?.structureStatus ||
+    raw?.structureStatusFromCase ||
+    raw?.caseData?.structureStatus ||
+    raw?.receipt?.structureStatus ||
+    raw?.scopeLock?.status ||
+    raw?.scope?.status ||
+    raw?.acceptanceChecklist?.status ||
+    raw?.checklist?.status ||
+    "";
+  const structureScore = Number(
+    raw?.structureScore ??
+      raw?.structureScoreFromCase ??
+      raw?.caseData?.structureScore ??
+      deterministicScore.structure ??
+      0
+  );
+  const structurePassed =
+    explicitReceiptReady ||
+    (!isMissingStatus(structureStatus) && Number.isFinite(structureScore) && structureScore > 0);
+
+  const consistencyStatus =
+    raw?.consistencyStatus ||
+    raw?.evidenceLockStatus ||
+    raw?.evidenceLock?.status ||
+    raw?.receipt?.consistencyStatus ||
+    raw?.caseData?.consistencyStatus ||
+    "";
+  const consistencyBroken =
+    raw?.evidenceLockBroken === true ||
+    raw?.isEvidenceLockedConsistent === false ||
+    hasBrokenSignal(consistencyStatus);
+  const consistencyPassed = !consistencyBroken;
+
+  const continuityStatus =
+    raw?.continuityStatus ||
+    raw?.receipt?.continuityStatus ||
+    raw?.caseData?.continuityStatus ||
+    raw?.stage ||
+    raw?.status ||
+    raw?.currentStep ||
+    "";
+  const enoughProgression =
+    normalizedInput.events.length > 0 ||
+    !isMissingStatus(raw?.stage) ||
+    !isMissingStatus(raw?.status) ||
+    !isMissingStatus(raw?.currentStep);
+  const continuityPassed =
+    explicitReceiptReady ||
+    (!isMissingStatus(continuityStatus) && enoughProgression);
+
+  const receiptRecordFormable = Boolean(
+    explicitReceiptReady ||
+      raw?.receiptRecordFormable === true ||
+      raw?.receiptId ||
+      raw?.receiptHash ||
+      raw?.hash ||
+      raw?.caseSnapshotHash ||
+      raw?.receipt?.receiptId ||
+      raw?.receipt?.hash ||
+      raw?.receipt?.receiptHash ||
+      (normalizedInput.caseId && hasEvidence && structurePassed && continuityPassed)
+  );
+
+  const checks = {
+    evidence: {
+      passed: hasEvidence,
+      score: hasEvidence ? 1 : 0,
+      label: "Evidence",
+      reason: hasEvidence
+        ? "At least one real evidence event exists."
+        : "Evidence requires at least one real event.",
+    },
+    structure: {
+      passed: structurePassed,
+      score: structurePassed ? 1 : 0,
+      label: "Structure",
+      reason: structurePassed ? "Case structure is present." : "Structure is empty.",
+    },
+    consistency: {
+      passed: consistencyPassed,
+      score: consistencyPassed ? 1 : 0,
+      label: "Consistency",
+      reason: consistencyPassed
+        ? "No evidence-chain break detected."
+        : "Consistency cannot be broken.",
+    },
+    continuity: {
+      passed: continuityPassed,
+      score: continuityPassed ? 1 : 0,
+      label: "Continuity",
+      reason: continuityPassed
+        ? "Case continuity is present."
+        : "Continuity is missing.",
+    },
+    receiptRecord: {
+      passed: receiptRecordFormable,
+      score: receiptRecordFormable ? 1 : 0,
+      label: "Receipt record",
+      reason: receiptRecordFormable
+        ? "Receipt record can be formed."
+        : "Receipt record must be formable.",
+    },
+  };
+
+  const blockers = Object.entries(checks)
+    .filter(([, check]) => !check.passed)
+    .map(([key, check]) => ({
+      key,
+      label: check.label,
+      reason: check.reason,
+    }));
+
+  const rawReadinessScore = Object.values(checks).reduce(
+    (sum, check) => sum + Number(check.score || 0),
+    0
+  );
+  let readinessScore = rawReadinessScore;
+
+  if (!checks.evidence.passed) {
+    readinessScore = Math.min(readinessScore, 1.0);
+  }
+  if (!checks.structure.passed) {
+    readinessScore = Math.min(readinessScore, 2.4);
+  }
+  if (!checks.consistency.passed) {
+    readinessScore = Math.min(readinessScore, 2.0);
+  }
+  if (!checks.continuity.passed) {
+    readinessScore = Math.min(readinessScore, 2.8);
+  }
+
+  readinessScore = Number(readinessScore.toFixed(2));
+
+  const receiptReady =
+    checks.evidence.passed &&
+    checks.structure.passed &&
+    checks.consistency.passed &&
+    checks.continuity.passed &&
+    checks.receiptRecord.passed &&
+    blockers.length === 0;
+
+  const readinessLevel = receiptReady
+    ? "ready"
+    : !checks.consistency.passed
+    ? "failed"
+    : checks.evidence.passed
+    ? "pending_review"
+    : "insufficient_record";
+
+  return {
+    readinessScore,
+    readinessLevel,
+    checks,
+    blockers,
+    receiptReady,
+    deterministicScore,
+  };
+}

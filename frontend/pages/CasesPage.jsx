@@ -383,16 +383,52 @@ function isDiagnosticContinuationCase(item = {}) {
   );
 }
 
-function getDisplayStatus(item) {
+function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
   const evidenceEventCount = getEvidenceEvents(normalized).length;
 
-  if (normalized?.paid || normalized?.paymentStatus === "paid") return "Paid";
-  if (normalized?.paymentStatus === "checkout_created") return "Receipt checkout started";
-  if (normalized?.receiptEligible) return "Receipt ready";
-  if (evidenceEventCount > 0) return `Event captured (${evidenceEventCount})`;
-  if (isDiagnosticContinuationCase(normalized)) return "Diagnostic completed";
-  return normalized?.status || "draft";
+  const receiptReady =
+    normalized?.receiptEligible === true ||
+    normalized?.caseReceiptEligible === true ||
+    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
+    String(normalized?.stage || "").toLowerCase() === "receipt_ready";
+
+  const checkoutStarted =
+    normalized?.paymentStatus === "checkout_created";
+
+  const paid =
+    normalized?.paid === true ||
+    normalized?.paymentStatus === "paid";
+
+  const hasEvidenceEvent = evidenceEventCount > 0;
+
+  let displayStatus = normalized?.status || "draft";
+
+  if (paid) {
+    displayStatus = "Paid";
+  } else if (checkoutStarted) {
+    displayStatus = "Receipt checkout started";
+  } else if (receiptReady) {
+    displayStatus = "Receipt ready";
+  } else if (hasEvidenceEvent) {
+    displayStatus = `Event captured (${evidenceEventCount})`;
+  } else if (isDiagnosticContinuationCase(normalized)) {
+    displayStatus = "Diagnostic completed";
+  }
+
+  return {
+    normalized,
+    evidenceEventCount,
+    hasEvidenceEvent,
+    receiptReady,
+    checkoutStarted,
+    paid,
+    displayStatus,
+  };
+}
+
+function getDisplayStatus(item) {
+  return deriveCaseListState(item).displayStatus;
 }
 
 function resolveCaseId(item) {
@@ -479,11 +515,7 @@ function getCaseDetailRoute(item) {
 
   const encodedCaseId = encodeURIComponent(caseIdSafe);
   const normalized = normalizeCaseItem(item);
-  const isReceiptReadyCase =
-    normalized?.receiptEligible === true ||
-    normalized?.caseReceiptEligible === true ||
-    String(normalized?.receiptStatus || "").toLowerCase() === "ready" ||
-    String(normalized?.stage || "").toLowerCase() === "receipt_ready";
+  const derived = deriveCaseListState(normalized);
 
   if (hasReceiptDetailRouteSignal(normalized)) {
     return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
@@ -493,7 +525,7 @@ function getCaseDetailRoute(item) {
     return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
   }
 
-  if (isReceiptReadyCase) {
+  if (derived.receiptReady) {
     return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
   }
 
@@ -1420,6 +1452,7 @@ export default function CasesPage() {
           <section className="space-y-3">
             {visibleActiveCases.map((item, index) => {
               const normalizedItem = normalizeCaseItem(item);
+              const derived = deriveCaseListState(normalizedItem);
               const caseId = normalizedItem?.caseId || normalizedItem?.case_id || normalizedItem?.id || "";
               const hasDiagnosticData = hasDiagnosticResultData(normalizedItem);
               const hasProgress = hasPostDiagnosticProgress(normalizedItem);
@@ -1430,13 +1463,20 @@ export default function CasesPage() {
                 isDiagnosticContinuationCase(normalizedItem);
               const detailPath = getCaseDetailRoute(normalizedItem);
               const primaryResolvedCaseId = resolveCaseId(normalizedItem);
-              const isReceiptReadyCase =
-                normalizedItem?.receiptEligible === true ||
-                normalizedItem?.caseReceiptEligible === true ||
-                normalizedItem?.receiptStatus === "ready" ||
-                normalizedItem?.stage === "receipt_ready";
+              console.log("[CasesPage state trace]", {
+                caseId: primaryResolvedCaseId,
+                displayStatus: derived.displayStatus,
+                receiptReady: derived.receiptReady,
+                hasEvidenceEvent: derived.hasEvidenceEvent,
+                evidenceEventCount: derived.evidenceEventCount,
+                stage: derived.normalized?.stage,
+                status: derived.normalized?.status,
+                receiptStatus: derived.normalized?.receiptStatus,
+                receiptEligible: derived.normalized?.receiptEligible,
+                caseReceiptEligible: derived.normalized?.caseReceiptEligible,
+              });
               const shouldContinueDiagnostic =
-                isDiagnosticContinuation && !isReceiptReadyCase;
+                isDiagnosticContinuation && !derived.receiptReady;
               const primaryActionPath = shouldContinueDiagnostic && primaryResolvedCaseId
                 ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(primaryResolvedCaseId)}&from=case`
                 : detailPath;
@@ -1447,74 +1487,14 @@ export default function CasesPage() {
                 : ROUTES.DIAGNOSTIC;
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
-              const evidenceCandidates = [
-                ...(Array.isArray(normalizedItem?.events) ? normalizedItem.events : []),
-                ...(Array.isArray(normalizedItem?.eventLogs) ? normalizedItem.eventLogs : []),
-                ...(Array.isArray(normalizedItem?.entries) ? normalizedItem.entries : []),
-                ...(Array.isArray(normalizedItem?.caseSnapshot?.events) ? normalizedItem.caseSnapshot.events : []),
-                ...(Array.isArray(normalizedItem?.caseSnapshot?.eventLogs) ? normalizedItem.caseSnapshot.eventLogs : []),
-                ...(Array.isArray(normalizedItem?.caseSnapshot?.entries) ? normalizedItem.caseSnapshot.entries : []),
-                ...(Array.isArray(normalizedItem?.caseSnapshot?.caseRecord?.events)
-                  ? normalizedItem.caseSnapshot.caseRecord.events
-                  : []),
-                ...(Array.isArray(normalizedItem?.caseSnapshot?.caseRecord?.eventLogs)
-                  ? normalizedItem.caseSnapshot.caseRecord.eventLogs
-                  : []),
-                ...(Array.isArray(normalizedItem?.caseData?.events) ? normalizedItem.caseData.events : []),
-                ...(Array.isArray(normalizedItem?.caseData?.eventLogs) ? normalizedItem.caseData.eventLogs : []),
-                ...(Array.isArray(normalizedItem?.caseData?.eventHistory) ? normalizedItem.caseData.eventHistory : []),
-              ].filter(Boolean);
-
-              const evidenceEventMap = new Map();
-
-              evidenceCandidates.forEach((event) => {
-                const type = String(event?.eventType || event?.type || "").trim();
-              
-                const inputText =
-                  event?.rawText ||
-                  event?.userInput ||
-                  event?.description ||
-                  event?.eventInput?.rawText ||
-                  event?.eventInput?.userInput ||
-                  event?.eventInput?.description ||
-                  event?.note ||
-                  event?.meta?.note ||
-                  event?.reviewResult ||
-                  (event?.eventInput ? JSON.stringify(event.eventInput) : "") ||
-                  "";
-
-                const hasRealEvidenceInput =
-                  Boolean(inputText) ||
-                  Boolean(event?.reviewResult) ||
-                  Boolean(event?.eventInput);
-
-                const isKnownEvidenceType =
-                  type === "resource_control_request" ||
-                  type === "quick_capture_submitted";
-
-                if (!isKnownEvidenceType || !hasRealEvidenceInput) {
-                  return;
-                }
-
-                const key =
-                  event?.eventId ||
-                  event?.id ||
-                  `${type}:${event?.createdAt || event?.timestamp || ""}:${String(inputText).slice(0, 120)}`;
-
-                if (key && !evidenceEventMap.has(key)) {
-                  evidenceEventMap.set(key, event);
-                }
-              });
-
-              const eventCount = evidenceEventMap.size;
+              const eventCount = derived.evidenceEventCount;
               const humanizeStatus = (value = "") =>
                 String(value || "")
                   .trim()
                   .replace(/[_-]+/g, " ")
                   .replace(/\b\w/g, (letter) => letter.toUpperCase());
               const receiptDisplay =
-                normalizedItem?.receiptEligible === true ||
-                normalizedItem?.caseReceiptEligible === true
+                derived.receiptReady
                   ? "Ready, not issued"
                   : normalizedItem?.receiptStatus
                   ? humanizeStatus(normalizedItem.receiptStatus)
@@ -1571,7 +1551,7 @@ export default function CasesPage() {
                     </div>
 
                     <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                      <p>Status: {sanitizeText(getDisplayStatus(normalizedItem))}</p>
+                      <p>Status: {sanitizeText(derived.displayStatus)}</p>
                       {isExpanded && (
                         <>
                           <p>
@@ -1730,12 +1710,26 @@ export default function CasesPage() {
             <section className="space-y-3">
               {archivedCases.map((item, index) => {
                 const normalizedItem = normalizeCaseItem(item);
+                const derived = deriveCaseListState(normalizedItem);
                 const caseId =
                   normalizedItem?.caseId ||
                   normalizedItem?.case_id ||
                   normalizedItem?.id ||
                   resolveCaseId(normalizedItem) ||
                   "";
+                const primaryResolvedCaseId = resolveCaseId(normalizedItem);
+                console.log("[CasesPage state trace]", {
+                  caseId: primaryResolvedCaseId,
+                  displayStatus: derived.displayStatus,
+                  receiptReady: derived.receiptReady,
+                  hasEvidenceEvent: derived.hasEvidenceEvent,
+                  evidenceEventCount: derived.evidenceEventCount,
+                  stage: derived.normalized?.stage,
+                  status: derived.normalized?.status,
+                  receiptStatus: derived.normalized?.receiptStatus,
+                  receiptEligible: derived.normalized?.receiptEligible,
+                  caseReceiptEligible: derived.normalized?.caseReceiptEligible,
+                });
                 const caseKey = caseId || normalizedItem?.resultId || String(index);
 
                 return (
@@ -1749,7 +1743,7 @@ export default function CasesPage() {
                           {sanitizeText(normalizedItem?.title || caseId, "Untitled case")}
                         </h3>
                         <p className="mt-1 text-sm text-slate-600">
-                          Status: {sanitizeText(getDisplayStatus(normalizedItem))}
+                          Status: {sanitizeText(derived.displayStatus)}
                         </p>
                       </div>
 
