@@ -111,6 +111,34 @@ Rules:
 - Evidence package export after formal verification is included for the same issued version.
 - Re-issue/amendment may create a new paid event.
 
+## Payment Type Naming Note
+
+`pilot_extension` is currently a legacy technical `paymentType`.
+
+Product-level meaning:
+
+- workspace subscription
+- workspace monthly plan
+- customer/workspace-level access
+
+It should not be interpreted as a case-level pilot payment.
+
+Current implementation may continue to accept:
+
+- `pilot_extension`
+
+Future migration should introduce:
+
+- `workspace_subscription`
+
+and treat `pilot_extension` as a legacy alias before renaming code paths.
+
+Boundary meaning:
+
+- `pilot_extension` / `workspace_subscription` belongs to Customer / Workspace level.
+- `receipt_activation` belongs to Case level.
+- `formal_verification` belongs to Case level.
+
 ## Lifecycle Boundary
 
 Customer lifecycle and case lifecycle are separate.
