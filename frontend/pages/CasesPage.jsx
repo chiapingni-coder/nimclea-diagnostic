@@ -731,6 +731,73 @@ function hasActivatedVerification(item = {}) {
   return hasBackendOwnedVerificationAccess(normalizeCaseItem(item));
 }
 
+// This helper is intentionally not wired into the UI yet. It mirrors
+// docs/CASE_LIFECYCLE_AND_WORKSPACE_LIMIT_CONTRACT.md and will later power
+// Active / Baseline / Historic grouping.
+function getCaseSection(caseItem) {
+  const normalized = normalizeCaseItem(caseItem);
+  const derived = deriveCaseListState(normalized);
+
+  const hasExplicitHistoricDelivery = Boolean(
+    normalized?.verificationDelivered === true ||
+      normalized?.verificationDeliveryCompleted === true ||
+      normalized?.evidencePackageDownloaded === true ||
+      normalized?.firstEvidencePackageDownloaded === true ||
+      normalized?.firstEvidencePackageDownloadedAt ||
+      normalized?.evidencePackageDownloadedAt ||
+      normalized?.deliveryCompletedAt ||
+      normalized?.verification?.delivered === true ||
+      normalized?.verification?.deliveryCompleted === true ||
+      normalized?.verification?.evidencePackageDownloaded === true ||
+      normalized?.verification?.firstEvidencePackageDownloaded === true ||
+      normalized?.verification?.firstEvidencePackageDownloadedAt ||
+      normalized?.verification?.evidencePackageDownloadedAt ||
+      normalized?.verification?.deliveryCompletedAt
+  );
+
+  if (hasExplicitHistoricDelivery) {
+    return "historic";
+  }
+
+  const receiptRecordStatuses = new Set(["paid", "issued", "activated"]);
+  const verificationRecordStatuses = new Set([
+    "paid",
+    "ready",
+    "verification_ready",
+    "activated",
+    "issued",
+  ]);
+  const receiptStatus = String(normalized?.receiptStatus || "").toLowerCase();
+  const receiptObjectStatus = String(
+    normalized?.receipt?.status || ""
+  ).toLowerCase();
+  const paymentStatus = String(normalized?.paymentStatus || "").toLowerCase();
+  const verificationStatus = String(
+    normalized?.verificationStatus || ""
+  ).toLowerCase();
+  const verificationObjectStatus = String(
+    normalized?.verification?.status || ""
+  ).toLowerCase();
+
+  const hasBaselineSignal = Boolean(
+    hasActivatedReceipt(normalized) ||
+      hasActivatedVerification(normalized) ||
+      derived.paid ||
+      normalized?.paid === true ||
+      receiptRecordStatuses.has(receiptObjectStatus) ||
+      paymentStatus === "paid" ||
+      receiptRecordStatuses.has(receiptStatus) ||
+      verificationRecordStatuses.has(verificationStatus) ||
+      verificationRecordStatuses.has(verificationObjectStatus)
+  );
+
+  if (hasBaselineSignal) {
+    return "baseline";
+  }
+
+  return "active";
+}
+
 function resolveEmailFromCaseId(caseId = "") {
   if (!caseId) return "";
 
