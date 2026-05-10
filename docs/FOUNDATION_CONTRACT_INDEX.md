@@ -13,6 +13,7 @@ Any future change touching case, receipt, verification, payment, subscription, i
 | `docs/IDENTITY_CONTRACT_v1.md` | User, customer/workspace, case, receipt, verification, payment, and subscription identity relationships. |
 | `docs/DATA_CONTRACT_v1.md` | Canonical backend records, field ownership, compatibility mirrors, lifecycle state boundaries, and frontend consumption rules. |
 | `docs/CASE_LIFECYCLE_AND_WORKSPACE_LIMIT_CONTRACT.md` | System-wide case lifecycle and workspace limit contract. Defines Active Cases, Baseline Records, Historic Records, active case limits by plan, payment-pending delete behavior, and rules for paid/issued/delivered records. |
+| `docs/CASE_DELETE_DISCARD_BACKEND_CONTRACT.md` | Backend delete / discard contract for ordinary unpaid active cases. Defines soft delete scope, payment-pending deletion, Baseline/Historic no-delete rules, `/cases` filtering requirements, and frontend local delete boundary. |
 | `docs/TRIAL_WORKSPACE_ACCESS_CONTRACT.md` | Trial and pilot extension workspace access contract. Defines Free 7-Day Trial, $9 Pilot Extension, access window rules, same-capability model, and confirms Receipt / Verification standards are not lowered during trial or extension. |
 | `docs/PAYMENT_LEDGER_SMOKE_AUDIT_3_D4.md` | `paymentRecords.json` lifecycle coverage for `checkout_created`, `paid`, `active`, `failed`, and `canceled`. |
 | `docs/STRIPE_WEBHOOK_CONFIG_CHECK_3_D5.md` | Production Stripe webhook destination, Render `STRIPE_WEBHOOK_SECRET` configuration, and webhook existence/signature check. |
