@@ -652,6 +652,21 @@ router.post("/confirm-checkout-session", async (req, res) => {
           ""
       ).trim().toLowerCase();
       const safeCaseId = String(caseId || sessionCaseId || "").trim();
+
+      upsertPaymentRecord({
+        stripeSessionId: session.id,
+        stripeCustomerId: session.customer,
+        stripeSubscriptionId: session.subscription,
+        productType: "pilot_extension",
+        paymentType: "pilot_extension",
+        priceType: "pilot_extension",
+        paymentScope: "subscription",
+        caseId: safeCaseId,
+        email: safeEmail,
+        status: "active",
+        source: "confirm_checkout_session",
+      });
+
       const subscription = {
         subscriptionStatus: "active",
         pilotExtensionPaid: true,
@@ -705,6 +720,13 @@ router.post("/confirm-checkout-session", async (req, res) => {
 
     if (sessionPaymentType === "formal_verification") {
       const safeCaseId = String(caseId || sessionCaseId || "").trim();
+      const safeEmail = String(
+        session?.customer_details?.email ||
+          session?.customer_email ||
+          session?.metadata?.email ||
+          req.body?.email ||
+          ""
+      ).trim().toLowerCase();
 
       if (!safeCaseId) {
         return res.status(400).json({
@@ -726,6 +748,20 @@ router.post("/confirm-checkout-session", async (req, res) => {
           payment_status: session.payment_status || null,
         });
       }
+
+      upsertPaymentRecord({
+        stripeSessionId: session.id,
+        stripeCustomerId: session.customer,
+        stripeSubscriptionId: session.subscription,
+        productType: "formal_verification",
+        paymentType: "formal_verification",
+        priceType: "formal_verification",
+        paymentScope: "case",
+        caseId: safeCaseId,
+        email: safeEmail,
+        status: "paid",
+        source: "confirm_checkout_session",
+      });
 
       const casesRaw = readJsonFile(CASES_FILE, []);
       const cases = Array.isArray(casesRaw) ? casesRaw : [];
@@ -819,6 +855,30 @@ router.post("/confirm-checkout-session", async (req, res) => {
         payment_status: session.payment_status || null,
       });
     }
+
+    const safeEmail = String(
+      session?.customer_details?.email ||
+        session?.customer_email ||
+        session?.metadata?.email ||
+        req.body?.email ||
+        ""
+    ).trim().toLowerCase();
+
+    upsertPaymentRecord({
+      stripeSessionId: session.id,
+      stripeCustomerId: session.customer,
+      stripeSubscriptionId: session.subscription,
+      productType: "receipt_activation",
+      paymentType: "receipt_activation",
+      priceType: "receipt_activation",
+      paymentScope: "case",
+      caseId,
+      receiptId: session?.metadata?.receiptId || "",
+      hash: session?.metadata?.hash || "",
+      email: safeEmail,
+      status: "paid",
+      source: "confirm_checkout_session",
+    });
 
     const now = new Date().toISOString();
     const existingCasesRaw = readJsonFile(CASES_FILE, []);
