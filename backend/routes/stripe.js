@@ -20,7 +20,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const RECEIPT_RECORDS_FILE = "receiptRecords.json";
 const SUBSCRIPTION_RECORDS_FILE = "subscriptionRecords.json";
 const RECEIPT_PRICE_ID = String(process.env.STRIPE_RECEIPT_PRICE_ID || "").trim();
-const FORMAL_VERIFICATION_PRICE_ID = String(process.env.STRIPE_FORMAL_VERIFICATION_PRICE_ID || "").trim();
+const FORMAL_VERIFICATION_PRICE_ID = String(
+  process.env.STRIPE_FORMAL_VERIFICATION_PRICE_ID ||
+    "price_1TVMoY68a1BQoqcQbDhkuKql"
+).trim();
+const FORMAL_VERIFICATION_LAUNCH_COUPON_ID = String(
+  process.env.STRIPE_FORMAL_VERIFICATION_LAUNCH_COUPON_ID ||
+    "RS6kZk6c"
+).trim();
 const WORKSPACE_MONTHLY_PRICE_ID = String(
   process.env.STRIPE_WORKSPACE_MONTHLY_PRICE_ID ||
     "price_1TVLln68a1BQoqcQtxhtRn06"
@@ -478,6 +485,9 @@ export async function createCheckoutSession(req, res) {
                 quantity: 1,
               },
         ],
+        discounts: FORMAL_VERIFICATION_LAUNCH_COUPON_ID
+          ? [{ coupon: FORMAL_VERIFICATION_LAUNCH_COUPON_ID }]
+          : undefined,
         success_url: `${FRONTEND_URL}/verification?caseId=${encodeURIComponent(safeCaseId)}&checkout=success&session_id={CHECKOUT_SESSION_ID}&paymentType=formal_verification`,
         cancel_url: `${FRONTEND_URL}/verification?caseId=${encodeURIComponent(safeCaseId)}&checkout=cancel&paymentType=formal_verification`,
       });
