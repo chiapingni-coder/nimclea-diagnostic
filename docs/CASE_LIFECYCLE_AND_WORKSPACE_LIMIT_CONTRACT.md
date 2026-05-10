@@ -41,6 +41,124 @@ This contract defines the system-wide case lifecycle and workspace active case l
 - Any later payment event tied to the deleted case must not automatically restore the case and should require exception handling or manual review.
 - Once Formal Receipt is paid or issued, the case moves to Baseline Records and normal Delete is no longer available.
 
+## Case Section Classification Function Contract
+
+Future implementation should define a pure classification function:
+
+```js
+getCaseSection(caseItem) -> "active" | "baseline" | "historic"
+```
+
+The function must be the single source of truth for assigning a case to one of the three UI sections:
+
+- Active Cases
+- Baseline Records
+- Historic Records
+
+### Active
+
+Return `"active"` when the case is still an ordinary workspace case.
+
+Active includes:
+
+- draft cases;
+- diagnostic_completed cases;
+- result_ready cases;
+- pilot / case plan cases;
+- event-captured cases;
+- receipt-ready preview cases that are not paid or issued;
+- Formal Receipt checkout_created but unpaid cases.
+
+Important:
+
+- `checkout_created` but unpaid stays active.
+- It still counts toward the active case limit.
+- It may show Delete, but Delete must require a high-risk confirmation warning.
+- It must not be moved to Baseline Records until paid or issued.
+
+### Baseline
+
+Return `"baseline"` when the case has a formal paid or issued record but has not completed final historic delivery.
+
+Baseline includes:
+
+- Formal Receipt paid;
+- Formal Receipt issued;
+- Formal Receipt activated;
+- cases where `isBackendReceiptPaidOrActivated(caseItem)` is true;
+- Formal Verification paid but not yet delivered;
+- Formal Verification ready for evidence package download, if delivery has not yet been completed.
+
+Important:
+
+- Baseline Records do not count toward the active case limit.
+- Baseline Records must not show normal Delete.
+- Baseline Records may show View, Download, Continue to Verification, or Create follow-up case.
+
+### Historic
+
+Return `"historic"` only when the case has completed formal verification delivery.
+
+Historic includes:
+
+- Formal Verification delivered;
+- first evidence package download completed;
+- equivalent delivery-completion event recorded.
+
+Important:
+
+- Verification paid alone is not enough to become historic.
+- Verification activated alone is not enough to become historic.
+- Historic Records are read-only.
+- Historic Records do not count toward active case limits.
+- Historic Records cannot be deleted as ordinary cases.
+- Historic Records cannot be reactivated.
+- Later developments must create a new case or follow-up case.
+
+### Precedence Rule
+
+The function must apply precedence in this order:
+
+1. Historic
+2. Baseline
+3. Active
+
+This means:
+
+- If a case satisfies historic delivery conditions, return `"historic"` even if it also has paid or receipt signals.
+- Else if it satisfies baseline paid/issued conditions, return `"baseline"`.
+- Else return `"active"`.
+
+### Payment-Pending Rule
+
+A Formal Receipt `checkout_created` but unpaid case must return `"active"`, not `"baseline"`.
+
+### Deletion Rule
+
+Deletion behavior is not decided by UI section alone.
+
+Future code may use a separate helper such as:
+
+```js
+canDeleteCase(caseItem)
+```
+
+Rules:
+
+- active unpaid/unissued cases may be deletable;
+- payment-pending active cases may be deletable only after high-risk confirmation;
+- baseline and historic records must not show normal Delete.
+
+### Implementation Note
+
+Future frontend implementation should first introduce `getCaseSection(caseItem)` as a pure helper and use it to derive:
+
+- activeCases
+- baselineRecords
+- historicRecords
+
+Do not implement this function yet in code during this documentation step.
+
 ## Plan Limits
 
 - The active case limit is plan-dependent.
