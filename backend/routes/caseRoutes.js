@@ -361,9 +361,13 @@ router.patch("/:caseId/receipt-status", async (req, res) => {
 
     const savedCase = upsertCaseRecord({
       ...existing,
-      ...(req.body || {}),
       id: existing.id || resolvedCaseId,
       caseId: existing.caseId || resolvedCaseId,
+      email:
+        String(req.body?.email || existing.email || "").trim() ||
+        existing.email ||
+        undefined,
+      source: req.body?.source || existing.source || "receipt_status_patch",
       ...receiptPatch,
     });
 
