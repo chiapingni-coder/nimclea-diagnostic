@@ -798,6 +798,10 @@ function getCaseSection(caseItem) {
   return "active";
 }
 
+// Current trial / pilot extension active case limit is 3. Future paid workspace
+// plans should replace this with a plan-aware limit.
+const CURRENT_ACTIVE_CASE_LIMIT = 3;
+
 function resolveEmailFromCaseId(caseId = "") {
   if (!caseId) return "";
 
@@ -1420,6 +1424,14 @@ export default function CasesPage() {
       setCaseCreationError("Enter your email first.");
       return;
     }
+
+    if (caseSectionCounts.active >= CURRENT_ACTIVE_CASE_LIMIT) {
+      setCaseCreationError(
+        `You already have ${CURRENT_ACTIVE_CASE_LIMIT} active cases. Delete an unpaid active case or complete a formal record before creating a new one.`
+      );
+      return;
+    }
+
     setCaseCreationError("");
 
     try {
