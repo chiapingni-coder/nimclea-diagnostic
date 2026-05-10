@@ -2106,7 +2106,7 @@ export default function CasesPage() {
                 paddingRight: "8px",
               }}
             >
-              <div>                
+              <div>
               </div>
 
               <button
