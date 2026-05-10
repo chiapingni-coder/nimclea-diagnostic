@@ -1591,6 +1591,34 @@ export default function CasesPage() {
     );
   }, [cases]);
 
+  // Derived only; not wired into the UI yet. It previews future Delete / high-risk Delete / not-deletable eligibility before Archive is replaced.
+  const caseDeleteModeGroups = React.useMemo(() => {
+    return cases.reduce(
+      (groups, caseItem) => {
+        if (!isVisibleActiveCase(caseItem)) {
+          return groups;
+        }
+
+        const mode = getCaseDeleteMode(caseItem);
+
+        if (mode === "high_risk_delete") {
+          groups.highRiskDeleteCases.push(caseItem);
+        } else if (mode === "normal_delete") {
+          groups.normalDeleteCases.push(caseItem);
+        } else {
+          groups.notDeletableCases.push(caseItem);
+        }
+
+        return groups;
+      },
+      {
+        normalDeleteCases: [],
+        highRiskDeleteCases: [],
+        notDeletableCases: [],
+      }
+    );
+  }, [cases]);
+
   const caseSectionCounts = React.useMemo(
     () => ({
       active: activeCaseSectionGroups.activeCases.length,
