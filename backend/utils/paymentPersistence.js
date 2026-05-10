@@ -6,6 +6,8 @@ import {
 const PAYMENT_RECORDS_FILE = "paymentRecords.json";
 
 const PAYMENT_RECORD_FIELDS = [
+  "stripeEventId",
+  "stripeEventType",
   "stripeSessionId",
   "stripeCustomerId",
   "stripeSubscriptionId",
@@ -42,6 +44,7 @@ function normalizePaymentRecord(input = {}, timestamps = {}) {
 
 function findPaymentRecordIndex(records = [], patch = {}) {
   const stripeSessionId = String(patch.stripeSessionId || "").trim();
+  const stripeSubscriptionId = String(patch.stripeSubscriptionId || "").trim();
   const productType = String(patch.productType || "").trim();
   const paymentScope = String(patch.paymentScope || "").trim();
   const caseId = String(patch.caseId || "").trim();
@@ -52,6 +55,28 @@ function findPaymentRecordIndex(records = [], patch = {}) {
     );
 
     if (sessionIndex >= 0) return sessionIndex;
+  }
+
+  if (stripeSubscriptionId) {
+    const subscriptionMatches = records
+      .map((record, index) => ({ record, index }))
+      .filter(
+        ({ record }) =>
+          String(record?.stripeSubscriptionId || "").trim() === stripeSubscriptionId
+      );
+
+    if (subscriptionMatches.length > 0) {
+      const scopedMatch = subscriptionMatches.find(({ record }) => {
+        const sameProductType =
+          productType && String(record?.productType || "").trim() === productType;
+        const samePaymentScope =
+          paymentScope && String(record?.paymentScope || "").trim() === paymentScope;
+
+        return sameProductType && samePaymentScope;
+      });
+
+      return scopedMatch?.index ?? subscriptionMatches[0].index;
+    }
   }
 
   if (!productType || !paymentScope) return -1;
