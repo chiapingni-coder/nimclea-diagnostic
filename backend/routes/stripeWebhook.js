@@ -82,6 +82,53 @@ function writeCheckoutCompletedPaymentRecord(session = {}) {
   return null;
 }
 
+function getInvoiceEmail(invoice = {}) {
+  return String(
+    invoice?.customer_email ||
+      invoice?.customer_details?.email ||
+      invoice?.metadata?.email ||
+      ""
+  ).trim().toLowerCase();
+}
+
+function writeInvoicePaymentFailedRecord(event = {}) {
+  const invoice = event?.data?.object || {};
+
+  return upsertPaymentRecord({
+    stripeEventId: event.id,
+    stripeEventType: event.type,
+    stripeCustomerId: invoice.customer,
+    stripeSubscriptionId: invoice.subscription,
+    productType: "pilot_extension",
+    paymentType: "pilot_extension",
+    priceType: "pilot_extension",
+    paymentScope: "subscription",
+    email: getInvoiceEmail(invoice),
+    caseId: invoice?.metadata?.caseId,
+    status: "failed",
+    source: "stripe_webhook",
+  });
+}
+
+function writeSubscriptionDeletedRecord(event = {}) {
+  const subscription = event?.data?.object || {};
+
+  return upsertPaymentRecord({
+    stripeEventId: event.id,
+    stripeEventType: event.type,
+    stripeCustomerId: subscription.customer,
+    stripeSubscriptionId: subscription.id,
+    productType: "pilot_extension",
+    paymentType: "pilot_extension",
+    priceType: "pilot_extension",
+    paymentScope: "subscription",
+    email: subscription?.metadata?.email,
+    caseId: subscription?.metadata?.caseId,
+    status: "canceled",
+    source: "stripe_webhook",
+  });
+}
+
 router.post("/", (req, res) => {
   const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
 
@@ -106,20 +153,40 @@ router.post("/", (req, res) => {
     });
   }
 
-  if (event.type !== "checkout.session.completed") {
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const paymentRecord = writeCheckoutCompletedPaymentRecord(session);
+
     return res.json({
       received: true,
-      ignored: true,
+      ignored: paymentRecord === null,
       type: event.type,
     });
   }
 
-  const session = event.data.object;
-  const paymentRecord = writeCheckoutCompletedPaymentRecord(session);
+  if (event.type === "invoice.payment_failed") {
+    writeInvoicePaymentFailedRecord(event);
+
+    return res.json({
+      received: true,
+      ignored: false,
+      type: event.type,
+    });
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    writeSubscriptionDeletedRecord(event);
+
+    return res.json({
+      received: true,
+      ignored: false,
+      type: event.type,
+    });
+  }
 
   return res.json({
     received: true,
-    ignored: paymentRecord === null,
+    ignored: true,
     type: event.type,
   });
 });
