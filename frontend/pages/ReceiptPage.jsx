@@ -113,7 +113,6 @@ function resolveReceiptEmailSource(locationState = {}) {
     locationState?.email ||
     locationState?.userEmail ||
     localStorage.getItem("nimclea_email") ||
-    localStorage.getItem("savedEmail") ||
     ""
   );
 }
@@ -2146,7 +2145,6 @@ React.useEffect(() => {
         email:
           String(
             localStorage.getItem("nimclea_email") ||
-              localStorage.getItem("savedEmail") ||
               ""
           ).trim() || undefined,
       }),

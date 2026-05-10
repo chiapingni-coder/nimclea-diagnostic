@@ -1175,7 +1175,6 @@ export default function CasesPage() {
 
   const handleSwitchEmail = React.useCallback(() => {
     localStorage.removeItem(EMAIL_STORAGE_KEY);
-    localStorage.removeItem("savedEmail");
     localStorage.removeItem("nimclea_email_verified");
     localStorage.removeItem("nimclea_current_case_id");
 

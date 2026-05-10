@@ -1275,9 +1275,6 @@ export default function PilotPage() {
       typeof window !== "undefined"
         ? localStorage.getItem("nimclea_email")
         : "",
-      typeof window !== "undefined"
-        ? localStorage.getItem("savedEmail")
-        : "",
       location.state?.email,
       location.state?.userEmail,
       location.state?.lead?.email,
@@ -1288,7 +1285,6 @@ export default function PilotPage() {
 
     if (resolvedLeadEmail && typeof window !== "undefined") {
       localStorage.setItem("nimclea_email", resolvedLeadEmail);
-      localStorage.setItem("savedEmail", resolvedLeadEmail);
     }
 
     const scopedScopeLock = {

@@ -663,7 +663,6 @@ if (!apiResult?.preview && !apiResult) {
           session?.email ||
           session?.lead?.email ||
           localStorage.getItem("nimclea_email") ||
-          localStorage.getItem("savedEmail") ||
           window.history.state?.usr?.email ||
           window.history.state?.usr?.userEmail ||
           window.history.state?.usr?.lead?.email ||

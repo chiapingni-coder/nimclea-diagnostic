@@ -3063,7 +3063,6 @@ const handleSaveCaseContactSubmit = useCallback(async (event, emailOverride = ""
 
   try {
     localStorage.setItem("nimclea_email", email);
-    localStorage.setItem("savedEmail", email);
     localStorage.setItem("nimclea_current_case_id", resolvedCaseId);
 
     upsertCase({
@@ -3616,7 +3615,6 @@ if (!isValidPreview(result)) {
                 lead.email,
                 guardedClientState.workspaceEmail,
                 localStorage.getItem("nimclea_email"),
-                localStorage.getItem("savedEmail"),
                 location.state?.email,
                 location.state?.userEmail,
                 location.state?.lead?.email,
@@ -3626,7 +3624,6 @@ if (!isValidPreview(result)) {
 
               if (existingEmail) {
                 localStorage.setItem("nimclea_email", existingEmail);
-                localStorage.setItem("savedEmail", existingEmail);
                 setLead((previousLead) => ({
                   ...previousLead,
                   email: existingEmail,

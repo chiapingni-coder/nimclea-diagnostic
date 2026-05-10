@@ -114,7 +114,6 @@ function resolveVerificationEmailSource(locationState = {}) {
     locationState?.email ||
     locationState?.userEmail ||
     localStorage.getItem("nimclea_email") ||
-    localStorage.getItem("savedEmail") ||
     ""
   );
 }

@@ -404,7 +404,6 @@ function markLaunchFallbackEmailVerified(email) {
 
   if (!isValidEmail(normalizedEmail)) return;
 
-  localStorage.setItem("savedEmail", normalizedEmail);
   localStorage.setItem("nimclea_email", normalizedEmail);
   // TEMP: launch fallback verification until real magic link is implemented
   localStorage.setItem("nimclea_email_verified", "true");
@@ -415,7 +414,6 @@ function saveLaunchFallbackEmail(email) {
 
   if (!isValidEmail(normalizedEmail)) return "";
 
-  localStorage.setItem("savedEmail", normalizedEmail);
   localStorage.setItem("nimclea_email", normalizedEmail);
 
   return normalizedEmail;
@@ -1578,7 +1576,6 @@ const handleConfirm = async () => {
   const activeLeadEmail = normalizeEmail(
     lead.email ||
       localStorage.getItem("nimclea_email") ||
-      localStorage.getItem("savedEmail") ||
       ""
   );
   const confirmSearchParams = new URLSearchParams(location.search || "");
@@ -2797,9 +2794,6 @@ const handlePrimarySubmit = async () => {
       location.state?.customerEmail ||
       (typeof localStorage !== "undefined"
         ? localStorage.getItem("nimclea_email")
-        : "") ||
-      (typeof localStorage !== "undefined"
-        ? localStorage.getItem("savedEmail")
         : "") ||
       effectiveCaseSchema?.email ||
       effectiveCaseSchema?.customerEmail ||

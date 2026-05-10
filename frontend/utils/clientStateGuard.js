@@ -17,11 +17,6 @@ export function runClientStateGuard(locationLike = {}) {
   }
 
   const nimcleaEmail = String(localStorage.getItem("nimclea_email") || "").trim();
-  const savedEmail = String(localStorage.getItem("savedEmail") || "").trim();
-
-  if (nimcleaEmail && savedEmail && nimcleaEmail.toLowerCase() !== savedEmail.toLowerCase()) {
-    localStorage.removeItem("savedEmail");
-  }
 
   const urlCaseId = getUrlCaseId(locationLike);
   const storedCaseId = String(localStorage.getItem("nimclea_current_case_id") || "").trim();
@@ -31,7 +26,7 @@ export function runClientStateGuard(locationLike = {}) {
   }
 
   return {
-    workspaceEmail: nimcleaEmail || savedEmail,
+    workspaceEmail: nimcleaEmail,
     urlCaseId,
     currentCaseId: urlCaseId || storedCaseId,
   };
