@@ -1490,6 +1490,35 @@ export default function CasesPage() {
     [cases]
   );
 
+  // Derived only; not wired into the UI yet. Current rendering still uses
+  // visibleActiveCases / archivedCases until the three-section UI is introduced.
+  const activeCaseSectionGroups = React.useMemo(() => {
+    return cases.reduce(
+      (groups, caseItem) => {
+        if (!isVisibleActiveCase(caseItem)) {
+          return groups;
+        }
+
+        const section = getCaseSection(caseItem);
+
+        if (section === "historic") {
+          groups.historicRecords.push(caseItem);
+        } else if (section === "baseline") {
+          groups.baselineRecords.push(caseItem);
+        } else {
+          groups.activeCases.push(caseItem);
+        }
+
+        return groups;
+      },
+      {
+        activeCases: [],
+        baselineRecords: [],
+        historicRecords: [],
+      }
+    );
+  }, [cases]);
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
