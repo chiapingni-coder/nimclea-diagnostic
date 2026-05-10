@@ -173,6 +173,38 @@ function upsertReceiptRecordFromHash({
   return { record, created: true };
 }
 
+function normalizePaymentStatus(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getPaymentStatusRank(value = "") {
+  const ranks = {
+    "": 0,
+    unpaid: 1,
+    checkout_created: 2,
+    paid: 3,
+  };
+
+  return ranks[normalizePaymentStatus(value)] ?? 0;
+}
+
+function getEffectivePaymentStatus(record = {}) {
+  const candidates = [
+    record?.paymentStatus,
+    record?.payment_status,
+    record?.receiptInput?.paymentStatus,
+    record?.receiptInput?.payment_status,
+    record?.caseSnapshot?.receiptInput?.paymentStatus,
+    record?.caseSnapshot?.receiptInput?.payment_status,
+  ];
+
+  return candidates.reduce((strongest, value) => {
+    return getPaymentStatusRank(value) > getPaymentStatusRank(strongest)
+      ? normalizePaymentStatus(value)
+      : strongest;
+  }, "");
+}
+
 router.get("/receipt", (req, res) => {
   try {
     const caseId = String(req.query.caseId || "").trim();
@@ -343,7 +375,7 @@ router.get("/receipt-record", (req, res) => {
       ok: true,
       exists: true,
       caseId,
-      paymentStatus: record?.paymentStatus || record?.payment_status || "",
+      paymentStatus: getEffectivePaymentStatus(record),
       paid: record?.paid === true,
       paymentTier: record?.paymentTier || record?.payment_tier || "",
       receiptHash: record?.hash || record?.receiptHash || record?.receipt_hash || "",
