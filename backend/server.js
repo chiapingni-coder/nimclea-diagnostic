@@ -175,6 +175,30 @@ function pickStrongestPaymentStatus(...values) {
   }, "");
 }
 
+function normalizeReceiptStatus(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getReceiptStatusRank(value = "") {
+  const ranks = {
+    "": 0,
+    ready: 1,
+    paid: 2,
+    activated: 3,
+    issued: 4,
+  };
+
+  return ranks[normalizeReceiptStatus(value)] ?? 0;
+}
+
+function pickStrongestReceiptStatus(...values) {
+  return values.reduce((strongest, value) => {
+    return getReceiptStatusRank(value) > getReceiptStatusRank(strongest)
+      ? normalizeReceiptStatus(value)
+      : strongest;
+  }, "");
+}
+
 function normalizeCaseRecord(record = {}) {
   if (!record || typeof record !== "object") {
     return {};
@@ -675,6 +699,23 @@ app.get("/cases", async (req, res) => {
           baseCase?.paymentStatus,
           receiptCase?.paymentStatus
         );
+        const finalPaid =
+          finalPaymentStatus === "paid" ||
+          matchingCaseRecords.some((record) => record?.paid === true) ||
+          item?.paid === true ||
+          baseCase?.paid === true ||
+          receiptCase?.paid === true;
+        const finalReceiptStatus = pickStrongestReceiptStatus(
+          ...matchingCaseRecords.map((record) => record?.receiptStatus),
+          ...matchingCaseRecords.map((record) => record?.receipt?.status),
+          item?.receiptStatus,
+          item?.receipt?.status,
+          baseCase?.receiptStatus,
+          baseCase?.receipt?.status,
+          receiptCase?.receiptStatus,
+          receiptCase?.receipt?.status,
+          isReceiptReady ? "ready" : ""
+        );
 
         const hasPersistedCase = Boolean(baseCase?.caseId || baseCase?.id || receiptCase?.caseId || receiptCase?.id);
         const isLegacyFirstCaseLog = item?.source === "cases_page_first_case";
@@ -703,6 +744,7 @@ app.get("/cases", async (req, res) => {
           ...receiptCase,
           status: finalStatus,
           paymentStatus: finalPaymentStatus || "unpaid",
+          paid: finalPaid,
           stage: finalStage || undefined,
           events: mergedEvents.length > 0 ? mergedEvents : receiptCase?.events || baseCase?.events || [],
           eventLogs: mergedEvents.length > 0 ? mergedEvents : receiptCase?.eventLogs || baseCase?.eventLogs || [],
@@ -712,9 +754,7 @@ app.get("/cases", async (req, res) => {
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
           receiptEligible: isReceiptReady,
           caseReceiptEligible: isReceiptReady,
-          receiptStatus: isReceiptReady
-            ? "ready"
-            : receiptCase?.receiptStatus || baseCase?.receiptStatus || item?.receiptStatus || "",
+          receiptStatus: finalReceiptStatus || "",
           subscription: {
             ...(baseCase?.subscription || {}),
             ...(backendSubscription || {}),
