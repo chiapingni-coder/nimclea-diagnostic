@@ -21,8 +21,14 @@ const RECEIPT_RECORDS_FILE = "receiptRecords.json";
 const SUBSCRIPTION_RECORDS_FILE = "subscriptionRecords.json";
 const RECEIPT_PRICE_ID = String(process.env.STRIPE_RECEIPT_PRICE_ID || "").trim();
 const FORMAL_VERIFICATION_PRICE_ID = String(process.env.STRIPE_FORMAL_VERIFICATION_PRICE_ID || "").trim();
+const WORKSPACE_MONTHLY_PRICE_ID = String(
+  process.env.STRIPE_WORKSPACE_MONTHLY_PRICE_ID ||
+    "price_1TVLln68a1BQoqcQtxhtRn06"
+).trim();
+const WORKSPACE_FIRST_MONTH_COUPON_ID = String(
+  process.env.STRIPE_WORKSPACE_FIRST_MONTH_COUPON_ID || ""
+).trim();
 const FRONTEND_URL = String(process.env.FRONTEND_URL || "http://localhost:5173").trim();
-const PILOT_EXTENSION_FRONTEND_URL = "http://localhost:5173";
 const CASES_FILE = "cases.json";
 
 function normalizeCaseId(input) {
@@ -412,22 +418,15 @@ export async function createCheckoutSession(req, res) {
         },
         line_items: [
           {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: "Nimclea Pilot Extension",
-              },
-              recurring: {
-                interval: "month",
-              },
-              unit_amount: 900,
-            },
+            price: WORKSPACE_MONTHLY_PRICE_ID,
             quantity: 1,
           },
         ],
-        // TODO: Upgrade to $79/month after the first month using Stripe Billing configuration.
-        success_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=success&session_id={CHECKOUT_SESSION_ID}&paymentType=pilot_extension`,
-        cancel_url: `${PILOT_EXTENSION_FRONTEND_URL}/cases?checkout=cancel&paymentType=pilot_extension`,
+        discounts: WORKSPACE_FIRST_MONTH_COUPON_ID
+          ? [{ coupon: WORKSPACE_FIRST_MONTH_COUPON_ID }]
+          : undefined,
+        success_url: `${FRONTEND_URL}/cases?checkout=success&session_id={CHECKOUT_SESSION_ID}&paymentType=pilot_extension`,
+        cancel_url: `${FRONTEND_URL}/cases?checkout=cancel&paymentType=pilot_extension`,
       });
 
       const subscriptionRecord = updateSubscriptionCheckoutRecord({
