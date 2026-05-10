@@ -1519,6 +1519,15 @@ export default function CasesPage() {
     );
   }, [cases]);
 
+  const caseSectionCounts = React.useMemo(
+    () => ({
+      active: activeCaseSectionGroups.activeCases.length,
+      baseline: activeCaseSectionGroups.baselineRecords.length,
+      historic: activeCaseSectionGroups.historicRecords.length,
+    }),
+    [activeCaseSectionGroups]
+  );
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
