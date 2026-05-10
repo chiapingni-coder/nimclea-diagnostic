@@ -42,6 +42,52 @@ function findCaseIndex(cases = [], caseId = "") {
   );
 }
 
+const LIFECYCLE_RANKS = {
+  draft: 0,
+  not_ready: 1,
+  diagnostic_completed: 2,
+  result_ready: 3,
+  event_captured: 4,
+  workspace_active: 5,
+  receipt_ready: 6,
+  ready: 6,
+  receipt_paid: 7,
+  paid: 7,
+  receipt_activated: 8,
+  activated: 8,
+  receipt_issued: 9,
+  issued: 9,
+  verification_ready: 10,
+  verification_active: 11,
+  active: 11,
+  verification_issued: 12,
+  completed: 13,
+};
+
+function normalizeLifecycleValue(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getLifecycleRank(value = "") {
+  const normalized = normalizeLifecycleValue(value);
+  return LIFECYCLE_RANKS[normalized] ?? -1;
+}
+
+function preserveStrongerLifecycleValue(currentValue, proposedValue) {
+  if (proposedValue === undefined || proposedValue === null || proposedValue === "") {
+    return currentValue;
+  }
+
+  const currentRank = getLifecycleRank(currentValue);
+  const proposedRank = getLifecycleRank(proposedValue);
+
+  if (currentRank >= 0 && proposedRank >= 0 && proposedRank < currentRank) {
+    return currentValue;
+  }
+
+  return proposedValue;
+}
+
 function upsertCaseRecord(input = {}) {
   const casesRaw = readJsonFile(CASES_FILE, []);
   const cases = Array.isArray(casesRaw) ? casesRaw : [];
@@ -284,22 +330,41 @@ router.patch("/:caseId/receipt-status", async (req, res) => {
     const existingIndex = findCaseIndex(cases, resolvedCaseId);
     const existing = existingIndex >= 0 ? cases[existingIndex] || {} : {};
 
-    const receiptEligible = req.body?.receiptEligible !== false;
+    const receiptEligible = req.body?.receiptEligible === true;
     const now = new Date().toISOString();
+    const receiptPatch = receiptEligible
+      ? {
+          status: preserveStrongerLifecycleValue(
+            existing.status,
+            req.body?.status || "workspace_active"
+          ),
+          stage: preserveStrongerLifecycleValue(
+            existing.stage,
+            req.body?.stage || "receipt_ready"
+          ),
+          receiptEligible: true,
+          caseReceiptEligible: true,
+          receiptStatus: preserveStrongerLifecycleValue(
+            existing.receiptStatus,
+            req.body?.receiptStatus || "ready"
+          ),
+          receiptReadyAt: existing.receiptReadyAt || req.body?.receiptReadyAt || now,
+        }
+      : {
+          status: existing.status,
+          stage: existing.stage,
+          receiptEligible: existing.receiptEligible === true,
+          caseReceiptEligible: existing.caseReceiptEligible === true,
+          receiptStatus: existing.receiptStatus,
+          receiptReadyAt: existing.receiptReadyAt || null,
+        };
 
     const savedCase = upsertCaseRecord({
       ...existing,
       ...(req.body || {}),
       id: existing.id || resolvedCaseId,
       caseId: existing.caseId || resolvedCaseId,
-      status: req.body?.status || existing.status || "workspace_active",
-      stage: req.body?.stage || existing.stage || "receipt_ready",
-      receiptEligible,
-      caseReceiptEligible: receiptEligible,
-      receiptStatus: receiptEligible ? "ready" : "not_ready",
-      receiptReadyAt: receiptEligible
-        ? existing.receiptReadyAt || req.body?.receiptReadyAt || now
-        : existing.receiptReadyAt || null,
+      ...receiptPatch,
     });
 
     await mirrorCaseToSupabase(savedCase);
