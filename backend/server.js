@@ -664,7 +664,10 @@ app.get("/cases", async (req, res) => {
           isReceiptReady ? "receipt_ready" : ""
         );
         const finalStatus = finalStage || receiptCase?.status || baseCase?.status || item?.status || "draft";
+        const matchingCaseRecords = cases.filter((record) => caseIdOf(record) === caseId);
         const finalPaymentStatus = pickStrongestPaymentStatus(
+          ...matchingCaseRecords.map(getEffectivePaymentStatus),
+          ...matchingCaseRecords.map((record) => record?.paymentStatus),
           getEffectivePaymentStatus(item),
           getEffectivePaymentStatus(baseCase),
           getEffectivePaymentStatus(receiptCase),
