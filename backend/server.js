@@ -2,6 +2,7 @@ import 'dotenv/config';
 console.log("🔥 THIS IS MY NEW SERVER");
 console.log("🔥 SERVER.JS IS RUNNING");
 import stripeRoutes from "./routes/stripe.js";
+import stripeWebhookRoutes from "./routes/stripeWebhook.js";
 import dotenv from "dotenv";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -112,6 +113,7 @@ const app = express();
 ensureDataFiles();
 
 app.use(cors());
+app.use("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookRoutes);
 app.use(express.json());
 
 app.use("/trial", trialRegisterRoutes);
