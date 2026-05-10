@@ -798,6 +798,66 @@ function getCaseSection(caseItem) {
   return "active";
 }
 
+// This helper is intentionally not wired into the UI yet. It defines future frontend Delete/Discard eligibility before Archive is replaced.
+function getCaseDeleteMode(caseItem) {
+  const normalized = normalizeCaseItem(caseItem);
+  const section = getCaseSection(normalized);
+
+  if (section === "baseline" || section === "historic") {
+    return "not_deletable";
+  }
+
+  const lockedReceiptStatuses = new Set(["paid", "issued", "activated"]);
+  const lockedVerificationStatuses = new Set([
+    "paid",
+    "activated",
+    "issued",
+    "delivered",
+    "verified",
+    "completed",
+  ]);
+  const paymentStatus = String(normalized?.paymentStatus || "").toLowerCase();
+  const paymentType = String(
+    normalized?.paymentType ||
+      normalized?.priceType ||
+      normalized?.productType ||
+      normalized?.receipt?.paymentType ||
+      normalized?.receipt?.priceType ||
+      normalized?.receipt?.productType ||
+      ""
+  ).toLowerCase();
+  const receiptStatus = String(normalized?.receiptStatus || "").toLowerCase();
+  const receiptObjectStatus = String(normalized?.receipt?.status || "").toLowerCase();
+  const verificationStatus = String(normalized?.verificationStatus || "").toLowerCase();
+  const verificationObjectStatus = String(normalized?.verification?.status || "").toLowerCase();
+  const isFormalReceiptPayment = ["receipt_activation", "formal_receipt"].includes(paymentType);
+
+  if (
+    hasActivatedReceipt(normalized) ||
+    hasActivatedVerification(normalized) ||
+    normalized?.paid === true ||
+    paymentStatus === "paid" ||
+    lockedReceiptStatuses.has(receiptStatus) ||
+    lockedReceiptStatuses.has(receiptObjectStatus) ||
+    lockedVerificationStatuses.has(verificationStatus) ||
+    lockedVerificationStatuses.has(verificationObjectStatus) ||
+    normalized?.verificationDelivered === true ||
+    normalized?.evidencePackageDownloaded === true ||
+    normalized?.firstEvidencePackageDownloaded === true ||
+    normalized?.verification?.delivered === true ||
+    normalized?.verification?.evidencePackageDownloaded === true ||
+    normalized?.verification?.firstEvidencePackageDownloaded === true
+  ) {
+    return "not_deletable";
+  }
+
+  if (paymentStatus === "checkout_created" && isFormalReceiptPayment) {
+    return "high_risk_delete";
+  }
+
+  return "normal_delete";
+}
+
 // Current trial / pilot extension active case limit is 3. Future paid workspace
 // plans should replace this with a plan-aware limit.
 const CURRENT_ACTIVE_CASE_LIMIT = 3;
