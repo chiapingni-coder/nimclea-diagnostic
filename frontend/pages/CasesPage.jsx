@@ -1389,6 +1389,125 @@ export default function CasesPage() {
     });
   }, [cases]);
 
+  const handleDiscardCase = React.useCallback(async (caseItemOrCaseId, options = {}) => {
+    const isCaseIdInput = typeof caseItemOrCaseId === "string";
+    const normalizedInput = isCaseIdInput ? {} : normalizeCaseItem(caseItemOrCaseId);
+    const safeCaseId = String(
+      isCaseIdInput
+        ? caseItemOrCaseId
+        : normalizedInput?.caseId ||
+            normalizedInput?.case_id ||
+            normalizedInput?.id ||
+            ""
+    ).trim();
+
+    if (!safeCaseId) {
+      setCaseCreationError("Could not delete this case. Missing case ID.");
+      return null;
+    }
+
+    const caseItem = isCaseIdInput
+      ? cases.find((item) => {
+          const normalized = normalizeCaseItem(item);
+          const currentCaseId = String(
+            normalized?.caseId ||
+              normalized?.case_id ||
+              normalized?.id ||
+              ""
+          ).trim();
+
+          return currentCaseId === safeCaseId;
+        }) || { caseId: safeCaseId }
+      : normalizedInput;
+
+    const deleteMode = getCaseDeleteMode(caseItem);
+
+    if (deleteMode === "not_deletable") {
+      setCaseCreationError("Formal records cannot be deleted as ordinary cases.");
+      return null;
+    }
+
+    if (deleteMode === "high_risk_delete" && options.highRiskConfirmed !== true) {
+      setCaseCreationError(
+        "This case has a payment-pending Formal Receipt checkout. Confirm high-risk deletion before deleting it."
+      );
+      return { requiresHighRiskConfirmation: true, caseId: safeCaseId };
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/case/${encodeURIComponent(safeCaseId)}/discard`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          deletedBy: "user",
+          deletionReason: options.deletionReason || "user_confirmed_delete",
+          deletedFrom: options.deletedFrom || "cases_page",
+          highRiskConfirmed: options.highRiskConfirmed === true,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 409 && payload?.requiresHighRiskConfirmation === true) {
+          setCaseCreationError(
+            "This case has a payment-pending Formal Receipt checkout. Confirm high-risk deletion before deleting it."
+          );
+          return { requiresHighRiskConfirmation: true, caseId: safeCaseId };
+        }
+
+        setCaseCreationError(payload?.message || "Could not delete this case. Please try again.");
+        return null;
+      }
+
+      setCases((prev) =>
+        prev.filter((caseItem) => {
+          const currentCaseId = String(
+            caseItem?.caseId ||
+              caseItem?.case_id ||
+              caseItem?.id ||
+              ""
+          ).trim();
+
+          return currentCaseId !== safeCaseId;
+        })
+      );
+
+      setArchivedCases((prev) =>
+        prev.filter((caseItem) => {
+          const currentCaseId = String(
+            caseItem?.caseId ||
+              caseItem?.case_id ||
+              caseItem?.id ||
+              ""
+          ).trim();
+
+          return currentCaseId !== safeCaseId;
+        })
+      );
+
+      setExpandedCaseIds((prev) => {
+        const next = { ...prev };
+        delete next[safeCaseId];
+        return next;
+      });
+      setCaseCreationError("");
+
+      return payload;
+    } catch (error) {
+      console.warn("Failed to discard case", error);
+      setCaseCreationError("Could not delete this case. Please try again.");
+      return null;
+    }
+  }, [
+    cases,
+    setArchivedCases,
+    setCaseCreationError,
+    setCases,
+    setExpandedCaseIds,
+  ]);
+
   const handleRestoreCase = React.useCallback((caseIdToRestore = "") => {
     const safeCaseId = String(caseIdToRestore || "").trim();
 
