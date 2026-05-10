@@ -381,6 +381,38 @@ async function loadSupabaseCaseSourcesForEmail(email) {
   }
 }
 
+function isDeletedOrDiscardedCaseRecord(item = {}) {
+  return Boolean(
+    item?.deletedAt ||
+      item?.discardedAt ||
+      item?.caseDeletedAt ||
+      item?.isDeleted === true ||
+      item?.deleted === true
+  );
+}
+
+function getDeletedCaseIds(records = []) {
+  const ids = new Set();
+
+  records.forEach((item) => {
+    if (!isDeletedOrDiscardedCaseRecord(item)) return;
+
+    const caseId = String(
+      item?.caseId ||
+        item?.id ||
+        item?.caseSnapshot?.caseId ||
+        item?.caseSnapshot?.caseRecord?.caseId ||
+        item?.caseData?.caseId ||
+        item?.caseRecord?.caseId ||
+        ""
+    ).trim();
+
+    if (caseId) ids.add(caseId);
+  });
+
+  return ids;
+}
+
 app.get("/cases", async (req, res) => {
   const email = String(req.query?.email || "").trim().toLowerCase();
 
@@ -418,6 +450,7 @@ app.get("/cases", async (req, res) => {
       ...supabaseSources.receiptRecords,
     ];
     const eventLogs = [...localEventLogs, ...supabaseSources.eventLogs];
+    const deletedCaseIds = getDeletedCaseIds(cases);
 
     const caseIdOf = (item = {}) =>
       String(
@@ -530,6 +563,7 @@ app.get("/cases", async (req, res) => {
     const addCandidate = (item = {}) => {
       const caseId = caseIdOf(item);
       if (!caseId) return;
+      if (deletedCaseIds.has(caseId)) return;
       const existing = candidateMap.get(caseId) || {};
       candidateMap.set(caseId, { ...existing, ...item, caseId });
     };
@@ -678,7 +712,11 @@ app.get("/cases", async (req, res) => {
             "",
         };
       })
-      .filter(Boolean);
+      .filter((item) => {
+        if (!item) return false;
+        const caseId = caseIdOf(item);
+        return !caseId || !deletedCaseIds.has(caseId);
+      });
 
     return res.json(matches);
   } catch (error) {
