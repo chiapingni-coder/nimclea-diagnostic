@@ -167,6 +167,14 @@ function getEffectivePaymentStatus(record = {}) {
   }, "");
 }
 
+function pickStrongestPaymentStatus(...values) {
+  return values.reduce((strongest, value) => {
+    return getPaymentStatusRank(value) > getPaymentStatusRank(strongest)
+      ? normalizePaymentStatus(value)
+      : strongest;
+  }, "");
+}
+
 function normalizeCaseRecord(record = {}) {
   if (!record || typeof record !== "object") {
     return {};
@@ -656,6 +664,14 @@ app.get("/cases", async (req, res) => {
           isReceiptReady ? "receipt_ready" : ""
         );
         const finalStatus = finalStage || receiptCase?.status || baseCase?.status || item?.status || "draft";
+        const finalPaymentStatus = pickStrongestPaymentStatus(
+          getEffectivePaymentStatus(item),
+          getEffectivePaymentStatus(baseCase),
+          getEffectivePaymentStatus(receiptCase),
+          item?.paymentStatus,
+          baseCase?.paymentStatus,
+          receiptCase?.paymentStatus
+        );
 
         const hasPersistedCase = Boolean(baseCase?.caseId || baseCase?.id || receiptCase?.caseId || receiptCase?.id);
         const isLegacyFirstCaseLog = item?.source === "cases_page_first_case";
@@ -683,6 +699,7 @@ app.get("/cases", async (req, res) => {
           ...baseCase,
           ...receiptCase,
           status: finalStatus,
+          paymentStatus: finalPaymentStatus || "unpaid",
           stage: finalStage || undefined,
           events: mergedEvents.length > 0 ? mergedEvents : receiptCase?.events || baseCase?.events || [],
           eventLogs: mergedEvents.length > 0 ? mergedEvents : receiptCase?.eventLogs || baseCase?.eventLogs || [],
