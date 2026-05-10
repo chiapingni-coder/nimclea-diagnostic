@@ -88,6 +88,86 @@ function preserveStrongerLifecycleValue(currentValue, proposedValue) {
   return proposedValue;
 }
 
+function normalizeRecordText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function hasReceiptCheckoutPending(record = {}) {
+  const paymentStatus = normalizeRecordText(record.paymentStatus);
+  const paymentType = normalizeRecordText(
+    record.paymentType || record.priceType || record.productType
+  );
+
+  return (
+    paymentStatus === "checkout_created" &&
+    ["receipt_activation", "formal_receipt"].includes(paymentType)
+  );
+}
+
+function isFormalPaidOrLockedCase(record = {}) {
+  const receiptLockedStatuses = new Set(["paid", "issued", "activated"]);
+  const caseLockedStatuses = new Set([
+    "receipt_paid",
+    "receipt_issued",
+    "receipt_activated",
+    "paid",
+    "issued",
+    "activated",
+  ]);
+  const verificationLockedStatuses = new Set([
+    "paid",
+    "activated",
+    "issued",
+    "delivered",
+    "verified",
+    "completed",
+  ]);
+
+  return Boolean(
+    record.paid === true ||
+      normalizeRecordText(record.paymentStatus) === "paid" ||
+      receiptLockedStatuses.has(normalizeRecordText(record.receiptStatus)) ||
+      receiptLockedStatuses.has(normalizeRecordText(record.receipt?.status)) ||
+      caseLockedStatuses.has(normalizeRecordText(record.status)) ||
+      caseLockedStatuses.has(normalizeRecordText(record.stage)) ||
+      verificationLockedStatuses.has(
+        normalizeRecordText(record.verificationStatus)
+      ) ||
+      verificationLockedStatuses.has(
+        normalizeRecordText(record.verification?.status)
+      ) ||
+      record.verificationDelivered === true ||
+      record.evidencePackageDownloaded === true ||
+      record.firstEvidencePackageDownloaded === true ||
+      record.verification?.delivered === true ||
+      record.verification?.evidencePackageDownloaded === true ||
+      record.verification?.firstEvidencePackageDownloaded === true
+  );
+}
+
+function buildDiscardPatch(existing = {}, reqBody = {}) {
+  const now = new Date().toISOString();
+
+  return {
+    deletedAt: now,
+    discardedAt: now,
+    deletedBy: reqBody.deletedBy || "user",
+    deletionReason: reqBody.deletionReason || "user_confirmed_delete",
+    deletedFrom: reqBody.deletedFrom || "cases_page",
+    paymentStatusAtDeletion: existing.paymentStatus || "",
+    paymentTypeAtDeletion:
+      existing.paymentType || existing.priceType || existing.productType || "",
+    stripeSessionIdAtDeletion:
+      existing.stripeSessionId ||
+      existing.sessionId ||
+      existing.checkoutSessionId ||
+      "",
+    isDeleted: true,
+    deleted: true,
+    updatedAt: now,
+  };
+}
+
 function upsertCaseRecord(input = {}) {
   const casesRaw = readJsonFile(CASES_FILE, []);
   const cases = Array.isArray(casesRaw) ? casesRaw : [];
@@ -383,6 +463,80 @@ router.patch("/:caseId/receipt-status", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update receipt status",
+    });
+  }
+});
+
+router.patch("/:caseId/discard", async (req, res) => {
+  try {
+    const resolvedCaseId = normalizeValidCaseId(req.params.caseId);
+
+    if (!resolvedCaseId) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid caseId is required",
+      });
+    }
+
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
+    const existingIndex = findCaseIndex(cases, resolvedCaseId);
+
+    if (existingIndex < 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Case not found",
+      });
+    }
+
+    const existing = cases[existingIndex] || {};
+
+    if (isFormalPaidOrLockedCase(existing)) {
+      return res.status(409).json({
+        success: false,
+        message: "Formal records cannot be deleted as ordinary cases",
+      });
+    }
+
+    if (
+      hasReceiptCheckoutPending(existing) &&
+      req.body?.highRiskConfirmed !== true
+    ) {
+      return res.status(409).json({
+        success: false,
+        requiresHighRiskConfirmation: true,
+        message:
+          "This case has a payment-pending Formal Receipt checkout. Confirm high-risk deletion before discarding it.",
+      });
+    }
+
+    const discardPatch = buildDiscardPatch(existing, req.body || {});
+    const discardedCase = {
+      ...existing,
+      ...discardPatch,
+      id: existing.id || resolvedCaseId,
+      caseId: existing.caseId || resolvedCaseId,
+    };
+
+    cases[existingIndex] = discardedCase;
+    writeJsonFile(CASES_FILE, cases);
+
+    await mirrorCaseToSupabase(discardedCase);
+
+    return res.json({
+      success: true,
+      message: "Case discarded",
+      data: {
+        caseId: resolvedCaseId,
+        deletedAt: discardPatch.deletedAt,
+        discardedAt: discardPatch.discardedAt,
+      },
+    });
+  } catch (error) {
+    console.error("PATCH /case/:caseId/discard error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to discard case",
     });
   }
 });
