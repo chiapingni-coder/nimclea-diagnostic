@@ -135,6 +135,38 @@ function findLastMatchingRecord(records, caseId) {
   return null;
 }
 
+function normalizePaymentStatus(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getPaymentStatusRank(value = "") {
+  const ranks = {
+    "": 0,
+    unpaid: 1,
+    checkout_created: 2,
+    paid: 3,
+  };
+
+  return ranks[normalizePaymentStatus(value)] ?? 0;
+}
+
+function getEffectivePaymentStatus(record = {}) {
+  const candidates = [
+    record?.paymentStatus,
+    record?.payment_status,
+    record?.receiptInput?.paymentStatus,
+    record?.receiptInput?.payment_status,
+    record?.caseSnapshot?.receiptInput?.paymentStatus,
+    record?.caseSnapshot?.receiptInput?.payment_status,
+  ];
+
+  return candidates.reduce((strongest, value) => {
+    return getPaymentStatusRank(value) > getPaymentStatusRank(strongest)
+      ? normalizePaymentStatus(value)
+      : strongest;
+  }, "");
+}
+
 function normalizeCaseRecord(record = {}) {
   if (!record || typeof record !== "object") {
     return {};
@@ -708,6 +740,7 @@ app.get("/receipt-record", (req, res) => {
           receiptStatus: isReceiptReady
             ? "ready"
             : latestCase.receiptStatus || receiptCase.receiptStatus || mergedReceipt.status || "",
+          paymentStatus: getEffectivePaymentStatus(record),
           hash: receiptCase.hash || latestCase.hash || "",
           receiptHash:
             receiptCase.receiptHash ||
