@@ -2106,17 +2106,7 @@ export default function CasesPage() {
                 paddingRight: "8px",
               }}
             >
-              <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "20px",
-                    fontWeight: 700,
-                    color: "#0F172A",
-                  }}
-                >
-                  Choose how to continue
-                </h2>
+              <div>                
               </div>
 
               <button
