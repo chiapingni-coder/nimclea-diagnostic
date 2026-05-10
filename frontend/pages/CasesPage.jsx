@@ -2206,7 +2206,7 @@ export default function CasesPage() {
                   <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
                   <div>- Continue your current cases</div>
                   <div>- Up to 3 active cases in the first month</div>
-                  <div>- Unlimited pilot sessions</div>
+                  <div>- Up to 3 active cases</div>
                   <div>- Continuous result tracking</div>
                   <div>- Internal case memory</div>
                 </div>

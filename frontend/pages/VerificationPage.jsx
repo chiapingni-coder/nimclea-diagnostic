@@ -4381,8 +4381,8 @@ const recommendedPathLabel =
               
                   <div style={{ marginTop: "14px", fontSize: "14px", lineHeight: 1.7, color: "#334155" }}>
                     <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
-                    <div>- Unlimited pilot sessions</div>
-                    <div>- Unlimited result access</div>
+                    <div>- Up to 3 active cases</div>
+                    <div>- Workspace access during the active trial or extension window</div>
                     <div>- Internal case tracking</div>
                     <div>- Analytics and history</div>
                     <div>- Preview of receipt & verification states</div>
@@ -4616,7 +4616,7 @@ const recommendedPathLabel =
                     whiteSpace: "nowrap",
                   }}
                 >
-                  Run unlimited decisions inside the workspace. Only pay when a case becomes a formal, portable outcome.
+                  Run up to 3 active cases inside the workspace. Only pay when a case becomes a formal, portable outcome.
                 </p>
             </div>
           </div>
