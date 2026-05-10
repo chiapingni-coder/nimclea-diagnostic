@@ -9,6 +9,7 @@ import {
   writeJsonFile,
   appendJsonRecord,
 } from "../utils/jsonStore.js";
+import { upsertPaymentRecord } from "../utils/paymentPersistence.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -436,6 +437,20 @@ export async function createCheckoutSession(req, res) {
         cancel_url: `${FRONTEND_URL}/cases?checkout=cancel&paymentType=pilot_extension`,
       });
 
+      upsertPaymentRecord({
+        stripeSessionId: session.id,
+        stripeCustomerId: session.customer,
+        stripeSubscriptionId: session.subscription,
+        productType: "pilot_extension",
+        paymentType: "pilot_extension",
+        priceType: "pilot_extension",
+        paymentScope: "subscription",
+        caseId: safeCaseId,
+        email: customerEmail,
+        status: "checkout_created",
+        source: "create_checkout_session",
+      });
+
       const subscriptionRecord = updateSubscriptionCheckoutRecord({
         email: customerEmail,
         caseId: safeCaseId,
@@ -492,6 +507,20 @@ export async function createCheckoutSession(req, res) {
         cancel_url: `${FRONTEND_URL}/verification?caseId=${encodeURIComponent(safeCaseId)}&checkout=cancel&paymentType=formal_verification`,
       });
 
+      upsertPaymentRecord({
+        stripeSessionId: session.id,
+        stripeCustomerId: session.customer,
+        stripeSubscriptionId: session.subscription,
+        productType: "formal_verification",
+        paymentType: "formal_verification",
+        priceType: "formal_verification",
+        paymentScope: "case",
+        caseId: safeCaseId,
+        email: customerEmail,
+        status: "checkout_created",
+        source: "create_checkout_session",
+      });
+
       return res.json({ url: session.url });
     }
 
@@ -528,6 +557,21 @@ export async function createCheckoutSession(req, res) {
       ],
       success_url: `${FRONTEND_URL}/receipt?caseId=${encodeURIComponent(caseId)}&session_id={CHECKOUT_SESSION_ID}&paid=success&paymentType=receipt_activation`,
       cancel_url: `${FRONTEND_URL}/receipt?caseId=${encodeURIComponent(caseId)}&paid=cancel&paymentType=receipt_activation`,
+    });
+
+    upsertPaymentRecord({
+      stripeSessionId: session.id,
+      stripeCustomerId: session.customer,
+      stripeSubscriptionId: session.subscription,
+      productType: "receipt_activation",
+      paymentType: "receipt_activation",
+      priceType: "receipt_activation",
+      paymentScope: "case",
+      caseId,
+      receiptId,
+      hash,
+      status: "checkout_created",
+      source: "create_checkout_session",
     });
 
     updateReceiptPaymentRecord({

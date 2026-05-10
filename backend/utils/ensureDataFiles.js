@@ -8,6 +8,7 @@ const REQUIRED_FILES = {
   "cases.json": [],
   "receiptRecords.json": [],
   "subscriptionRecords.json": [],
+  "paymentRecords.json": [],
   "verificationRecords.json": [],
 };
 
