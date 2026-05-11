@@ -462,6 +462,70 @@ function isDiagnosticContinuationCase(item = {}) {
   );
 }
 
+function isDiagnosticOnlyCase(item = {}, options = {}) {
+  const normalized = normalizeCaseItem(item);
+  const caseData = normalized?.caseData || normalized?.caseSchema || {};
+  const status = String(normalized?.status || caseData?.status || "").toLowerCase();
+  const stage = String(
+    normalized?.stage ||
+      normalized?.stageLabel ||
+      caseData?.stage ||
+      caseData?.stageLabel ||
+      ""
+  ).toLowerCase();
+  const currentStep = String(
+    normalized?.currentStep ||
+      normalized?.step ||
+      caseData?.currentStep ||
+      caseData?.step ||
+      ""
+  ).toLowerCase();
+  const eventCount = Number(
+    normalized?.eventCount ??
+      caseData?.eventCount ??
+      normalized?.caseSnapshot?.eventCount ??
+      0
+  );
+  const evidenceEventCount =
+    typeof options.evidenceEventCount === "number"
+      ? options.evidenceEventCount
+      : getEvidenceEvents(normalized).length;
+  const paymentStatus = String(normalized?.paymentStatus || "").toLowerCase();
+  const receiptStatus = String(normalized?.receiptStatus || "").toLowerCase();
+  const receiptObjectStatus = String(normalized?.receipt?.status || "").toLowerCase();
+  const verificationStatus = String(normalized?.verificationStatus || "").toLowerCase();
+  const verificationObjectStatus = String(normalized?.verification?.status || "").toLowerCase();
+  const lockedReceiptStatuses = new Set(["paid", "issued", "activated"]);
+  const lockedVerificationStatuses = new Set([
+    "paid",
+    "ready",
+    "verification_ready",
+    "issued",
+    "activated",
+    "delivered",
+    "verified",
+    "completed",
+  ]);
+
+  return Boolean(
+    (status === "diagnostic_completed" || stage === "diagnostic_completed") &&
+      (!currentStep || currentStep === "result") &&
+      normalized?.receiptEligible !== true &&
+      normalized?.caseReceiptEligible !== true &&
+      (!Number.isFinite(eventCount) || eventCount <= 0) &&
+      evidenceEventCount === 0 &&
+      !hasRealEventSignal(normalized) &&
+      normalized?.paid !== true &&
+      !["paid", "checkout_created"].includes(paymentStatus) &&
+      !lockedReceiptStatuses.has(receiptStatus) &&
+      !lockedReceiptStatuses.has(receiptObjectStatus) &&
+      !lockedVerificationStatuses.has(verificationStatus) &&
+      !lockedVerificationStatuses.has(verificationObjectStatus) &&
+      !hasActivatedReceipt(normalized) &&
+      !hasActivatedVerification(normalized)
+  );
+}
+
 function hasCanonicalBackendReceiptReadySignal(item = {}) {
   return isBackendReceiptReady(normalizeCaseItem(item));
 }
@@ -469,9 +533,11 @@ function hasCanonicalBackendReceiptReadySignal(item = {}) {
 function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
   const evidenceEventCount = getEvidenceEvents(normalized).length;
+  const diagnosticOnly = isDiagnosticOnlyCase(normalized, { evidenceEventCount });
   const effectiveEventCaptured =
-    normalized?.eventCaptured === true || evidenceEventCount > 0;
-  const explicitBackendReady = hasCanonicalBackendReceiptReadySignal(normalized);
+    diagnosticOnly ? false : normalized?.eventCaptured === true || evidenceEventCount > 0;
+  const explicitBackendReady =
+    diagnosticOnly ? false : hasCanonicalBackendReceiptReadySignal(normalized);
   const rawStructureStatus =
     normalized?.structureStatus ||
     normalized?.structureStatusFromCase ||
@@ -588,6 +654,8 @@ function deriveCaseListState(item) {
     displayStatus = "Paid";
   } else if (checkoutStarted) {
     displayStatus = "Receipt checkout started";
+  } else if (diagnosticOnly) {
+    displayStatus = "Diagnostic completed";
   } else if (receiptReady) {
     displayStatus = "Receipt ready";
   } else if (hasReceiptStageSignal) {
@@ -624,6 +692,7 @@ function deriveCaseListState(item) {
     hasRealPaymentObject,
     trustedPaymentProgress,
     readinessDetailLabel,
+    diagnosticOnly,
   };
 }
 
