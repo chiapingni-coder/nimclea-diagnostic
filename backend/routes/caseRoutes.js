@@ -5,6 +5,8 @@ import {
   appendJsonRecord,
 } from "../utils/jsonStore.js";
 import {
+  deleteCaseMirrorRowsFromSupabase,
+  mirrorDeletedCaseToSupabase,
   mirrorCaseToSupabase,
   mirrorCasePlanToSupabase,
   mirrorCaseResultToSupabase,
@@ -16,8 +18,6 @@ const router = express.Router();
 const CASES_FILE = "cases.json";
 const DELETED_CASES_FILE = "deletedCases.json";
 const CASE_ID_PATTERN = /^CASE-\d+-[A-Z0-9]{6}$/;
-const UNPAID_ACTIVE_RECOVERY_DAYS = 30;
-const UNPAID_PENDING_CHECKOUT_RECOVERY_DAYS = 60;
 
 function createCaseId() {
   return `CASE-${Date.now()}-${Math.random()
@@ -123,12 +123,6 @@ function normalizeRecordText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function addDaysIso(baseIso, days) {
-  const date = new Date(baseIso);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString();
-}
-
 function hasReceiptCheckoutPending(record = {}) {
   const paymentStatus = normalizeRecordText(record.paymentStatus);
   const paymentType = normalizeRecordText(
@@ -145,20 +139,6 @@ function hasReceiptCheckoutPending(record = {}) {
     record.paid !== true &&
     ["receipt_activation", "formal_receipt"].includes(paymentType)
   );
-}
-
-function getDiscardRetentionPolicy(existing = {}) {
-  if (hasReceiptCheckoutPending(existing)) {
-    return {
-      retentionCategory: "unpaid_pending_checkout_60_days",
-      recoveryDays: UNPAID_PENDING_CHECKOUT_RECOVERY_DAYS,
-    };
-  }
-
-  return {
-    retentionCategory: "unpaid_active_case_30_days",
-    recoveryDays: UNPAID_ACTIVE_RECOVERY_DAYS,
-  };
 }
 
 function isFormalPaidOrLockedCase(record = {}) {
@@ -204,8 +184,6 @@ function isFormalPaidOrLockedCase(record = {}) {
 
 function buildDiscardPatch(existing = {}, reqBody = {}) {
   const deletedAt = new Date().toISOString();
-  const retentionPolicy = getDiscardRetentionPolicy(existing);
-  const purgeAfter = addDaysIso(deletedAt, retentionPolicy.recoveryDays);
 
   return {
     deletedAt,
@@ -213,18 +191,6 @@ function buildDiscardPatch(existing = {}, reqBody = {}) {
     deletedBy: reqBody.deletedBy || "user",
     deletionReason: reqBody.deletionReason || "user_confirmed_delete",
     deletedFrom: reqBody.deletedFrom || "cases_page",
-    retentionCategory: retentionPolicy.retentionCategory,
-    recoverableUntil: purgeAfter,
-    purgeAfter,
-    purgeStatus: "scheduled",
-    paymentStatusAtDeletion: existing.paymentStatus || "",
-    paymentTypeAtDeletion:
-      existing.paymentType || existing.priceType || existing.productType || "",
-    stripeSessionIdAtDeletion:
-      existing.stripeSessionId ||
-      existing.sessionId ||
-      existing.checkoutSessionId ||
-      "",
     isDeleted: true,
     deleted: true,
     updatedAt: deletedAt,
@@ -244,6 +210,7 @@ function recordDeletedCase(caseId = "", discardPatch = {}, reqBody = {}) {
       discardPatch.deletionReason ||
       reqBody.deletionReason ||
       "user_confirmed_delete",
+    deletedFrom: discardPatch.deletedFrom || reqBody.deletedFrom || "cases_page",
   };
   const nextDeletedCases = [
     ...deletedCases.filter(
@@ -255,6 +222,34 @@ function recordDeletedCase(caseId = "", discardPatch = {}, reqBody = {}) {
   writeJsonFile(DELETED_CASES_FILE, nextDeletedCases);
 
   return tombstone;
+}
+
+function getDeletedCaseIdSet(extraRecords = []) {
+  const casesRaw = readJsonFile(CASES_FILE, []);
+  const deletedCasesRaw = readJsonFile(DELETED_CASES_FILE, []);
+  const cases = Array.isArray(casesRaw) ? casesRaw : [];
+  const deletedCases = Array.isArray(deletedCasesRaw) ? deletedCasesRaw : [];
+  const ids = new Set();
+
+  deletedCases.forEach((record) => {
+    const caseId = getRecordCaseId(record);
+    if (caseId) ids.add(caseId);
+  });
+
+  [...cases, ...(Array.isArray(extraRecords) ? extraRecords : [])].forEach((record) => {
+    const caseId = getRecordCaseId(record);
+    if (
+      caseId &&
+      (record?.deleted === true ||
+        record?.isDeleted === true ||
+        record?.deletedAt ||
+        record?.discardedAt)
+    ) {
+      ids.add(caseId);
+    }
+  });
+
+  return ids;
 }
 
 function removeRecordsForCaseId(fileName, caseId = "", options = {}) {
@@ -638,6 +633,8 @@ router.patch("/:caseId/discard", async (req, res) => {
       const discardPatch = buildDiscardPatch(sourceRecord, req.body || {});
       const tombstone = recordDeletedCase(resolvedCaseId, discardPatch, req.body || {});
       const removed = hardDeleteCaseArtifacts(resolvedCaseId);
+      await mirrorDeletedCaseToSupabase(tombstone);
+      await deleteCaseMirrorRowsFromSupabase(resolvedCaseId);
 
       return res.json({
         success: true,
@@ -683,6 +680,8 @@ router.patch("/:caseId/discard", async (req, res) => {
     const discardPatch = buildDiscardPatch(existing, req.body || {});
     const tombstone = recordDeletedCase(resolvedCaseId, discardPatch, req.body || {});
     const removed = hardDeleteCaseArtifacts(resolvedCaseId);
+    await mirrorDeletedCaseToSupabase(tombstone);
+    await deleteCaseMirrorRowsFromSupabase(resolvedCaseId);
 
     return res.json({
       success: true,
@@ -709,11 +708,9 @@ router.get("/:caseId", (req, res) => {
     const cases = Array.isArray(casesRaw) ? casesRaw : [];
     const targetIndex = findCaseIndex(cases, caseId);
     const target = targetIndex >= 0 ? cases[targetIndex] : null;
-    const deletedCasesRaw = readJsonFile(DELETED_CASES_FILE, []);
-    const deletedCases = Array.isArray(deletedCasesRaw) ? deletedCasesRaw : [];
-    const deletedMatch = findCaseRecord(deletedCases, caseId);
+    const deletedCaseIds = getDeletedCaseIdSet();
 
-    if (!target || deletedMatch || target?.deleted === true || target?.isDeleted === true || target?.deletedAt) {
+    if (!target || deletedCaseIds.has(caseId)) {
       return res.status(404).json({
         success: false,
         message: "Case not found",

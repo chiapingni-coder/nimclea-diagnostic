@@ -358,7 +358,32 @@ function normalizeSupabaseEventRow(row = {}) {
   };
 }
 
-async function loadSupabaseCaseSourcesForEmail(email) {
+async function loadSupabaseDeletedCaseIds() {
+  const ids = new Set();
+
+  if (!isSupabaseEnabled || !supabase) {
+    return ids;
+  }
+
+  try {
+    const { data: rows = [], error } = await supabase
+      .from("deleted_cases")
+      .select("case_id");
+
+    if (error) throw error;
+
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const caseId = String(row?.case_id || "").trim();
+      if (caseId) ids.add(caseId);
+    });
+  } catch {
+    console.warn("[supabase:/cases] deleted-case reader failed; using local denylist only");
+  }
+
+  return ids;
+}
+
+async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()) {
   const emptySources = { cases: [], receiptRecords: [], eventLogs: [] };
 
   if (!isSupabaseEnabled || !supabase) {
@@ -373,9 +398,14 @@ async function loadSupabaseCaseSourcesForEmail(email) {
 
     if (casesError) throw casesError;
 
+    const filteredCaseRows = (Array.isArray(caseRows) ? caseRows : []).filter((row) => {
+      const caseId = String(row?.case_id || "").trim();
+      return !caseId || !deletedCaseIds.has(caseId);
+    });
+
     const caseIds = Array.from(
       new Set(
-        (Array.isArray(caseRows) ? caseRows : [])
+        filteredCaseRows
           .map((row) => String(row?.case_id || "").trim())
           .filter(Boolean)
       )
@@ -403,14 +433,41 @@ async function loadSupabaseCaseSourcesForEmail(email) {
     }
 
     return {
-      cases: (Array.isArray(caseRows) ? caseRows : []).map(normalizeSupabaseCaseRow),
-      receiptRecords: receiptRows.map(normalizeSupabaseReceiptRow),
-      eventLogs: eventRows.map(normalizeSupabaseEventRow),
+      cases: filteredCaseRows.map(normalizeSupabaseCaseRow),
+      receiptRecords: receiptRows
+        .filter((row) => {
+          const caseId = String(row?.case_id || "").trim();
+          return !caseId || !deletedCaseIds.has(caseId);
+        })
+        .map(normalizeSupabaseReceiptRow),
+      eventLogs: eventRows
+        .filter((row) => {
+          const caseId = String(row?.case_id || "").trim();
+          return !caseId || !deletedCaseIds.has(caseId);
+        })
+        .map(normalizeSupabaseEventRow),
     };
   } catch {
     console.warn("[supabase:/cases] reader failed; using JSON fallback");
     return emptySources;
   }
+}
+
+function getCaseIdFromRecord(item = {}) {
+  return String(
+    item?.caseId ||
+      item?.id ||
+      item?.case_id ||
+      item?.caseSnapshot?.caseId ||
+      item?.caseSnapshot?.caseRecord?.caseId ||
+      item?.caseData?.caseId ||
+      item?.caseRecord?.caseId ||
+      item?.meta?.caseId ||
+      item?.meta?.case_id ||
+      item?.body?.caseId ||
+      item?.body?.case_id ||
+      ""
+  ).trim();
 }
 
 function isDeletedOrDiscardedCaseRecord(item = {}) {
@@ -429,15 +486,7 @@ function getDeletedCaseIds(records = []) {
   records.forEach((item) => {
     if (!isDeletedOrDiscardedCaseRecord(item)) return;
 
-    const caseId = String(
-      item?.caseId ||
-        item?.id ||
-        item?.caseSnapshot?.caseId ||
-        item?.caseSnapshot?.caseRecord?.caseId ||
-        item?.caseData?.caseId ||
-        item?.caseRecord?.caseId ||
-        ""
-    ).trim();
+    const caseId = getCaseIdFromRecord(item);
 
     if (caseId) ids.add(caseId);
   });
@@ -449,11 +498,27 @@ function getDeletedCaseIdsFromTombstones(records = []) {
   const ids = new Set();
 
   records.forEach((item) => {
-    const caseId = String(item?.caseId || item?.id || "").trim();
+    const caseId = getCaseIdFromRecord(item);
     if (caseId) ids.add(caseId);
   });
 
   return ids;
+}
+
+async function getDeletedCaseIdSet(extraRecords = []) {
+  const storedCases = readJsonFile("cases.json", []);
+  const storedDeletedCases = readJsonFile("deletedCases.json", []);
+  const cases = Array.isArray(storedCases) ? storedCases : [];
+  const deletedCases = Array.isArray(storedDeletedCases) ? storedDeletedCases : [];
+  const supabaseDeletedCaseIds = await loadSupabaseDeletedCaseIds();
+
+  // Non-recoverable denylist: it only prevents orphan sources from rebuilding deleted cases.
+  return new Set([
+    ...getDeletedCaseIds(cases),
+    ...getDeletedCaseIds(extraRecords),
+    ...getDeletedCaseIdsFromTombstones(deletedCases),
+    ...supabaseDeletedCaseIds,
+  ]);
 }
 
 app.get("/cases", async (req, res) => {
@@ -470,7 +535,6 @@ app.get("/cases", async (req, res) => {
     const storedEventLogs = readJsonFile("eventLogs.json", []);
     const storedSubscriptionRecords = readJsonFile("subscriptionRecords.json", []);
     const storedUsers = readJsonFile("users.json", []);
-    const storedDeletedCases = readJsonFile("deletedCases.json", []);
 
     const localLogs = Array.isArray(storedLogs) ? storedLogs : [];
     const localCases = Array.isArray(storedCases) ? storedCases : [];
@@ -486,32 +550,34 @@ app.get("/cases", async (req, res) => {
       ? storedSubscriptionRecords
       : [];
     const users = Array.isArray(storedUsers) ? storedUsers : [];
-    const deletedCaseRecords = Array.isArray(storedDeletedCases)
-      ? storedDeletedCases
-      : [];
-    const supabaseSources = await loadSupabaseCaseSourcesForEmail(email);
-    const logs = localLogs;
-    const cases = [...localCases, ...supabaseSources.cases];
-    const receiptRecords = [
+    const localDeletedCaseIds = await getDeletedCaseIdSet([
+      ...localLogs,
+      ...localCases,
+      ...localReceiptRecords,
+      ...localEventLogs,
+    ]);
+    const supabaseSources = await loadSupabaseCaseSourcesForEmail(email, localDeletedCaseIds);
+    const deletedCaseIds = new Set([
+      ...localDeletedCaseIds,
+      ...getDeletedCaseIds(supabaseSources.cases),
+      ...getDeletedCaseIds(supabaseSources.receiptRecords),
+      ...getDeletedCaseIds(supabaseSources.eventLogs),
+    ]);
+    const isDeletedCaseRecord = (item = {}) => {
+      const caseId = getCaseIdFromRecord(item);
+      return Boolean(caseId && deletedCaseIds.has(caseId));
+    };
+    const filterDeletedCases = (records = []) =>
+      (Array.isArray(records) ? records : []).filter((item) => !isDeletedCaseRecord(item));
+    const logs = filterDeletedCases(localLogs);
+    const cases = filterDeletedCases([...localCases, ...supabaseSources.cases]);
+    const receiptRecords = filterDeletedCases([
       ...localReceiptRecords,
       ...supabaseSources.receiptRecords,
-    ];
-    const eventLogs = [...localEventLogs, ...supabaseSources.eventLogs];
-    const deletedCaseIds = new Set([
-      ...getDeletedCaseIds(cases),
-      ...getDeletedCaseIdsFromTombstones(deletedCaseRecords),
     ]);
+    const eventLogs = filterDeletedCases([...localEventLogs, ...supabaseSources.eventLogs]);
 
-    const caseIdOf = (item = {}) =>
-      String(
-        item?.caseId ||
-          item?.id ||
-          item?.caseSnapshot?.caseId ||
-          item?.caseSnapshot?.caseRecord?.caseId ||
-          item?.caseData?.caseId ||
-          item?.caseRecord?.caseId ||
-          ""
-      ).trim();
+    const caseIdOf = (item = {}) => getCaseIdFromRecord(item);
 
     const emailFromLog = (item = {}) =>
       String(

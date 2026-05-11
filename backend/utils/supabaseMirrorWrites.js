@@ -441,3 +441,82 @@ export async function mirrorVerificationRecordToSupabase(verificationRecord = {}
     return { ok: false, error };
   }
 }
+
+export async function mirrorDeletedCaseToSupabase(deletedCase = {}) {
+  if (!isSupabaseEnabled || !supabase) {
+    console.warn("[supabase:deleted-case] skipped, env missing");
+    return { ok: false, skipped: true };
+  }
+
+  const caseId = normalizeCaseId(deletedCase);
+
+  if (!caseId) {
+    console.warn("[supabase:deleted-case] skipped, missing case_id");
+    return { ok: false, skipped: true };
+  }
+
+  try {
+    const now = new Date().toISOString();
+    const record = {
+      case_id: caseId,
+      deleted_at: deletedCase?.deletedAt || deletedCase?.deleted_at || now,
+      deleted_by: cleanText(deletedCase?.deletedBy || deletedCase?.deleted_by || "user"),
+      deletion_reason: cleanText(
+        deletedCase?.deletionReason ||
+          deletedCase?.deletion_reason ||
+          "user_confirmed_delete"
+      ),
+      deleted_from: cleanText(deletedCase?.deletedFrom || deletedCase?.deleted_from),
+    };
+
+    const { error } = await supabase
+      .from("deleted_cases")
+      .upsert(record, { onConflict: "case_id" });
+
+    if (error) throw error;
+
+    console.log(`[supabase:deleted-case] mirrored tombstone ${caseId}`);
+    return { ok: true };
+  } catch (error) {
+    console.warn("[supabase:deleted-case] failed but ignored:", error?.message || error);
+    return { ok: false, error };
+  }
+}
+
+export async function deleteCaseMirrorRowsFromSupabase(caseId = "") {
+  if (!isSupabaseEnabled || !supabase) {
+    console.warn("[supabase:case-delete] skipped, env missing");
+    return { ok: false, skipped: true };
+  }
+
+  const safeCaseId = cleanText(caseId);
+
+  if (!safeCaseId) {
+    console.warn("[supabase:case-delete] skipped, missing case_id");
+    return { ok: false, skipped: true };
+  }
+
+  const tables = ["cases", "receipt_records", "event_logs"];
+  const removed = {};
+
+  try {
+    for (const table of tables) {
+      const { error, count } = await supabase
+        .from(table)
+        .delete({ count: "exact" })
+        .eq("case_id", safeCaseId);
+
+      if (error) {
+        console.warn(`[supabase:case-delete] ${table} failed but ignored:`, error.message || error);
+        removed[table] = 0;
+      } else {
+        removed[table] = count || 0;
+      }
+    }
+
+    return { ok: true, removed };
+  } catch (error) {
+    console.warn("[supabase:case-delete] failed but ignored:", error?.message || error);
+    return { ok: false, error, removed };
+  }
+}
