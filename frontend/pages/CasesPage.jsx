@@ -734,6 +734,14 @@ function hasDiagnosticResultData(item) {
 
 function hasReceiptDetailRouteSignal(item) {
   const normalized = normalizeCaseItem(item);
+
+  if (
+    isDiagnosticContinuationCase(normalized) ||
+    deriveCaseListState(normalized).diagnosticOnly === true
+  ) {
+    return false;
+  }
+
   const caseData = normalized?.caseData || normalized?.caseSchema || {};
   const statusText = [
     normalized?.status,
@@ -778,6 +786,10 @@ function getCaseDetailRoute(item) {
   const encodedCaseId = encodeURIComponent(caseIdSafe);
   const normalized = normalizeCaseItem(item);
   const derived = deriveCaseListState(normalized);
+
+  if (derived.diagnosticOnly || isDiagnosticContinuationCase(normalized)) {
+    return `${ROUTES.PILOT || "/pilot"}?caseId=${encodedCaseId}&from=case`;
+  }
 
   if (hasReceiptDetailRouteSignal(normalized)) {
     return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
@@ -2323,7 +2335,7 @@ export default function CasesPage() {
                 checks: derived.readinessContract?.checks,
               });
               const shouldContinueDiagnostic =
-                isDiagnosticContinuation &&
+                (derived.diagnosticOnly || isDiagnosticContinuation) &&
                 !derived.hasReceiptStageSignal &&
                 !derived.receiptReady;
               const primaryActionPath = shouldContinueDiagnostic && primaryResolvedCaseId
