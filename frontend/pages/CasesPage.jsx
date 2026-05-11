@@ -1139,7 +1139,6 @@ export default function CasesPage() {
         (item) => !isDeletedRecord(item)
       );
 
-      const activeEmail = email.trim().toLowerCase();
       const backendCaseIds = new Set(nextCases.map(caseIdOf).filter(Boolean));
 
       const localCases = getAllCases()
@@ -1148,32 +1147,7 @@ export default function CasesPage() {
           if (isDeletedRecord(item)) return false;
 
           const itemCaseId = caseIdOf(item);
-          if (itemCaseId && backendCaseIds.has(itemCaseId)) return true;
-
-          const caseEmail = String(
-            item?.email ||
-            item?.ownerEmail ||
-            item?.userEmail ||
-            item?.contactEmail ||
-            item?.identity?.email ||
-            item?.lead?.email ||
-            item?.metadata?.email ||
-            item?.caseData?.email ||
-            item?.caseRecord?.email ||
-            item?.trialSession?.email ||
-            item?.routeMeta?.email ||
-            item?.sourceInput?.email ||
-            item?.pilot_setup?.email ||
-            item?.pilot_result?.email ||
-            item?.caseSnapshot?.email ||
-            item?.caseSnapshot?.caseRecord?.email ||
-            item?.caseSnapshot?.caseRecord?.caseData?.email ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
-
-          return caseEmail === activeEmail;
+          return Boolean(itemCaseId && backendCaseIds.has(itemCaseId));
         });
 
       const mergedCaseMap = new Map();
@@ -1192,7 +1166,9 @@ export default function CasesPage() {
         const id = caseIdOf(item);
         if (!id) return;
         if (deletedCaseIds.includes(id)) return;
+        if (!mergedCaseMap.has(id)) return;
 
+        // Local registry may enrich backend cases but must not seed workspace cases after backend load succeeds.
         const existing = mergedCaseMap.get(id) || {};
         mergedCaseMap.set(id, {
           ...item,
