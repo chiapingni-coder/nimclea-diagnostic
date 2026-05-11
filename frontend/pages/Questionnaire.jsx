@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import questions, { coreQuestions, branchQuestionMap } from "../questions.js";
 import { getRoutingResultFromCoreAnswers } from "../routingLogic.js";
 import { ROUTES } from "../routes.js";
@@ -187,13 +187,19 @@ function QuestionCard({
 
 export default function Questionnaire({ pcMeta }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [phase, setPhase] = useState(PHASE.LANDING);
+  const searchParams = new URLSearchParams(location.search || "");
   const incomingCaseId =
-    new URLSearchParams(window.location.search).get("caseId") ||
-    window.history.state?.usr?.caseId ||
-    window.history.state?.usr?.case_id ||
+    searchParams.get("caseId") ||
+    location.state?.caseId ||
+    location.state?.case_id ||
     "";
+  const fromNewCase =
+    searchParams.get("from") === "new_case" ||
+    location.state?.from === "new_case" ||
+    location.state?.source === "cases_page";
 
   const [diagnosticCaseId] = useState(() => incomingCaseId || createCaseId());
   const [answers, setAnswers] = useState(() => buildInitialAnswers(questions));
@@ -232,6 +238,17 @@ export default function Questionnaire({ pcMeta }) {
   const [activeBranchKey, setActiveBranchKey] = useState("");
   const [activeBranchQuestions, setActiveBranchQuestions] = useState([]);
   const [routingResult, setRoutingResult] = useState(null);
+
+  useEffect(() => {
+    if (!diagnosticCaseId) return;
+
+    try {
+      localStorage.setItem("nimclea_current_case_id", diagnosticCaseId);
+      localStorage.setItem("current_case_id", diagnosticCaseId);
+    } catch {
+      // Local identity persistence is best-effort; URL/state still carry caseId.
+    }
+  }, [diagnosticCaseId]);
 
 const currentQuestions =
   phase === PHASE.CORE
@@ -587,18 +604,22 @@ const result = {
   pcMeta: resolvedPcMeta
 };
 
-const sessionId =
+  const sessionId =
   result?.session_id ||
   result?.sessionId ||
   result?.id ||
   "";
+const diagnosticTrialId =
+  fromNewCase
+    ? `case_${diagnosticCaseId}`
+    : session?.trialId ||
+      session?.sessionId ||
+      sessionId ||
+      diagnosticCaseId;
 
 try {
   const resolvedSessionId =
-    session?.sessionId ||
-    session?.trialId ||
-    sessionId ||
-    "diagnostic_result";
+    diagnosticTrialId || "diagnostic_result";
 
   const resolvedCaseId =
     diagnosticCaseId ||
@@ -675,10 +696,7 @@ if (!apiResult?.preview && !apiResult) {
             localStorage.getItem("nimclea_user_id_v1") ||
             "anonymous_user",
           trialId:
-            session?.trialId ||
-            session?.sessionId ||
-            sessionId ||
-            diagnosticCaseId,
+            diagnosticTrialId,
           stage: "result",
           caseId: diagnosticCaseId,
           id: diagnosticCaseId,
@@ -702,11 +720,12 @@ if (!apiResult?.preview && !apiResult) {
         state: {
           preview,
           result,
-          session_id: sessionId,
+          session_id: diagnosticTrialId,
+          trialId: diagnosticTrialId,
           caseId: diagnosticCaseId,
           case_id: diagnosticCaseId,
           sourceCaseId: diagnosticCaseId,
-          from: location.state?.from === "case" ? "case" : undefined,
+          from: location.state?.from === "case" ? "case" : fromNewCase ? "new_case" : undefined,
           mode: location.state?.from === "case" ? "caseReview" : undefined,
           redoDiagnostic: location.state?.from === "case",
           pcMeta: resolvedPcMeta

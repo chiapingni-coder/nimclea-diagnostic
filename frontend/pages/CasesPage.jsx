@@ -1927,10 +1927,7 @@ export default function CasesPage() {
         trialSession?.userId ||
         localStorage.getItem("stableUserId") ||
         getStableUserId();
-      const trialId =
-        trialSession?.trialId ||
-        localStorage.getItem("nimclea_session_id") ||
-        `case_${newCaseId}`;
+      const trialId = `case_${newCaseId}`;
 
       await saveCaseSnapshot({
         userId,
@@ -1956,7 +1953,10 @@ export default function CasesPage() {
       navigate(`${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(newCaseId)}&from=new_case`, {
         state: {
           caseId: newCaseId,
+          case_id: newCaseId,
           email: savedEmail,
+          trialId,
+          session_id: trialId,
           from: "new_case",
           source: "cases_page",
         },

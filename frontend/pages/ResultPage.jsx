@@ -2210,6 +2210,7 @@ export default function ResultPage({
     sessionIdProp ||
       location.state?.session_id ||
       location.state?.sessionId ||
+      location.state?.trialId ||
       (typeof window !== "undefined"
         ? localStorage.getItem(STORAGE_KEYS.SESSION_ID)
         : "") ||
@@ -2229,6 +2230,7 @@ export default function ResultPage({
       routeCaseId ||
       location.state?.caseId ||
       location.state?.case_id ||
+      guardedClientState?.currentCaseId ||
       resultProp?.caseId ||
       resultProp?.case_id ||
       location.state?.result?.caseId ||
@@ -2240,7 +2242,7 @@ export default function ResultPage({
     }
 
     return getDraftCase()?.caseId || createCaseId();
-  }, [location.search, location.state, resultProp, resolvedSessionId]);
+  }, [guardedClientState, location.search, location.state, resultProp, resolvedSessionId]);
   useEffect(() => {
     if (!isValidCaseId(resolvedCaseId)) return;
 
@@ -3230,9 +3232,14 @@ const handleSaveCaseContactSubmit = useCallback(async (event, emailOverride = ""
       company: leadForSave.company,
     });
 
+    const saveTrialId =
+      location.state?.from === "new_case" || location.state?.source === "cases_page"
+        ? `case_${resolvedCaseId}`
+        : resolvedSessionId || resolvedCaseId;
+
     await saveCaseSnapshot({
       userId: getTrialSession()?.userId || stableUserId || "anonymous",
-      trialId: resolvedSessionId || resolvedCaseId,
+      trialId: saveTrialId,
       caseId: resolvedCaseId,
       stage: "result",
       status: "diagnostic_completed",
@@ -3285,6 +3292,7 @@ const handleSaveCaseContactSubmit = useCallback(async (event, emailOverride = ""
   caseSchema,
   enrichedResult,
   lead,
+  location.state,
   navigateToSavedCase,
   resolvedCaseId,
   resolvedSessionId,
