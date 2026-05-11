@@ -225,12 +225,14 @@ function isProtectedFormalOverlayRecord(record = {}) {
 
 const CANONICAL_CASE_SOURCES = new Set([
   "case_route",
+  "cases_page",
   "case_save",
   "diagnostic",
   "diagnostic_completed",
   "diagnostic_save",
   "diagnostic_questionnaire",
   "questionnaire_diagnostic_completed",
+  "resultpage",
   "result_page_save_case",
   "pilot_setup",
 ]);
@@ -251,6 +253,44 @@ function hasRealCanonicalCaseSource(record = {}) {
   return Boolean(
     source && CANONICAL_CASE_SOURCES.has(source) && !isReceiptSnapshotSource(record)
   );
+}
+
+function canSeedWorkspaceCase(record = {}) {
+  if (isReceiptSnapshotSource(record)) return false;
+  if (record?._supabaseSource === "cases") return hasRealCanonicalCaseSource(record);
+  return true;
+}
+
+function getEmailFromCaseRecord(record = {}) {
+  return String(
+    record?.email ||
+      record?.ownerEmail ||
+      record?.userEmail ||
+      record?.contactEmail ||
+      record?.lead?.email ||
+      record?.metadata?.email ||
+      record?.caseData?.email ||
+      record?.preview?.email ||
+      record?.result?.email ||
+      record?.caseRecord?.email ||
+      record?.caseRecord?.lead?.email ||
+      record?.caseRecord?.caseData?.email ||
+      record?.caseRecord?.preview?.email ||
+      record?.caseRecord?.result?.email ||
+      record?.caseSnapshot?.email ||
+      record?.caseSnapshot?.lead?.email ||
+      record?.caseSnapshot?.caseData?.email ||
+      record?.caseSnapshot?.preview?.email ||
+      record?.caseSnapshot?.result?.email ||
+      record?.caseSnapshot?.caseRecord?.email ||
+      record?.caseSnapshot?.caseRecord?.lead?.email ||
+      record?.caseSnapshot?.caseRecord?.caseData?.email ||
+      record?.caseSnapshot?.caseRecord?.preview?.email ||
+      record?.caseSnapshot?.caseRecord?.result?.email ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
 }
 
 function isUnpaidReceiptSnapshotArtifact(record = {}) {
@@ -661,21 +701,7 @@ app.get("/cases", async (req, res) => {
         .trim()
         .toLowerCase();
 
-    const emailFromPersistedCase = (item = {}) =>
-      String(
-        item?.email ||
-          item?.ownerEmail ||
-          item?.userEmail ||
-          item?.contactEmail ||
-          item?.lead?.email ||
-          item?.metadata?.email ||
-          item?.caseData?.email ||
-          item?.caseRecord?.email ||
-          item?.caseSnapshot?.caseRecord?.email ||
-          ""
-      )
-        .trim()
-        .toLowerCase();
+    const emailFromPersistedCase = getEmailFromCaseRecord;
 
     const latestSubscriptionRecord = subscriptionRecords
       .filter((item) => {
@@ -750,7 +776,7 @@ app.get("/cases", async (req, res) => {
         .filter((item) => {
           return (
             emailFromPersistedCase(item) === email &&
-            hasRealCanonicalCaseSource(item)
+            canSeedWorkspaceCase(item)
           );
         })
         .map(caseIdOf)
@@ -786,7 +812,7 @@ app.get("/cases", async (req, res) => {
     cases.forEach((item) => {
       if (emailFromPersistedCase(item) !== email) return;
 
-      if (hasRealCanonicalCaseSource(item)) {
+      if (canSeedWorkspaceCase(item)) {
         addCandidate(item, { hasCanonicalCaseSource: true });
         return;
       }
