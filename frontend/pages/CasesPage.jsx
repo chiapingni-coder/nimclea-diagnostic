@@ -18,6 +18,7 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onrender.com";
 const EMAIL_STORAGE_KEY = "nimclea_email";
+const KNOWN_WORKSPACE_EMAILS_KEY = "nimclea_known_workspace_emails";
 const ARCHIVED_CASE_IDS_KEY = "nimclea_archived_case_ids";
 
 function getArchivedCaseIds() {
@@ -38,6 +39,34 @@ function saveArchivedCaseIds(caseIds = []) {
   } catch {
     return [];
   }
+}
+
+function getKnownWorkspaceEmails() {
+  try {
+    const raw = localStorage.getItem(KNOWN_WORKSPACE_EMAILS_KEY);
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed)
+      ? parsed.map((email) => formatEmail(email)).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberKnownWorkspaceEmail(email = "") {
+  const normalizedEmail = formatEmail(email);
+  if (!normalizedEmail) return [];
+
+  const emails = getKnownWorkspaceEmails();
+  const next = Array.from(new Set([...emails, normalizedEmail]));
+  localStorage.setItem(KNOWN_WORKSPACE_EMAILS_KEY, JSON.stringify(next));
+  return next;
+}
+
+function isKnownWorkspaceEmail(email = "") {
+  const normalizedEmail = formatEmail(email);
+  if (!normalizedEmail) return false;
+  return getKnownWorkspaceEmails().includes(normalizedEmail);
 }
 
 function normalizeEmail(value = "") {
@@ -1084,11 +1113,14 @@ export default function CasesPage() {
           setShowNoCaseModal(true);
           localStorage.removeItem("nimclea_email_verified");
         } else {
+          rememberKnownWorkspaceEmail(email);
           setShowNoCaseModal(false);
         }
 
         return;
       }
+
+      rememberKnownWorkspaceEmail(email);
 
       const hydratedCases = mergedCases.map((c) => {
         const eventCandidates = [
@@ -1307,7 +1339,9 @@ export default function CasesPage() {
       return;
     }
 
-    void loadCasesForEmail(email, { showNoCaseModalForEmpty: true });
+    void loadCasesForEmail(email, {
+      showNoCaseModalForEmpty: !isKnownWorkspaceEmail(email),
+    });
   }, [emailInput, loadCasesForEmail, navigate]);
 
   const handleSwitchEmail = React.useCallback(() => {
@@ -1427,6 +1461,13 @@ export default function CasesPage() {
       : normalizedInput;
 
     const deleteMode = getCaseDeleteMode(caseItem);
+    const workspaceEmail = formatEmail(
+      savedEmail ||
+        resolvedEmail ||
+        caseItem?.email ||
+        normalizedInput?.email ||
+        ""
+    );
 
     if (deleteMode === "not_deletable") {
       setCaseCreationError("Formal records cannot be deleted as ordinary cases.");
@@ -1488,6 +1529,9 @@ export default function CasesPage() {
             delete next[safeCaseId];
             return next;
           });
+          if (workspaceEmail) {
+            rememberKnownWorkspaceEmail(workspaceEmail);
+          }
           setCaseCreationError("This stale case was removed from your workspace.");
 
           return { success: true, staleRemoved: true, caseId: safeCaseId };
@@ -1535,6 +1579,9 @@ export default function CasesPage() {
         delete next[safeCaseId];
         return next;
       });
+      if (workspaceEmail) {
+        rememberKnownWorkspaceEmail(workspaceEmail);
+      }
       setCaseCreationError("");
 
       return payload;
@@ -1545,6 +1592,8 @@ export default function CasesPage() {
     }
   }, [
     cases,
+    resolvedEmail,
+    savedEmail,
     setArchivedCases,
     setCaseCreationError,
     setCases,
