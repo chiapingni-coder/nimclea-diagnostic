@@ -827,7 +827,7 @@ function getCaseSection(caseItem) {
   return "active";
 }
 
-// This helper is intentionally not wired into the UI yet. It defines future frontend Delete/Discard eligibility before Archive is replaced.
+// Central frontend contract for ordinary Delete, high-risk Delete, and Protected record eligibility.
 function getCaseDeleteMode(caseItem) {
   const normalized = normalizeCaseItem(caseItem);
   const section = getCaseSection(normalized);
@@ -880,7 +880,11 @@ function getCaseDeleteMode(caseItem) {
     return "not_deletable";
   }
 
-  if (paymentStatus === "checkout_created" && isFormalReceiptPayment) {
+  if (
+    paymentStatus === "checkout_created" &&
+    normalized?.paid !== true &&
+    isFormalReceiptPayment
+  ) {
     return "high_risk_delete";
   }
 

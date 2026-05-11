@@ -15,6 +15,8 @@ const router = express.Router();
 
 const CASES_FILE = "cases.json";
 const CASE_ID_PATTERN = /^CASE-\d+-[A-Z0-9]{6}$/;
+const UNPAID_ACTIVE_RECOVERY_DAYS = 30;
+const UNPAID_PENDING_CHECKOUT_RECOVERY_DAYS = 60;
 
 function createCaseId() {
   return `CASE-${Date.now()}-${Math.random()
@@ -92,16 +94,42 @@ function normalizeRecordText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function addDaysIso(baseIso, days) {
+  const date = new Date(baseIso);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString();
+}
+
 function hasReceiptCheckoutPending(record = {}) {
   const paymentStatus = normalizeRecordText(record.paymentStatus);
   const paymentType = normalizeRecordText(
-    record.paymentType || record.priceType || record.productType
+    record.paymentType ||
+      record.priceType ||
+      record.productType ||
+      record.receipt?.paymentType ||
+      record.receipt?.priceType ||
+      record.receipt?.productType
   );
 
   return (
     paymentStatus === "checkout_created" &&
+    record.paid !== true &&
     ["receipt_activation", "formal_receipt"].includes(paymentType)
   );
+}
+
+function getDiscardRetentionPolicy(existing = {}) {
+  if (hasReceiptCheckoutPending(existing)) {
+    return {
+      retentionCategory: "unpaid_pending_checkout_60_days",
+      recoveryDays: UNPAID_PENDING_CHECKOUT_RECOVERY_DAYS,
+    };
+  }
+
+  return {
+    retentionCategory: "unpaid_active_case_30_days",
+    recoveryDays: UNPAID_ACTIVE_RECOVERY_DAYS,
+  };
 }
 
 function isFormalPaidOrLockedCase(record = {}) {
@@ -146,14 +174,20 @@ function isFormalPaidOrLockedCase(record = {}) {
 }
 
 function buildDiscardPatch(existing = {}, reqBody = {}) {
-  const now = new Date().toISOString();
+  const deletedAt = new Date().toISOString();
+  const retentionPolicy = getDiscardRetentionPolicy(existing);
+  const purgeAfter = addDaysIso(deletedAt, retentionPolicy.recoveryDays);
 
   return {
-    deletedAt: now,
-    discardedAt: now,
+    deletedAt,
+    discardedAt: deletedAt,
     deletedBy: reqBody.deletedBy || "user",
     deletionReason: reqBody.deletionReason || "user_confirmed_delete",
     deletedFrom: reqBody.deletedFrom || "cases_page",
+    retentionCategory: retentionPolicy.retentionCategory,
+    recoverableUntil: purgeAfter,
+    purgeAfter,
+    purgeStatus: "scheduled",
     paymentStatusAtDeletion: existing.paymentStatus || "",
     paymentTypeAtDeletion:
       existing.paymentType || existing.priceType || existing.productType || "",
@@ -164,7 +198,7 @@ function buildDiscardPatch(existing = {}, reqBody = {}) {
       "",
     isDeleted: true,
     deleted: true,
-    updatedAt: now,
+    updatedAt: deletedAt,
   };
 }
 
