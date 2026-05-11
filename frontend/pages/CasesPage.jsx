@@ -2288,7 +2288,7 @@ export default function CasesPage() {
                             className={
                               deleteMode === "not_deletable"
                                 ? "inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-sm font-medium text-slate-400 cursor-not-allowed transition"
-                                : "inline-flex items-center justify-center rounded-full border border-red-200 bg-red-50 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                                : "inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-800 transition hover:bg-slate-50"
                             }
                             style={{
                               height: "28px",
@@ -2298,11 +2298,7 @@ export default function CasesPage() {
                               lineHeight: "1",
                             }}
                           >
-                            {deleteMode === "high_risk_delete"
-                              ? "Delete pending case"
-                              : deleteMode === "not_deletable"
-                                ? "Formal record locked"
-                                : "Delete case"}
+                            {deleteMode === "not_deletable" ? "Protected" : "Delete"}
                           </button>
                         </div>
                       </div>
