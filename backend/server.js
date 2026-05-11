@@ -621,13 +621,47 @@ function getDeletedCaseIdsFromTombstones(records = []) {
 
 function getRecordRichnessScore(record = {}) {
   const eventCount = Number(record?.eventCount || 0);
-  const receiptEligibleScore = record?.receiptEligible === true ? 100 : 0;
-  const stageScore = String(record?.stage || "").trim() ? 20 : 0;
-  const currentStepScore = String(record?.currentStep || "").trim() ? 10 : 0;
+  const stage = String(record?.stage || record?.status || "").trim().toLowerCase();
+  const currentStep = String(record?.currentStep || "").trim().toLowerCase();
+  const source = normalizeRecordSource(record);
+  const receiptEligibleScore = record?.receiptEligible === true ? 1000 : 0;
+  const stageScore =
+    stage === "receipt_ready"
+      ? 2000
+      : stage.startsWith("s")
+        ? 20
+        : stage
+          ? 100
+          : 0;
+  const currentStepScore =
+    currentStep === "receipt" || currentStep === "verification"
+      ? 500
+      : currentStep === "pilot_result"
+        ? 400
+        : currentStep
+          ? 50
+          : 0;
+  const sourceScore =
+    source === "receipt_page_repair"
+      ? 700
+      : source === "pilot_page"
+        ? 600
+        : source === "pilot_page_case_name"
+          ? 500
+          : source === "pilot"
+            ? 10
+            : 100;
   const updatedAtMs = new Date(record?.updatedAt || record?.savedAt || record?.createdAt || 0).getTime();
-  const updatedAtScore = Number.isFinite(updatedAtMs) ? Math.min(updatedAtMs / 1000000000000, 10) : 0;
+  const updatedAtScore = Number.isFinite(updatedAtMs) ? updatedAtMs / 1000000 : 0;
 
-  return eventCount + receiptEligibleScore + stageScore + currentStepScore + updatedAtScore;
+  return (
+    stageScore +
+    receiptEligibleScore +
+    currentStepScore +
+    sourceScore +
+    updatedAtScore +
+    eventCount
+  );
 }
 
 function pickRicherCaseRecord(existing = {}, incoming = {}) {
