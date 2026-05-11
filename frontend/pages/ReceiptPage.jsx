@@ -848,6 +848,9 @@ export default function ReceiptPage() {
   const [backendCaseRecord, setBackendCaseRecord] = React.useState(null);
   const [backendCaseLoading, setBackendCaseLoading] = React.useState(false);
   const [backendCaseError, setBackendCaseError] = React.useState(null);
+  const [backendCaseRepairing, setBackendCaseRepairing] = React.useState(false);
+  const [backendCaseRepairSucceeded, setBackendCaseRepairSucceeded] = React.useState(false);
+  const [backendCaseRepairFailed, setBackendCaseRepairFailed] = React.useState(false);
 
   const [quickCaptureOpen, setQuickCaptureOpen] = React.useState(false);
   const [quickCaptureType, setQuickCaptureType] = React.useState("decision_accepted");
@@ -866,6 +869,7 @@ export default function ReceiptPage() {
   const hashComputedForReceiptRef = React.useRef("");
   const receiptReadyPersistedRef = React.useRef(new Set());
   const checkoutConfirmAttemptedRef = React.useRef(new Set());
+  const backendCaseRepairAttemptedRef = React.useRef(new Set());
   const routeEnvelope = location.state || null;
   const receiptUrlParams = React.useMemo(
     () => new URLSearchParams(location.search || ""),
@@ -875,6 +879,11 @@ export default function ReceiptPage() {
 const urlCaseId = String(
   receiptUrlParams.get("caseId") || receiptUrlParams.get("case_id") || ""
 ).trim();
+
+  React.useEffect(() => {
+    setBackendCaseRepairSucceeded(false);
+    setBackendCaseRepairFailed(false);
+  }, [urlCaseId]);
 
   React.useEffect(() => {
     if (location.state?.openQuickCapture) {
@@ -1492,9 +1501,127 @@ const urlCaseId = String(
     : hydratedReceiptRecord
     ? "hydratedReceiptRecord"
     : "none";
+  const receiptBackendEmail = String(
+    resolveReceiptEmailSource(routeEnvelope) || ""
+  ).trim();
+  const needsReceiptBackendPresence = Boolean(
+    inferredCaseId && receiptBackendEmail
+  );
+  const hasReceiptBackendPresence = Boolean(
+    backendCaseRecord || backendCaseRepairSucceeded
+  );
+  const isReceiptBackendSyncPending =
+    needsReceiptBackendPresence &&
+    !hasReceiptBackendPresence &&
+    !backendCaseRepairFailed;
   const isReceiptCaseHydrating =
     Boolean(inferredCaseId) &&
-    !receiptRecordHydrationComplete;
+    (!receiptRecordHydrationComplete ||
+      backendCaseLoading ||
+      backendCaseRepairing ||
+      isReceiptBackendSyncPending);
+
+  React.useEffect(() => {
+    const safeCaseId = String(inferredCaseId || "").trim();
+    const email = receiptBackendEmail;
+
+    if (!safeCaseId || !email) return;
+    if (backendCaseLoading || backendCaseRecord) return;
+    if (backendCaseRepairAttemptedRef.current.has(safeCaseId)) return;
+
+    const fallbackCase = currentCase || hydratedReceiptRecord || {};
+    const fallbackCaseData =
+      normalized?.caseData ||
+      resolvedPayload?.caseData ||
+      fallbackCase?.caseData ||
+      {};
+
+    backendCaseRepairAttemptedRef.current.add(safeCaseId);
+    setBackendCaseRepairing(true);
+    setBackendCaseRepairFailed(false);
+
+    const repairPayload = {
+      ...fallbackCase,
+      caseId: safeCaseId,
+      id: safeCaseId,
+      email,
+      userId:
+        fallbackCase?.userId ||
+        location.state?.userId ||
+        localStorage.getItem("nimclea_user_id") ||
+        "anonymous_user",
+      trialId:
+        fallbackCase?.trialId ||
+        location.state?.trialId ||
+        location.state?.session_id ||
+        `case_${safeCaseId}`,
+      status: fallbackCase?.status || "workspace_active",
+      stage: fallbackCase?.stage || fallbackCaseData?.stage || "receipt_preview",
+      currentStep: "receipt",
+      source: "receipt_page_repair",
+      title: fallbackCase?.title || fallbackCaseData?.title || "Untitled case",
+      caseData: {
+        ...(fallbackCaseData || {}),
+        caseId: safeCaseId,
+        email,
+      },
+      events: Array.isArray(fallbackCase?.events) ? fallbackCase.events : [],
+      eventLogs: Array.isArray(fallbackCase?.eventLogs)
+        ? fallbackCase.eventLogs
+        : [],
+    };
+
+    let cancelled = false;
+
+    async function repairMissingBackendCase() {
+      try {
+        const response = await fetch(`${HASH_LEDGER_API_BASE}/case/save`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(repairPayload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Case repair failed with ${response.status}`);
+        }
+
+        if (!cancelled) {
+          setBackendCaseRepairSucceeded(true);
+          setBackendCaseRecord(repairPayload);
+        }
+      } catch (error) {
+        console.warn("[ReceiptPage] Failed to repair missing backend case", error);
+        backendCaseRepairAttemptedRef.current.delete(safeCaseId);
+        if (!cancelled) {
+          setBackendCaseRepairFailed(true);
+          setBackendCaseError(error);
+        }
+      } finally {
+        if (!cancelled) {
+          setBackendCaseRepairing(false);
+        }
+      }
+    }
+
+    void repairMissingBackendCase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    backendCaseLoading,
+    backendCaseRecord,
+    currentCase,
+    hydratedReceiptRecord,
+    inferredCaseId,
+    location.state,
+    normalized?.caseData,
+    receiptBackendEmail,
+    resolvedPayload?.caseData,
+    routeEnvelope,
+  ]);
 
   const existingLead = activeCurrentCase?.lead || null;
   const [lead, setLead] = React.useState({
@@ -2573,6 +2700,27 @@ if (isReceiptCaseHydrating) {
           </h1>
           <p className="text-slate-700 leading-7">
             Loading the current case record before showing the receipt decision.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+if (backendCaseRepairFailed && needsReceiptBackendPresence && !hasReceiptBackendPresence) {
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <div className="max-w-3xl mx-auto">
+        <TopRightCasesCapsule />
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <p className="text-xs font-medium text-slate-400 mb-2">
+            Receipt status
+          </p>
+          <h1 className="text-2xl font-bold mb-3">
+            Case sync required
+          </h1>
+          <p className="text-slate-700 leading-7">
+            This receipt preview needs the current case record to sync before it can be shown.
           </p>
         </div>
       </div>

@@ -2148,82 +2148,90 @@ const handleConfirm = async () => {
       const backendCaseRecord =
         backendResponse.ok && backendPayload?.data ? backendPayload.data : null;
 
-      if (backendCaseRecord?.caseId) {
-        const existingBackendEvents = Array.isArray(backendCaseRecord.events)
-          ? backendCaseRecord.events
-          : [];
+      const existingBackendEvents = Array.isArray(backendCaseRecord?.events)
+        ? backendCaseRecord.events
+        : [];
 
-        const mergedBackendEvents = [...existingBackendEvents, pilotEntry].filter(Boolean);
+      const mergedBackendEvents = [...existingBackendEvents, pilotEntry].filter(Boolean);
 
-        await fetch(`${API_BASE}/case/save`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+      await fetch(`${API_BASE}/case/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          caseId: backendCaseIdToUpdate,
+          id: backendCaseRecord?.id || backendCaseIdToUpdate,
+
+          userId:
+            backendCaseRecord?.userId ||
+            mergedTrialSession?.userId ||
+            stableUserId ||
+            `case_user_${backendCaseIdToUpdate}`,
+
+          trialId:
+            backendCaseRecord?.trialId ||
+            mergedTrialSession?.trialId ||
+            mergedTrialSession?.trialSessionId ||
+            `case_${backendCaseIdToUpdate}`,
+
+          email:
+            backendCaseRecord?.email ||
+            activeLeadEmail ||
+            lead.email ||
+            localStorage.getItem("nimclea_email") ||
+            "",
+
+          stage:
+            entryCaseData?.stage ||
+            backendCaseRecord?.stage ||
+            "S0",
+
+          status: "workspace_active",
+          currentStep: "pilot_result",
+          source: backendCaseRecord?.source || "pilot_setup",
+
+          title:
+            backendCaseRecord?.title ||
+            entryCaseData?.title ||
+            "Untitled case",
+
+          events: mergedBackendEvents,
+          eventLogs: mergedBackendEvents,
+          entries: mergedBackendEvents,
+          latestEvent: pilotEntry,
+
+          caseData: {
+            ...(entryCaseData || {}),
             caseId: backendCaseIdToUpdate,
-            id: backendCaseRecord.id || backendCaseIdToUpdate,
-
-            userId:
-              backendCaseRecord.userId ||
-              mergedTrialSession?.userId ||
-              stableUserId ||
-              "local_user",
-
-            trialId:
-              backendCaseRecord.trialId ||
-              mergedTrialSession?.trialId ||
-              mergedTrialSession?.trialSessionId ||
-              "local_trial",
-
-            stage:
-              entryCaseData?.stage ||
-              backendCaseRecord.stage ||
-              "S0",
-
-            status: "workspace_active",
-            currentStep: "pilot_result",
-
-            title:
-              backendCaseRecord.title ||
-              entryCaseData?.title ||
-              "Untitled case",
-
-            events: mergedBackendEvents,
-            eventLogs: mergedBackendEvents,
-            entries: mergedBackendEvents,
-            latestEvent: pilotEntry,
-
-            caseData: {
-              caseId: backendCaseIdToUpdate,
-              stage: entryCaseData?.stage || backendCaseRecord.stage || "S0",
-              summary:
-                entryCaseData?.summary ||
-                entryCaseData?.summaryContext ||
-                trimmedDescription ||
-                "",
-              description: trimmedDescription || "",
-              eventType,
-              weakestDimension:
-                entryCaseData?.weakestDimension ||
-                weakestDimension ||
-                "",
-              patternId:
-                entryCaseData?.patternId ||
-                resolvedRoute?.pattern ||
-                "",
-              fallbackRunCode:
-                entryCaseData?.fallbackRunCode ||
-                resolvedRoute?.runId ||
-                "",
-            },
-          }),
-        });
-      } else {
-        console.warn("PilotSetupPage backend case sync skipped: case not found", {
-          backendCaseIdToUpdate,
-        });
-      }
+            email:
+              activeLeadEmail ||
+              lead.email ||
+              localStorage.getItem("nimclea_email") ||
+              "",
+            stage: entryCaseData?.stage || backendCaseRecord?.stage || "S0",
+            summary:
+              entryCaseData?.summary ||
+              entryCaseData?.summaryContext ||
+              trimmedDescription ||
+              "",
+            description: trimmedDescription || "",
+            eventType,
+            weakestDimension:
+              entryCaseData?.weakestDimension ||
+              weakestDimension ||
+              "",
+            patternId:
+              entryCaseData?.patternId ||
+              resolvedRoute?.pattern ||
+              "",
+            fallbackRunCode:
+              entryCaseData?.fallbackRunCode ||
+              resolvedRoute?.runId ||
+              "",
+          },
+        }),
+      });
     }
   } catch (error) {
     console.warn("PilotSetupPage backend case sync failed:", error);

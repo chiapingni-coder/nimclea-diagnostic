@@ -2241,7 +2241,8 @@ export default function ResultPage({
       return explicitCaseId;
     }
 
-    return getDraftCase()?.caseId || createCaseId();
+    const draftCaseId = getDraftCase()?.caseId || "";
+    return isValidCaseId(draftCaseId) ? draftCaseId : createCaseId();
   }, [guardedClientState, location.search, location.state, resultProp, resolvedSessionId]);
   useEffect(() => {
     if (!isValidCaseId(resolvedCaseId)) return;

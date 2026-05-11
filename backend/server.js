@@ -237,6 +237,8 @@ const CANONICAL_CASE_SOURCES = new Set([
   "pilot_page",
   "pilot_page_case_name",
   "pilot_setup",
+  "receipt_page",
+  "receipt_page_repair",
 ]);
 
 function normalizeRecordSource(record = {}) {

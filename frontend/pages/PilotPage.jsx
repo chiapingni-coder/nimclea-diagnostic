@@ -13,7 +13,12 @@ import {
 } from "../lib/trialApi";
 import { resolveAccessMode } from "../lib/accessMode";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
-import { getAllCases, resolveCaseId, upsertCase } from "../utils/caseRegistry.js";
+import {
+  getAllCases,
+  resolveCaseId,
+  setCurrentCaseId,
+  upsertCase,
+} from "../utils/caseRegistry.js";
 import TopRightCasesCapsule from "../components/TopRightCasesCapsule.jsx";
 
 const STORAGE_KEYS = {
@@ -1287,6 +1292,15 @@ export default function PilotPage() {
       localStorage.setItem("nimclea_email", resolvedLeadEmail);
     }
 
+    if (caseIdForPilot) {
+      setCurrentCaseId(caseIdForPilot);
+      try {
+        localStorage.setItem("current_case_id", caseIdForPilot);
+      } catch {
+        // URL and case registry still carry the canonical caseId.
+      }
+    }
+
     const scopedScopeLock = {
       ...scopeLock,
       caseId: caseIdForPilot,
@@ -1370,7 +1384,12 @@ export default function PilotPage() {
           userId: resolvedUserId,
           trialId: trialSession.trialId,
           caseId: caseIdForPilot,
+          id: caseIdForPilot,
+          email: storedEmail || undefined,
           stage: "pilot",
+          status: "workspace_active",
+          currentStep: "pilot",
+          source: "pilot_page",
           score:
             typeof preview?.intensity?.level === "number"
               ? preview.intensity.level
@@ -1379,6 +1398,8 @@ export default function PilotPage() {
           verificationEligible: false,
           caseData: {
             sessionId: resolvedSessionId,
+            caseId: caseIdForPilot,
+            id: caseIdForPilot,
             stableUserId,
             email: storedEmail || undefined,
             workflow,
