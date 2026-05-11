@@ -969,9 +969,14 @@ export default function CasesPage() {
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
   const [caseView, setCaseView] = React.useState("active");
   const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
+  const resolvedWorkspaceEmail = formatEmail(savedEmail || resolvedEmail);
   const hasWorkspaceIdentity =
-    Boolean(formatEmail(savedEmail || resolvedEmail)) &&
-    (cases.length > 0 || archivedCases.length > 0);
+    Boolean(resolvedWorkspaceEmail) &&
+    (
+      cases.length > 0 ||
+      archivedCases.length > 0 ||
+      isKnownWorkspaceEmail(resolvedWorkspaceEmail)
+    );
   const hasBackendConfirmedPilotExtension =
     pilotExtensionAccess?._backendConfirmed === true &&
     pilotExtensionAccess?.pilotExtensionPaid === true &&
