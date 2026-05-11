@@ -12,24 +12,26 @@ Backend delete/discard smoke checks passed for:
 - `/cases` preserving `checkout_created` `paymentStatus`;
 - `/cases` preserving `paid: true` and `receiptStatus: issued`.
 
+This checkpoint is historical. Current product policy is defined by `docs/CASE_DELETE_RETENTION_CONTRACT.md`: allowed ordinary case Delete is irreversible and must not expose a customer or support restore path.
+
 ## Backend Route Under Test
 
 `PATCH /case/:caseId/discard`
 
-Expected behavior:
+Expected current behavior:
 
-- ordinary unpaid active cases can be soft-discarded;
+- ordinary unpaid active cases can be irreversibly deleted from the workspace;
 - `checkout_created` but unpaid receipt cases require `highRiskConfirmed === true`;
 - paid / issued / activated / verified / delivered cases return `409`;
-- discarded cases receive `deletedAt` / `discardedAt` / `isDeleted` / `deleted` markers;
-- discarded cases are not hard-deleted.
+- deleted ordinary cases may leave only a minimal non-recoverable denylist record;
+- deleted ordinary cases must not be rebuilt from orphan backend or frontend sources.
 
 ## /cases Filtering Checkpoint
 
-- `/cases` builds `deletedCaseIds` from explicit soft-delete markers in case records.
-- `addCandidate()` skips deleted case IDs.
+- `/cases` builds `deletedCaseIds` from minimal denylist records and any legacy deletion markers.
+- Candidate-building skips deleted case IDs.
 - Final matches are filtered again before response.
-- Deleted/discarded cases should not be revived by `emailLogs`, `receiptRecords`, `eventLogs`, or Supabase mirrors.
+- Deleted/discarded cases should not be revived by `emailLogs`, `receiptRecords`, `eventLogs`, trial snapshots, hash ledger previews, Supabase mirrors, or result return flows.
 
 ## Smoke Test Results
 
@@ -75,25 +77,23 @@ Expected behavior:
 
 ## Known Remaining Work
 
-- Frontend Delete button is not wired yet.
-- Archive UI still exists.
-- Archived Cases tab still exists.
-- Restore case still exists.
-- Active / Baseline / Historic UI is not wired yet.
-- `GET /case/:caseId` does not yet return `410 Gone` for deleted ordinary cases.
-- Frontend high-risk confirmation modal still needs to be implemented.
+- Legacy Archive UI code may still exist temporarily.
+- Legacy Restore case code may still exist temporarily for archived cases.
+- Frontend high-risk confirmation behavior should continue to require explicit confirmation.
+- Future backend cleanup should ensure orphan sources cannot rebuild hard-deleted ordinary cases.
 
 ## Safety Notes
 
-- Do not replace Archive with Delete until frontend calls backend discard route.
 - Do not use `frontend/utils/caseRegistry.js` `deleteCase()` as system-level delete.
-- Paid / issued / baseline / historic records must not show ordinary Delete.
+- Paid / issued / receipt-backed / verification-backed / baseline / historic records must not show ordinary Delete.
 - `checkout_created` but unpaid may show Delete only with high-risk confirmation.
 - Later Stripe events tied to deleted cases must not auto-restore the case.
+- Minimal denylist records must not contain recoverable case content.
 
 ## Related Documents
 
 - `docs/CASE_DELETE_DISCARD_BACKEND_CONTRACT.md`
+- `docs/CASE_DELETE_RETENTION_CONTRACT.md`
 - `docs/CASE_LIFECYCLE_AND_WORKSPACE_LIMIT_CONTRACT.md`
 - `docs/TRIAL_WORKSPACE_ACCESS_CONTRACT.md`
 - `docs/FOUNDATION_CONTRACT_INDEX.md`

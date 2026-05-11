@@ -1656,6 +1656,9 @@ export default function CasesPage() {
           });
           if (workspaceEmail) {
             rememberKnownWorkspaceEmail(workspaceEmail);
+            void loadCasesForEmail(workspaceEmail, {
+              showNoCaseModalForEmpty: false,
+            });
           }
           setCaseCreationError("");
 
@@ -1716,6 +1719,9 @@ export default function CasesPage() {
       });
       if (workspaceEmail) {
         rememberKnownWorkspaceEmail(workspaceEmail);
+        void loadCasesForEmail(workspaceEmail, {
+          showNoCaseModalForEmpty: false,
+        });
       }
       setCaseCreationError("");
 
@@ -1727,6 +1733,7 @@ export default function CasesPage() {
     }
   }, [
     cases,
+    loadCasesForEmail,
     resolvedEmail,
     savedEmail,
     setArchivedCases,
