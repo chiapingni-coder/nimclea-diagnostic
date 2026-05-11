@@ -1014,6 +1014,7 @@ export default function CasesPage() {
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
+  const [showActiveCaseLimitModal, setShowActiveCaseLimitModal] = React.useState(false);
   const [highRiskDeleteTarget, setHighRiskDeleteTarget] = React.useState(null);
   const [caseView, setCaseView] = React.useState("active");
   const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
@@ -1815,9 +1816,8 @@ export default function CasesPage() {
     }
 
     if (caseSectionCounts.active >= CURRENT_ACTIVE_CASE_LIMIT) {
-      setCaseCreationError(
-        `You already have ${CURRENT_ACTIVE_CASE_LIMIT} active cases. Delete an unpaid active case or complete a formal record before creating a new one.`
-      );
+      setCaseCreationError("");
+      setShowActiveCaseLimitModal(true);
       return;
     }
 
@@ -2657,6 +2657,34 @@ export default function CasesPage() {
                 }}
               >
                 Start Diagnostic
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showActiveCaseLimitModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4"
+          onClick={() => setShowActiveCaseLimitModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-slate-900">
+              Active case limit reached
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              You already have {CURRENT_ACTIVE_CASE_LIMIT} active cases. Delete an unpaid active case or complete a formal record before creating a new one.
+            </p>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowActiveCaseLimitModal(false)}
+                className="inline-flex items-center justify-center rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Got it
               </button>
             </div>
           </div>
