@@ -2251,7 +2251,7 @@ export default function ResultPage({
       params = new URLSearchParams();
     }
 
-    if (params.get("caseId")) return;
+    if (params.get("caseId") === resolvedCaseId) return;
 
     params.set("caseId", resolvedCaseId);
     const nextSearch = params.toString();
@@ -2933,6 +2933,8 @@ const resultEntryCases = useMemo(() => {
   return [...stateCases, ...stateCaseItem].filter(Boolean);
 }, [location.state]);
 
+const hasStableCaseContext = isValidCaseId(resolvedCaseId);
+
 const isWorkspaceCaseContext = useMemo(() => {
   const workspaceSources = new Set([
     "case",
@@ -2968,7 +2970,8 @@ const isWorkspaceCaseContext = useMemo(() => {
   })();
 
   return Boolean(
-    isCaseReview ||
+    hasStableCaseContext ||
+      isCaseReview ||
       hasOriginalStateCaseId ||
       hasWorkspaceSource ||
       hasPersistedCurrentCaseId ||
@@ -2976,6 +2979,7 @@ const isWorkspaceCaseContext = useMemo(() => {
   );
 }, [
   hasCaseIdInUrl,
+  hasStableCaseContext,
   isCaseReview,
   location.state,
   resolvedCaseId,
@@ -2988,6 +2992,7 @@ const resultEntryCtaContract = useMemo(() => {
       currentCaseId: reviewCaseId || resolvedCaseId,
       hasCompletedDiagnostic: isValidPreview(enrichedResult || result),
       isReturningUser:
+        hasStableCaseContext ||
         isWorkspaceCaseContext ||
         location.state?.isReturningUser === true ||
         location.state?.returningUser === true,
@@ -2998,6 +3003,7 @@ const resultEntryCtaContract = useMemo(() => {
   }
 }, [
   enrichedResult,
+  hasStableCaseContext,
   isWorkspaceCaseContext,
   location.state,
   result,
@@ -3007,18 +3013,22 @@ const resultEntryCtaContract = useMemo(() => {
 ]);
 
 const showPilotCtas =
+  !hasStableCaseContext &&
   !isWorkspaceCaseContext &&
   resultEntryCtaContract?.ctaKey === "start_7_day_pilot";
 const showContinueCasePlanCta =
   !showPilotCtas &&
-  isWorkspaceCaseContext &&
-  resultEntryCtaContract?.ctaKey === "continue_case";
+  hasStableCaseContext &&
+  (
+    resultEntryCtaContract?.ctaKey === "continue_case" ||
+    resultEntryCtaContract?.ctaKey === undefined
+  );
 const contractPilotCtaLabel =
   showPilotCtas && resultEntryCtaContract?.label
     ? resultEntryCtaContract.label
     : pilotCtaLabel;
 const contractContinueCasePlanLabel =
-  resultEntryCtaContract?.label || "Continue to Case Plan";
+  resultEntryCtaContract?.label || "Continue Case Plan ->";
 
 const lockedScopeSnapshot = useMemo(() => {
   if (!enrichedResult || !isValidPreview(enrichedResult)) return null;
@@ -3602,6 +3612,13 @@ if (typeof window !== "undefined") {
 
     const sanitizedPilotPayload = stripBreadcrumbState(enrichedResult || {});
 
+    try {
+      localStorage.setItem("nimclea_current_case_id", resolvedCaseId);
+      localStorage.setItem("current_case_id", resolvedCaseId);
+    } catch (error) {
+      console.warn("Failed to persist current case id before pilot navigation", error);
+    }
+
     if (typeof onStartPilotProp === "function") {
       onStartPilotProp({
         sessionId: resolvedSessionId,
@@ -3711,6 +3728,13 @@ if (!isValidPreview(result)) {
             onStartPilot={showPilotCtas ? handleStartPilot : null}
             onContinueCasePlan={() => {
               const targetCaseId = reviewCaseId || resolvedCaseId;
+
+              try {
+                localStorage.setItem("nimclea_current_case_id", targetCaseId);
+                localStorage.setItem("current_case_id", targetCaseId);
+              } catch (error) {
+                console.warn("Failed to persist current case id before case plan navigation", error);
+              }
 
               navigate(`${ROUTES.PILOT}?caseId=${encodeURIComponent(targetCaseId)}&from=case`, {
                 state: {
