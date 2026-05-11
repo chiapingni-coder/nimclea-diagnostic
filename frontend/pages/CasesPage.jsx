@@ -1844,6 +1844,26 @@ export default function CasesPage() {
     [activeCaseSectionGroups]
   );
 
+  const visibleLifecycleCases = React.useMemo(() => {
+    if (caseView === "baseline") {
+      return activeCaseSectionGroups.baselineRecords;
+    }
+
+    if (caseView === "historic") {
+      return activeCaseSectionGroups.historicRecords;
+    }
+
+    return activeCaseSectionGroups.activeCases;
+  }, [activeCaseSectionGroups, caseView]);
+
+  const lifecycleEmptyMessage =
+    caseView === "baseline"
+      ? "No baseline records."
+      : caseView === "historic"
+        ? "No historic records."
+        : "No active cases.";
+  const isLifecycleView = ["active", "baseline", "historic"].includes(caseView);
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
@@ -2064,13 +2084,13 @@ export default function CasesPage() {
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <p className="text-slate-600">Loading cases...</p>
           </section>
-        ) : caseView === "active" && visibleActiveCases.length === 0 && hasWorkspaceIdentity ? (
+        ) : isLifecycleView && visibleLifecycleCases.length === 0 && hasWorkspaceIdentity ? (
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <p className="text-sm text-slate-500">No active cases.</p>
+            <p className="text-sm text-slate-500">{lifecycleEmptyMessage}</p>
           </section>
-        ) : caseView === "active" && visibleActiveCases.length > 0 ? (
+        ) : isLifecycleView && visibleLifecycleCases.length > 0 ? (
           <section className="space-y-3">
-            {visibleActiveCases.map((item, index) => {
+            {visibleLifecycleCases.map((item, index) => {
               const normalizedItem = normalizeCaseItem(item);
               const derived = deriveCaseListState(normalizedItem);
               const caseId = normalizedItem?.caseId || normalizedItem?.case_id || normalizedItem?.id || "";
