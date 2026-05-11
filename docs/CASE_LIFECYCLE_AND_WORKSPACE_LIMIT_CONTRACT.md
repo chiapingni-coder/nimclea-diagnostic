@@ -10,7 +10,8 @@ This contract defines the system-wide case lifecycle and workspace active case l
 - Active Cases count toward the plan's active case limit.
 - A case remains active while it is being edited, evaluated, piloted, event-captured, or receipt-previewed.
 - Unpaid and unissued cases may show a Delete action.
-- Deleted active cases are not restorable.
+- Deleted active cases are permanently removed from the workspace and are not restorable.
+- Deleted active cases must not reappear from backend merge sources, local registry data, email logs, event logs, trial snapshots, or result return flows.
 - Deleting a case does not reset, extend, or restart any trial or subscription access window.
 
 ## Baseline Records
@@ -37,7 +38,7 @@ This contract defines the system-wide case lifecycle and workspace active case l
 - It continues to count toward the active case limit.
 - The Delete action may remain available.
 - Clicking Delete must show a high-risk confirmation warning because checkout has already been started.
-- If the user confirms deletion, the case is removed from the active workspace and cannot be restored.
+- If the user confirms deletion, the case is permanently removed from the active workspace and cannot be restored.
 - Any later payment event tied to the deleted case must not automatically restore the case and should require exception handling or manual review.
 - Once Formal Receipt is paid or issued, the case moves to Baseline Records and normal Delete is no longer available.
 
