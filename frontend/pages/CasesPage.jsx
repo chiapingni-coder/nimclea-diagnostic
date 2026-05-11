@@ -1542,7 +1542,7 @@ export default function CasesPage() {
           if (workspaceEmail) {
             rememberKnownWorkspaceEmail(workspaceEmail);
           }
-          setCaseCreationError("This stale case was removed from your workspace.");
+          setCaseCreationError("");
 
           return { success: true, staleRemoved: true, caseId: safeCaseId };
         }
