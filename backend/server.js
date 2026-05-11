@@ -806,6 +806,15 @@ app.get("/cases", async (req, res) => {
       });
     };
 
+    cases.forEach((item) => {
+      const caseId = caseIdOf(item);
+      if (!caseId) return;
+      if (emailFromPersistedCase(item) !== email) return;
+      if (isReceiptSnapshotSource(item)) return;
+
+      addCandidate(item, { hasCanonicalCaseSource: true });
+    });
+
     logs.forEach((item) => {
       const caseId = caseIdOf(item);
       if (emailFromLog(item) === email && canonicalCaseIds.has(caseId)) {
