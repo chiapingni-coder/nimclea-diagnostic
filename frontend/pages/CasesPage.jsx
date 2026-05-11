@@ -2021,6 +2021,7 @@ export default function CasesPage() {
                 : ROUTES.DIAGNOSTIC;
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
+              const deleteMode = getCaseDeleteMode(normalizedItem || item);
               const verificationDisplay = normalizedItem?.verificationStatus
                 ? humanizeStatus(normalizedItem.verificationStatus)
                 : "Not activated";
@@ -2120,8 +2121,44 @@ export default function CasesPage() {
 
                           <button
                             type="button"
-                            onClick={() => handleArchiveCase(redoDiagnosticCaseId || caseId)}
-                            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            onClick={() => {
+                              if (deleteMode === "not_deletable") {
+                                return;
+                              }
+
+                              if (deleteMode === "high_risk_delete") {
+                                const confirmed = window.confirm(
+                                  "This case has a payment-pending Formal Receipt checkout. Deleting it may discard the pending record and cannot be undone. Continue?"
+                                );
+
+                                if (!confirmed) return;
+
+                                void handleDiscardCase(normalizedItem || item, {
+                                  deletionReason: "user_confirmed_high_risk_delete",
+                                  deletedFrom: "cases_page",
+                                  highRiskConfirmed: true,
+                                });
+                                return;
+                              }
+
+                              const confirmed = window.confirm(
+                                "Delete this case? This will remove it from your workspace. This action cannot be undone."
+                              );
+
+                              if (!confirmed) return;
+
+                              void handleDiscardCase(normalizedItem || item, {
+                                deletionReason: "user_confirmed_delete",
+                                deletedFrom: "cases_page",
+                              });
+                            }}
+                            disabled={deleteMode === "not_deletable"}
+                            aria-disabled={deleteMode === "not_deletable"}
+                            className={
+                              deleteMode === "not_deletable"
+                                ? "inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-sm font-medium text-slate-400 cursor-not-allowed transition"
+                                : "inline-flex items-center justify-center rounded-full border border-red-200 bg-red-50 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                            }
                             style={{
                               height: "28px",
                               minHeight: "28px",
@@ -2130,7 +2167,11 @@ export default function CasesPage() {
                               lineHeight: "1",
                             }}
                           >
-                            Archive case
+                            {deleteMode === "high_risk_delete"
+                              ? "Delete pending case"
+                              : deleteMode === "not_deletable"
+                                ? "Formal record locked"
+                                : "Delete case"}
                           </button>
                         </div>
                       </div>
