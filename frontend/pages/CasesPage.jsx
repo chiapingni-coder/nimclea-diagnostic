@@ -1450,6 +1450,43 @@ export default function CasesPage() {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (response.status === 404 && deleteMode !== "not_deletable") {
+          setCases((prev) =>
+            prev.filter((caseItem) => {
+              const currentCaseId = String(
+                caseItem?.caseId ||
+                  caseItem?.case_id ||
+                  caseItem?.id ||
+                  ""
+              ).trim();
+
+              return currentCaseId !== safeCaseId;
+            })
+          );
+
+          setArchivedCases((prev) =>
+            prev.filter((caseItem) => {
+              const currentCaseId = String(
+                caseItem?.caseId ||
+                  caseItem?.case_id ||
+                  caseItem?.id ||
+                  ""
+              ).trim();
+
+              return currentCaseId !== safeCaseId;
+            })
+          );
+
+          setExpandedCaseIds((prev) => {
+            const next = { ...prev };
+            delete next[safeCaseId];
+            return next;
+          });
+          setCaseCreationError("This stale case was removed from your workspace.");
+
+          return { success: true, staleRemoved: true, caseId: safeCaseId };
+        }
+
         if (response.status === 409 && payload?.requiresHighRiskConfirmation === true) {
           setCaseCreationError(
             "This case has a payment-pending Formal Receipt checkout. Confirm high-risk deletion before deleting it."
