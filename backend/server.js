@@ -339,6 +339,28 @@ function normalizeCaseRecord(record = {}) {
         : typeof nestedCaseData?.receiptEligible === "boolean"
           ? nestedCaseData.receiptEligible
           : Boolean(mergedEvents.length > 0);
+  const flattenedCaseReceiptEligible =
+    typeof record?.caseReceiptEligible === "boolean"
+      ? record.caseReceiptEligible
+      : typeof nestedCaseRecord?.caseReceiptEligible === "boolean"
+        ? nestedCaseRecord.caseReceiptEligible
+        : typeof nestedCaseData?.caseReceiptEligible === "boolean"
+          ? nestedCaseData.caseReceiptEligible
+          : flattenedReceiptEligible;
+  const flattenedVerificationEligible =
+    typeof record?.verificationEligible === "boolean"
+      ? record.verificationEligible
+      : typeof nestedCaseRecord?.verificationEligible === "boolean"
+        ? nestedCaseRecord.verificationEligible
+        : typeof nestedCaseData?.verificationEligible === "boolean"
+          ? nestedCaseData.verificationEligible
+          : false;
+  const flattenedEventCount =
+    typeof record?.eventCount === "number"
+      ? record.eventCount
+      : typeof snapshot?.eventCount === "number"
+        ? snapshot.eventCount
+        : mergedEvents.length;
 
   return {
     ...record,
@@ -361,12 +383,7 @@ function normalizeCaseRecord(record = {}) {
       nestedCaseData?.latestEvent ||
       mergedEvents[0] ||
       null,
-    eventCount:
-      typeof snapshot?.eventCount === "number"
-        ? snapshot.eventCount
-        : typeof record?.eventCount === "number"
-          ? record.eventCount
-          : mergedEvents.length,
+    eventCount: flattenedEventCount,
     score:
       typeof nestedCaseRecord?.score === "number"
         ? nestedCaseRecord.score
@@ -399,6 +416,32 @@ function normalizeCaseRecord(record = {}) {
       nestedCaseData?.verificationStatus ||
       null,
     ...snapshot,
+    source:
+      record?.source ||
+      snapshot?.source ||
+      nestedCaseRecord?.source ||
+      nestedCaseData?.source,
+    status:
+      record?.status ||
+      snapshot?.status ||
+      nestedCaseRecord?.status ||
+      nestedCaseData?.status,
+    stage:
+      record?.stage ||
+      snapshot?.stage ||
+      nestedCaseRecord?.stage ||
+      nestedCaseData?.stage,
+    currentStep:
+      record?.currentStep ||
+      snapshot?.currentStep ||
+      nestedCaseRecord?.currentStep ||
+      nestedCaseData?.currentStep,
+    receiptEligible: flattenedReceiptEligible,
+    caseReceiptEligible: flattenedCaseReceiptEligible,
+    verificationEligible: flattenedVerificationEligible,
+    updatedAt: record?.updatedAt || snapshot?.updatedAt || nestedCaseRecord?.updatedAt || nestedCaseData?.updatedAt,
+    savedAt: record?.savedAt || snapshot?.savedAt || nestedCaseRecord?.savedAt || nestedCaseData?.savedAt,
+    eventCount: flattenedEventCount,
   };
 }
 
@@ -408,6 +451,20 @@ function objectOrEmpty(value) {
 
 function normalizeSupabaseCaseRow(row = {}) {
   const raw = objectOrEmpty(row?.raw_record);
+  const caseData = objectOrEmpty(
+    row?.case_data ||
+      raw?.caseData ||
+      raw?.caseSchema ||
+      raw?.caseSnapshot
+  );
+  const eventCount =
+    typeof raw?.eventCount === "number"
+      ? raw.eventCount
+      : Array.isArray(raw?.events)
+        ? raw.events.length
+        : Array.isArray(raw?.eventLogs)
+          ? raw.eventLogs.length
+          : 0;
 
   return {
     ...raw,
@@ -418,13 +475,30 @@ function normalizeSupabaseCaseRow(row = {}) {
     company: row?.company || raw?.company,
     status: row?.status || raw?.status,
     stage: row?.stage || raw?.stage,
+    currentStep: raw?.currentStep || caseData?.currentStep,
     source: row?.source || raw?.source || "supabase_cases",
     result: row?.result || raw?.result || raw?.preview,
-    caseData:
-      row?.case_data ||
-      raw?.caseData ||
-      raw?.caseSchema ||
-      raw?.caseSnapshot,
+    caseData,
+    receiptEligible:
+      typeof raw?.receiptEligible === "boolean"
+        ? raw.receiptEligible
+        : typeof caseData?.receiptEligible === "boolean"
+          ? caseData.receiptEligible
+          : false,
+    caseReceiptEligible:
+      typeof raw?.caseReceiptEligible === "boolean"
+        ? raw.caseReceiptEligible
+        : typeof caseData?.caseReceiptEligible === "boolean"
+          ? caseData.caseReceiptEligible
+          : false,
+    verificationEligible:
+      typeof raw?.verificationEligible === "boolean"
+        ? raw.verificationEligible
+        : typeof caseData?.verificationEligible === "boolean"
+          ? caseData.verificationEligible
+          : false,
+    eventCount,
+    savedAt: raw?.savedAt || row?.saved_at,
     createdAt: raw?.createdAt || row?.created_at,
     updatedAt: raw?.updatedAt || row?.updated_at,
     _supabaseSource: "cases",
