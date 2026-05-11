@@ -14,6 +14,7 @@ import {
 const router = express.Router();
 
 const CASES_FILE = "cases.json";
+const DELETED_CASES_FILE = "deletedCases.json";
 const CASE_ID_PATTERN = /^CASE-\d+-[A-Z0-9]{6}$/;
 const UNPAID_ACTIVE_RECOVERY_DAYS = 30;
 const UNPAID_PENDING_CHECKOUT_RECOVERY_DAYS = 60;
@@ -88,6 +89,21 @@ function preserveStrongerLifecycleValue(currentValue, proposedValue) {
   }
 
   return proposedValue;
+}
+
+function findCaseRecord(records = [], caseId = "") {
+  if (!Array.isArray(records) || !caseId) return null;
+
+  return records.find(
+    (item) =>
+      String(
+        item?.caseId ||
+          item?.id ||
+          item?.caseSnapshot?.caseId ||
+          item?.caseSnapshot?.caseRecord?.caseId ||
+          ""
+      ).trim() === caseId
+  ) || null;
 }
 
 function normalizeRecordText(value) {
@@ -200,6 +216,44 @@ function buildDiscardPatch(existing = {}, reqBody = {}) {
     deleted: true,
     updatedAt: deletedAt,
   };
+}
+
+function recordDeletedCase(caseId = "", discardPatch = {}, reqBody = {}) {
+  if (!caseId) return null;
+
+  const deletedCasesRaw = readJsonFile(DELETED_CASES_FILE, []);
+  const deletedCases = Array.isArray(deletedCasesRaw) ? deletedCasesRaw : [];
+  const tombstone = {
+    caseId,
+    deletedAt: discardPatch.deletedAt || new Date().toISOString(),
+    discardedAt: discardPatch.discardedAt || discardPatch.deletedAt || new Date().toISOString(),
+    deletedBy: discardPatch.deletedBy || reqBody.deletedBy || "user",
+    deletionReason:
+      discardPatch.deletionReason ||
+      reqBody.deletionReason ||
+      "user_confirmed_delete",
+    deletedFrom: discardPatch.deletedFrom || reqBody.deletedFrom || "cases_page",
+    highRiskConfirmed: reqBody.highRiskConfirmed === true,
+    isDeleted: true,
+    deleted: true,
+    retentionCategory: discardPatch.retentionCategory || "",
+    recoverableUntil: discardPatch.recoverableUntil || "",
+    purgeAfter: discardPatch.purgeAfter || "",
+    purgeStatus: discardPatch.purgeStatus || "",
+    paymentStatusAtDeletion: discardPatch.paymentStatusAtDeletion || "",
+    paymentTypeAtDeletion: discardPatch.paymentTypeAtDeletion || "",
+    stripeSessionIdAtDeletion: discardPatch.stripeSessionIdAtDeletion || "",
+  };
+  const nextDeletedCases = [
+    ...deletedCases.filter(
+      (item) => String(item?.caseId || item?.id || "").trim() !== caseId
+    ),
+    tombstone,
+  ];
+
+  writeJsonFile(DELETED_CASES_FILE, nextDeletedCases);
+
+  return tombstone;
 }
 
 function upsertCaseRecord(input = {}) {
@@ -517,9 +571,43 @@ router.patch("/:caseId/discard", async (req, res) => {
     const existingIndex = findCaseIndex(cases, resolvedCaseId);
 
     if (existingIndex < 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Case not found",
+      const receiptRecordsRaw = readJsonFile("receiptRecords.json", []);
+      const receiptRecords = Array.isArray(receiptRecordsRaw) ? receiptRecordsRaw : [];
+      const sourceRecord = findCaseRecord(receiptRecords, resolvedCaseId) || {
+        caseId: resolvedCaseId,
+      };
+
+      if (isFormalPaidOrLockedCase(sourceRecord)) {
+        return res.status(409).json({
+          success: false,
+          message: "Formal records cannot be deleted as ordinary cases",
+        });
+      }
+
+      if (
+        hasReceiptCheckoutPending(sourceRecord) &&
+        req.body?.highRiskConfirmed !== true
+      ) {
+        return res.status(409).json({
+          success: false,
+          requiresHighRiskConfirmation: true,
+          message:
+            "This case has a payment-pending Formal Receipt checkout. Confirm high-risk deletion before discarding it.",
+        });
+      }
+
+      const discardPatch = buildDiscardPatch(sourceRecord, req.body || {});
+      const tombstone = recordDeletedCase(resolvedCaseId, discardPatch, req.body || {});
+
+      return res.json({
+        success: true,
+        message: "Case discarded",
+        data: {
+          caseId: resolvedCaseId,
+          deletedAt: tombstone.deletedAt,
+          discardedAt: tombstone.discardedAt,
+          tombstoneOnly: true,
+        },
       });
     }
 
@@ -554,6 +642,7 @@ router.patch("/:caseId/discard", async (req, res) => {
 
     cases[existingIndex] = discardedCase;
     writeJsonFile(CASES_FILE, cases);
+    recordDeletedCase(resolvedCaseId, discardPatch, req.body || {});
 
     await mirrorCaseToSupabase(discardedCase);
 
@@ -582,8 +671,11 @@ router.get("/:caseId", (req, res) => {
     const cases = Array.isArray(casesRaw) ? casesRaw : [];
     const targetIndex = findCaseIndex(cases, caseId);
     const target = targetIndex >= 0 ? cases[targetIndex] : null;
+    const deletedCasesRaw = readJsonFile(DELETED_CASES_FILE, []);
+    const deletedCases = Array.isArray(deletedCasesRaw) ? deletedCasesRaw : [];
+    const deletedMatch = findCaseRecord(deletedCases, caseId);
 
-    if (!target) {
+    if (!target || deletedMatch || target?.deleted === true || target?.isDeleted === true || target?.deletedAt) {
       return res.status(404).json({
         success: false,
         message: "Case not found",

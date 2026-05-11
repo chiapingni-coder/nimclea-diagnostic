@@ -68,6 +68,22 @@ function isDeletedCaseId(caseId = "") {
   return Boolean(safeCaseId && getDeletedCaseIds().includes(safeCaseId));
 }
 
+function filterDeletedCases(caseItems = []) {
+  if (!Array.isArray(caseItems)) return [];
+
+  return caseItems.filter((caseItem) => {
+    const normalized = normalizeCaseItem(caseItem);
+    const caseId = String(
+      normalized?.caseId ||
+        normalized?.case_id ||
+        normalized?.id ||
+        ""
+    ).trim();
+
+    return !caseId || !isDeletedCaseId(caseId);
+  });
+}
+
 function getKnownWorkspaceEmails() {
   try {
     const raw = localStorage.getItem(KNOWN_WORKSPACE_EMAILS_KEY);
@@ -1299,8 +1315,8 @@ export default function CasesPage() {
         }
       });
 
-      setCases(activeCases);
-      setArchivedCases(nextArchivedCases);
+      setCases(filterDeletedCases(activeCases));
+      setArchivedCases(filterDeletedCases(nextArchivedCases));
       setSavedEmail(email);
       setEmailInput(email);
       localStorage.setItem(EMAIL_STORAGE_KEY, email);
@@ -1504,12 +1520,12 @@ export default function CasesPage() {
           return currentCaseId === safeCaseId;
         });
 
-        return alreadyArchived ? prev : [...prev, archivedCase];
+        return filterDeletedCases(alreadyArchived ? prev : [...prev, archivedCase]);
       });
     }
 
     setCases((prev) =>
-      prev.filter((caseItem) => {
+      filterDeletedCases(prev.filter((caseItem) => {
         const currentCaseId = String(
           caseItem?.caseId ||
           caseItem?.case_id ||
@@ -1518,7 +1534,7 @@ export default function CasesPage() {
         ).trim();
 
         return !currentCaseId || !nextArchivedIds.includes(currentCaseId);
-      })
+      }))
     );
 
     setExpandedCaseIds((prev) => {
@@ -1608,7 +1624,7 @@ export default function CasesPage() {
           }
 
           setCases((prev) =>
-            prev.filter((caseItem) => {
+            filterDeletedCases(prev.filter((caseItem) => {
               const currentCaseId = String(
                 caseItem?.caseId ||
                   caseItem?.case_id ||
@@ -1617,11 +1633,11 @@ export default function CasesPage() {
               ).trim();
 
               return currentCaseId !== safeCaseId;
-            })
+            }))
           );
 
           setArchivedCases((prev) =>
-            prev.filter((caseItem) => {
+            filterDeletedCases(prev.filter((caseItem) => {
               const currentCaseId = String(
                 caseItem?.caseId ||
                   caseItem?.case_id ||
@@ -1630,7 +1646,7 @@ export default function CasesPage() {
               ).trim();
 
               return currentCaseId !== safeCaseId;
-            })
+            }))
           );
 
           setExpandedCaseIds((prev) => {
@@ -1668,7 +1684,7 @@ export default function CasesPage() {
       }
 
       setCases((prev) =>
-        prev.filter((caseItem) => {
+        filterDeletedCases(prev.filter((caseItem) => {
           const currentCaseId = String(
             caseItem?.caseId ||
               caseItem?.case_id ||
@@ -1677,11 +1693,11 @@ export default function CasesPage() {
           ).trim();
 
           return currentCaseId !== safeCaseId;
-        })
+        }))
       );
 
       setArchivedCases((prev) =>
-        prev.filter((caseItem) => {
+        filterDeletedCases(prev.filter((caseItem) => {
           const currentCaseId = String(
             caseItem?.caseId ||
               caseItem?.case_id ||
@@ -1690,7 +1706,7 @@ export default function CasesPage() {
           ).trim();
 
           return currentCaseId !== safeCaseId;
-        })
+        }))
       );
 
       setExpandedCaseIds((prev) => {
@@ -1752,12 +1768,12 @@ export default function CasesPage() {
           return currentCaseId === safeCaseId;
         });
 
-        return alreadyActive ? prev : [...prev, restoredCase];
+        return filterDeletedCases(alreadyActive ? prev : [...prev, restoredCase]);
       });
     }
 
     setArchivedCases((prev) =>
-      prev.filter((caseItem) => {
+      filterDeletedCases(prev.filter((caseItem) => {
         const currentCaseId = String(
           caseItem?.caseId ||
           caseItem?.case_id ||
@@ -1766,7 +1782,7 @@ export default function CasesPage() {
         ).trim();
 
         return currentCaseId !== safeCaseId;
-      })
+      }))
     );
   }, [archivedCases]);
 

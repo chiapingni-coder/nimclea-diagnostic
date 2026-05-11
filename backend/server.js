@@ -445,6 +445,17 @@ function getDeletedCaseIds(records = []) {
   return ids;
 }
 
+function getDeletedCaseIdsFromTombstones(records = []) {
+  const ids = new Set();
+
+  records.forEach((item) => {
+    const caseId = String(item?.caseId || item?.id || "").trim();
+    if (caseId) ids.add(caseId);
+  });
+
+  return ids;
+}
+
 app.get("/cases", async (req, res) => {
   const email = String(req.query?.email || "").trim().toLowerCase();
 
@@ -459,6 +470,7 @@ app.get("/cases", async (req, res) => {
     const storedEventLogs = readJsonFile("eventLogs.json", []);
     const storedSubscriptionRecords = readJsonFile("subscriptionRecords.json", []);
     const storedUsers = readJsonFile("users.json", []);
+    const storedDeletedCases = readJsonFile("deletedCases.json", []);
 
     const localLogs = Array.isArray(storedLogs) ? storedLogs : [];
     const localCases = Array.isArray(storedCases) ? storedCases : [];
@@ -474,6 +486,9 @@ app.get("/cases", async (req, res) => {
       ? storedSubscriptionRecords
       : [];
     const users = Array.isArray(storedUsers) ? storedUsers : [];
+    const deletedCaseRecords = Array.isArray(storedDeletedCases)
+      ? storedDeletedCases
+      : [];
     const supabaseSources = await loadSupabaseCaseSourcesForEmail(email);
     const logs = localLogs;
     const cases = [...localCases, ...supabaseSources.cases];
@@ -482,7 +497,10 @@ app.get("/cases", async (req, res) => {
       ...supabaseSources.receiptRecords,
     ];
     const eventLogs = [...localEventLogs, ...supabaseSources.eventLogs];
-    const deletedCaseIds = getDeletedCaseIds(cases);
+    const deletedCaseIds = new Set([
+      ...getDeletedCaseIds(cases),
+      ...getDeletedCaseIdsFromTombstones(deletedCaseRecords),
+    ]);
 
     const caseIdOf = (item = {}) =>
       String(
