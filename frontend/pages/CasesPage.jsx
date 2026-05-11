@@ -1925,21 +1925,35 @@ export default function CasesPage() {
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              Active Cases ({visibleActiveCases.length})
+              Active Cases ({caseSectionCounts.active})
             </button>
             <span className="text-slate-300" aria-hidden="true">
               |
             </span>
             <button
               type="button"
-              onClick={() => setCaseView("archived")}
+              onClick={() => setCaseView("baseline")}
               className={`border-b-2 pb-1 transition ${
-                caseView === "archived"
+                caseView === "baseline"
                   ? "border-slate-900 font-semibold text-slate-900"
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              Archived Cases ({archivedCases.length})
+              Baseline Records ({caseSectionCounts.baseline})
+            </button>
+            <span className="text-slate-300" aria-hidden="true">
+              |
+            </span>
+            <button
+              type="button"
+              onClick={() => setCaseView("historic")}
+              className={`border-b-2 pb-1 transition ${
+                caseView === "historic"
+                  ? "border-slate-900 font-semibold text-slate-900"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Historic Records ({caseSectionCounts.historic})
             </button>
           </nav>
         )}
