@@ -253,6 +253,22 @@ function hasRealCanonicalCaseSource(record = {}) {
   );
 }
 
+function isUnpaidReceiptSnapshotArtifact(record = {}) {
+  const paymentStatus = normalizePaymentStatus(record?.paymentStatus);
+  const receiptStatus = normalizeReceiptStatus(record?.receiptStatus);
+  const verificationStatus = String(record?.verificationStatus || "")
+    .trim()
+    .toLowerCase();
+
+  return Boolean(
+    isReceiptSnapshotSource(record) &&
+      record?.paid !== true &&
+      !["paid", "activated", "issued"].includes(paymentStatus) &&
+      !["issued", "activated"].includes(receiptStatus) &&
+      !["paid", "ready", "issued", "activated"].includes(verificationStatus)
+  );
+}
+
 function normalizeCaseRecord(record = {}) {
   if (!record || typeof record !== "object") {
     return {};
@@ -998,7 +1014,10 @@ app.get("/cases", async (req, res) => {
         return publicItem;
       });
 
-    return res.json(matches);
+    // receipt_snapshot rows are overlay/protected-only and must not seed ordinary workspace cases.
+    const finalCases = matches.filter((item) => !isUnpaidReceiptSnapshotArtifact(item));
+
+    return res.json(finalCases);
   } catch (error) {
     console.error("[GET /cases] error", error);
     return res.status(500).json({ error: "Failed to load cases" });
