@@ -12,6 +12,7 @@ import {
   mirrorCaseResultToSupabase,
   mirrorDiagnosticRecordToSupabase,
 } from "../utils/supabaseMirrorWrites.js";
+import { isSupabaseEnabled, supabase } from "../utils/supabaseClient.js";
 
 const router = express.Router();
 
@@ -59,6 +60,59 @@ function getRecordCaseId(item = {}) {
       item?.body?.case_id ||
       ""
   ).trim();
+}
+
+function objectOrEmpty(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function normalizeSupabaseCaseRow(row = {}) {
+  const raw = objectOrEmpty(row?.raw_record);
+
+  return {
+    ...raw,
+    caseId: row?.case_id,
+    id: raw?.id || row?.case_id,
+    email: row?.email || raw?.email,
+    name: row?.name || raw?.name,
+    company: row?.company || raw?.company,
+    status: row?.status || raw?.status,
+    stage: row?.stage || raw?.stage,
+    source: row?.source || raw?.source || "supabase_cases",
+    result: row?.result || raw?.result || raw?.preview,
+    caseData:
+      row?.case_data ||
+      raw?.caseData ||
+      raw?.caseSchema ||
+      raw?.caseSnapshot,
+    createdAt: raw?.createdAt || row?.created_at,
+    updatedAt: raw?.updatedAt || row?.updated_at,
+    _supabaseSource: "cases",
+  };
+}
+
+async function findSupabaseCaseRecord(caseId = "") {
+  const resolvedCaseId = normalizeValidCaseId(caseId);
+
+  if (!resolvedCaseId || !isSupabaseEnabled || !supabase) {
+    return null;
+  }
+
+  try {
+    const { data: rows = [], error } = await supabase
+      .from("cases")
+      .select("*")
+      .eq("case_id", resolvedCaseId)
+      .limit(1);
+
+    if (error) throw error;
+
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return row ? normalizeSupabaseCaseRow(row) : null;
+  } catch (error) {
+    console.warn("[supabase:case] GET /case lookup failed:", error?.message || error);
+    return null;
+  }
 }
 
 const LIFECYCLE_RANKS = {
@@ -701,16 +755,23 @@ router.patch("/:caseId/discard", async (req, res) => {
   }
 });
 
-router.get("/:caseId", (req, res) => {
+router.get("/:caseId", async (req, res) => {
   try {
     const { caseId } = req.params;
     const casesRaw = readJsonFile(CASES_FILE, []);
     const cases = Array.isArray(casesRaw) ? casesRaw : [];
     const targetIndex = findCaseIndex(cases, caseId);
-    const target = targetIndex >= 0 ? cases[targetIndex] : null;
+    const localTarget = targetIndex >= 0 ? cases[targetIndex] : null;
+    const supabaseTarget = await findSupabaseCaseRecord(caseId);
+    const target = {
+      ...(localTarget || {}),
+      ...(supabaseTarget || {}),
+      caseId: localTarget?.caseId || supabaseTarget?.caseId || caseId,
+      id: localTarget?.id || supabaseTarget?.id || caseId,
+    };
     const deletedCaseIds = getDeletedCaseIdSet();
 
-    if (!target || deletedCaseIds.has(caseId)) {
+    if ((!localTarget && !supabaseTarget) || deletedCaseIds.has(caseId)) {
       return res.status(404).json({
         success: false,
         message: "Case not found",
