@@ -619,6 +619,23 @@ function getDeletedCaseIdsFromTombstones(records = []) {
   return ids;
 }
 
+function getRecordRichnessScore(record = {}) {
+  const eventCount = Number(record?.eventCount || 0);
+  const receiptEligibleScore = record?.receiptEligible === true ? 100 : 0;
+  const stageScore = String(record?.stage || "").trim() ? 20 : 0;
+  const currentStepScore = String(record?.currentStep || "").trim() ? 10 : 0;
+  const updatedAtMs = new Date(record?.updatedAt || record?.savedAt || record?.createdAt || 0).getTime();
+  const updatedAtScore = Number.isFinite(updatedAtMs) ? Math.min(updatedAtMs / 1000000000000, 10) : 0;
+
+  return eventCount + receiptEligibleScore + stageScore + currentStepScore + updatedAtScore;
+}
+
+function pickRicherCaseRecord(existing = {}, incoming = {}) {
+  return getRecordRichnessScore(incoming) > getRecordRichnessScore(existing)
+    ? incoming
+    : existing;
+}
+
 async function getDeletedCaseIdSet(extraRecords = []) {
   const storedCases = readJsonFile("cases.json", []);
   const storedDeletedCases = readJsonFile("deletedCases.json", []);
@@ -1053,8 +1070,50 @@ app.get("/cases", async (req, res) => {
         return publicItem;
       });
 
+    const finalCaseMap = new Map();
+
+    matches
+      .filter((item) => !isUnpaidReceiptSnapshotArtifact(item))
+      .forEach((item) => {
+        const caseId = caseIdOf(item);
+        if (!caseId || deletedCaseIds.has(caseId)) return;
+
+        finalCaseMap.set(
+          caseId,
+          pickRicherCaseRecord(finalCaseMap.get(caseId) || {}, item)
+        );
+      });
+
+    cases.forEach((item) => {
+      const caseId = caseIdOf(item);
+      if (!caseId || deletedCaseIds.has(caseId)) return;
+      if (emailFromPersistedCase(item) !== email) return;
+      if (isReceiptSnapshotSource(item)) return;
+
+      const normalizedItem = normalizeCaseRecord(item);
+      finalCaseMap.set(
+        caseId,
+        pickRicherCaseRecord(finalCaseMap.get(caseId) || {}, {
+          ...normalizedItem,
+          caseId,
+          email: normalizedItem?.email || item?.email || email,
+          _hasCanonicalCaseSource: true,
+        })
+      );
+    });
+
     // receipt_snapshot rows are overlay/protected-only and must not seed ordinary workspace cases.
-    const finalCases = matches.filter((item) => !isUnpaidReceiptSnapshotArtifact(item));
+    const finalCases = Array.from(finalCaseMap.values())
+      .filter((item) => !isUnpaidReceiptSnapshotArtifact(item))
+      .map((item) => {
+        const {
+          _hasCanonicalCaseSource,
+          _allowStandaloneReceiptRecord,
+          ...publicItem
+        } = item;
+
+        return publicItem;
+      });
 
     return res.json(finalCases);
   } catch (error) {
