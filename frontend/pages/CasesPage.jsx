@@ -5,7 +5,7 @@ import { sanitizeText } from "../lib/sanitizeText";
 import { saveCaseSnapshot } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { getPlanSurfaceContract } from "../lib/planSurfaceContract";
-import { createCaseId, upsertCase, getAllCases } from "../utils/caseRegistry.js";
+import { createCaseId, upsertCase, getAllCases, deleteCase as deleteLocalCase } from "../utils/caseRegistry.js";
 import { resolveSafeCaseId } from "../utils/caseIdResolver.js";
 import { runClientStateGuard } from "../utils/clientStateGuard.js";
 import { getStableUserId } from "../utils/eventLogger";
@@ -21,6 +21,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://nimclea-api.onren
 const EMAIL_STORAGE_KEY = "nimclea_email";
 const KNOWN_WORKSPACE_EMAILS_KEY = "nimclea_known_workspace_emails";
 const ARCHIVED_CASE_IDS_KEY = "nimclea_archived_case_ids";
+const DELETED_CASE_IDS_KEY = "nimclea_deleted_case_ids";
 
 function getArchivedCaseIds() {
   try {
@@ -40,6 +41,31 @@ function saveArchivedCaseIds(caseIds = []) {
   } catch {
     return [];
   }
+}
+
+function getDeletedCaseIds() {
+  try {
+    const raw = localStorage.getItem(DELETED_CASE_IDS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDeletedCaseIds(caseIds = []) {
+  try {
+    const safeIds = Array.from(new Set(caseIds.filter(Boolean)));
+    localStorage.setItem(DELETED_CASE_IDS_KEY, JSON.stringify(safeIds));
+    return safeIds;
+  } catch {
+    return [];
+  }
+}
+
+function isDeletedCaseId(caseId = "") {
+  const safeCaseId = String(caseId || "").trim();
+  return Boolean(safeCaseId && getDeletedCaseIds().includes(safeCaseId));
 }
 
 function getKnownWorkspaceEmails() {
@@ -1079,8 +1105,6 @@ export default function CasesPage() {
         throw new Error(payload?.error || payload?.message || "Could not load cases.");
       }
 
-      const nextCases = Array.isArray(payload) ? payload : [];
-
       const caseIdOf = (item = {}) =>
         String(
           item?.caseId ||
@@ -1090,6 +1114,14 @@ export default function CasesPage() {
             item?.caseSnapshot?.caseRecord?.caseId ||
             ""
         ).trim();
+      const deletedCaseIds = getDeletedCaseIds();
+      const isDeletedRecord = (item = {}) => {
+        const itemCaseId = caseIdOf(item);
+        return Boolean(itemCaseId && deletedCaseIds.includes(itemCaseId));
+      };
+      const nextCases = (Array.isArray(payload) ? payload : []).filter(
+        (item) => !isDeletedRecord(item)
+      );
 
       const activeEmail = email.trim().toLowerCase();
       const backendCaseIds = new Set(nextCases.map(caseIdOf).filter(Boolean));
@@ -1097,6 +1129,8 @@ export default function CasesPage() {
       const localCases = getAllCases()
         .flatMap((item) => (Array.isArray(item) ? item : [item]))
         .filter((item) => {
+          if (isDeletedRecord(item)) return false;
+
           const itemCaseId = caseIdOf(item);
           if (itemCaseId && backendCaseIds.has(itemCaseId)) return true;
 
@@ -1131,6 +1165,7 @@ export default function CasesPage() {
       nextCases.forEach((item) => {
         const id = caseIdOf(item);
         if (!id) return;
+        if (deletedCaseIds.includes(id)) return;
         mergedCaseMap.set(id, {
           ...item,
           caseId: id,
@@ -1140,6 +1175,7 @@ export default function CasesPage() {
       localCases.forEach((item) => {
         const id = caseIdOf(item);
         if (!id) return;
+        if (deletedCaseIds.includes(id)) return;
 
         const existing = mergedCaseMap.get(id) || {};
         mergedCaseMap.set(id, {
@@ -1151,10 +1187,12 @@ export default function CasesPage() {
       });
 
       const mergedCases = await hydrateCaseDetails(
-        Array.from(mergedCaseMap.values())
+        Array.from(mergedCaseMap.values()).filter((item) => !isDeletedRecord(item))
       );
 
-      if (mergedCases.length === 0) {
+      const visibleMergedCases = mergedCases.filter((item) => !isDeletedRecord(item));
+
+      if (visibleMergedCases.length === 0) {
         setCases([]);
         setArchivedCases([]);
         setSavedEmail(email);
@@ -1176,7 +1214,7 @@ export default function CasesPage() {
 
       rememberKnownWorkspaceEmail(email);
 
-      const hydratedCases = mergedCases.map((c) => {
+      const hydratedCases = visibleMergedCases.filter((item) => !isDeletedRecord(item)).map((c) => {
         const eventCandidates = [
           c.eventLogs,
           c.events,
@@ -1234,7 +1272,10 @@ export default function CasesPage() {
 
       setPilotExtensionAccess(confirmedPilotExtension || null);
 
-      const archivedCaseIds = getArchivedCaseIds();
+      const archivedCaseIds = getArchivedCaseIds().filter(
+        (caseId) => !deletedCaseIds.includes(String(caseId || "").trim())
+      );
+      saveArchivedCaseIds(archivedCaseIds);
 
       const activeCases = [];
       const nextArchivedCases = [];
@@ -1246,6 +1287,10 @@ export default function CasesPage() {
           caseItem?.id ||
           ""
         ).trim();
+
+        if (visibleCaseId && deletedCaseIds.includes(visibleCaseId)) {
+          return;
+        }
 
         if (visibleCaseId && archivedCaseIds.includes(visibleCaseId)) {
           nextArchivedCases.push(caseItem);
@@ -1552,6 +1597,16 @@ export default function CasesPage() {
 
       if (!response.ok) {
         if (response.status === 404 && deleteMode !== "not_deletable") {
+          saveDeletedCaseIds([...getDeletedCaseIds(), safeCaseId]);
+          saveArchivedCaseIds(
+            getArchivedCaseIds().filter((caseId) => String(caseId).trim() !== safeCaseId)
+          );
+          try {
+            deleteLocalCase(safeCaseId);
+          } catch (error) {
+            console.warn("Failed to remove deleted case from local registry", error);
+          }
+
           setCases((prev) =>
             prev.filter((caseItem) => {
               const currentCaseId = String(
@@ -1600,6 +1655,16 @@ export default function CasesPage() {
 
         setCaseCreationError(payload?.message || "Could not delete this case. Please try again.");
         return null;
+      }
+
+      saveDeletedCaseIds([...getDeletedCaseIds(), safeCaseId]);
+      saveArchivedCaseIds(
+        getArchivedCaseIds().filter((caseId) => String(caseId).trim() !== safeCaseId)
+      );
+      try {
+        deleteLocalCase(safeCaseId);
+      } catch (error) {
+        console.warn("Failed to remove deleted case from local registry", error);
       }
 
       setCases((prev) =>
