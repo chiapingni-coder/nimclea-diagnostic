@@ -534,10 +534,12 @@ function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
   const evidenceEventCount = getEvidenceEvents(normalized).length;
   const diagnosticOnly = isDiagnosticOnlyCase(normalized, { evidenceEventCount });
+  const diagnosticContinuation =
+    diagnosticOnly || isDiagnosticContinuationCase(normalized);
   const effectiveEventCaptured =
-    diagnosticOnly ? false : normalized?.eventCaptured === true || evidenceEventCount > 0;
+    diagnosticContinuation ? false : normalized?.eventCaptured === true || evidenceEventCount > 0;
   const explicitBackendReady =
-    diagnosticOnly ? false : hasCanonicalBackendReceiptReadySignal(normalized);
+    diagnosticContinuation ? false : hasCanonicalBackendReceiptReadySignal(normalized);
   const rawStructureStatus =
     normalized?.structureStatus ||
     normalized?.structureStatusFromCase ||
@@ -640,7 +642,9 @@ function deriveCaseListState(item) {
 
   const hasEvidenceEvent = evidenceEventCount > 0;
   const readinessDetailLabel =
-    readinessContract.readinessLevel === "pending_review"
+    diagnosticContinuation
+      ? ""
+      : readinessContract.readinessLevel === "pending_review"
       ? "Pending review"
       : readinessContract.readinessLevel === "insufficient_record"
       ? "Insufficient record"
@@ -654,7 +658,7 @@ function deriveCaseListState(item) {
     displayStatus = "Paid";
   } else if (checkoutStarted) {
     displayStatus = "Receipt checkout started";
-  } else if (diagnosticOnly) {
+  } else if (diagnosticContinuation) {
     displayStatus = "Diagnostic completed";
   } else if (receiptReady) {
     displayStatus = "Receipt ready";
@@ -693,6 +697,7 @@ function deriveCaseListState(item) {
     trustedPaymentProgress,
     readinessDetailLabel,
     diagnosticOnly,
+    diagnosticContinuation,
   };
 }
 
