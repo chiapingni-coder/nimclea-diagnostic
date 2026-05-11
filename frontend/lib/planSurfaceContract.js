@@ -44,14 +44,8 @@ export function getPlanSurfaceContract({
   subscriptionActive,
   planActive,
   localPlanFlowEntered,
+  pilotWindowEnded,
 } = {}) {
-  const enteredPlanFlow = hasEnteredPlanFlow({
-    checkoutStarted,
-    checkoutSessionId,
-    paymentStatus,
-    subscriptionStatus,
-    localPlanFlowEntered,
-  });
   const activeSubscription = isSubscriptionActive({
     subscriptionStatus,
     subscriptionActive,
@@ -62,6 +56,7 @@ export function getPlanSurfaceContract({
     return {
       outerCtaLabel: "Manage Plan",
       outerCtaMode: "manage_plan",
+      showOuterCta: true,
       showCancelPlan: true,
       cancelPlanPlacement: "manage_plan_modal_only",
       showCustomerCheckoutState: false,
@@ -70,25 +65,17 @@ export function getPlanSurfaceContract({
     };
   }
 
-  if (enteredPlanFlow) {
-    return {
-      outerCtaLabel: "Manage Plan",
-      outerCtaMode: "manage_plan",
-      showCancelPlan: false,
-      cancelPlanPlacement: "hidden",
-      showCustomerCheckoutState: false,
-      modalPrimaryLabel: "Continue Plan",
-      modalMode: "resume_plan",
-    };
-  }
-
   return {
-    outerCtaLabel: "Continue Plan",
-    outerCtaMode: "continue_plan",
+    outerCtaLabel: "Manage Plan",
+    outerCtaMode: "manage_plan",
+    showOuterCta: true,
     showCancelPlan: false,
     cancelPlanPlacement: "hidden",
     showCustomerCheckoutState: false,
     modalPrimaryLabel: "Continue Plan",
-    modalMode: "plan_intro",
+    modalMode:
+      pilotWindowEnded === true
+        ? "continue_plan"
+        : "pilot_active_continue_plan",
   };
 }
