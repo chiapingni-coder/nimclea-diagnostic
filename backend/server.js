@@ -507,14 +507,19 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
   try {
     const { data: caseRows = [], error: casesError } = await supabase
       .from("cases")
-      .select("*")
-      .eq("email", email);
+      .select("*");
 
     if (casesError) throw casesError;
 
     const filteredCaseRows = (Array.isArray(caseRows) ? caseRows : []).filter((row) => {
-      const caseId = String(row?.case_id || "").trim();
-      return !caseId || !deletedCaseIds.has(caseId);
+      const normalizedRow = normalizeSupabaseCaseRow(row);
+      const caseId = String(row?.case_id || normalizedRow?.caseId || "").trim();
+      const rowEmail = getEmailFromCaseRecord(normalizedRow);
+
+      return (
+        rowEmail === email &&
+        (!caseId || !deletedCaseIds.has(caseId))
+      );
     });
 
     const caseIds = Array.from(
@@ -1118,7 +1123,9 @@ app.get("/cases", async (req, res) => {
         );
       });
 
-    localCases.forEach((item) => {
+    const durableCandidates = [...localCases, ...supabaseSources.cases];
+
+    durableCandidates.forEach((item) => {
       const caseId = caseIdOf(item);
       if (!caseId) return;
       if (emailFromPersistedCase(item) !== email) return;
