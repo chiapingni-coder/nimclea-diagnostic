@@ -223,6 +223,36 @@ function isProtectedFormalOverlayRecord(record = {}) {
   );
 }
 
+const CANONICAL_CASE_SOURCES = new Set([
+  "case_route",
+  "case_save",
+  "diagnostic",
+  "diagnostic_completed",
+  "diagnostic_save",
+  "diagnostic_questionnaire",
+  "questionnaire_diagnostic_completed",
+  "result_page_save_case",
+  "pilot_setup",
+]);
+
+function normalizeRecordSource(record = {}) {
+  return String(record?.source || record?.caseRecord?.source || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isReceiptSnapshotSource(record = {}) {
+  return normalizeRecordSource(record) === "receipt_snapshot";
+}
+
+function hasRealCanonicalCaseSource(record = {}) {
+  const source = normalizeRecordSource(record);
+
+  return Boolean(
+    source && CANONICAL_CASE_SOURCES.has(source) && !isReceiptSnapshotSource(record)
+  );
+}
+
 function normalizeCaseRecord(record = {}) {
   if (!record || typeof record !== "object") {
     return {};
@@ -701,7 +731,12 @@ app.get("/cases", async (req, res) => {
 
     const canonicalCaseIds = new Set(
       cases
-        .filter((item) => emailFromPersistedCase(item) === email)
+        .filter((item) => {
+          return (
+            emailFromPersistedCase(item) === email &&
+            hasRealCanonicalCaseSource(item)
+          );
+        })
         .map(caseIdOf)
         .filter(Boolean)
     );
@@ -733,8 +768,15 @@ app.get("/cases", async (req, res) => {
     });
 
     cases.forEach((item) => {
-      if (emailFromPersistedCase(item) === email) {
+      if (emailFromPersistedCase(item) !== email) return;
+
+      if (hasRealCanonicalCaseSource(item)) {
         addCandidate(item, { hasCanonicalCaseSource: true });
+        return;
+      }
+
+      if (isReceiptSnapshotSource(item) && isProtectedFormalOverlayRecord(item)) {
+        addCandidate(item, { allowStandaloneReceiptRecord: true });
       }
     });
 
@@ -857,7 +899,7 @@ app.get("/cases", async (req, res) => {
           isReceiptReady ? "ready" : ""
         );
 
-        const hasCanonicalBaseCase = Boolean(baseCase?.caseId || baseCase?.id);
+        const hasCanonicalBaseCase = item?._hasCanonicalCaseSource === true;
         const allowStandaloneReceiptRecord =
           item?._allowStandaloneReceiptRecord === true ||
           isProtectedFormalOverlayRecord(receiptCase) ||
@@ -925,6 +967,15 @@ app.get("/cases", async (req, res) => {
         if (!item) return false;
         const caseId = caseIdOf(item);
         if (caseId && deletedCaseIds.has(caseId)) return false;
+
+        if (
+          isReceiptSnapshotSource(item) &&
+          item?._hasCanonicalCaseSource !== true &&
+          item?._allowStandaloneReceiptRecord !== true &&
+          !isProtectedFormalOverlayRecord(item)
+        ) {
+          return false;
+        }
 
         if (
           item?._supabaseSource === "receipt_records" &&
