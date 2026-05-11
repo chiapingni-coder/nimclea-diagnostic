@@ -969,6 +969,7 @@ export default function CasesPage() {
     console.log("[loadCasesForEmail called]", rawEmail);
 
     const email = formatEmail(rawEmail);
+    const showNoCaseModalForEmpty = options.showNoCaseModalForEmpty === true;
 
     if (!email || !email.includes("@")) {
       console.log("[CasesPage] invalid email, forcing access state");
@@ -1076,10 +1077,15 @@ export default function CasesPage() {
         setSavedEmail(email);
         setEmailInput(email);
         setEmailStatus("");
-        setShowNoCaseModal(true);
         localStorage.setItem(EMAIL_STORAGE_KEY, email);
-        localStorage.removeItem("nimclea_email_verified");
         localStorage.removeItem("nimclea_current_case_id");
+
+        if (showNoCaseModalForEmpty) {
+          setShowNoCaseModal(true);
+          localStorage.removeItem("nimclea_email_verified");
+        } else {
+          setShowNoCaseModal(false);
+        }
 
         return;
       }
@@ -1301,7 +1307,7 @@ export default function CasesPage() {
       return;
     }
 
-    void loadCasesForEmail(email);
+    void loadCasesForEmail(email, { showNoCaseModalForEmpty: true });
   }, [emailInput, loadCasesForEmail, navigate]);
 
   const handleSwitchEmail = React.useCallback(() => {
