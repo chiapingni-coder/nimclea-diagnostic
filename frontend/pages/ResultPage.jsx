@@ -34,6 +34,7 @@ import {
 import { resolveAccessMode } from "../lib/accessMode";
 import { getTrialSession, setTrialSession } from "../lib/trialSession";
 import { sanitizeText } from "../lib/sanitizeText";
+import { getResultPrimaryCtaContract } from "../lib/caseEntryContract";
 import {
   getCustomerNextAction,
   getPressureLabel,
@@ -1324,6 +1325,7 @@ function ReportHero({
   heroSupportLine,
   pilotCtaLabel,
   pilotCtaMicrocopy,
+  continueCasePlanLabel,
   weakestDimension,
   pcMeta,
   isCaseReview = false,
@@ -1367,6 +1369,8 @@ function ReportHero({
     result?.top_signals?.[0]?.label || "What is happening";
 
   const ctaLabel = pilotCtaLabel || result?.pilot_preview?.cta_label || "Start my 7-Day Pilot ->";
+  const safeContinueCasePlanLabel =
+    continueCasePlanLabel || "Continue to Case Plan";
 
   return (
     <Card className="overflow-hidden">
@@ -1486,7 +1490,7 @@ function ReportHero({
                 WebkitAppearance: "none"
               }}
             >
-              Continue to Case Plan
+              {sanitizeText(safeContinueCasePlanLabel)}
             </button>
           </div>
         ) : null}
@@ -2134,7 +2138,6 @@ export default function ResultPage({
       return location.state?.caseId || location.state?.case_id || "";
     }
   }, [location.search, location.state]);
-  const showPilotCtas = !isCaseReview;
 
   useEffect(() => {
     const session = getTrialSession() || null;
@@ -2889,6 +2892,50 @@ const pilotCtaMicrocopy = useMemo(() => {
   });
 }, [displayResult]);
 
+const resultEntryCases = useMemo(() => {
+  const stateCases = Array.isArray(location.state?.cases)
+    ? location.state.cases
+    : [];
+  const stateCaseItem = location.state?.caseItem ? [location.state.caseItem] : [];
+
+  return [...stateCases, ...stateCaseItem].filter(Boolean);
+}, [location.state]);
+
+const resultEntryCtaContract = useMemo(() => {
+  try {
+    return getResultPrimaryCtaContract({
+      cases: resultEntryCases,
+      currentCaseId: reviewCaseId || resolvedCaseId,
+      hasCompletedDiagnostic: isValidPreview(enrichedResult || result),
+      isReturningUser:
+        isCaseReview ||
+        location.state?.isReturningUser === true ||
+        location.state?.returningUser === true,
+    }) || {};
+  } catch (error) {
+    console.warn("Failed to resolve result entry CTA contract", error);
+    return {};
+  }
+}, [
+  enrichedResult,
+  isCaseReview,
+  location.state,
+  result,
+  resultEntryCases,
+  resolvedCaseId,
+  reviewCaseId,
+]);
+
+const showPilotCtas =
+  !isCaseReview &&
+  resultEntryCtaContract?.ctaKey === "start_7_day_pilot";
+const contractPilotCtaLabel =
+  showPilotCtas && resultEntryCtaContract?.label
+    ? resultEntryCtaContract.label
+    : pilotCtaLabel;
+const contractContinueCasePlanLabel =
+  resultEntryCtaContract?.label || "Continue to Case Plan";
+
 const lockedScopeSnapshot = useMemo(() => {
   if (!enrichedResult || !isValidPreview(enrichedResult)) return null;
 
@@ -3598,8 +3645,9 @@ if (!isValidPreview(result)) {
             }}
             heroTitle={heroTitle}
             heroSupportLine={heroSupportLine}
-            pilotCtaLabel={pilotCtaLabel}
+            pilotCtaLabel={contractPilotCtaLabel}
             pilotCtaMicrocopy={pilotCtaMicrocopy}
+            continueCasePlanLabel={contractContinueCasePlanLabel}
             weakestDimension={weakestDimension}
             pcMeta={enrichedResult?.pcMeta || resolvedPcMeta}
             isCaseReview={isCaseReview}
@@ -3658,7 +3706,7 @@ if (!isValidPreview(result)) {
               onStartPilot={handleStartPilot}
               scenarioCode={enrichedResult?.scenario?.code || ""}
               ctaState={ctaState}
-              ctaLabel={pilotCtaLabel}
+              ctaLabel={contractPilotCtaLabel}
               weakestDimension={weakestDimension}
             />
           )}
