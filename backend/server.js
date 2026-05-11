@@ -1084,11 +1084,12 @@ app.get("/cases", async (req, res) => {
         );
       });
 
-    cases.forEach((item) => {
+    localCases.forEach((item) => {
       const caseId = caseIdOf(item);
-      if (!caseId || deletedCaseIds.has(caseId)) return;
+      if (!caseId) return;
       if (emailFromPersistedCase(item) !== email) return;
       if (isReceiptSnapshotSource(item)) return;
+      if (isDeletedOrDiscardedCaseRecord(item)) return;
 
       const normalizedItem = normalizeCaseRecord(item);
       finalCaseMap.set(
