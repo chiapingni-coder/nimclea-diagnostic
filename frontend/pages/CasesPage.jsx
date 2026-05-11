@@ -4,6 +4,7 @@ import ROUTES from "../routes";
 import { sanitizeText } from "../lib/sanitizeText";
 import { saveCaseSnapshot } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
+import { getPlanSurfaceContract } from "../lib/planSurfaceContract";
 import { createCaseId, upsertCase, getAllCases } from "../utils/caseRegistry.js";
 import { resolveSafeCaseId } from "../utils/caseIdResolver.js";
 import { runClientStateGuard } from "../utils/clientStateGuard.js";
@@ -986,6 +987,49 @@ export default function CasesPage() {
     pilotExtensionAccess?._backendConfirmed === true &&
     pilotExtensionAccess?.pilotExtensionPaid === true &&
     pilotExtensionAccess?.paymentType === "pilot_extension";
+  const planSurfaceContract = React.useMemo(() => {
+    const trialSession = getTrialSession() || {};
+    const trialStartedAt =
+      trialSession?.startedAt ||
+      trialSession?.createdAt ||
+      trialSession?.trialStartedAt ||
+      "";
+    const trialStartMs = trialStartedAt ? new Date(trialStartedAt).getTime() : 0;
+    const pilotWindowEnded =
+      Number.isFinite(trialStartMs) &&
+      trialStartMs > 0 &&
+      Date.now() - trialStartMs >= 7 * 24 * 60 * 60 * 1000;
+
+    return getPlanSurfaceContract({
+      checkoutStarted:
+        pilotExtensionAccess?.pilotExtensionPaymentStatus === "checkout_created" ||
+        pilotExtensionAccess?.paymentStatus === "checkout_created",
+      checkoutSessionId:
+        pilotExtensionAccess?.stripeSessionId ||
+        pilotExtensionAccess?.sessionId ||
+        pilotExtensionAccess?.checkoutSessionId ||
+        "",
+      paymentStatus:
+        pilotExtensionAccess?.pilotExtensionPaymentStatus ||
+        pilotExtensionAccess?.paymentStatus ||
+        "",
+      subscriptionStatus:
+        pilotExtensionAccess?.subscriptionStatus ||
+        pilotExtensionAccess?.status ||
+        "",
+      subscriptionActive: hasBackendConfirmedPilotExtension,
+      planActive: pilotExtensionAccess?.pilotExtensionPaid === true,
+      localPlanFlowEntered: false,
+      pilotWindowEnded,
+    }) || {};
+  }, [hasBackendConfirmedPilotExtension, pilotExtensionAccess]);
+  const planOuterCtaLabel = planSurfaceContract?.outerCtaLabel || "Manage Plan";
+  const planModalPrimaryLabel =
+    planSurfaceContract?.modalPrimaryLabel ||
+    (hasBackendConfirmedPilotExtension ? "Manage Billing" : "Continue Plan");
+  const showPlanCancelOption =
+    planSurfaceContract?.showCancelPlan === true &&
+    planSurfaceContract?.cancelPlanPlacement === "manage_plan_modal_only";
 
   console.log("[CasesPage identity]", {
     resolvedCaseId,
@@ -1904,16 +1948,18 @@ export default function CasesPage() {
               )}
 
               <div className="flex flex-wrap items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSubscriptionCheckoutError("");
-                    setShowSubscriptionOptions(true);
-                  }}
-                  className="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
-                >
-                  {hasBackendConfirmedPilotExtension ? "Subscription Active" : "View Subscription Options"}
-                </button>
+                {planSurfaceContract?.showOuterCta !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubscriptionCheckoutError("");
+                      setShowSubscriptionOptions(true);
+                    }}
+                    className="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
+                  >
+                    {sanitizeText(planOuterCtaLabel, "Manage Plan")}
+                  </button>
+                ) : null}
 
                 <button
                   type="button"
@@ -2772,12 +2818,22 @@ export default function CasesPage() {
                   className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                   style={{ marginTop: "16px" }}
                 >
-                  {hasBackendConfirmedPilotExtension
-                    ? "Subscription Active"
-                    : startingSubscriptionCheckout
+                  {startingSubscriptionCheckout
                     ? "Starting checkout..."
-                    : "Continue for $9"}
+                    : sanitizeText(planModalPrimaryLabel, "Continue Plan")}
                 </button>
+                {showPlanCancelOption ? (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      fontSize: "12px",
+                      lineHeight: 1.5,
+                      color: "#64748B",
+                    }}
+                  >
+                    Cancel Plan is available only through plan management.
+                  </p>
+                ) : null}
                 {subscriptionCheckoutError ? (
                   <p
                     style={{
