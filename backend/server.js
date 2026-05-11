@@ -234,6 +234,8 @@ const CANONICAL_CASE_SOURCES = new Set([
   "questionnaire_diagnostic_completed",
   "resultpage",
   "result_page_save_case",
+  "pilot_page",
+  "pilot_page_case_name",
   "pilot_setup",
 ]);
 
