@@ -967,6 +967,7 @@ export default function CasesPage() {
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
+  const [highRiskDeleteTarget, setHighRiskDeleteTarget] = React.useState(null);
   const [caseView, setCaseView] = React.useState("active");
   const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
   const resolvedWorkspaceEmail = formatEmail(savedEmail || resolvedEmail);
@@ -2258,17 +2259,7 @@ export default function CasesPage() {
                               }
 
                               if (deleteMode === "high_risk_delete") {
-                                const confirmed = window.confirm(
-                                  "This case has a payment-pending Formal Receipt checkout. Deleting it may discard the pending record and cannot be undone. Continue?"
-                                );
-
-                                if (!confirmed) return;
-
-                                void handleDiscardCase(normalizedItem || item, {
-                                  deletionReason: "user_confirmed_high_risk_delete",
-                                  deletedFrom: "cases_page",
-                                  highRiskConfirmed: true,
-                                });
+                                setHighRiskDeleteTarget(normalizedItem || item);
                                 return;
                               }
 
@@ -2552,6 +2543,54 @@ export default function CasesPage() {
                 }}
               >
                 Start Diagnostic
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {highRiskDeleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4"
+          onClick={() => setHighRiskDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-red-200 bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-red-700">
+              Delete pending receipt checkout?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              This case has a payment-pending Formal Receipt checkout. Deleting it may discard the pending record and cannot be undone.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Only continue if you are sure this pending checkout should be removed from your workspace.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setHighRiskDeleteTarget(null)}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = highRiskDeleteTarget;
+                  if (!target) return;
+
+                  setHighRiskDeleteTarget(null);
+                  void handleDiscardCase(target, {
+                    deletionReason: "user_confirmed_high_risk_delete",
+                    deletedFrom: "cases_page",
+                    highRiskConfirmed: true,
+                  });
+                }}
+                className="inline-flex items-center justify-center rounded-full border border-red-700 bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+              >
+                Delete pending record
               </button>
             </div>
           </div>
