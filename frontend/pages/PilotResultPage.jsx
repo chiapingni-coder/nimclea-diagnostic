@@ -18,6 +18,7 @@ import { API_BASE, logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { resolveAccessMode } from "../lib/accessMode";
 import { sanitizeText } from "../lib/sanitizeText";
+import { getPilotResultSummaryContract } from "../lib/caseEntryContract";
 import {
   getCustomerNextAction,
   getWeakestDimensionDisplay,
@@ -1941,8 +1942,49 @@ useEffect(() => {
   }
 }, [weeklySummaryDue]);
 
-const isWeeklySummaryFlow =
+const now = Date.now();
+
+const pilotStartedAt =
+  currentCase?.pilotStartedAt ||
+  currentCase?.createdAt ||
+  location.state?.pilotStartedAt ||
+  location.state?.createdAt;
+
+const paidAt =
+  currentCase?.paidAt ||
+  currentCase?.payment?.paidAt ||
+  location.state?.paidAt;
+
+const isPaid =
+  Boolean(currentCase?.paid) ||
+  currentCase?.accessMode === "paid" ||
+  Boolean(paidAt);
+
+const pilotStartMs = pilotStartedAt ? new Date(pilotStartedAt).getTime() : null;
+const derivedTrialEndedAt =
+  pilotStartMs && !Number.isNaN(pilotStartMs)
+    ? new Date(pilotStartMs + 7 * 24 * 60 * 60 * 1000).toISOString()
+    : "";
+const trialEndedAt =
+  currentCase?.trialEndedAt ||
+  currentCase?.pilotEndedAt ||
+  location.state?.trialEndedAt ||
+  location.state?.pilotEndedAt ||
+  derivedTrialEndedAt;
+
+const baseWeeklySummaryFlow =
   forceWeeklySummary === true || runtimeState.resolvedSummaryMode === true;
+
+const pilotResultSummaryContract = getPilotResultSummaryContract({
+  trialStartedAt: pilotStartedAt,
+  trialEndedAt,
+  isRenewed: isPaid,
+  now: new Date(now),
+});
+
+const isWeeklySummaryFlow =
+  baseWeeklySummaryFlow &&
+  pilotResultSummaryContract.summaryType === "trial_summary";
 
 const resolvedSummaryMode = isWeeklySummaryFlow;
 
@@ -2212,36 +2254,6 @@ const acceptanceStatusClass =
 const resolvedChecklistItems = Array.isArray(resolvedAcceptanceChecklist?.items)
   ? resolvedAcceptanceChecklist.items
   : [];
-const now = Date.now();
-
-const pilotStartedAt =
-  currentCase?.pilotStartedAt ||
-  currentCase?.createdAt ||
-  location.state?.pilotStartedAt ||
-  location.state?.createdAt;
-
-const paidAt =
-  currentCase?.paidAt ||
-  currentCase?.payment?.paidAt ||
-  location.state?.paidAt;
-
-const isPaid =
-  Boolean(currentCase?.paid) ||
-  currentCase?.accessMode === "paid" ||
-  Boolean(paidAt);
-
-const pilotStartMs = pilotStartedAt ? new Date(pilotStartedAt).getTime() : null;
-const paidMs = paidAt ? new Date(paidAt).getTime() : null;
-
-const hasSevenDayWindowEnded =
-  pilotStartMs ? now - pilotStartMs >= 7 * 24 * 60 * 60 * 1000 : false;
-
-const paidSummaryStillVisible =
-  isPaid && paidMs ? now - paidMs < 24 * 60 * 60 * 1000 : false;
-
-const summaryTitle = hasSevenDayWindowEnded
-  ? (isPaid ? (paidSummaryStillVisible ? "7-Day Summary" : "Case Record") : "7-Day Summary")
-  : "Current Pilot Record";
 
 if (!hasCapturedEvents) {
   const pilotPath = resolvedCaseId
@@ -2362,7 +2374,7 @@ return (
 
               <p className="text-slate-700 leading-7">
                 {isWeeklySummaryFlow
-                  ? "This page summarizes the pilot window and prepares it for final receipt generation and verification."
+                  ? "This page summarizes the completed 7-day pilot window and shows the renewal path for continuing this case."
                   : resolvedWeakestDimension
                   ? `Where it is weakest: ${sanitizeText(getWeakestDimensionDisplay(resolvedWeakestDimension))}`
                 : "This page explains how the current event is being interpreted structurally."}

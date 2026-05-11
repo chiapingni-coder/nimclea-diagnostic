@@ -1,3 +1,16 @@
+// 7-day Pilot is a first-case entry experience, not a case type.
+//
+// 7-day language may appear only in these surfaces:
+// 1. Result page:
+//    "Start 7-day Pilot" may appear only after the customer completes the first diagnostic and has not created the first case yet.
+// 2. Pilot Plan page:
+//    The page may show the 7-day Pilot rules, boundary, expiration time, and evidence collection guidance.
+// 3. Pilot Result page:
+//    "7-Day Pilot Summary" may appear only when the 7-day window has ended and the customer has not renewed or paid.
+//
+// All other pages should use normal case language.
+// CasesPage, ReceiptPage, VerificationPage, event capture, receipt readiness, verification readiness, and payment state must not treat 7-day Pilot as a separate case type.
+
 function normalizeCaseId(value = "") {
   return String(value || "").trim();
 }
