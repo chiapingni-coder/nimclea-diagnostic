@@ -1321,6 +1321,7 @@ function ReportHero({
   sessionId,
   onStartPilot,
   onContinueCasePlan,
+  showContinueCasePlanCta = isCaseReview,
   heroTitle,
   heroSupportLine,
   pilotCtaLabel,
@@ -1467,7 +1468,7 @@ function ReportHero({
           </div>
         ) : null}
 
-        {!showPilotCtas && isCaseReview && reviewCaseId && onContinueCasePlan ? (
+        {!showPilotCtas && showContinueCasePlanCta && reviewCaseId && onContinueCasePlan ? (
           <div className="mt-6 flex flex-col items-start justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               NEXT STEP
@@ -2240,6 +2241,37 @@ export default function ResultPage({
 
     return getDraftCase()?.caseId || createCaseId();
   }, [location.search, location.state, resultProp, resolvedSessionId]);
+  useEffect(() => {
+    if (!isValidCaseId(resolvedCaseId)) return;
+
+    let params;
+    try {
+      params = new URLSearchParams(location.search || "");
+    } catch {
+      params = new URLSearchParams();
+    }
+
+    if (params.get("caseId")) return;
+
+    params.set("caseId", resolvedCaseId);
+    const nextSearch = params.toString();
+    const nextPath = `${location.pathname || ROUTES.RESULT || "/result"}${
+      nextSearch ? `?${nextSearch}` : ""
+    }`;
+
+    navigate(nextPath, {
+      replace: true,
+      state: {
+        ...(location.state || {}),
+        caseId: resolvedCaseId,
+        case_id: resolvedCaseId,
+        resultIdentityStable: true,
+        resultIdentityStableSourceHadCaseId: Boolean(
+          location.state?.caseId || location.state?.case_id
+        ),
+      },
+    });
+  }, [location.pathname, location.search, location.state, navigate, resolvedCaseId]);
   const showTopRightCaseButton = showViewAllCases || Boolean(resolvedCaseId);
 
   const navigateToSavedCase = useCallback(() => {
@@ -2901,6 +2933,54 @@ const resultEntryCases = useMemo(() => {
   return [...stateCases, ...stateCaseItem].filter(Boolean);
 }, [location.state]);
 
+const isWorkspaceCaseContext = useMemo(() => {
+  const workspaceSources = new Set([
+    "case",
+    "cases",
+    "workspace",
+    "result_save",
+    "new_case",
+    "cases_page",
+    "result_page_save_case",
+  ]);
+  const stateFrom = String(location.state?.from || "").trim().toLowerCase();
+  const stateSource = String(location.state?.source || "").trim().toLowerCase();
+  const hasStateCaseId = Boolean(location.state?.caseId || location.state?.case_id);
+  const hasOriginalStateCaseId =
+    hasStateCaseId &&
+    (
+      location.state?.resultIdentityStable !== true ||
+      location.state?.resultIdentityStableSourceHadCaseId === true
+    );
+  const hasWorkspaceSource =
+    workspaceSources.has(stateFrom) || workspaceSources.has(stateSource);
+  const hasPersistedCurrentCaseId = (() => {
+    if (typeof window === "undefined" || !resolvedCaseId) return false;
+
+    try {
+      return (
+        localStorage.getItem("nimclea_current_case_id") === resolvedCaseId ||
+        localStorage.getItem("current_case_id") === resolvedCaseId
+      );
+    } catch {
+      return false;
+    }
+  })();
+
+  return Boolean(
+    isCaseReview ||
+      hasOriginalStateCaseId ||
+      hasWorkspaceSource ||
+      hasPersistedCurrentCaseId ||
+      (hasCaseIdInUrl && location.state?.resultIdentityStable !== true)
+  );
+}, [
+  hasCaseIdInUrl,
+  isCaseReview,
+  location.state,
+  resolvedCaseId,
+]);
+
 const resultEntryCtaContract = useMemo(() => {
   try {
     return getResultPrimaryCtaContract({
@@ -2908,7 +2988,7 @@ const resultEntryCtaContract = useMemo(() => {
       currentCaseId: reviewCaseId || resolvedCaseId,
       hasCompletedDiagnostic: isValidPreview(enrichedResult || result),
       isReturningUser:
-        isCaseReview ||
+        isWorkspaceCaseContext ||
         location.state?.isReturningUser === true ||
         location.state?.returningUser === true,
     }) || {};
@@ -2918,7 +2998,7 @@ const resultEntryCtaContract = useMemo(() => {
   }
 }, [
   enrichedResult,
-  isCaseReview,
+  isWorkspaceCaseContext,
   location.state,
   result,
   resultEntryCases,
@@ -2927,8 +3007,12 @@ const resultEntryCtaContract = useMemo(() => {
 ]);
 
 const showPilotCtas =
-  !isCaseReview &&
+  !isWorkspaceCaseContext &&
   resultEntryCtaContract?.ctaKey === "start_7_day_pilot";
+const showContinueCasePlanCta =
+  !showPilotCtas &&
+  isWorkspaceCaseContext &&
+  resultEntryCtaContract?.ctaKey === "continue_case";
 const contractPilotCtaLabel =
   showPilotCtas && resultEntryCtaContract?.label
     ? resultEntryCtaContract.label
@@ -3652,7 +3736,8 @@ if (!isValidPreview(result)) {
             pcMeta={enrichedResult?.pcMeta || resolvedPcMeta}
             isCaseReview={isCaseReview}
             showPilotCtas={showPilotCtas}
-            reviewCaseId={reviewCaseId}
+            showContinueCasePlanCta={showContinueCasePlanCta}
+            reviewCaseId={reviewCaseId || resolvedCaseId}
             onViewCases={() => {
               if (isCaseReview) {
                 navigate("/cases");
