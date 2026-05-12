@@ -540,10 +540,16 @@ function deriveCaseListState(item) {
   const diagnosticOnly = isDiagnosticOnlyCase(normalized, { evidenceEventCount });
   const diagnosticContinuation =
     diagnosticOnly || isDiagnosticContinuationCase(normalized);
+  const directBackendReceiptReady =
+    hasCanonicalBackendReceiptReadySignal(normalized) ||
+    normalized?.receiptEligible === true ||
+    normalized?.caseReceiptEligible === true ||
+    normalizeCaseText(normalized?.receiptStatus) === "ready" ||
+    normalizeCaseText(normalized?.status) === "receipt_ready" ||
+    normalizeCaseText(normalized?.stage) === "receipt_ready";
   const effectiveEventCaptured =
     diagnosticContinuation ? false : normalized?.eventCaptured === true || evidenceEventCount > 0;
-  const explicitBackendReady =
-    diagnosticContinuation ? false : hasCanonicalBackendReceiptReadySignal(normalized);
+  const explicitBackendReady = directBackendReceiptReady;
   const rawStructureStatus =
     normalized?.structureStatus ||
     normalized?.structureStatusFromCase ||
@@ -588,10 +594,41 @@ function deriveCaseListState(item) {
   const snapshotOnly = normalized?.source === "receipt_snapshot";
   const hasMeaningfulPilotResult =
     Boolean(normalized?.pilotResult?.result) ||
+    Boolean(normalized?.pilotResult?.preview) ||
     (Array.isArray(normalized?.pilotResult?.entries) &&
       normalized.pilotResult.entries.length > 0) ||
     (Array.isArray(normalized?.pilotResult?.events) &&
       normalized.pilotResult.events.length > 0);
+  const hasPilotOrCaseResultContext =
+    Boolean(normalized?.result) ||
+    Boolean(normalized?.preview) ||
+    Boolean(normalized?.caseResult) ||
+    hasMeaningfulPilotResult ||
+    evidenceEventCount > 0 ||
+    Number(normalized?.eventCount || 0) > 0;
+  const currentStepText = normalizeCaseText(
+    normalized?.currentStep ||
+      normalized?.step ||
+      normalized?.caseData?.currentStep ||
+      normalized?.caseData?.step
+  );
+  const sourceText = normalizeCaseText(normalized?.source);
+  const receiptStatusText = normalizeCaseText(
+    normalized?.receiptStatus || normalized?.receipt?.status
+  );
+  const hasReceiptPathContext =
+    ["receipt", "verification"].includes(currentStepText) ||
+    ["receipt_page", "receipt_page_repair"].includes(sourceText) ||
+    Boolean(receiptStatusText);
+  const hasReceiptNonReadySignal =
+    normalized?.receiptEligible === false ||
+    normalized?.caseReceiptEligible === false ||
+    (Boolean(receiptStatusText) && receiptStatusText !== "ready");
+  const hasReceiptNotReadyDisplaySignal =
+    !directBackendReceiptReady &&
+    hasReceiptPathContext &&
+    hasPilotOrCaseResultContext &&
+    hasReceiptNonReadySignal;
   const paymentStatusText = String(normalized?.paymentStatus || "").toLowerCase();
   const hasRealPaymentObject =
     Boolean(normalized?.payment?.id) ||
@@ -630,11 +667,10 @@ function deriveCaseListState(item) {
     hasIssuedReceiptObject ||
     hasNonEmptyText(normalized?.receiptId) ||
     trustedPaymentProgress;
-  const legacyReceiptReadySignal =
-    explicitBackendReady;
-  const hasReceiptStageSignal = explicitBackendReady || hasConcreteReceiptProgress;
+  const legacyReceiptReadySignal = explicitBackendReady;
+  const hasReceiptStageSignal = directBackendReceiptReady || hasReceiptNotReadyDisplaySignal;
 
-  const receiptReady = explicitBackendReady || readinessContract.receiptReady;
+  const receiptReady = directBackendReceiptReady;
 
   const checkoutStarted =
     normalized?.paymentStatus === "checkout_created";
@@ -662,11 +698,9 @@ function deriveCaseListState(item) {
     displayStatus = "Paid";
   } else if (checkoutStarted) {
     displayStatus = "Receipt checkout started";
-  } else if (diagnosticContinuation) {
-    displayStatus = "Diagnostic completed";
   } else if (receiptReady) {
     displayStatus = "Receipt ready";
-  } else if (hasReceiptStageSignal) {
+  } else if (hasReceiptNotReadyDisplaySignal) {
     if (readinessContract.readinessLevel === "pending_review") {
       displayStatus = "Receipt not ready · Pending review";
     } else if (readinessContract.readinessLevel === "insufficient_record") {
@@ -678,7 +712,7 @@ function deriveCaseListState(item) {
     }
   } else if (hasEvidenceEvent) {
     displayStatus = `Event captured (${evidenceEventCount})`;
-  } else if (isDiagnosticContinuationCase(normalized)) {
+  } else if (diagnosticContinuation || isDiagnosticContinuationCase(normalized)) {
     displayStatus = "Diagnostic completed";
   }
 
@@ -692,6 +726,11 @@ function deriveCaseListState(item) {
     displayStatus,
     readinessContract,
     hasReceiptStageSignal,
+    directBackendReceiptReady,
+    hasPilotOrCaseResultContext,
+    hasReceiptPathContext,
+    hasReceiptNonReadySignal,
+    hasReceiptNotReadyDisplaySignal,
     hasConcreteReceiptProgress,
     legacyReceiptReadySignal,
     snapshotOnly,
@@ -815,11 +854,11 @@ function getCaseDetailRoute(item, explicitCaseId = "") {
   const normalized = normalizeCaseItem(item);
   const derived = deriveCaseListState(normalized);
 
-  if (derived.diagnosticOnly || isDiagnosticContinuationCase(normalized)) {
-    return `${ROUTES.PILOT || "/pilot"}?caseId=${encodedCaseId}&from=case`;
-  }
-
-  if (hasReceiptDetailRouteSignal(normalized)) {
+  if (
+    derived.receiptReady ||
+    derived.hasReceiptStageSignal ||
+    hasReceiptDetailRouteSignal(normalized)
+  ) {
     return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
   }
 
@@ -827,8 +866,8 @@ function getCaseDetailRoute(item, explicitCaseId = "") {
     return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
   }
 
-  if (derived.receiptReady) {
-    return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
+  if (derived.diagnosticOnly || isDiagnosticContinuationCase(normalized)) {
+    return `${ROUTES.PILOT || "/pilot"}?caseId=${encodedCaseId}&from=case`;
   }
 
   if (!hasDiagnosticResultData(normalized)) {
@@ -1323,6 +1362,12 @@ function getCaseSection(caseItem) {
     actionableStates.has(currentStep) ||
     source === "pilot_page" ||
     source === "pilot_page_case_name";
+  const savedDiagnosticResultCase = Boolean(
+    status === "diagnostic_completed" ||
+      source === "result_page_save_case" ||
+      source === "diagnostic_save_case"
+  );
+
   const staleDiagnosticOrResultOnly = Boolean(
     (status.includes("diagnostic") ||
       stage.includes("diagnostic") ||
@@ -1330,7 +1375,8 @@ function getCaseSection(caseItem) {
       stage.includes("result")) &&
       normalized?.receiptEligible !== true &&
       eventCount === 0 &&
-      !hasMeaningfulTitle
+      !hasMeaningfulTitle &&
+      !savedDiagnosticResultCase
   );
 
   if (isEmptyDraftCase(normalized) || staleDiagnosticOrResultOnly) {
@@ -1341,7 +1387,12 @@ function getCaseSection(caseItem) {
     return "active";
   }
 
-  if (!hasMeaningfulTitle && eventCount === 0 && normalized?.receiptEligible !== true) {
+  if (
+    !hasMeaningfulTitle &&
+    eventCount === 0 &&
+    normalized?.receiptEligible !== true &&
+    !savedDiagnosticResultCase
+  ) {
     return "hidden";
   }
 
