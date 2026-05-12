@@ -1630,6 +1630,8 @@ const urlCaseId = String(
 
     if (!safeCaseId || !email) return;
     if (backendCaseLoading || backendCaseRecord) return;
+    if (hasReceiptBackendPresence) return;
+    if (isSameReceiptReadyCase(activeCurrentCase, safeCaseId)) return;
     if (backendCaseRepairAttemptedRef.current.has(safeCaseId)) return;
 
     const fallbackCase = currentCase || hydratedReceiptRecord || {};
@@ -1644,7 +1646,6 @@ const urlCaseId = String(
     setBackendCaseRepairFailed(false);
 
     const repairPayload = {
-      ...fallbackCase,
       caseId: safeCaseId,
       id: safeCaseId,
       email,
@@ -1663,15 +1664,24 @@ const urlCaseId = String(
       currentStep: "receipt",
       source: "receipt_page_repair",
       title: fallbackCase?.title || fallbackCaseData?.title || "Untitled case",
-      caseData: {
-        ...(fallbackCaseData || {}),
-        caseId: safeCaseId,
-        email,
-      },
-      events: Array.isArray(fallbackCase?.events) ? fallbackCase.events : [],
-      eventLogs: Array.isArray(fallbackCase?.eventLogs)
-        ? fallbackCase.eventLogs
-        : [],
+      caseName:
+        fallbackCase?.caseName ||
+        fallbackCaseData?.caseName ||
+        fallbackCase?.title ||
+        fallbackCaseData?.title ||
+        "Untitled case",
+      receiptEligible:
+        fallbackCase?.receiptEligible === true ||
+        fallbackCaseData?.receiptEligible === true,
+      caseReceiptEligible:
+        fallbackCase?.caseReceiptEligible === true ||
+        fallbackCaseData?.caseReceiptEligible === true ||
+        fallbackCase?.receiptEligible === true ||
+        fallbackCaseData?.receiptEligible === true,
+      verificationEligible:
+        fallbackCase?.verificationEligible === true ||
+        fallbackCaseData?.verificationEligible === true,
+      updatedAt: new Date().toISOString(),
     };
 
     let cancelled = false;
@@ -1716,7 +1726,9 @@ const urlCaseId = String(
   }, [
     backendCaseLoading,
     backendCaseRecord,
+    hasReceiptBackendPresence,
     currentCase,
+    activeCurrentCase,
     hydratedReceiptRecord,
     inferredCaseId,
     location.state,
