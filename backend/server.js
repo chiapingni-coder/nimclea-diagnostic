@@ -199,6 +199,107 @@ function pickStrongestReceiptStatus(...values) {
   }, "");
 }
 
+function normalizeStageValue(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^status:\s*/, "");
+
+  if (!normalized) return "";
+  if (normalized.includes("event captured")) return "event_captured";
+  if (normalized === "receipt ready") return "receipt_ready";
+  if (normalized === "paid") return "paid";
+  if (normalized === "verified") return "verified";
+
+  return normalized.replace(/\s+/g, "_");
+}
+
+function stageRank(value) {
+  const ranks = {
+    draft: 0,
+    diagnostic_completed: 1,
+    result_ready: 2,
+    event_captured: 3,
+    receipt_ready: 4,
+    receipt_issued: 5,
+    paid: 6,
+    verification_ready: 7,
+    verified: 8,
+  };
+
+  const normalized = normalizeStageValue(value);
+  return Object.prototype.hasOwnProperty.call(ranks, normalized)
+    ? ranks[normalized]
+    : -1;
+}
+
+function pickHigherStage(...values) {
+  return values.reduce((best, value) => {
+    const normalized = normalizeStageValue(value);
+    return stageRank(normalized) > stageRank(best) ? normalized : best;
+  }, "");
+}
+
+function getCaseEventDedupeKey(event = {}) {
+  return (
+    event.eventId ||
+    event.id ||
+    event.meta?.quickCaptureId ||
+    `${event.caseId || event.meta?.caseId || event.body?.caseId || ""}:${
+      event.eventType || event.type || ""
+    }:${event.createdAt || event.timestamp || ""}:${event.meta?.note || event.note || ""}`
+  );
+}
+
+function mergeCaseEvents(...eventGroups) {
+  const eventMap = new Map();
+
+  eventGroups.forEach((events) => {
+    (Array.isArray(events) ? events : []).forEach((event) => {
+      if (!event || typeof event !== "object") return;
+
+      const key = getCaseEventDedupeKey(event);
+
+      if (!eventMap.has(key)) {
+        eventMap.set(key, event);
+      }
+    });
+  });
+
+  return Array.from(eventMap.values());
+}
+
+function deriveMergedCaseEventCount(baseCase = {}, receiptCase = {}, mergedEvents = []) {
+  return Math.max(
+    Number(baseCase?.eventCount || 0),
+    Number(receiptCase?.eventCount || 0),
+    mergedEvents.length
+  );
+}
+
+function getCaseSortTime(item = {}) {
+  const caseId = String(item.caseId || item.id || "").trim();
+  const match = caseId.match(/^CASE-(\d+)-/);
+  if (match) return Number(match[1]);
+
+  const fallbackTimes = [
+    item.createdAt,
+    item.savedAt,
+    item.updatedAt,
+    item.receipt?.createdAt,
+    item.receipt?.updatedAt,
+    item.meta?.createdAt,
+    item.meta?.updatedAt,
+  ];
+
+  for (const value of fallbackTimes) {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return 0;
+}
+
 function isProtectedFormalOverlayRecord(record = {}) {
   const paymentStatus = normalizePaymentStatus(
     record?.paymentStatus || record?.payment_status
@@ -864,47 +965,6 @@ app.get("/cases", async (req, res) => {
           }
         : null;
 
-    const normalizeStageValue = (value) => {
-      const normalized = String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/^status:\s*/, "");
-
-      if (!normalized) return "";
-      if (normalized.includes("event captured")) return "event_captured";
-      if (normalized === "receipt ready") return "receipt_ready";
-      if (normalized === "paid") return "paid";
-      if (normalized === "verified") return "verified";
-
-      return normalized.replace(/\s+/g, "_");
-    };
-
-    const stageRank = (value) => {
-      const ranks = {
-        draft: 0,
-        diagnostic_completed: 1,
-        result_ready: 2,
-        event_captured: 3,
-        receipt_ready: 4,
-        receipt_issued: 5,
-        paid: 6,
-        verification_ready: 7,
-        verified: 8,
-      };
-
-      const normalized = normalizeStageValue(value);
-      return Object.prototype.hasOwnProperty.call(ranks, normalized)
-        ? ranks[normalized]
-        : -1;
-    };
-
-    const pickHigherStage = (...values) => {
-      return values.reduce((best, value) => {
-        const normalized = normalizeStageValue(value);
-        return stageRank(normalized) > stageRank(best) ? normalized : best;
-      }, "");
-    };
-
     const canonicalCaseIds = new Set(
       cases
         .filter((item) => {
@@ -1002,36 +1062,17 @@ app.get("/cases", async (req, res) => {
           );
         });
 
-        const eventMap = new Map();
-
-        [
-          ...(Array.isArray(baseCase?.events) ? baseCase.events : []),
-          ...(Array.isArray(baseCase?.eventLogs) ? baseCase.eventLogs : []),
-          ...(Array.isArray(receiptCase?.events) ? receiptCase.events : []),
-          ...(Array.isArray(receiptCase?.eventLogs) ? receiptCase.eventLogs : []),
-          ...matchedEventLogs,
-        ].forEach((event) => {
-          if (!event || typeof event !== "object") return;
-
-          const key =
-            event.eventId ||
-            event.id ||
-            event.meta?.quickCaptureId ||
-            `${event.caseId || event.meta?.caseId || event.body?.caseId || ""}:${
-              event.eventType || event.type || ""
-              }:${event.createdAt || event.timestamp || ""}:${event.meta?.note || event.note || ""}`;
-
-          if (!eventMap.has(key)) {
-            eventMap.set(key, event);
-          }
-        });
-
-        const mergedEvents = Array.from(eventMap.values());
-
-        const mergedEventCount = Math.max(
-          Number(baseCase?.eventCount || 0),
-          Number(receiptCase?.eventCount || 0),
-          mergedEvents.length
+        const mergedEvents = mergeCaseEvents(
+          baseCase?.events,
+          baseCase?.eventLogs,
+          receiptCase?.events,
+          receiptCase?.eventLogs,
+          matchedEventLogs
+        );
+        const mergedEventCount = deriveMergedCaseEventCount(
+          baseCase,
+          receiptCase,
+          mergedEvents
         );
 
         const isReceiptReady =
@@ -1217,29 +1258,6 @@ app.get("/cases", async (req, res) => {
         })
       );
     });
-
-    const getCaseSortTime = (item = {}) => {
-      const caseId = String(item.caseId || item.id || "").trim();
-      const match = caseId.match(/^CASE-(\d+)-/);
-      if (match) return Number(match[1]);
-
-      const fallbackTimes = [
-        item.createdAt,
-        item.savedAt,
-        item.updatedAt,
-        item.receipt?.createdAt,
-        item.receipt?.updatedAt,
-        item.meta?.createdAt,
-        item.meta?.updatedAt,
-      ];
-
-      for (const value of fallbackTimes) {
-        const parsed = Date.parse(value);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-
-      return 0;
-    };
 
     // receipt_snapshot rows are overlay/protected-only and must not seed ordinary workspace cases.
     const finalCases = Array.from(finalCaseMap.values())
