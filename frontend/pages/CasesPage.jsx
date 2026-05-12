@@ -2663,7 +2663,7 @@ export default function CasesPage() {
               onMouseDown={(event) => event.stopPropagation()}
               disabled={!caseId || isSaving}
               aria-label="Rename case"
-              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex shrink-0 items-center justify-center rounded-full p-1 text-sm font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               title="Rename case"
             >
               {"\u270E"}
@@ -3031,7 +3031,7 @@ export default function CasesPage() {
                             transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
                           }}
                         >
-                          ?
+                          {isExpanded ? "\u25B6" : "\u25B6"}
                         </span>
                       </button>
 
