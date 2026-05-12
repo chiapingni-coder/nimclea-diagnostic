@@ -2765,9 +2765,6 @@ export default function CasesPage() {
               const caseKey = caseId || normalizedItem?.id || normalizedItem?.caseId || normalizedItem?.resultId || String(index);
               const isExpanded = Boolean(expandedCaseIds[caseKey]);
               const deleteMode = getCaseDeleteMode(normalizedItem || item);
-              const verificationDisplay = normalizedItem?.verificationStatus
-                ? humanizeStatus(normalizedItem.verificationStatus)
-                : "Not activated";
               const createdAt = normalizedItem?.createdAt || item?.createdAt || "";
               const updatedAt = normalizedItem?.updatedAt || item?.updatedAt || "";
               const savedAt = normalizedItem?.savedAt || item?.savedAt || "";
@@ -2798,10 +2795,6 @@ export default function CasesPage() {
                     minute: "2-digit",
                   })
                 : "";
-              const compactCaseId =
-                primaryResolvedCaseId && primaryResolvedCaseId.length > 18
-                  ? `${primaryResolvedCaseId.slice(0, 12)}...${primaryResolvedCaseId.slice(-6)}`
-                  : primaryResolvedCaseId;
 
               return (
               <article
@@ -2842,45 +2835,20 @@ export default function CasesPage() {
 
                     <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                       <p>Status: {sanitizeText(derived.displayStatus)}</p>
-                      {isExpanded && (
-                        <>
-                          <p>
-                            Evidence captured: {eventCount}{" "}
-                            {eventCount === 1 ? "event" : "events"}
-                          </p>
-                          <p>Verification: {sanitizeText(verificationDisplay)}</p>
-                        </>
-                      )}
                     </div>
 
                     {isExpanded && (
                       <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs text-slate-600">
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {primaryResolvedCaseId ? (
-                            <p title={primaryResolvedCaseId}>
-                              Case ID: {sanitizeText(compactCaseId)}
-                            </p>
-                          ) : null}
-                          {formattedCreatedAt ? (
-                            <p>Created: {formattedCreatedAt}</p>
-                          ) : null}
-                          {formattedUpdatedAt || formattedSavedAt ? (
-                            <p>
-                              {formattedUpdatedAt
-                                ? `Updated: ${formattedUpdatedAt}`
-                                : `Saved: ${formattedSavedAt}`}
-                            </p>
-                          ) : null}
-                          {normalizedItem?.source ? (
-                            <p>Source: {sanitizeText(normalizedItem.source)}</p>
-                          ) : null}
-                          {normalizedItem?.currentStep ? (
-                            <p>Current step: {sanitizeText(normalizedItem.currentStep)}</p>
-                          ) : null}
-                          {normalizedItem?.stage ? (
-                            <p>Stage: {sanitizeText(normalizedItem.stage)}</p>
-                          ) : null}
-                        </div>
+                        {formattedCreatedAt ? (
+                          <p>Created: {formattedCreatedAt}</p>
+                        ) : null}
+                        {formattedUpdatedAt || formattedSavedAt ? (
+                          <p>
+                            {formattedUpdatedAt
+                              ? `Updated: ${formattedUpdatedAt}`
+                              : `Saved: ${formattedSavedAt}`}
+                          </p>
+                        ) : null}
                         <div className="flex flex-row flex-wrap items-center justify-start gap-3 py-4">
                           <a
                             href={redoDiagnosticPath}
