@@ -328,6 +328,7 @@ function hasExplicitReceiptReady(input = {}) {
 function isReadinessEvidenceEvent(event = {}) {
   const text = String(event?.text || "").trim();
   const type = normalizeStatusText(event?.type);
+
   const nonEvidenceTypes = new Set([
     "entry_viewed",
     "entry_clicked",
@@ -345,21 +346,23 @@ function isReadinessEvidenceEvent(event = {}) {
     "deterministic_score",
   ]);
 
+  const evidenceTypes = new Set([
+    "evidence_capture",
+    "evidence_event",
+    "receipt_evidence",
+    "receipt_evidence_capture",
+    "formal_evidence_capture",
+  ]);
+
+  const evidenceTextPattern =
+    /\b(evidence|record|reviewed|verified|support|invoice|txn|transaction|receipt|hash|case id|case-id|caseid|proof|document|attachment|confirmed|validation)\b/i;
+
   if (nonEvidenceTypes.has(type)) return false;
   if (type.startsWith("diagnostic_")) return false;
-  if (text.length > 0) return true;
+  if (evidenceTypes.has(type)) return true;
+  if (evidenceTextPattern.test(text)) return true;
 
-  return (
-    type === "quick_capture" ||
-    type === "quick_capture_submitted" ||
-    type === "receipt_quick_capture" ||
-    type === "event_capture" ||
-    type === "pilot_event" ||
-    type === "workflow_event" ||
-    type === "case_event" ||
-    type === "structured_event" ||
-    type.includes("capture")
-  );
+  return false;
 }
 
 export function buildReadinessContract(input = {}) {
