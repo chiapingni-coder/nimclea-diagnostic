@@ -1645,6 +1645,36 @@ const urlCaseId = String(
     setBackendCaseRepairing(true);
     setBackendCaseRepairFailed(false);
 
+    const isPlaceholderCaseTitle = (value = "") => {
+      const text = String(value || "").trim();
+      if (!text) return true;
+      if (text.toLowerCase() === "untitled case") return true;
+      if (text === safeCaseId) return true;
+      return false;
+    };
+
+    const protectedCaseTitle =
+      [
+        backendCaseRecord?.title,
+        backendCaseRecord?.caseName,
+        backendCaseRecord?.name,
+        activeCurrentCase?.title,
+        activeCurrentCase?.caseName,
+        activeCurrentCase?.name,
+        activeCurrentCase?.caseData?.title,
+        activeCurrentCase?.caseData?.caseName,
+        currentCase?.title,
+        currentCase?.caseName,
+        currentCase?.name,
+        hydratedReceiptRecord?.title,
+        hydratedReceiptRecord?.caseName,
+        hydratedReceiptRecord?.name,
+        fallbackCase?.title,
+        fallbackCase?.caseName,
+        fallbackCaseData?.title,
+        fallbackCaseData?.caseName,
+      ].find((value) => !isPlaceholderCaseTitle(value)) || "Untitled case";
+
     const repairPayload = {
       caseId: safeCaseId,
       id: safeCaseId,
@@ -1663,13 +1693,9 @@ const urlCaseId = String(
       stage: fallbackCase?.stage || fallbackCaseData?.stage || "receipt_preview",
       currentStep: "receipt",
       source: "receipt_page_repair",
-      title: fallbackCase?.title || fallbackCaseData?.title || "Untitled case",
-      caseName:
-        fallbackCase?.caseName ||
-        fallbackCaseData?.caseName ||
-        fallbackCase?.title ||
-        fallbackCaseData?.title ||
-        "Untitled case",
+      title: protectedCaseTitle,
+      name: protectedCaseTitle,
+      caseName: protectedCaseTitle,
       receiptEligible:
         fallbackCase?.receiptEligible === true ||
         fallbackCaseData?.receiptEligible === true,
