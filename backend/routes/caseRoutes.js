@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import {
   readJsonFile,
   writeJsonFile,
@@ -588,18 +588,29 @@ router.patch("/:caseId/title", async (req, res) => {
       });
     }
 
-    const casesRaw = readJsonFile(CASES_FILE, []);
-    const cases = Array.isArray(casesRaw) ? casesRaw : [];
-    const existingIndex = findCaseIndex(cases, resolvedCaseId);
+    const deletedCaseIds = getDeletedCaseIdSet();
 
-    if (existingIndex < 0) {
+    if (deletedCaseIds.has(resolvedCaseId)) {
       return res.status(404).json({
         success: false,
         message: "Case not found",
       });
     }
 
-    const existing = cases[existingIndex] || {};
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
+    const existingIndex = findCaseIndex(cases, resolvedCaseId);
+    const localTarget = existingIndex >= 0 ? cases[existingIndex] : null;
+    const supabaseTarget = localTarget ? null : await findSupabaseCaseRecord(resolvedCaseId);
+    const existing = localTarget || supabaseTarget;
+
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Case not found",
+      });
+    }
+
     const now = new Date().toISOString();
     const updatedCase = {
       ...existing,
@@ -617,9 +628,13 @@ router.patch("/:caseId/title", async (req, res) => {
       updatedAt: now,
     };
 
-    cases[existingIndex] = updatedCase;
-    writeJsonFile(CASES_FILE, cases);
+    if (existingIndex >= 0) {
+      cases[existingIndex] = updatedCase;
+    } else {
+      cases.push(updatedCase);
+    }
 
+    writeJsonFile(CASES_FILE, cases);
     await mirrorCaseToSupabase(updatedCase);
 
     return res.json({
@@ -634,7 +649,6 @@ router.patch("/:caseId/title", async (req, res) => {
     });
   }
 });
-
 router.patch("/:caseId/receipt-status", async (req, res) => {
   try {
     const resolvedCaseId = normalizeValidCaseId(req.params.caseId);
