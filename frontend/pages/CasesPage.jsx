@@ -1495,6 +1495,11 @@ export default function CasesPage() {
   const [showActiveCaseLimitModal, setShowActiveCaseLimitModal] = React.useState(false);
   const [highRiskDeleteTarget, setHighRiskDeleteTarget] = React.useState(null);
   const [caseView, setCaseView] = React.useState("active");
+  const [editingCaseId, setEditingCaseId] = React.useState("");
+  const [editingTitle, setEditingTitle] = React.useState("");
+  const [savingTitleCaseId, setSavingTitleCaseId] = React.useState("");
+  const [titleEditError, setTitleEditError] = React.useState({ caseId: "", message: "" });
+  const titleInputRef = React.useRef(null);
   const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
   const resolvedWorkspaceEmail = formatEmail(savedEmail || resolvedEmail);
   const hasWorkspaceIdentity =
@@ -1568,6 +1573,17 @@ export default function CasesPage() {
       localStorage.setItem(EMAIL_STORAGE_KEY, resolvedEmail);
     }
   }, [resolvedCaseId, resolvedEmail]);
+
+  React.useEffect(() => {
+    if (!editingCaseId) return;
+
+    const timeout = window.setTimeout(() => {
+      titleInputRef.current?.focus?.();
+      titleInputRef.current?.select?.();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [editingCaseId]);
 
   const loadCasesForEmail = React.useCallback(async (rawEmail, options = {}) => {
     console.log("[loadCasesForEmail called]", rawEmail);
@@ -1786,6 +1802,123 @@ export default function CasesPage() {
       setLoadingCases(false);
     }
   }, [navigate]);
+
+  const beginCaseTitleEdit = React.useCallback((caseItem) => {
+    const caseId = getOwnCaseId(caseItem);
+
+    if (!caseId) {
+      console.warn("[CasesPage title edit] Missing caseId for rename target", caseItem);
+      return;
+    }
+
+    setTitleEditError({ caseId: "", message: "" });
+    setEditingCaseId(caseId);
+    setEditingTitle(
+      String(
+        caseItem?.title ||
+          caseItem?.caseName ||
+          caseItem?.name ||
+          "Untitled case"
+      ).trim() || "Untitled case"
+    );
+  }, []);
+
+  const cancelCaseTitleEdit = React.useCallback(() => {
+    setEditingCaseId("");
+    setEditingTitle("");
+  }, []);
+
+  const applyTitleToCaseLists = React.useCallback((caseId, nextTitle, updatedAt) => {
+    const updateItem = (item = {}) => {
+      const itemCaseId = getOwnCaseId(item);
+
+      if (itemCaseId !== caseId) return item;
+
+      return {
+        ...item,
+        title: nextTitle,
+        name: nextTitle,
+        caseName: nextTitle,
+        updatedAt: updatedAt || item?.updatedAt,
+        caseData: {
+          ...(item?.caseData || {}),
+          title: nextTitle,
+          name: nextTitle,
+          caseName: nextTitle,
+        },
+      };
+    };
+
+    setCases((prev) => prev.map(updateItem));
+    setArchivedCases((prev) => prev.map(updateItem));
+  }, []);
+
+  const commitCaseTitleEdit = React.useCallback(
+    async (caseItem) => {
+      const caseId = getOwnCaseId(caseItem);
+      if (!caseId || savingTitleCaseId === caseId) return;
+
+      const currentTitle = String(
+        caseItem?.title ||
+          caseItem?.caseName ||
+          caseItem?.name ||
+          "Untitled case"
+      ).trim() || "Untitled case";
+      const nextTitle = String(editingTitle || "").trim();
+
+      if (!nextTitle) {
+        setEditingCaseId("");
+        setEditingTitle("");
+        setTitleEditError({
+          caseId,
+          message: "Title cannot be empty.",
+        });
+        return;
+      }
+
+      if (nextTitle === currentTitle) {
+        cancelCaseTitleEdit();
+        return;
+      }
+
+      setSavingTitleCaseId(caseId);
+      setTitleEditError({ caseId: "", message: "" });
+
+      try {
+        const response = await fetch(`${API_BASE}/case/${encodeURIComponent(caseId)}/title`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ title: nextTitle }),
+        });
+
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(payload?.message || "Failed to rename case.");
+        }
+
+        const updatedTitle =
+          String(payload?.data?.title || nextTitle).trim() || currentTitle;
+        const updatedAt = payload?.data?.updatedAt || new Date().toISOString();
+
+        applyTitleToCaseLists(caseId, updatedTitle, updatedAt);
+        cancelCaseTitleEdit();
+      } catch (error) {
+        console.warn("[CasesPage title edit] Failed to update case title", error);
+        setEditingCaseId("");
+        setEditingTitle("");
+        setTitleEditError({
+          caseId,
+          message: "Could not rename case.",
+        });
+      } finally {
+        setSavingTitleCaseId("");
+      }
+    },
+    [API_BASE, applyTitleToCaseLists, cancelCaseTitleEdit, editingTitle, savingTitleCaseId]
+  );
 
   React.useEffect(() => {
     const email = formatEmail(savedEmail || resolvedEmail);
@@ -2471,6 +2604,82 @@ export default function CasesPage() {
         : "No active cases.";
   const isLifecycleView = ["active", "baseline", "historic"].includes(caseView);
 
+  const renderCaseTitleControl = (caseItem) => {
+    const caseId = getOwnCaseId(caseItem);
+    const isEditing = Boolean(caseId && editingCaseId === caseId);
+    const isSaving = Boolean(caseId && savingTitleCaseId === caseId);
+    const currentTitle = String(
+      caseItem?.title ||
+        caseItem?.caseName ||
+        caseItem?.name ||
+        "Untitled case"
+    ).trim() || "Untitled case";
+
+    return (
+      <div className="min-w-0 flex-1">
+        {isEditing ? (
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={editingTitle}
+            onChange={(event) => setEditingTitle(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.stopPropagation();
+                void commitCaseTitleEdit(caseItem);
+              }
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                cancelCaseTitleEdit();
+              }
+            }}
+            onBlur={() => {
+              if (!isSaving) {
+                void commitCaseTitleEdit(caseItem);
+              }
+            }}
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-slate-500"
+            aria-label="Rename case title"
+          />
+        ) : (
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="min-w-0 truncate text-lg font-semibold text-slate-900">
+              {sanitizeText(currentTitle, "Untitled case")}
+            </h2>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!caseId) {
+                  console.warn("[CasesPage title edit] Missing caseId for rename target", caseItem);
+                  return;
+                }
+                beginCaseTitleEdit(caseItem);
+              }}
+              onMouseDown={(event) => event.stopPropagation()}
+              disabled={!caseId || isSaving}
+              aria-label="Rename case"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Rename case"
+            >
+              {"\u270E"}
+            </button>
+          </div>
+        )}
+
+        {titleEditError.caseId === caseId && titleEditError.message ? (
+          <p className="mt-1 text-xs font-medium text-red-600">
+            {sanitizeText(titleEditError.message)}
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
@@ -2822,15 +3031,11 @@ export default function CasesPage() {
                             transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
                           }}
                         >
-                          ▶
+                          ?
                         </span>
                       </button>
 
-                      <div className="min-w-0">
-                        <h2 className="text-lg font-semibold text-slate-900">
-                          {sanitizeText(item?.title, "Untitled case")}
-                        </h2>
-                      </div>
+                      {renderCaseTitleControl(item)}
                     </div>
 
                     <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">

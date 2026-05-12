@@ -569,6 +569,72 @@ router.post("/save", async (req, res) => {
   }
 });
 
+router.patch("/:caseId/title", async (req, res) => {
+  try {
+    const resolvedCaseId = normalizeValidCaseId(req.params.caseId);
+    const title = String(req.body?.title || "").trim();
+
+    if (!resolvedCaseId) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid caseId is required",
+      });
+    }
+
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        message: "Title is required",
+      });
+    }
+
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
+    const existingIndex = findCaseIndex(cases, resolvedCaseId);
+
+    if (existingIndex < 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Case not found",
+      });
+    }
+
+    const existing = cases[existingIndex] || {};
+    const now = new Date().toISOString();
+    const updatedCase = {
+      ...existing,
+      id: existing.id || resolvedCaseId,
+      caseId: existing.caseId || resolvedCaseId,
+      title,
+      name: title,
+      caseName: title,
+      caseData: {
+        ...(existing.caseData || {}),
+        title,
+        name: title,
+        caseName: title,
+      },
+      updatedAt: now,
+    };
+
+    cases[existingIndex] = updatedCase;
+    writeJsonFile(CASES_FILE, cases);
+
+    await mirrorCaseToSupabase(updatedCase);
+
+    return res.json({
+      success: true,
+      data: updatedCase,
+    });
+  } catch (error) {
+    console.error("PATCH /case/:caseId/title error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update case title",
+    });
+  }
+});
+
 router.patch("/:caseId/receipt-status", async (req, res) => {
   try {
     const resolvedCaseId = normalizeValidCaseId(req.params.caseId);
