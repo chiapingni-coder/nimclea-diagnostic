@@ -904,6 +904,133 @@ function isDeletedOrDiscardedCase(item = {}) {
   );
 }
 
+function hasVerificationHistoricSignal(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const verificationStatus = normalizeCaseText(normalized?.verificationStatus);
+  const verificationObjectStatus = normalizeCaseText(normalized?.verification?.status);
+
+  return Boolean(
+    normalized?.verificationPaid === true ||
+      normalized?.verification?.paid === true ||
+      normalized?.verificationDelivered === true ||
+      normalized?.verificationDeliveryCompleted === true ||
+      normalized?.evidencePackageDownloaded === true ||
+      normalized?.firstEvidencePackageDownloaded === true ||
+      normalized?.firstEvidencePackageDownloadedAt ||
+      normalized?.evidencePackageDownloadedAt ||
+      normalized?.deliveryCompletedAt ||
+      normalized?.certificateDownloaded === true ||
+      normalized?.certificateDownloadedAt ||
+      normalized?.proofDownloaded === true ||
+      normalized?.proofDownloadedAt ||
+      normalized?.proofPackageDownloaded === true ||
+      normalized?.proofPackageDownloadedAt ||
+      normalized?.finalDeterminationDelivered === true ||
+      normalized?.finalDeterminationDeliveredAt ||
+      normalized?.verification?.delivered === true ||
+      normalized?.verification?.deliveryCompleted === true ||
+      normalized?.verification?.evidencePackageDownloaded === true ||
+      normalized?.verification?.firstEvidencePackageDownloaded === true ||
+      normalized?.verification?.firstEvidencePackageDownloadedAt ||
+      normalized?.verification?.evidencePackageDownloadedAt ||
+      normalized?.verification?.deliveryCompletedAt ||
+      normalized?.verification?.certificateDownloaded === true ||
+      normalized?.verification?.certificateDownloadedAt ||
+      normalized?.verification?.proofDownloaded === true ||
+      normalized?.verification?.proofDownloadedAt ||
+      normalized?.verification?.proofPackageDownloaded === true ||
+      normalized?.verification?.proofPackageDownloadedAt ||
+      normalized?.verification?.finalDeterminationDelivered === true ||
+      normalized?.verification?.finalDeterminationDeliveredAt ||
+      ["paid", "completed", "issued", "delivered"].includes(verificationStatus) ||
+      ["paid", "completed", "issued", "delivered"].includes(verificationObjectStatus)
+  );
+}
+
+function hasPaymentOrFormalReceiptSignal(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const paymentStatus = normalizeCaseText(normalized?.paymentStatus);
+  const receiptStatus = normalizeCaseText(normalized?.receiptStatus);
+  const receiptObjectStatus = normalizeCaseText(normalized?.receipt?.status);
+  const paymentType = normalizeCaseText(
+    normalized?.paymentType ||
+      normalized?.priceType ||
+      normalized?.productType ||
+      normalized?.receipt?.paymentType ||
+      normalized?.receipt?.priceType ||
+      normalized?.receipt?.productType
+  );
+
+  return Boolean(
+    normalized?.paid === true ||
+      ["paid", "succeeded", "complete"].includes(paymentStatus) ||
+      ["issued", "activated", "baseline_issued"].includes(receiptStatus) ||
+      ["issued", "activated", "baseline_issued"].includes(receiptObjectStatus) ||
+      normalized?.receiptIssued === true ||
+      normalized?.baselineIssued === true ||
+      normalized?.receipt?.issued === true ||
+      normalized?.receipt?.activated === true ||
+      normalized?.receipt?.baselineIssued === true ||
+      (["receipt_activation", "formal_receipt"].includes(paymentType) &&
+        (normalized?.paid === true ||
+          ["paid", "succeeded", "complete"].includes(paymentStatus)))
+  );
+}
+
+function isSuppressedWorkspaceCase(item = {}) {
+  const normalized = normalizeCaseItem(item);
+
+  if (isDeletedOrDiscardedCase(normalized)) return true;
+  if (isReceiptSnapshotCase(normalized) && !isProtectedReceiptSnapshotCase(normalized)) {
+    return true;
+  }
+
+  const status = normalizeCaseText(normalized?.status);
+  const stage = normalizeCaseText(normalized?.stage);
+  const currentStep = normalizeCaseText(normalized?.currentStep);
+  const source = normalizeCaseText(normalized?.source);
+  const title = normalizeCaseText(
+    normalized?.title ||
+      normalized?.caseName ||
+      normalized?.name ||
+      normalized?.caseData?.title ||
+      normalized?.caseData?.caseName
+  );
+  const eventCount = getCaseEventCount(normalized);
+  const hasReceiptReadiness =
+    normalized?.receiptEligible === true ||
+    normalized?.caseReceiptEligible === true ||
+    status === "receipt_ready" ||
+    stage === "receipt_ready";
+  const hasFormalOrHistoricSignal =
+    hasPaymentOrFormalReceiptSignal(normalized) ||
+    hasVerificationHistoricSignal(normalized);
+  const hasActionableStep = Boolean(
+    currentStep &&
+      !["diagnostic", "result"].includes(currentStep)
+  );
+  const emptyDraftOrResultOnly = Boolean(
+    ["", "draft", "diagnostic_completed", "result_ready", "result", "diagnostic"].includes(status) &&
+      ["", "draft", "diagnostic_completed", "result_ready", "result", "diagnostic"].includes(stage) &&
+      eventCount === 0 &&
+      !hasReceiptReadiness &&
+      !hasFormalOrHistoricSignal &&
+      !hasMeaningfulCaseTitle(normalized) &&
+      !hasActionableStep
+  );
+  const oldTestShell = Boolean(
+    (source.includes("test") ||
+      source.includes("demo") ||
+      title.includes("test") ||
+      title.includes("demo")) &&
+      eventCount === 0 &&
+      !hasReceiptReadiness &&
+      !hasFormalOrHistoricSignal
+  );
+
+  return emptyDraftOrResultOnly || oldTestShell;
+}
+
 function getWorkspaceCaseRichnessScore(item = {}) {
   const normalized = normalizeCaseItem(item);
   const stage = normalizeCaseText(normalized?.stage || normalized?.status);
@@ -1035,7 +1162,7 @@ function isEmptyDraftCase(item) {
 
 function isVisibleActiveCase(item) {
   return (
-    !isDeletedOrDiscardedCase(item) &&
+    !isSuppressedWorkspaceCase(item) &&
     (!isReceiptSnapshotCase(item) || isProtectedReceiptSnapshotCase(item))
   );
 }
@@ -1061,29 +1188,12 @@ function getCaseSection(caseItem) {
   const eventCount = getCaseEventCount(normalized);
   const hasMeaningfulTitle = hasMeaningfulCaseTitle(normalized);
 
-  if (isDeletedOrDiscardedCase(normalized)) {
-    return "historic";
-  }
-
-  if (isReceiptSnapshotCase(normalized) && !isProtectedReceiptSnapshotCase(normalized)) {
-    return "historic";
+  if (isSuppressedWorkspaceCase(normalized)) {
+    return "hidden";
   }
 
   const hasExplicitHistoricDelivery = Boolean(
-    normalized?.verificationDelivered === true ||
-      normalized?.verificationDeliveryCompleted === true ||
-      normalized?.evidencePackageDownloaded === true ||
-      normalized?.firstEvidencePackageDownloaded === true ||
-      normalized?.firstEvidencePackageDownloadedAt ||
-      normalized?.evidencePackageDownloadedAt ||
-      normalized?.deliveryCompletedAt ||
-      normalized?.verification?.delivered === true ||
-      normalized?.verification?.deliveryCompleted === true ||
-      normalized?.verification?.evidencePackageDownloaded === true ||
-      normalized?.verification?.firstEvidencePackageDownloaded === true ||
-      normalized?.verification?.firstEvidencePackageDownloadedAt ||
-      normalized?.verification?.evidencePackageDownloadedAt ||
-      normalized?.verification?.deliveryCompletedAt
+    hasVerificationHistoricSignal(normalized)
   );
 
   if (hasExplicitHistoricDelivery) {
@@ -1093,7 +1203,8 @@ function getCaseSection(caseItem) {
   const receiptRecordStatuses = new Set(["issued", "activated", "baseline_issued"]);
   const verificationRecordStatuses = new Set([
     "paid",
-    "verification_ready",
+    "completed",
+    "delivered",
     "activated",
     "issued",
   ]);
@@ -1147,15 +1258,15 @@ function getCaseSection(caseItem) {
   );
 
   const hasBaselineSignal = Boolean(
-    hasActivatedVerification(normalized) ||
-      normalized?.paid === true ||
+    !hasVerificationHistoricSignal(normalized) &&
+      (normalized?.paid === true ||
       hasFormalBaselineIndicator ||
       (hasLiveReceiptIdentifier && hasFormalLiveReceiptIssued) ||
       receiptRecordStatuses.has(receiptObjectStatus) ||
       ["paid", "succeeded", "complete"].includes(paymentStatus) ||
       receiptRecordStatuses.has(receiptStatus) ||
       verificationRecordStatuses.has(verificationStatus) ||
-      verificationRecordStatuses.has(verificationObjectStatus)
+        verificationRecordStatuses.has(verificationObjectStatus))
   );
 
   if (hasBaselineSignal) {
@@ -1166,12 +1277,9 @@ function getCaseSection(caseItem) {
     status === "completed" ||
     stage === "completed" ||
     status === "closed" ||
-    stage === "closed" ||
-    normalized?.archived === true ||
-    normalized?.isArchived === true ||
-    normalized?.archivedAt
+    stage === "closed"
   ) {
-    return "historic";
+    return hasVerificationHistoricSignal(normalized) ? "historic" : "hidden";
   }
 
   const actionableStates = new Set([
@@ -1207,7 +1315,7 @@ function getCaseSection(caseItem) {
   );
 
   if (isEmptyDraftCase(normalized) || staleDiagnosticOrResultOnly) {
-    return "historic";
+    return "hidden";
   }
 
   if (hasActionableState || isReceiptReadyActionable || eventCount > 0) {
@@ -1215,7 +1323,7 @@ function getCaseSection(caseItem) {
   }
 
   if (!hasMeaningfulTitle && eventCount === 0 && normalized?.receiptEligible !== true) {
-    return "historic";
+    return "hidden";
   }
 
   return "active";
@@ -2264,6 +2372,10 @@ export default function CasesPage() {
         }
 
         const section = getCaseSection(caseItem);
+
+        if (section === "hidden") {
+          return groups;
+        }
 
         if (section === "historic") {
           groups.historicRecords.push(caseItem);
