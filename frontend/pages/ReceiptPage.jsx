@@ -2328,6 +2328,103 @@ const normalizedScore = deterministicScore.totalScore;
 const hasPassingScore = backendReceiptReady || Number(normalizedScore || 0) >= 3.0;
 
 const receiptEligible = backendReceiptReady || readinessContract.receiptReady;
+const activeReceiptStatus = String(
+  activeCurrentCase?.receiptStatus ||
+    hydratedReceiptRecord?.receiptStatus ||
+    currentCase?.receiptStatus ||
+    ""
+).toLowerCase();
+const activeReceiptLifecycleValues = [
+  activeCurrentCase?.stage,
+  activeCurrentCase?.currentStep,
+  activeCurrentCase?.status,
+  hydratedReceiptRecord?.stage,
+  hydratedReceiptRecord?.currentStep,
+  hydratedReceiptRecord?.status,
+  currentCase?.stage,
+  currentCase?.currentStep,
+  currentCase?.status,
+].map((value) => String(value || "").toLowerCase());
+const receiptEventCount = Number(
+  activeCurrentCase?.eventCount ??
+    hydratedReceiptRecord?.eventCount ??
+    currentCase?.eventCount ??
+    deterministicScore.eventCount ??
+    submittedEvents ??
+    0
+);
+const hasReadyReceipt =
+  receiptEligible === true ||
+  activeCurrentCase?.receiptEligible === true ||
+  activeCurrentCase?.caseReceiptEligible === true ||
+  hydratedReceiptRecord?.receiptEligible === true ||
+  hydratedReceiptRecord?.caseReceiptEligible === true ||
+  currentCase?.receiptEligible === true ||
+  currentCase?.caseReceiptEligible === true ||
+  activeReceiptStatus === "ready";
+const hasPilotResultContext =
+  Boolean(activeCurrentCase?.result) ||
+  Boolean(activeCurrentCase?.preview) ||
+  Boolean(activeCurrentCase?.pilotResult) ||
+  Boolean(activeCurrentCase?.caseResult) ||
+  activeCurrentCase?.score != null ||
+  Boolean(hydratedReceiptRecord?.result) ||
+  Boolean(hydratedReceiptRecord?.preview) ||
+  Boolean(hydratedReceiptRecord?.pilotResult) ||
+  Boolean(hydratedReceiptRecord?.caseResult) ||
+  hydratedReceiptRecord?.score != null ||
+  Number(receiptEventCount || 0) >= 1 ||
+  activeReceiptLifecycleValues.some((value) =>
+    ["result_ready", "pilot_result", "case_result", "s3", "receipt"].includes(
+      value
+    )
+  );
+const hasReceiptCaseContext =
+  Boolean(activeCurrentCase) ||
+  Boolean(currentCase) ||
+  Boolean(backendCaseRecord) ||
+  Boolean(hydratedReceiptRecord) ||
+  hasPilotResultContext;
+const receiptReadinessPending =
+  isReceiptCaseHydrating ||
+  !receiptRecordHydrationComplete ||
+  backendCaseLoading ||
+  backendCaseRepairing ||
+  isReceiptBackendSyncPending;
+
+const hasConfirmedNonReadyReceipt =
+  hasReceiptCaseContext &&
+  hasPilotResultContext &&
+  !hasReadyReceipt &&
+  (
+    activeCurrentCase?.receiptEligible === false ||
+    activeCurrentCase?.caseReceiptEligible === false ||
+    hydratedReceiptRecord?.receiptEligible === false ||
+    hydratedReceiptRecord?.caseReceiptEligible === false ||
+    currentCase?.receiptEligible === false ||
+    currentCase?.caseReceiptEligible === false
+  );
+const receiptHydrationFailed =
+  !inferredCaseId ||
+  Boolean(backendCaseError) ||
+  Boolean(backendCaseRepairFailed && !hasReceiptCaseContext) ||
+  Boolean(
+    backendCaseLookupComplete &&
+      !backendCaseLoading &&
+      needsReceiptBackendPresence &&
+      !hasReceiptCaseContext
+  );
+const receiptDisplayState = receiptHydrationFailed
+  ? "unable"
+  : hasReadyReceipt
+  ? "ready"
+  : hasConfirmedNonReadyReceipt
+  ? "insufficient"
+  : receiptReadinessPending
+  ? "pending"
+  : hasPilotResultContext
+  ? "insufficient"
+  : "pending";
 
 console.log("[ReceiptPage readiness trace]", {
   caseId: inferredCaseId,
@@ -2356,6 +2453,10 @@ console.log("[ReceiptPage readiness trace]", {
   localStage: currentCase?.stage,
   localStatus: currentCase?.status,
   decisionStatus: data?.decisionStatus,
+  hasReadyReceipt,
+  hasPilotResultContext,
+  receiptHydrationFailed,
+  receiptDisplayState,
 });
 
 React.useEffect(() => {
@@ -2801,28 +2902,7 @@ React.useEffect(() => {
   isEvidenceLockedConsistent,
 ]);
 
-if (isReceiptCaseHydrating) {
-  return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-      <div className="max-w-3xl mx-auto">
-        <TopRightCasesCapsule />
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-xs font-medium text-slate-400 mb-2">
-            Receipt status
-          </p>
-          <h1 className="text-2xl font-bold mb-3">
-            Checking receipt status...
-          </h1>
-          <p className="text-slate-700 leading-7">
-            Loading the current case record before showing the receipt decision.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-if (receiptGuardTimedOut && needsReceiptBackendPresence && !hasReceiptBackendPresence) {
+if (receiptDisplayState === "unable") {
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto">
@@ -2836,27 +2916,6 @@ if (receiptGuardTimedOut && needsReceiptBackendPresence && !hasReceiptBackendPre
           </h1>
           <p className="text-slate-700 leading-7">
             Please return to Cases or retry.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-if (backendCaseRepairFailed && needsReceiptBackendPresence && !hasReceiptBackendPresence) {
-  return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
-      <div className="max-w-3xl mx-auto">
-        <TopRightCasesCapsule />
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <p className="text-xs font-medium text-slate-400 mb-2">
-            Receipt status
-          </p>
-          <h1 className="text-2xl font-bold mb-3">
-            Case sync required
-          </h1>
-          <p className="text-slate-700 leading-7">
-            This receipt preview needs the current case record to sync before it can be shown.
           </p>
         </div>
       </div>
