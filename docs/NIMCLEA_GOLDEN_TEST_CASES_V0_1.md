@@ -115,4 +115,5 @@ Implemented source files referenced:
 | 11-A1: Readiness / Scoring Rule Table v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A2: Rule-layer classification | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A3: Golden Test Cases v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
+| 11-A4: Golden Test Execution Plan v0.1 | Drafted | 2026-05-12 | Documentation only | none |
 
