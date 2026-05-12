@@ -54,7 +54,7 @@ export function getPlanSurfaceContract({
 
   if (activeSubscription) {
     return {
-      outerCtaLabel: "Manage Plan",
+      outerCtaLabel: "Manage Access",
       outerCtaMode: "manage_plan",
       showOuterCta: true,
       showCancelPlan: true,
@@ -66,13 +66,13 @@ export function getPlanSurfaceContract({
   }
 
   return {
-    outerCtaLabel: "Manage Plan",
+    outerCtaLabel: "Manage Access",
     outerCtaMode: "manage_plan",
     showOuterCta: true,
     showCancelPlan: false,
     cancelPlanPlacement: "hidden",
     showCustomerCheckoutState: false,
-    modalPrimaryLabel: "Continue Plan",
+    modalPrimaryLabel: "Continue Access",
     modalMode:
       pilotWindowEnded === true
         ? "continue_plan"

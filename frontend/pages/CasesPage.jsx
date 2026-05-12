@@ -2775,7 +2775,7 @@ export default function CasesPage() {
                     }}
                     className="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
                   >
-                    {sanitizeText(planOuterCtaLabel, "Manage Plan")}
+                    {sanitizeText(planOuterCtaLabel, "Manage Access")}
                   </button>
                 ) : null}
 
@@ -3708,7 +3708,7 @@ export default function CasesPage() {
                 >
                   {startingSubscriptionCheckout
                     ? "Starting checkout..."
-                    : sanitizeText(planModalPrimaryLabel, "Continue Plan")}
+                    : sanitizeText(planModalPrimaryLabel, "Continue Access")}
                 </button>
                 {showPlanCancelOption ? (
                   <p
@@ -3719,7 +3719,7 @@ export default function CasesPage() {
                       color: "#64748B",
                     }}
                   >
-                    Cancel Plan is available only through plan management.
+                    Cancellation is available through billing management.
                   </p>
                 ) : null}
                 {subscriptionCheckoutError ? (
