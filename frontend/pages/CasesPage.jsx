@@ -1090,10 +1090,9 @@ function getCaseSection(caseItem) {
     return "historic";
   }
 
-  const receiptRecordStatuses = new Set(["paid", "issued", "activated"]);
+  const receiptRecordStatuses = new Set(["issued", "activated", "baseline_issued"]);
   const verificationRecordStatuses = new Set([
     "paid",
-    "ready",
     "verification_ready",
     "activated",
     "issued",
@@ -1116,24 +1115,44 @@ function getCaseSection(caseItem) {
       hasNonEmptyText(normalized?.receipt?.hash) ||
       hasNonEmptyText(normalized?.receipt?.receiptHash)
   );
+  const paymentType = normalizeCaseText(
+    normalized?.paymentType ||
+      normalized?.priceType ||
+      normalized?.productType ||
+      normalized?.receipt?.paymentType ||
+      normalized?.receipt?.priceType ||
+      normalized?.receipt?.productType
+  );
+  const hasFormalReceiptPaymentRecord = Boolean(
+    ["receipt_activation", "formal_receipt"].includes(paymentType) &&
+      (normalized?.paid === true ||
+        ["paid", "succeeded", "complete"].includes(paymentStatus))
+  );
+  const hasFormalLiveReceiptIssued = Boolean(
+    normalized?.receiptIssued === true ||
+      normalized?.baselineIssued === true ||
+      normalized?.receipt?.issued === true ||
+      normalized?.receipt?.activated === true ||
+      normalized?.receipt?.baselineIssued === true
+  );
   const hasFormalBaselineIndicator = Boolean(
-    hasLiveReceiptIdentifier ||
-      status === "baseline_issued" ||
+    status === "baseline_issued" ||
       stage === "baseline_issued" ||
       status === "receipt_issued" ||
       stage === "receipt_issued" ||
       status === "receipt_activated" ||
-      stage === "receipt_activated"
+      stage === "receipt_activated" ||
+      hasFormalReceiptPaymentRecord ||
+      hasFormalLiveReceiptIssued
   );
 
   const hasBaselineSignal = Boolean(
-    hasActivatedReceipt(normalized) ||
-      hasActivatedVerification(normalized) ||
-      derived.paid ||
+    hasActivatedVerification(normalized) ||
       normalized?.paid === true ||
       hasFormalBaselineIndicator ||
+      (hasLiveReceiptIdentifier && hasFormalLiveReceiptIssued) ||
       receiptRecordStatuses.has(receiptObjectStatus) ||
-      paymentStatus === "paid" ||
+      ["paid", "succeeded", "complete"].includes(paymentStatus) ||
       receiptRecordStatuses.has(receiptStatus) ||
       verificationRecordStatuses.has(verificationStatus) ||
       verificationRecordStatuses.has(verificationObjectStatus)
