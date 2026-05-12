@@ -714,6 +714,23 @@ function resolveCaseId(item) {
   return resolveSafeCaseId(normalized);
 }
 
+function isValidBusinessCaseId(value = "") {
+  return /^CASE-\d+-[A-Z0-9]{6}$/.test(String(value || "").trim());
+}
+
+function getOwnCaseId(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const candidates = [
+    normalized?.caseId,
+    normalized?.case_id,
+    normalized?.id,
+  ];
+
+  return candidates
+    .map((value) => String(value || "").trim())
+    .find(isValidBusinessCaseId) || "";
+}
+
 function hasDiagnosticResultData(item) {
   const normalized = normalizeCaseItem(item);
   const caseData = normalized?.caseData || normalized?.caseSchema || normalized || {};
@@ -785,8 +802,10 @@ function hasReceiptDetailRouteSignal(item) {
   );
 }
 
-function getCaseDetailRoute(item) {
-  const caseIdSafe = resolveCaseId(item);
+function getCaseDetailRoute(item, explicitCaseId = "") {
+  const caseIdSafe = isValidBusinessCaseId(explicitCaseId)
+    ? explicitCaseId
+    : getOwnCaseId(item);
 
   if (!caseIdSafe) {
     return "/cases";
@@ -2691,8 +2710,11 @@ export default function CasesPage() {
                 isDiagnosticContinuationCase(normalizedItem);
               const isDiagnosticContinuation =
                 isDiagnosticContinuationCase(normalizedItem);
-              const detailPath = getCaseDetailRoute(normalizedItem);
-              const primaryResolvedCaseId = resolveCaseId(normalizedItem);
+              const clickedCaseId = getOwnCaseId(normalizedItem);
+              const detailPath = clickedCaseId
+                ? getCaseDetailRoute(normalizedItem, clickedCaseId)
+                : "/cases";
+              const primaryResolvedCaseId = clickedCaseId;
               const eventCount = derived.evidenceEventCount;
               const humanizeStatus = (value = "") =>
                 String(value || "")
@@ -2746,7 +2768,18 @@ export default function CasesPage() {
               const verificationDisplay = normalizedItem?.verificationStatus
                 ? humanizeStatus(normalizedItem.verificationStatus)
                 : "Not activated";
+              const createdAt = normalizedItem?.createdAt || item?.createdAt || "";
               const updatedAt = normalizedItem?.updatedAt || item?.updatedAt || "";
+              const savedAt = normalizedItem?.savedAt || item?.savedAt || "";
+              const formattedCreatedAt = createdAt
+                ? new Date(createdAt).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })
+                : "";
               const formattedUpdatedAt = updatedAt
                 ? new Date(updatedAt).toLocaleString("en-US", {
                     month: "short",
@@ -2756,6 +2789,19 @@ export default function CasesPage() {
                     minute: "2-digit",
                   })
                 : "";
+              const formattedSavedAt = savedAt
+                ? new Date(savedAt).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })
+                : "";
+              const compactCaseId =
+                primaryResolvedCaseId && primaryResolvedCaseId.length > 18
+                  ? `${primaryResolvedCaseId.slice(0, 12)}...${primaryResolvedCaseId.slice(-6)}`
+                  : primaryResolvedCaseId;
 
               return (
               <article
@@ -2803,15 +2849,38 @@ export default function CasesPage() {
                             {eventCount === 1 ? "event" : "events"}
                           </p>
                           <p>Verification: {sanitizeText(verificationDisplay)}</p>
-                          {formattedUpdatedAt ? (
-                            <p>Updated: {formattedUpdatedAt}</p>
-                          ) : null}
                         </>
                       )}
                     </div>
 
                     {isExpanded && (
                       <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs text-slate-600">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {primaryResolvedCaseId ? (
+                            <p title={primaryResolvedCaseId}>
+                              Case ID: {sanitizeText(compactCaseId)}
+                            </p>
+                          ) : null}
+                          {formattedCreatedAt ? (
+                            <p>Created: {formattedCreatedAt}</p>
+                          ) : null}
+                          {formattedUpdatedAt || formattedSavedAt ? (
+                            <p>
+                              {formattedUpdatedAt
+                                ? `Updated: ${formattedUpdatedAt}`
+                                : `Saved: ${formattedSavedAt}`}
+                            </p>
+                          ) : null}
+                          {normalizedItem?.source ? (
+                            <p>Source: {sanitizeText(normalizedItem.source)}</p>
+                          ) : null}
+                          {normalizedItem?.currentStep ? (
+                            <p>Current step: {sanitizeText(normalizedItem.currentStep)}</p>
+                          ) : null}
+                          {normalizedItem?.stage ? (
+                            <p>Stage: {sanitizeText(normalizedItem.stage)}</p>
+                          ) : null}
+                        </div>
                         <div className="flex flex-row flex-wrap items-center justify-start gap-3 py-4">
                           <a
                             href={redoDiagnosticPath}
@@ -2891,13 +2960,35 @@ export default function CasesPage() {
                       onClick={(event) => {
                         event.preventDefault();
 
-                        const resolvedCaseId = resolveCaseId(normalizedItem);
+                        const resolvedCaseId = getOwnCaseId(normalizedItem);
                         const targetPath = shouldContinueDiagnostic
                           ? primaryActionPath
-                          : getCaseDetailRoute(normalizedItem);
+                          : getCaseDetailRoute(normalizedItem, resolvedCaseId);
+                        const targetCaseId =
+                          new URLSearchParams(String(targetPath).split("?")[1] || "")
+                            .get("caseId") || "";
 
                         if (!resolvedCaseId) {
-                          console.warn("[CasePage] Missing resolvedCaseId for case item", normalizedItem);
+                          console.warn("[CasesPage Detail route] missing clicked caseId", normalizedItem);
+                          return;
+                        }
+
+                        console.log("[CasesPage Detail route]", {
+                          clickedCaseId: resolvedCaseId,
+                          clickedStatus: normalizedItem?.status || "",
+                          clickedStage: normalizedItem?.stage || "",
+                          clickedCurrentStep: normalizedItem?.currentStep || "",
+                          targetPath,
+                          targetCaseId,
+                        });
+
+                        if (targetCaseId !== resolvedCaseId) {
+                          console.error("[CasesPage Detail route] caseId mismatch; navigation blocked", {
+                            clickedCaseId: resolvedCaseId,
+                            targetPath,
+                            targetCaseId,
+                          });
+                          return;
                         }
 
                         console.log("[CasePage] detail route", {
@@ -2935,6 +3026,7 @@ export default function CasesPage() {
                               }
                             : {
                                 caseId: resolvedCaseId,
+                                case_id: resolvedCaseId,
                                 email: savedEmail || resolvedEmail,
                                 trialId:
                                   normalizedItem?.trialId ||
