@@ -1219,24 +1219,26 @@ app.get("/cases", async (req, res) => {
     });
 
     const getCaseSortTime = (item = {}) => {
-      const explicitTimes = [
-        item.updatedAt,
-        item.savedAt,
+      const caseId = String(item.caseId || item.id || "").trim();
+      const match = caseId.match(/^CASE-(\d+)-/);
+      if (match) return Number(match[1]);
+
+      const fallbackTimes = [
         item.createdAt,
-        item.receipt?.updatedAt,
+        item.savedAt,
+        item.updatedAt,
         item.receipt?.createdAt,
-        item.meta?.updatedAt,
+        item.receipt?.updatedAt,
         item.meta?.createdAt,
+        item.meta?.updatedAt,
       ];
 
-      for (const value of explicitTimes) {
+      for (const value of fallbackTimes) {
         const parsed = Date.parse(value);
         if (Number.isFinite(parsed)) return parsed;
       }
 
-      const caseId = String(item.caseId || item.id || "").trim();
-      const match = caseId.match(/^CASE-(\d+)-/);
-      return match ? Number(match[1]) : 0;
+      return 0;
     };
 
     // receipt_snapshot rows are overlay/protected-only and must not seed ordinary workspace cases.
