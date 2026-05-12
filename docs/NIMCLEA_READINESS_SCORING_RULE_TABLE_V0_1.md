@@ -188,3 +188,4 @@ Rules below are direct code observations unless marked "inferred".
 | --- | --- | --- | --- | --- |
 | 11-A1: Readiness / Scoring Rule Table v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A2: Rule-layer classification | Drafted | 2026-05-12 | Documentation only | none |
+| 11-A3: Golden Test Cases v0.1 | Drafted | 2026-05-12 | Documentation only | none |
