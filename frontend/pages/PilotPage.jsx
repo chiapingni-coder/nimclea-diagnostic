@@ -1087,7 +1087,7 @@ export default function PilotPage() {
           const caseRecord = payload?.data || null;
           const backendCaseName = resolveExistingCaseName(caseRecord, resolvedCaseId);
           const storedCaseName = getExistingCaseName(resolvedCaseId);
-          const nextBackendCaseName = storedCaseName || backendCaseName;
+          const nextBackendCaseName = backendCaseName || storedCaseName;
 
           if (!cancelled && nextBackendCaseName) {
             setExistingCaseName(nextBackendCaseName);
