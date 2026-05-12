@@ -1218,9 +1218,31 @@ app.get("/cases", async (req, res) => {
       );
     });
 
+    const getCaseSortTime = (item = {}) => {
+      const explicitTimes = [
+        item.updatedAt,
+        item.savedAt,
+        item.createdAt,
+        item.receipt?.updatedAt,
+        item.receipt?.createdAt,
+        item.meta?.updatedAt,
+        item.meta?.createdAt,
+      ];
+
+      for (const value of explicitTimes) {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+
+      const caseId = String(item.caseId || item.id || "").trim();
+      const match = caseId.match(/^CASE-(\d+)-/);
+      return match ? Number(match[1]) : 0;
+    };
+
     // receipt_snapshot rows are overlay/protected-only and must not seed ordinary workspace cases.
     const finalCases = Array.from(finalCaseMap.values())
       .filter((item) => !isUnpaidReceiptSnapshotArtifact(item))
+      .sort((a, b) => getCaseSortTime(b) - getCaseSortTime(a))
       .map((item) => {
         const {
           _hasCanonicalCaseSource,
