@@ -1,4 +1,4 @@
-﻿# Nimclea 10-D3 Scoring Sample Case Matrix
+# Nimclea 10-D3 Scoring Sample Case Matrix
 
 Date: 2026-05-12
 Scope: Sample case matrix for scoring / readiness calibration
@@ -46,16 +46,16 @@ Current critical blockers:
 
 | ID | Scenario | Event State | Structure State | Consistency State | Receipt Record State | Expected Readiness | Expected Level | Calibration Note |
 |---|---|---|---|---|---|---|---|---|
-| S1 | Empty new case | No event | Missing | No break | Not formable | Not ready | insufficient_record | Correct to block |
-| S2 | Diagnostic completed but no real event | No event | Present | No break | Not formable | Not ready | insufficient_record | Prevents fake receipt readiness |
-| S3 | One vague event, weak structure | Event exists but unclear evidence | Weak or missing | No break | Not clearly formable | Not ready | pending_review or insufficient_record | Boundary needs testing |
-| S4 | One evidence event with caseId and structure | Evidence event exists | Present | No break | Formable | Ready | ready | Should pass |
-| S5 | Multiple events but no evidence wording | Events exist | Present | No break | Maybe formable | Possibly pending_review | pending_review | Tests event vs evidence distinction |
-| S6 | Evidence exists but consistency broken | Evidence event exists | Present | Broken | Formable | Not ready | failed | Critical blocker should dominate |
-| S7 | Evidence and continuity exist but structure missing | Evidence event exists | Missing | No break | Not formable | Not ready | pending_review | Should request structure repair |
-| S8 | Receipt hash or receiptId already exists | Evidence likely exists | Present | No break | Formable | Ready | ready | Backend receipt record should win |
-| S9 | Paid / checkout started but weak evidence | Weak or missing evidence | Present | No break | Payment signal exists | Not automatically ready | insufficient_record or pending_review | Payment must not override readiness |
-| S10 | Strong case with repeated evidence events | Multiple evidence events | Present | No break | Formable | Ready | ready | Should pass cleanly |
+| M1 | Empty new case | No event | Missing | No break | Not formable | Not ready | insufficient_record | Correct to block |
+| M2 | Diagnostic completed but no real event | No event | Present | No break | Not formable | Not ready | insufficient_record | Prevents fake receipt readiness |
+| M3 | One vague event, weak structure | Event exists but unclear evidence | Weak or missing | No break | Not clearly formable | Not ready | pending_review or insufficient_record | Boundary needs testing |
+| M4 | One evidence event with caseId and structure | Evidence event exists | Present | No break | Formable | Ready | ready | Should pass |
+| M5 | Multiple events but no evidence wording | Events exist | Present | No break | Maybe formable | Possibly pending_review | pending_review | Tests event vs evidence distinction |
+| M6 | Evidence exists but consistency broken | Evidence event exists | Present | Broken | Formable | Not ready | failed | Critical blocker should dominate |
+| M7 | Evidence and continuity exist but structure missing | Evidence event exists | Missing | No break | Not formable | Not ready | pending_review | Should request structure repair |
+| M8 | Receipt hash or receiptId already exists | Evidence likely exists | Present | No break | Formable | Ready | ready | Backend receipt record should win |
+| M9 | Paid / checkout started but weak evidence | Weak or missing evidence | Present | No break | Payment signal exists | Not automatically ready | insufficient_record or pending_review | Payment must not override readiness |
+| M10 | Strong case with repeated evidence events | Multiple evidence events | Present | No break | Formable | Ready | ready | Should pass cleanly |
 
 ---
 
@@ -107,4 +107,3 @@ Next checkpoint:
 - 10-D4: run current algorithm against sample cases
 - 10-D5: decide calibration targets
 - 10-D6: apply minimal scoring calibration only if needed
-
