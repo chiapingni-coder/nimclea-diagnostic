@@ -3307,13 +3307,13 @@ export default function CasesPage() {
           <div
             style={{
               width: "fit-content",
-              maxWidth: "calc(100vw - 80px)",
+              maxWidth: "min(720px, calc(100vw - 48px))",
               maxHeight: "90vh",
               overflowY: "auto",
               backgroundColor: "#ffffff",
               borderRadius: "24px",
               boxShadow: "0 24px 80px rgba(15, 23, 42, 0.18)",
-              padding: "18px 18px 14px 18px",
+              padding: "14px 14px 12px 14px",
             }}
           >
             <div
@@ -3321,10 +3321,10 @@ export default function CasesPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: "16px",
-                marginBottom: "14px",
-                paddingLeft: "8px",
-                paddingRight: "8px",
+                gap: "12px",
+                marginBottom: "10px",
+                paddingLeft: "4px",
+                paddingRight: "4px",
               }}
             >
               <div>
@@ -3359,8 +3359,8 @@ export default function CasesPage() {
                 display: "flex",
                 gap: "16px",
                 overflowX: "auto",
-                paddingLeft: "8px",
-                paddingRight: "8px",
+                paddingLeft: "4px",
+                paddingRight: "4px",
               }}
             >
               <div
@@ -3424,8 +3424,7 @@ export default function CasesPage() {
                 >
                   <div style={{ fontWeight: 700, marginBottom: "4px" }}>Includes</div>
                   <div>- Continue your current cases</div>
-                  <div>- Up to 3 active cases in the first month</div>
-                  <div>- Up to 3 active cases</div>
+                  <div>- Continue up to 3 active cases</div>
                   <div>- Continuous result tracking</div>
                   <div>- Internal case memory</div>
                 </div>
