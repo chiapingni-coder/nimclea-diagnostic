@@ -142,17 +142,19 @@ function isPlaceholderCaseName(value, caseId = "") {
 
 function resolveExistingCaseName(record = {}, caseId = "") {
   const candidates = [
-    record?.title,
     record?.caseName,
     record?.name,
-    record?.caseData?.title,
     record?.caseData?.caseName,
     record?.caseData?.name,
-    record?.caseSchema?.title,
     record?.caseSchema?.caseName,
-    record?.caseSnapshot?.caseRecord?.title,
     record?.caseSnapshot?.caseRecord?.caseName,
     record?.caseSnapshot?.caseRecord?.name,
+
+    // Generated/system titles are fallback only.
+    record?.title,
+    record?.caseData?.title,
+    record?.caseSchema?.title,
+    record?.caseSnapshot?.caseRecord?.title,
   ];
 
   return candidates.find((value) => !isPlaceholderCaseName(value, caseId)) || "";
@@ -1046,7 +1048,7 @@ export default function PilotPage() {
       resolvedCaseId
     );
     const storedCaseName = getExistingCaseName(resolvedCaseId);
-    const nextCaseName = routeCaseName || storedCaseName;
+    const nextCaseName = storedCaseName || routeCaseName;
 
     setExistingCaseName(nextCaseName);
     if (nextCaseName) {
@@ -1084,9 +1086,12 @@ export default function PilotPage() {
           const payload = await response.json().catch(() => ({}));
           const caseRecord = payload?.data || null;
           const backendCaseName = resolveExistingCaseName(caseRecord, resolvedCaseId);
-          if (!cancelled && backendCaseName) {
-            setExistingCaseName(backendCaseName);
-            setCaseName(backendCaseName);
+          const storedCaseName = getExistingCaseName(resolvedCaseId);
+          const nextBackendCaseName = storedCaseName || backendCaseName;
+
+          if (!cancelled && nextBackendCaseName) {
+            setExistingCaseName(nextBackendCaseName);
+            setCaseName(nextBackendCaseName);
             setCaseNameError("");
           }
           const normalizedCaseData =
