@@ -36,7 +36,7 @@ Expected success behavior:
 
 - Prints a compact PASS/FAIL table.
 - Exits with code `0` when all checks pass.
-- Reports `PASS: 13/13 golden readiness smoke checks passed.`
+- Reports `PASS: 14/14 golden readiness smoke checks passed.`
 - Confirms the current v0.1 covered golden readiness checks still pass.
 - Does not mean all 15 golden cases are automated.
 
@@ -61,6 +61,7 @@ The v0.1 smoke check validates deterministic readiness outcomes for representati
 - fallback snapshot ready signals do not upgrade to backend-ready;
 - payment/checkout fields do not increase evidence score or deterministic receipt eligibility;
 - verification Ready/Warning/Failed contract labels behave as expected;
+- access-mode verification fallback can allow verification view access without proving formal verification quality;
 - the `3.0` deterministic threshold and legacy `3.5` shared threshold remain detectable as a sentinel.
 
 ---
@@ -76,7 +77,6 @@ The v0.1 smoke check validates deterministic readiness outcomes for representati
 - It does not test backend/data files.
 - It does not create runtime fixture files.
 - It does not validate full production hydration behavior.
-- GTC-013 Access-Mode Verification Fallback is deferred to a later access-mode helper smoke.
 - GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
 
 ---
@@ -98,7 +98,7 @@ No production behavior is changed.
 Latest local run:
 
 ```text
-PASS: 13/13 golden readiness smoke checks passed.
+PASS: 14/14 golden readiness smoke checks passed.
 ```
 
 Command run:
@@ -111,12 +111,12 @@ node scripts/check-golden-readiness.mjs
 
 ## Coverage Notes
 
-- The v0.1 runnable smoke currently runs 13 checks.
-- Covered: GTC-001 through GTC-012, plus GTC-014 threshold mismatch sentinel.
-- Deferred from runnable smoke v0.1:
-  - GTC-013 Access-Mode Verification Fallback Case, because it is an access-mode / mixed-refactor behavior and should be implemented in a later access-mode helper smoke.
+- The v0.1 runnable smoke currently runs 14 checks.
+- Covered: GTC-001 through GTC-014.
+- GTC-013 Access-Mode Verification Fallback Case is covered as an access-mode helper smoke, not as a formal verification quality check.
+- Deferred from runnable smoke v0.1/v0.2:
   - GTC-015 Case Ordering / Record Selection Case, because it requires backend aggregation / record-selection harness design.
-- This means 13/13 is expected for v0.1 and does not mean all 15 golden cases are automated yet.
+- This means 14/14 is expected for v0.1/v0.2 and does not mean all 15 golden cases are automated yet.
 
 This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
 
@@ -132,3 +132,4 @@ This smoke check is now the first local regression command for readiness/scoring
 | 11-A4: Golden Test Execution Plan v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A5: Golden Cases Runnable Smoke Check v0.1 | PASS / committed | 2026-05-12 | Smoke/check script only | no production code changes |
 | 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |
+| 11-B1: Add GTC-013 Access-Mode Helper Smoke | PASS / committed | 2026-05-12 | Smoke/check script + documentation only | no production code changes |

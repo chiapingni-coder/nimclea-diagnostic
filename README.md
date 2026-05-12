@@ -14,13 +14,12 @@ Run this before changing readiness/scoring logic; after changing `frontend/utils
 
 Success means:
 
-- `PASS: 13/13 golden readiness smoke checks passed.`
+- `PASS: 14/14 golden readiness smoke checks passed.`
 - The current v0.1 covered golden readiness checks still pass.
 - It does not mean all 15 golden cases are automated.
 
 Coverage limits:
 
-- GTC-013 Access-Mode Verification Fallback is deferred to a later access-mode helper smoke.
 - GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
 - The check does not render React pages, call network APIs, test backend/data files, or test Stripe/payment webhooks.
 

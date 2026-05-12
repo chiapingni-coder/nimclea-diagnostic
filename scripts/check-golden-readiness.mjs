@@ -10,6 +10,9 @@ import {
 import {
   createSharedReceiptVerificationContract,
 } from "../frontend/utils/sharedReceiptVerificationContract.js";
+import {
+  resolveAccessMode,
+} from "../frontend/lib/accessMode.js";
 
 function withQuietScoring(fn) {
   const originalLog = console.log;
@@ -377,6 +380,28 @@ const goldenCases = [
         checks: [
           expect(contract.verification.overallStatus === "Verification Failed", "verification should fail"),
           expect(contract.resolvedVerificationEligible === false, "failed verification should not be eligible"),
+        ],
+      };
+    },
+  },
+  {
+    id: "GTC-013",
+    name: "Access-mode verification fallback",
+    run: () => {
+      const access = resolveAccessMode({
+        caseId: "CASE-GTC-013",
+        receiptEligible: true,
+        verificationEligible: false,
+        eventCount: 1,
+      });
+
+      return {
+        observed: `canViewVerification=${access.canViewVerification}; verificationEligible=${access.verificationEligible}; canRunVerification=${access.canRunVerification}`,
+        expected: "access-mode fallback may allow verification view; not formal verification-ready proof",
+        checks: [
+          expect(access.canViewVerification === true, "verification view should be allowed by access-mode fallback"),
+          expect(access.verificationEligible === true, "access-mode verificationEligible should be true"),
+          expect(access.canRunVerification === false, "fallback view access should not imply paid/formal verification run access"),
         ],
       };
     },

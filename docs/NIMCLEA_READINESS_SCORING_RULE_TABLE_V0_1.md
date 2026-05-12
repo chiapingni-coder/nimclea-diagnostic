@@ -192,3 +192,4 @@ Rules below are direct code observations unless marked "inferred".
 | 11-A4: Golden Test Execution Plan v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A5: Golden Cases Runnable Smoke Check v0.1 | PASS / committed | 2026-05-12 | Smoke/check script only | no production code changes |
 | 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |
+| 11-B1: Add GTC-013 Access-Mode Helper Smoke | PASS / committed | 2026-05-12 | Smoke/check script + documentation only | no production code changes |

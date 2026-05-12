@@ -31,11 +31,11 @@ PASS criteria:
 - Working tree clean.
 - Latest expected commits are visible.
 - No uncommitted frontend/backend changes.
-- Golden readiness smoke prints `PASS: 13/13 golden readiness smoke checks passed.`
+- Golden readiness smoke prints `PASS: 14/14 golden readiness smoke checks passed.`
 
 Run the golden readiness smoke before changing readiness/scoring logic; after changing `frontend/utils/deterministicScore.js`, `frontend/utils/dataContractLifecycle.js`, or `frontend/utils/sharedReceiptVerificationContract.js`; after changing receipt/verification readiness behavior; and before committing future 11-series scoring/readiness changes.
 
-The command confirms the current v0.1 covered golden readiness checks still pass. It does not mean all 15 golden cases are automated: GTC-013 Access-Mode Verification Fallback is deferred to a later access-mode helper smoke, and GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
+The command confirms the current v0.1 covered golden readiness checks still pass. It does not mean all 15 golden cases are automated: GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
 
 It does not render React pages, call network APIs, test backend/data files, or test Stripe/payment webhooks.
 
