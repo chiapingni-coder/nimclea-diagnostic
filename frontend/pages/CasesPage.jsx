@@ -180,6 +180,10 @@ function hasNonEmptyText(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function normalizeCaseText(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
 const NON_EVIDENCE_EVENT_TYPES = new Set([
   "entry_viewed",
   "entry_clicked",
@@ -832,6 +836,151 @@ function hasRealEventSignal(item) {
   );
 }
 
+function getCaseEventCount(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const caseData = normalized?.caseData || {};
+  const rawCount = Number(
+    normalized?.eventCount ??
+      caseData?.eventCount ??
+      normalized?.caseSnapshot?.eventCount ??
+      0
+  );
+
+  return Math.max(
+    Number.isFinite(rawCount) ? rawCount : 0,
+    getEvidenceEvents(normalized).length
+  );
+}
+
+function hasMeaningfulCaseTitle(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const title = String(
+    normalized?.title ||
+      normalized?.caseName ||
+      normalized?.name ||
+      normalized?.caseData?.title ||
+      normalized?.caseData?.caseName ||
+      ""
+  ).trim();
+
+  if (!title) return false;
+  if (title === resolveCaseId(normalized)) return false;
+
+  return !["untitled case", "new case", "draft case"].includes(
+    title.toLowerCase()
+  );
+}
+
+function isReceiptSnapshotCase(item = {}) {
+  return normalizeCaseText(normalizeCaseItem(item)?.source) === "receipt_snapshot";
+}
+
+function isProtectedReceiptSnapshotCase(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const paymentStatus = normalizeCaseText(normalized?.paymentStatus);
+  const receiptStatus = normalizeCaseText(normalized?.receiptStatus);
+  const receiptObjectStatus = normalizeCaseText(normalized?.receipt?.status);
+  const verificationStatus = normalizeCaseText(normalized?.verificationStatus);
+
+  return Boolean(
+    isReceiptSnapshotCase(normalized) &&
+      (normalized?.paid === true ||
+        ["paid", "issued", "activated"].includes(paymentStatus) ||
+        ["paid", "issued", "activated"].includes(receiptStatus) ||
+        ["paid", "issued", "activated"].includes(receiptObjectStatus) ||
+        ["paid", "ready", "issued", "activated"].includes(verificationStatus))
+  );
+}
+
+function isDeletedOrDiscardedCase(item = {}) {
+  const normalized = normalizeCaseItem(item);
+
+  return Boolean(
+    normalized?.deletedAt ||
+      normalized?.discardedAt ||
+      normalized?.caseDeletedAt ||
+      normalized?.isDeleted === true ||
+      normalized?.deleted === true
+  );
+}
+
+function getWorkspaceCaseRichnessScore(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const stage = normalizeCaseText(normalized?.stage || normalized?.status);
+  const currentStep = normalizeCaseText(normalized?.currentStep);
+  const source = normalizeCaseText(normalized?.source);
+  const updatedAtMs = new Date(
+    normalized?.updatedAt ||
+      normalized?.savedAt ||
+      normalized?.createdAt ||
+      0
+  ).getTime();
+
+  const stageScore =
+    stage === "receipt_ready"
+      ? 2000
+      : stage.startsWith("s")
+        ? 20
+        : stage
+          ? 100
+          : 0;
+  const receiptScore = normalized?.receiptEligible === true ? 1000 : 0;
+  const sourceScore =
+    source === "receipt_page_repair" || source === "receipt_page"
+      ? 700
+      : source === "pilot_page"
+        ? 600
+        : source === "pilot_page_case_name"
+          ? 500
+          : source === "pilot"
+            ? 10
+            : 100;
+  const stepScore =
+    currentStep === "receipt" || currentStep === "verification"
+      ? 500
+      : currentStep === "pilot_result"
+        ? 400
+        : currentStep
+          ? 50
+          : 0;
+  const updatedScore = Number.isFinite(updatedAtMs) ? updatedAtMs / 1000000 : 0;
+
+  return (
+    stageScore +
+    receiptScore +
+    sourceScore +
+    stepScore +
+    updatedScore +
+    getCaseEventCount(normalized)
+  );
+}
+
+function pickRicherWorkspaceCase(existing = {}, incoming = {}) {
+  return getWorkspaceCaseRichnessScore(incoming) >
+    getWorkspaceCaseRichnessScore(existing)
+    ? incoming
+    : existing;
+}
+
+function dedupeWorkspaceCases(caseItems = []) {
+  const caseMap = new Map();
+
+  (Array.isArray(caseItems) ? caseItems : []).forEach((caseItem) => {
+    const caseId = resolveCaseId(caseItem);
+    if (!caseId) return;
+
+    const existing = caseMap.get(caseId);
+    caseMap.set(
+      caseId,
+      existing
+        ? pickRicherWorkspaceCase(existing, caseItem)
+        : { ...caseItem, caseId }
+    );
+  });
+
+  return Array.from(caseMap.values());
+}
+
 function hasPostDiagnosticProgress(item) {
   const normalized = normalizeCaseItem(item);
   const pilotResult = normalized?.pilot_result || normalized?.pilotResult || {};
@@ -869,16 +1018,26 @@ function hasPostDiagnosticProgress(item) {
 
 function isEmptyDraftCase(item) {
   const normalized = normalizeCaseItem(item);
+  const status = normalizeCaseText(normalized?.status);
+  const stage = normalizeCaseText(normalized?.stage);
+  const currentStep = normalizeCaseText(normalized?.currentStep);
 
   return (
-    normalized?.status === "draft" &&
+    (status === "draft" || stage === "draft" || (!status && !stage)) &&
+    getCaseEventCount(normalized) === 0 &&
+    normalized?.receiptEligible !== true &&
+    !hasMeaningfulCaseTitle(normalized) &&
+    (!currentStep || currentStep === "diagnostic" || currentStep === "result") &&
     !hasDiagnosticResultData(normalized) &&
     !hasPostDiagnosticProgress(normalized)
   );
 }
 
 function isVisibleActiveCase(item) {
-  return !isEmptyDraftCase(item);
+  return (
+    !isDeletedOrDiscardedCase(item) &&
+    (!isReceiptSnapshotCase(item) || isProtectedReceiptSnapshotCase(item))
+  );
 }
 
 function hasActivatedReceipt(item) {
@@ -895,6 +1054,20 @@ function hasActivatedVerification(item = {}) {
 function getCaseSection(caseItem) {
   const normalized = normalizeCaseItem(caseItem);
   const derived = deriveCaseListState(normalized);
+  const status = normalizeCaseText(normalized?.status);
+  const stage = normalizeCaseText(normalized?.stage);
+  const currentStep = normalizeCaseText(normalized?.currentStep);
+  const source = normalizeCaseText(normalized?.source);
+  const eventCount = getCaseEventCount(normalized);
+  const hasMeaningfulTitle = hasMeaningfulCaseTitle(normalized);
+
+  if (isDeletedOrDiscardedCase(normalized)) {
+    return "historic";
+  }
+
+  if (isReceiptSnapshotCase(normalized) && !isProtectedReceiptSnapshotCase(normalized)) {
+    return "historic";
+  }
 
   const hasExplicitHistoricDelivery = Boolean(
     normalized?.verificationDelivered === true ||
@@ -936,12 +1109,29 @@ function getCaseSection(caseItem) {
   const verificationObjectStatus = String(
     normalized?.verification?.status || ""
   ).toLowerCase();
+  const hasLiveReceiptIdentifier = Boolean(
+    hasNonEmptyText(normalized?.receiptId) ||
+      hasNonEmptyText(normalized?.receiptHash) ||
+      hasNonEmptyText(normalized?.receipt?.receiptId) ||
+      hasNonEmptyText(normalized?.receipt?.hash) ||
+      hasNonEmptyText(normalized?.receipt?.receiptHash)
+  );
+  const hasFormalBaselineIndicator = Boolean(
+    hasLiveReceiptIdentifier ||
+      status === "baseline_issued" ||
+      stage === "baseline_issued" ||
+      status === "receipt_issued" ||
+      stage === "receipt_issued" ||
+      status === "receipt_activated" ||
+      stage === "receipt_activated"
+  );
 
   const hasBaselineSignal = Boolean(
     hasActivatedReceipt(normalized) ||
       hasActivatedVerification(normalized) ||
       derived.paid ||
       normalized?.paid === true ||
+      hasFormalBaselineIndicator ||
       receiptRecordStatuses.has(receiptObjectStatus) ||
       paymentStatus === "paid" ||
       receiptRecordStatuses.has(receiptStatus) ||
@@ -951,6 +1141,62 @@ function getCaseSection(caseItem) {
 
   if (hasBaselineSignal) {
     return "baseline";
+  }
+
+  if (
+    status === "completed" ||
+    stage === "completed" ||
+    status === "closed" ||
+    stage === "closed" ||
+    normalized?.archived === true ||
+    normalized?.isArchived === true ||
+    normalized?.archivedAt
+  ) {
+    return "historic";
+  }
+
+  const actionableStates = new Set([
+    "draft",
+    "diagnostic_completed",
+    "result_ready",
+    "result",
+    "pilot",
+    "pilot_result",
+    "event_captured",
+    "receipt_ready",
+    "workspace_active",
+  ]);
+  const isReceiptReadyActionable = Boolean(
+    normalized?.receiptEligible === true ||
+      stage === "receipt_ready" ||
+      status === "receipt_ready"
+  );
+  const hasActionableState =
+    actionableStates.has(status) ||
+    actionableStates.has(stage) ||
+    actionableStates.has(currentStep) ||
+    source === "pilot_page" ||
+    source === "pilot_page_case_name";
+  const staleDiagnosticOrResultOnly = Boolean(
+    (status.includes("diagnostic") ||
+      stage.includes("diagnostic") ||
+      status.includes("result") ||
+      stage.includes("result")) &&
+      normalized?.receiptEligible !== true &&
+      eventCount === 0 &&
+      !hasMeaningfulTitle
+  );
+
+  if (isEmptyDraftCase(normalized) || staleDiagnosticOrResultOnly) {
+    return "historic";
+  }
+
+  if (hasActionableState || isReceiptReadyActionable || eventCount > 0) {
+    return "active";
+  }
+
+  if (!hasMeaningfulTitle && eventCount === 0 && normalized?.receiptEligible !== true) {
+    return "historic";
   }
 
   return "active";
@@ -1972,15 +2218,27 @@ export default function CasesPage() {
     }
   };
 
+  const workspaceCases = React.useMemo(
+    () =>
+      dedupeWorkspaceCases([
+        ...cases,
+        ...archivedCases.map((caseItem) => ({
+          ...caseItem,
+          archived: true,
+        })),
+      ]),
+    [archivedCases, cases]
+  );
+
   const visibleActiveCases = React.useMemo(
-    () => cases.filter(isVisibleActiveCase),
-    [cases]
+    () => workspaceCases.filter(isVisibleActiveCase),
+    [workspaceCases]
   );
 
   // Derived only; not wired into the UI yet. Current rendering still uses
   // visibleActiveCases / archivedCases until the three-section UI is introduced.
   const activeCaseSectionGroups = React.useMemo(() => {
-    return cases.reduce(
+    return workspaceCases.reduce(
       (groups, caseItem) => {
         if (!isVisibleActiveCase(caseItem)) {
           return groups;
@@ -2004,11 +2262,11 @@ export default function CasesPage() {
         historicRecords: [],
       }
     );
-  }, [cases]);
+  }, [workspaceCases]);
 
   // Derived only; not wired into the UI yet. It previews future Delete / high-risk Delete / not-deletable eligibility before Archive is replaced.
   const caseDeleteModeGroups = React.useMemo(() => {
-    return cases.reduce(
+    return workspaceCases.reduce(
       (groups, caseItem) => {
         if (!isVisibleActiveCase(caseItem)) {
           return groups;
@@ -2032,7 +2290,7 @@ export default function CasesPage() {
         notDeletableCases: [],
       }
     );
-  }, [cases]);
+  }, [workspaceCases]);
 
   const caseSectionCounts = React.useMemo(
     () => ({
