@@ -128,6 +128,23 @@ function getCaseIdFromAny(item = {}) {
   ).trim();
 }
 
+function isSameReceiptReadyCase(record = {}, caseId = "") {
+  const recordCaseId = getCaseIdFromAny(record);
+  const targetCaseId = String(caseId || "").trim();
+  const stage = String(record?.stage || "").trim().toLowerCase();
+  const status = String(record?.status || "").trim().toLowerCase();
+
+  return Boolean(
+    targetCaseId &&
+      recordCaseId === targetCaseId &&
+      (record?.receiptEligible === true ||
+        record?.caseReceiptEligible === true ||
+        stage === "receipt_ready" ||
+        status === "receipt_ready" ||
+        isBackendReceiptReady(record))
+  );
+}
+
 function getStoredStableHash(key = "") {
   if (!key) return "";
 
@@ -851,6 +868,8 @@ export default function ReceiptPage() {
   const [backendCaseRepairing, setBackendCaseRepairing] = React.useState(false);
   const [backendCaseRepairSucceeded, setBackendCaseRepairSucceeded] = React.useState(false);
   const [backendCaseRepairFailed, setBackendCaseRepairFailed] = React.useState(false);
+  const [backendCaseLookupComplete, setBackendCaseLookupComplete] = React.useState(false);
+  const [receiptGuardTimedOut, setReceiptGuardTimedOut] = React.useState(false);
 
   const [quickCaptureOpen, setQuickCaptureOpen] = React.useState(false);
   const [quickCaptureType, setQuickCaptureType] = React.useState("decision_accepted");
@@ -883,6 +902,8 @@ const urlCaseId = String(
   React.useEffect(() => {
     setBackendCaseRepairSucceeded(false);
     setBackendCaseRepairFailed(false);
+    setBackendCaseLookupComplete(false);
+    setReceiptGuardTimedOut(false);
   }, [urlCaseId]);
 
   React.useEffect(() => {
@@ -1426,6 +1447,7 @@ const urlCaseId = String(
       setBackendCaseRecord(null);
       setBackendCaseLoading(false);
       setBackendCaseError(null);
+      setBackendCaseLookupComplete(true);
       return;
     }
 
@@ -1434,38 +1456,90 @@ const urlCaseId = String(
     async function loadBackendCaseRecord() {
       setBackendCaseLoading(true);
       setBackendCaseError(null);
+      setBackendCaseLookupComplete(false);
 
       try {
-        const response = await fetch(
-          `${HASH_LEDGER_API_BASE}/cases?email=${encodeURIComponent(email)}`
-        );
+        let matchedRecord = null;
+        let lookupError = null;
+        let directRecord = null;
 
-        if (response.status === 404) {
+        try {
+          const directResponse = await fetch(
+            `${HASH_LEDGER_API_BASE}/case/${encodeURIComponent(safeCaseId)}`
+          );
+
+          if (directResponse.ok) {
+            const payload = await directResponse.json().catch(() => null);
+            const nextDirectRecord = payload?.data || payload?.case || payload;
+            if (getCaseIdFromAny(nextDirectRecord) === safeCaseId) {
+              directRecord = nextDirectRecord;
+              matchedRecord = nextDirectRecord;
+            }
+          } else if (directResponse.status !== 404) {
+            lookupError = new Error(
+              `Failed to fetch direct case record: ${directResponse.status}`
+            );
+          }
+        } catch (error) {
+          lookupError = error;
+        }
+
+        const directCaseFound = getCaseIdFromAny(directRecord) === safeCaseId;
+        const shouldRenderReceipt = isSameReceiptReadyCase(directRecord, safeCaseId);
+
+        console.log("[ReceiptPage source-of-truth]", {
+          caseId: safeCaseId,
+          directCaseFound,
+          directCaseStage: directRecord?.stage || directRecord?.status || "",
+          directCaseReceiptEligible: directRecord?.receiptEligible === true,
+          shouldRenderReceipt,
+          blockingReason: shouldRenderReceipt
+            ? ""
+            : directCaseFound
+              ? "direct_case_not_receipt_ready"
+              : "direct_case_not_found",
+        });
+
+        if (shouldRenderReceipt) {
           if (!cancelled) {
-            setBackendCaseRecord(null);
+            setBackendCaseRecord(directRecord);
           }
           return;
         }
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch backend case record: ${response.status}`);
-        }
+        try {
+          const response = await fetch(
+            `${HASH_LEDGER_API_BASE}/cases?email=${encodeURIComponent(email)}`
+          );
 
-        const payload = await response.json().catch(() => null);
-        const items = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.cases)
-          ? payload.cases
-          : Array.isArray(payload?.records)
-          ? payload.records
-          : [];
-        const matchedRecord =
-          items.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
+          if (response.ok) {
+            const payload = await response.json().catch(() => null);
+            const items = Array.isArray(payload)
+              ? payload
+              : Array.isArray(payload?.data)
+              ? payload.data
+              : Array.isArray(payload?.cases)
+              ? payload.cases
+              : Array.isArray(payload?.records)
+              ? payload.records
+              : [];
+            matchedRecord =
+              items.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
+          } else if (response.status !== 404 && !lookupError) {
+            lookupError = new Error(`Failed to fetch backend case list: ${response.status}`);
+          }
+        } catch (error) {
+          if (!lookupError) {
+            lookupError = error;
+          }
+        }
 
         if (!cancelled) {
           setBackendCaseRecord(matchedRecord);
+          if (!matchedRecord && lookupError) {
+            console.warn("[ReceiptPage] Failed to hydrate backend case record", lookupError);
+            setBackendCaseError(lookupError);
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -1475,6 +1549,7 @@ const urlCaseId = String(
       } finally {
         if (!cancelled) {
           setBackendCaseLoading(false);
+          setBackendCaseLookupComplete(true);
         }
       }
     }
@@ -1507,19 +1582,47 @@ const urlCaseId = String(
   const needsReceiptBackendPresence = Boolean(
     inferredCaseId && receiptBackendEmail
   );
+  const hasReceiptReadyBackendCase = isSameReceiptReadyCase(
+    backendCaseRecord,
+    inferredCaseId
+  );
+  const hasReceiptReadyHydratedCase = isSameReceiptReadyCase(
+    hydratedReceiptRecord,
+    inferredCaseId
+  );
+  const hasReceiptReadyLocalCase = isSameReceiptReadyCase(
+    currentCase,
+    inferredCaseId
+  );
   const hasReceiptBackendPresence = Boolean(
-    backendCaseRecord || backendCaseRepairSucceeded
+    hasReceiptReadyBackendCase ||
+      hasReceiptReadyHydratedCase ||
+      hasReceiptReadyLocalCase ||
+      backendCaseRepairSucceeded
   );
   const isReceiptBackendSyncPending =
     needsReceiptBackendPresence &&
     !hasReceiptBackendPresence &&
+    !backendCaseLookupComplete &&
     !backendCaseRepairFailed;
   const isReceiptCaseHydrating =
     Boolean(inferredCaseId) &&
     (!receiptRecordHydrationComplete ||
       backendCaseLoading ||
       backendCaseRepairing ||
-      isReceiptBackendSyncPending);
+      isReceiptBackendSyncPending) &&
+    !hasReceiptBackendPresence &&
+    !receiptGuardTimedOut;
+
+  React.useEffect(() => {
+    if (!isReceiptCaseHydrating) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      setReceiptGuardTimedOut(true);
+    }, 12000);
+
+    return () => window.clearTimeout(timeout);
+  }, [isReceiptCaseHydrating]);
 
   React.useEffect(() => {
     const safeCaseId = String(inferredCaseId || "").trim();
@@ -2700,6 +2803,27 @@ if (isReceiptCaseHydrating) {
           </h1>
           <p className="text-slate-700 leading-7">
             Loading the current case record before showing the receipt decision.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+if (receiptGuardTimedOut && needsReceiptBackendPresence && !hasReceiptBackendPresence) {
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <div className="max-w-3xl mx-auto">
+        <TopRightCasesCapsule />
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <p className="text-xs font-medium text-slate-400 mb-2">
+            Receipt status
+          </p>
+          <h1 className="text-2xl font-bold mb-3">
+            Unable to confirm receipt status.
+          </h1>
+          <p className="text-slate-700 leading-7">
+            Please return to Cases or retry.
           </p>
         </div>
       </div>
