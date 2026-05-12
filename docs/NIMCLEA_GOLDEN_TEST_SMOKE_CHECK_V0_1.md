@@ -23,10 +23,22 @@ Run from the repository root:
 node scripts/check-golden-readiness.mjs
 ```
 
+Run this command:
+
+- before changing readiness/scoring logic;
+- after changing `frontend/utils/deterministicScore.js`;
+- after changing `frontend/utils/dataContractLifecycle.js`;
+- after changing `frontend/utils/sharedReceiptVerificationContract.js`;
+- after changing receipt/verification readiness behavior;
+- before committing future 11-series scoring/readiness changes.
+
 Expected success behavior:
 
 - Prints a compact PASS/FAIL table.
 - Exits with code `0` when all checks pass.
+- Reports `PASS: 13/13 golden readiness smoke checks passed.`
+- Confirms the current v0.1 covered golden readiness checks still pass.
+- Does not mean all 15 golden cases are automated.
 
 Expected failure behavior:
 
@@ -64,6 +76,8 @@ The v0.1 smoke check validates deterministic readiness outcomes for representati
 - It does not test backend/data files.
 - It does not create runtime fixture files.
 - It does not validate full production hydration behavior.
+- GTC-013 Access-Mode Verification Fallback is deferred to a later access-mode helper smoke.
+- GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
 
 ---
 
@@ -104,6 +118,8 @@ node scripts/check-golden-readiness.mjs
   - GTC-015 Case Ordering / Record Selection Case, because it requires backend aggregation / record-selection harness design.
 - This means 13/13 is expected for v0.1 and does not mean all 15 golden cases are automated yet.
 
+This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
+
 ---
 
 ## 11-Series Progress
@@ -115,3 +131,4 @@ node scripts/check-golden-readiness.mjs
 | 11-A3: Golden Test Cases v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A4: Golden Test Execution Plan v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-A5: Golden Cases Runnable Smoke Check v0.1 | PASS / committed | 2026-05-12 | Smoke/check script only | no production code changes |
+| 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |

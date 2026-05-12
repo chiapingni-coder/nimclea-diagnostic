@@ -255,6 +255,28 @@ Notes:
 
 ---
 
+## Local Readiness / Scoring Smoke
+
+Run from the repository root:
+
+```powershell
+node scripts/check-golden-readiness.mjs
+```
+
+Run this before changing readiness/scoring logic; after changing `frontend/utils/deterministicScore.js`, `frontend/utils/dataContractLifecycle.js`, or `frontend/utils/sharedReceiptVerificationContract.js`; after changing receipt/verification readiness behavior; and before committing future 11-series scoring/readiness changes.
+
+Success means `PASS: 13/13 golden readiness smoke checks passed.` This confirms the current v0.1 covered golden readiness checks still pass, but it does not mean all 15 golden cases are automated.
+
+Coverage limits:
+
+- GTC-013 Access-Mode Verification Fallback is deferred to later access-mode helper smoke.
+- GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
+- The check does not render React pages, call network APIs, test backend/data files, or test Stripe/payment webhooks.
+
+This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
+
+---
+
 ## Required Rule Before Any Future Lifecycle Fix
 
 Before committing any change touching:
