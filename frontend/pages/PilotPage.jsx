@@ -473,14 +473,8 @@ function WorkflowPicker({
         <div>
           {readOnlyCaseName ? (
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-500">
-                Case name
-              </p>
               <p className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm">
                 {readOnlyCaseName}
-              </p>
-              <p className="mt-2 text-xs text-slate-500">
-                Case name is managed from Cases.
               </p>
             </div>
           ) : (
