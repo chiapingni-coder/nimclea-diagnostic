@@ -133,6 +133,58 @@ function getCaseRecordEmail(caseId = "") {
   }
 }
 
+function isPlaceholderCaseName(value, caseId = "") {
+  const text = String(value || "").trim();
+  if (!text) return true;
+  if (caseId && text === caseId) return true;
+  return ["untitled case", "new case", "draft case"].includes(text.toLowerCase());
+}
+
+function resolveExistingCaseName(record = {}, caseId = "") {
+  const candidates = [
+    record?.title,
+    record?.caseName,
+    record?.name,
+    record?.caseData?.title,
+    record?.caseData?.caseName,
+    record?.caseData?.name,
+    record?.caseSchema?.title,
+    record?.caseSchema?.caseName,
+    record?.caseSnapshot?.caseRecord?.title,
+    record?.caseSnapshot?.caseRecord?.caseName,
+    record?.caseSnapshot?.caseRecord?.name,
+  ];
+
+  return candidates.find((value) => !isPlaceholderCaseName(value, caseId)) || "";
+}
+
+function getExistingCaseName(caseId = "") {
+  if (!caseId) return "";
+
+  try {
+    const matchingCase = getAllCases()
+      .flatMap((item) => (Array.isArray(item) ? item : [item]))
+      .find((item) => {
+        const itemCaseId =
+          item?.caseId ||
+          item?.case_id ||
+          item?.id ||
+          item?.caseData?.caseId ||
+          item?.caseData?.id ||
+          item?.caseSnapshot?.caseId ||
+          item?.caseSnapshot?.caseRecord?.caseId ||
+          "";
+
+        return String(itemCaseId) === String(caseId);
+      });
+
+    return resolveExistingCaseName(matchingCase, caseId);
+  } catch (error) {
+    console.warn("Failed to read existing case name:", error);
+    return "";
+  }
+}
+
 function createPilotId(sessionId = "") {
   if (!sessionId) return "NIM-PILOT";
   return `PILOT-${String(sessionId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 10).toUpperCase()}`;
@@ -350,6 +402,7 @@ function WorkflowPicker({
   onCaseNameChange,
   caseNameError = "",
   isCaseNameRequired = false,
+  readOnlyCaseName = "",
   title = "Choose a workflow & Name your case",
   buttonLabel = "Create new case",
 }) {
@@ -418,26 +471,40 @@ function WorkflowPicker({
         </div>
 
         <div>
-          <input
-            id="case-name"
-            type="text"
-            value={caseName}
-            onChange={(event) => {
-              if (onCaseNameChange) {
-                onCaseNameChange(event.target.value);
-              }
-            }}
-            placeholder="Case Name"
-            aria-required={isCaseNameRequired}
-            style={{
-              height: "38px",
-              minHeight: "38px",
-              lineHeight: "38px",
-            }}
-            className="w-full rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-          />
+          {readOnlyCaseName ? (
+            <div>
+              <p className="mb-1 text-xs font-medium text-slate-500">
+                Case name
+              </p>
+              <p className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm">
+                {readOnlyCaseName}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Case name is managed from Cases.
+              </p>
+            </div>
+          ) : (
+            <input
+              id="case-name"
+              type="text"
+              value={caseName}
+              onChange={(event) => {
+                if (onCaseNameChange) {
+                  onCaseNameChange(event.target.value);
+                }
+              }}
+              placeholder="Case Name"
+              aria-required={isCaseNameRequired}
+              style={{
+                height: "38px",
+                minHeight: "38px",
+                lineHeight: "38px",
+              }}
+              className="w-full rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            />
+          )}
 
-          {caseNameError ? (
+          {!readOnlyCaseName && caseNameError ? (
             <p className="mt-2 text-xs font-medium text-red-600">
               {caseNameError}
             </p>
@@ -952,6 +1019,7 @@ export default function PilotPage() {
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
   const [caseName, setCaseName] = useState("");
+  const [existingCaseName, setExistingCaseName] = useState("");
   const [caseNameError, setCaseNameError] = useState("");
   const access = resolveAccessMode(incomingCaseSchema || preview || location.state || {});
   const stripBreadcrumbState = (state = {}) => {
@@ -969,6 +1037,29 @@ export default function PilotPage() {
 
   const stableUserId = useMemo(() => getStableUserId(), []);
   const startInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!resolvedCaseId) {
+      setExistingCaseName("");
+      return;
+    }
+
+    const routeCaseName = resolveExistingCaseName(
+      {
+        ...location.state,
+        caseData: incomingCaseSchema || location.state?.caseData,
+      },
+      resolvedCaseId
+    );
+    const storedCaseName = getExistingCaseName(resolvedCaseId);
+    const nextCaseName = routeCaseName || storedCaseName;
+
+    setExistingCaseName(nextCaseName);
+    if (nextCaseName) {
+      setCaseName(nextCaseName);
+      setCaseNameError("");
+    }
+  }, [resolvedCaseId, location.state, incomingCaseSchema]);
   
   useEffect(() => {
     let cancelled = false;
@@ -998,6 +1089,12 @@ export default function PilotPage() {
 
           const payload = await response.json().catch(() => ({}));
           const caseRecord = payload?.data || null;
+          const backendCaseName = resolveExistingCaseName(caseRecord, resolvedCaseId);
+          if (!cancelled && backendCaseName) {
+            setExistingCaseName(backendCaseName);
+            setCaseName(backendCaseName);
+            setCaseNameError("");
+          }
           const normalizedCaseData =
             caseRecord?.caseData && typeof caseRecord.caseData === "object"
               ? normalizeCaseInput(caseRecord.caseData)
@@ -1126,7 +1223,7 @@ export default function PilotPage() {
 
   const handleStart = useCallback(async () => {
     const workflow = selectedWorkflow || "Audit preparation";
-    const trimmedCaseName = caseName.trim();
+    const trimmedCaseName = (existingCaseName || caseName).trim();
 
     if ((isCaseReview || resolvedCaseId) && !trimmedCaseName) {
       setCaseNameError("Please name this case before continuing.");
@@ -1607,6 +1704,7 @@ navigate(
     incomingNextAction,
     incomingCaseSchema,
     caseName,
+    existingCaseName,
     isCaseReview,
     pcMeta,
   ]);
@@ -1648,6 +1746,7 @@ navigate(
             }}
             caseNameError={caseNameError}
             isCaseNameRequired={Boolean(isCaseReview || resolvedCaseId)}
+            readOnlyCaseName={resolvedCaseId ? existingCaseName : ""}
             title="Choose a workflow & Name your case"
             buttonLabel={isCaseReview || resolvedCaseId ? "Continue Case" : "Create case"}
           />
