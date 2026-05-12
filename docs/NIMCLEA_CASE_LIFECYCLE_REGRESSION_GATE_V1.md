@@ -243,6 +243,18 @@ Expected:
 
 ---
 
+## 10-Series Progress
+
+| Step | Result | Date | Commit validated | Scope | Confirmed result | Risk status | Follow-up |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10-E production smoke validation | PASS | 2026-05-12 | `eaf3708` — Prefer case creation timestamp for case ordering | Online production smoke after push | All 3 smoke checks passed | No blocking regression found | 10-F documentation checkpoint only |
+
+Notes:
+- This checkpoint documents the validated state after the case ordering fix.
+- No business logic changes are part of 10-F.
+
+---
+
 ## Required Rule Before Any Future Lifecycle Fix
 
 Before committing any change touching:
