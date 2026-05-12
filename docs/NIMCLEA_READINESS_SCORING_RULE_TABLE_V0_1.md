@@ -2,7 +2,7 @@
 
 Date: 2026-05-12  
 Scope: Current implemented readiness and scoring baseline  
-Status: Draft baseline  
+Status: v0.1 baseline; 11-A2 drafted
 Code changes: none
 
 ---
@@ -44,7 +44,7 @@ Rules below are direct code observations unless marked "inferred".
 | Deterministic receipt score | Normalized events, workflow/scope data, event text/type signals | Four dimensions: evidence, structure, consistency, continuity. Each dimension maxes at 1. Total max 4. Receipt threshold is `3.0` and requires at least one real event | `receiptEligible: true` from deterministic score | `receiptEligible: false` | `frontend/utils/deterministicScore.js` / `calculateDeterministicScore()` | Explicit weights are documented in the scoring table below. |
 | Receipt readiness contract | Deterministic score input plus evidence, structure, consistency, continuity, receipt-record formability | Five checks, each score 0 or 1. `receiptReady` requires `readinessScore >= 3.0` and no critical blockers. Critical blockers: evidence, consistency, receipt record | `receiptReady: true`, `readinessLevel: "ready"` | `failed`, `insufficient_record`, or `pending_review` | `frontend/utils/deterministicScore.js` / `buildReadinessContract()` | Readiness score is capped downward when evidence, structure, consistency, or continuity is missing. |
 | Receipt eligible / green state | Backend receipt-ready signal or readiness contract ready | ReceiptPage sets `receiptEligible = backendReceiptReady || readinessContract.receiptReady`; `hasReadyReceipt` also accepts case/hydrated/local `receiptEligible`, `caseReceiptEligible`, or `receiptStatus === "ready"` | Green ready / `READY FOR FORMAL DETERMINATION` | Pending or yellow non-ready if unresolved/non-ready | `frontend/pages/ReceiptPage.jsx`; `frontend/utils/dataContractLifecycle.js` / `isBackendReceiptReady()` | Backend-owned readiness wins over local scoring. |
-| Receipt not ready yellow | Not ready, receipt-stage/path context, pilot/case result or evidence context, and explicit non-ready signal | `/cases` uses `hasReceiptNotReadyDisplaySignal`; ReceiptPage uses pilot/result context plus false receipt eligibility signals and no ready signal | `Receipt not ready · Pending review`, `Receipt not ready · Insufficient record`, or receipt page yellow state | Not shown for plain diagnostic shells | `frontend/pages/CasesPage.jsx` / `deriveCaseListState()`; `frontend/pages/ReceiptPage.jsx` / `receiptDisplayState` | Inferred: yellow is a business state after meaningful receipt context, not a technical failure. |
+| Receipt not ready yellow | Not ready, receipt-stage/path context, pilot/case result or evidence context, and explicit non-ready signal | `/cases` uses `hasReceiptNotReadyDisplaySignal`; ReceiptPage uses pilot/result context plus false receipt eligibility signals and no ready signal | `Receipt not ready - Pending review`, `Receipt not ready - Insufficient record`, or receipt page yellow state | Not shown for plain diagnostic shells | `frontend/pages/CasesPage.jsx` / `deriveCaseListState()`; `frontend/pages/ReceiptPage.jsx` / `receiptDisplayState` | Inferred: yellow is a business state after meaningful receipt context, not a technical failure. |
 | Verification readiness checks | Verification checks derived from parties, actions, evidence items or supplied checks | Failed check yields `Verification Failed`; warning or not-all-passed yields `Verification Warning`; all passed yields `Verification Ready` | `Verification Ready` | `Verification Warning` or `Verification Failed` | `frontend/utils/sharedReceiptVerificationContract.js` / `buildChecksFromCaseSchema()`, `resolveVerificationStatusFromChecks()` | No numeric verification weight is explicitly exposed in this shared contract. |
 | Verification eligible | Verification status text includes ready/pass/verified and consistency check passes | `resolvedVerificationEligible = verificationEligibleFromChecks && consistencyCheck.passed` | `resolvedVerificationEligible: true` | `false` | `frontend/utils/sharedReceiptVerificationContract.js` / `resolveVerificationEligible()`, `createSharedReceiptVerificationContract()` | Backend verification eligibility can also override access gates through lifecycle helpers. |
 | Access-mode verification eligible | Backend verification eligible signal, or receipt eligible plus event count > 0 | `verificationEligible = backendVerificationEligible || (receiptEligible && eventCount > 0)` | `canViewVerification: true` | `canViewVerification: false` | `frontend/lib/accessMode.js` / `resolveAccessMode()` | Access-mode rule is separate from formal verification payment/issuance. |
@@ -78,14 +78,63 @@ Rules below are direct code observations unless marked "inferred".
 
 ---
 
-## 5. Status Color / Label Table
+## 5. Rule Layer Classification Table
+
+| Rule / Signal / State | Current Source | Layer Type | Should Affect Score? | Should Block Readiness? | Should Control UI? | Notes / Future Refactor Risk |
+| --- | --- | --- | --- | --- | --- | --- |
+| Real event required for receipt eligibility | `calculateDeterministicScore()` | Hard Gate | Yes, indirectly through event-dependent base scores | Yes, deterministic receipt eligibility requires at least one real event | Indirectly | Current deterministic rule couples scoring and gating. |
+| Readiness evidence event | `isReadinessEvidenceEvent()`, `buildReadinessContract()` | Hard Gate | No, except readiness check score | Yes, critical blocker when absent | Indirectly through readiness level | Good separation from softer evidence text boosts. |
+| Evidence-chain consistency / broken lock | `buildReadinessContract()` | Hard Gate | No, except readiness check score | Yes, critical blocker; failed level | Yes, drives failed/red label | Text conflict boosts are separate and softer. |
+| Receipt record formability | `buildReadinessContract()` | Hard Gate | No, except readiness check score | Yes, critical blocker when false | Indirectly through ready/non-ready labels | Mixes explicit backend-ready, receipt hashes, and derived formability. |
+| Verification consistency check | `buildConsistencyCheckFromContract()` | Hard Gate | No | Yes, blocks `resolvedVerificationEligible` | Indirectly | Formal verification gate depends on consistency outcome. |
+| Verification checks failed/warning/ready logic | `resolveVerificationStatusFromChecks()` | Hard Gate / UI State | No | Failed blocks ready status; warning prevents ready | Yes | Mixed because the same check result creates business verdict labels. |
+| Evidence text cues | `calculateDeterministicScore()`, `getEventScoreBoost()` | Soft Signal | Yes | No | No direct control | Should remain a score-strength signal, not a standalone readiness pass. |
+| Workflow cues | `normalizeScoreInput()`, `calculateDeterministicScore()` | Soft Signal | Yes | No | No direct control | Helps structure score. |
+| Authority / ownership cues | `getEventScoreBoost()` | Soft Signal | Yes | No | No direct control | Verification guidance separately treats authority as a business weakness. |
+| Decision scope cues | `calculateDeterministicScore()`, `getEventScoreBoost()` | Soft Signal | Yes | No | No direct control | Affects structure and consistency dimensions. |
+| Conflict / consistency text cues used as boost | `calculateDeterministicScore()`, `getEventScoreBoost()` | Soft Signal | Yes | No | No direct control | Future cleanup should keep this distinct from broken-lock hard gate. |
+| Continuity cues | `calculateDeterministicScore()`, `getEventScoreBoost()` | Soft Signal | Yes | No | No direct control | Helps continuity score but does not alone pass readiness. |
+| Repeated events | `calculateDeterministicScore()` | Soft Signal | Yes | No | No direct control | Adds continuity strength only. |
+| Synergy boost | `getEventScoreBoost()` | Soft Signal | Yes | No | No direct control | Small score-only effect. |
+| Structure score | `calculateDeterministicScore()`, `buildReadinessContract()` | Mixed / Needs Refactor | Yes | Yes, when readiness structure check fails it caps readiness | Indirectly | Structure appears both as score dimension and readiness check. |
+| Continuity score | `calculateDeterministicScore()`, `buildReadinessContract()` | Mixed / Needs Refactor | Yes | Yes, when readiness continuity check fails it caps readiness | Indirectly | Continuity appears both as score dimension and readiness check. |
+| Checking receipt status | `ReceiptPage.jsx` / `decisionStatus`, `receiptDisplayState` | UI State | No | No | Yes | Should remain neutral while hydration is unresolved. |
+| Receipt ready green label | `ReceiptPage.jsx`, `CasesPage.jsx` | UI State | No | No | Yes | Displays backend/contract output; should not create readiness. |
+| Receipt pending review yellow label | `ReceiptPage.jsx`, `CasesPage.jsx` | UI State | No | No | Yes | Displays non-ready contract output. |
+| Receipt insufficient yellow label | `ReceiptPage.jsx`, `CasesPage.jsx` | UI State | No | No | Yes | Displays insufficient evidence/non-ready state. |
+| Receipt failed red label | `ReceiptPage.jsx`, `CasesPage.jsx`, `buildReadinessContract()` | UI State / Hard Gate | No | Yes, due consistency blocker | Yes | Mixed because failed label comes from hard consistency blocker. |
+| Unable to confirm receipt status | `ReceiptPage.jsx` / `receiptHydrationFailed` | UI State | No | No | Yes | Technical failure display only. |
+| Cases diagnostic label | `CasesPage.jsx` / `deriveCaseListState()` | UI State | No | No | Yes | Display state after higher-priority lifecycle states are excluded. |
+| Cases event captured label | `CasesPage.jsx` / `deriveCaseListState()` | UI State | No | No | Yes | Activity display, not receipt readiness. |
+| Verification Ready / Warning / Failed display labels | `sharedReceiptVerificationContract.js`, `VerificationPage.jsx` | UI State | No | Warning/failed can block verification readiness | Yes | Mixed with verification check logic. |
+| Paid | `CasesPage.jsx`, `dataContractLifecycle.js` | Payment Unlock | No | No | Yes | Payment state should not add evidence quality. |
+| Receipt checkout started | `CasesPage.jsx` | Payment Unlock | No | No | Yes | Payment progress display only. |
+| `paymentStatus` | `CasesPage.jsx`, `dataContractLifecycle.js`, `accessMode.js` | Payment Unlock | No | No | Yes / access | Mixed risk if reused as readiness evidence. |
+| Receipt activation | `ReceiptPage.jsx`, `dataContractLifecycle.js` | Payment Unlock | No | No | Yes / access | Controls formal receipt/payment state, not scoring. |
+| Verification payment unlock | `VerificationPage.jsx`, `dataContractLifecycle.js`, `accessMode.js` | Payment Unlock | No | No | Yes / access | Controls formal verification access, not evidence strength. |
+| `backendReceiptReady` | `ReceiptPage.jsx`, `dataContractLifecycle.js` | Backend Precedence | No | Can bypass local readiness gates as trusted ready source | Yes | Trusted source priority, not scoring. |
+| `backendVerificationEligible` | `accessMode.js`, `dataContractLifecycle.js` | Backend Precedence | No | Can grant verification eligibility | Yes / access | Trusted backend lifecycle signal. |
+| Backend lifecycle helpers | `dataContractLifecycle.js` | Backend Precedence | No | Yes when trusted lifecycle says ready/issued/paid | Yes / access | Source filtering excludes fallback/cache/snapshot sources. |
+| Backend case hydration | `ReceiptPage.jsx`, `VerificationPage.jsx` | Backend Precedence | No | Can determine trusted lifecycle state | Yes | Hydration should settle source priority, not add score. |
+| Receipt record hydration as trusted lifecycle signal | `ReceiptPage.jsx`, backend `/receipt-record` | Backend Precedence | No | Can support ready/non-ready display | Yes | Risk if stale receipt record overrides stronger case lifecycle. |
+| Backend `/cases` event merge | `backend/server.js` | Aggregation / Record Selection | No direct score | No | Indirectly through list state | Produces merged event count and status inputs. |
+| Record richness score | `backend/server.js` / `getRecordRichnessScore()` | Aggregation / Record Selection | No user-facing score | No | Indirectly | Internal duplicate precedence score only. |
+| Duplicate record precedence | `backend/server.js` / `pickRicherCaseRecord()`, merge logic | Aggregation / Record Selection | No | No | Indirectly | Candidate for documentation if source precedence changes. |
+| Case ordering timestamp preference | Nearby lifecycle progress docs / commit `eaf3708` | Aggregation / Record Selection | No | No | Yes, list order | Mentioned by 10-E docs; not inspected as scoring rule in 11-A1. |
+| Shared contract `receiptThreshold: 3.5` vs deterministic/readiness `3.0` | `sharedReceiptVerificationContract.js`, `deterministicScore.js` | Mixed / Needs Refactor | Yes in legacy shared contract; yes in deterministic score | Yes in readiness contract via 3.0 threshold | Indirectly | Threshold mismatch is documented baseline, not changed. |
+| Access-mode verification eligible fallback | `accessMode.js` / `resolveAccessMode()` | Mixed / Needs Refactor | No direct score | Can grant access eligibility | Yes / access | Blends backend eligibility, receipt eligibility, and event count. |
+| ReceiptPage `receiptEligible = backendReceiptReady || readinessContract.receiptReady` | `ReceiptPage.jsx` | Mixed / Needs Refactor | No direct score | Yes for page readiness | Yes | Blends backend precedence and local readiness contract. |
+
+---
+
+## 6. Status Color / Label Table
 
 | UI State | Label | Color / Visual Meaning | Trigger Condition | Source File / Function | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Receipt checking | `Checking receipt status` | Neutral checking | Receipt page hydrating/loading/unresolved | `frontend/pages/ReceiptPage.jsx` / `data.decisionStatus`, `receiptDisplayState` | Prevents yellow/green assertion before readiness is known. |
 | Receipt ready | `READY FOR FORMAL DETERMINATION`; `/cases`: `Receipt ready` | Green / ready | Backend receipt-ready or readiness contract ready | `frontend/pages/ReceiptPage.jsx`; `frontend/pages/CasesPage.jsx`; `frontend/utils/dataContractLifecycle.js` | ReceiptPage `decisionTone === "ready"` uses emerald colors. |
-| Receipt pending review | `Receipt Pending Review`; `/cases`: `Receipt not ready · Pending review` | Yellow / warning | Readiness level `pending_review` or yellow receipt display signal | `frontend/utils/deterministicScore.js`; `frontend/pages/ReceiptPage.jsx`; `frontend/pages/CasesPage.jsx` | Business non-ready state, not technical failure. |
-| Receipt insufficient | `Insufficient Record`; `/cases`: `Receipt not ready · Insufficient record` | Yellow / warning | Evidence missing or confirmed non-ready with receipt/result context | `frontend/utils/deterministicScore.js`; `frontend/pages/ReceiptPage.jsx`; `frontend/pages/CasesPage.jsx` | `readinessLevel: "insufficient_record"` maps from missing readiness evidence. |
+| Receipt pending review | `Receipt Pending Review`; `/cases`: `Receipt not ready - Pending review` | Yellow / warning | Readiness level `pending_review` or yellow receipt display signal | `frontend/utils/deterministicScore.js`; `frontend/pages/ReceiptPage.jsx`; `frontend/pages/CasesPage.jsx` | Business non-ready state, not technical failure. |
+| Receipt insufficient | `Insufficient Record`; `/cases`: `Receipt not ready - Insufficient record` | Yellow / warning | Evidence missing or confirmed non-ready with receipt/result context | `frontend/utils/deterministicScore.js`; `frontend/pages/ReceiptPage.jsx`; `frontend/pages/CasesPage.jsx` | `readinessLevel: "insufficient_record"` maps from missing readiness evidence. |
 | Receipt failed | `Receipt Failed`; `/cases`: `Receipt failed` | Red / failed | Readiness consistency check fails | `frontend/utils/deterministicScore.js`; `frontend/pages/ReceiptPage.jsx`; `frontend/pages/CasesPage.jsx` | Consistency failure is a critical blocker. |
 | Receipt unable | `Unable to confirm receipt status` | Technical failure | Invalid/missing caseId, backend case fetch failure, missing case after lookup, fatal hydration/API error | `frontend/pages/ReceiptPage.jsx` / `receiptHydrationFailed`, `receiptDisplayState` | Must not be used for confirmed false receipt eligibility. |
 | Cases paid | `Paid` | Completed/payment state | Backend receipt paid/activated or paid flags | `frontend/pages/CasesPage.jsx`; `frontend/utils/dataContractLifecycle.js` | Highest `/cases` display priority. |
@@ -101,21 +150,41 @@ Rules below are direct code observations unless marked "inferred".
 
 ---
 
-## 6. Known Limits / Do Not Tune Yet
+## 7. 11-A2 Interpretation
+
+- Scoring should measure evidence strength.
+- Hard gates should decide whether a case can pass a readiness boundary.
+- UI states should display contract outputs, not create readiness themselves.
+- Payment unlock should control access/activation, not evidence quality.
+- Backend precedence should decide trusted source priority, not add score.
+- Mixed rules should be candidates for later 11-series cleanup, not changed in 11-A2.
+
+---
+
+## 8. 11-A2 Known Findings
+
+- The system already separates many scoring signals from readiness gates.
+- Some legacy/mixed areas remain, especially receipt threshold mismatch and access-mode verification fallback.
+- No behavior was changed in 11-A2.
+
+---
+
+## 9. Known Limits / Do Not Tune Yet
 
 - This document is only a baseline.
 - No scoring weights were changed in 11-A1.
 - No readiness thresholds were changed in 11-A1.
 - No frontend logic, backend logic, backend/data files, or package files were changed in 11-A1.
+- No scoring weights, readiness thresholds, frontend logic, backend logic, backend/data files, or package files were changed in 11-A2.
 - Future 11-series work can tune thresholds, weights, and signal quality after this table is reviewed.
 - Some display behavior is page-level and marked as inferred where it is derived from UI branch logic rather than a single exported scoring function.
 - The shared receipt/verification contract still exposes a legacy `receiptThreshold: 3.5`, while the deterministic receipt threshold and readiness contract threshold are `3.0`. This document records both as implemented; it does not resolve the difference.
 
 ---
 
-## 7. 11-Series Progress
+## 10. 11-Series Progress
 
 | Step | Status | Date | Scope | Code changes |
 | --- | --- | --- | --- | --- |
-| 11-A1: Readiness / Scoring Rule Table v0.1 | Drafted | 2026-05-12 | Documentation only | none |
-
+| 11-A1: Readiness / Scoring Rule Table v0.1 | PASS / committed | 2026-05-12 | Documentation only | none |
+| 11-A2: Rule-layer classification | Drafted | 2026-05-12 | Documentation only | none |
