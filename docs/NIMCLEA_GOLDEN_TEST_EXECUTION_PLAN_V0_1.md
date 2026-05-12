@@ -60,7 +60,7 @@ It defines what each golden case should test, which layer it targets, the minima
 | GTC-012 | Verification Failed Case | Verification contract check | Manual smoke | `sharedReceiptVerificationContract.js` | At least one failed verification check | `expectVerificationStatus("Verification Failed")` | Phase 1 | Optional | Failed dominates warning/ready. |
 | GTC-013 | Access-Mode Verification Fallback Case | Access-mode check | Rule-layer classification review | `resolveAccessMode()` | `backendVerificationEligible: false`, `receiptEligible: true`, `eventCount > 0` | Verification view may be allowed; mark mixed/refactor risk | Phase 2 | No | Sentinel for blended access/eligibility. |
 | GTC-014 | Threshold Mismatch Sentinel Case | Threshold sentinel check | Shared contract check | `deterministicScore.js`, `sharedReceiptVerificationContract.js` | Score between 3.0 and 3.5 | `expectThresholdMismatchReported`; no silent resolution | Phase 1 | No | Must preserve ambiguity until explicit cleanup. |
-| GTC-015 | Case Ordering / Record Selection Case | Backend aggregation / record selection check | Manual production smoke | `backend/server.js` merge/richness/order logic | Duplicate case-shaped records with different timestamps/richness | `expectRecordSelectionDoesNotDowngrade` | Phase 3 | Yes | Aggregation behavior, not scoring. |
+| GTC-015 | Case Ordering / Record Selection Case | Backend aggregation / record selection check | Manual production smoke | `backend/utils/caseAggregationHelpers.js` and `/cases` merge/richness/order logic | Duplicate case-shaped records with different timestamps/richness | `expectRecordSelectionDoesNotDowngrade`; backend aggregation smoke `PASS: 5/5` | Phase 3 smoke added in 11-B4 | Yes | Aggregation behavior, not scoring. |
 
 ---
 
@@ -239,3 +239,5 @@ Recommendation: start with Phase 1 pure function checks only in a future step.
 | 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-B1: Add GTC-013 Access-Mode Helper Smoke | PASS / committed | 2026-05-12 | Smoke/check script + documentation only | no production code changes |
 | 11-B2: GTC-015 Backend Aggregation Test Design / Extraction Plan | Drafted | 2026-05-12 | Documentation only | none |
+| 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
+| 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |

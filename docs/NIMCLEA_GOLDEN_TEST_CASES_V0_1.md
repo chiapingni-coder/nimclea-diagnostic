@@ -120,3 +120,5 @@ Implemented source files referenced:
 | 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-B1: Add GTC-013 Access-Mode Helper Smoke | PASS / committed | 2026-05-12 | Smoke/check script + documentation only | no production code changes |
 | 11-B2: GTC-015 Backend Aggregation Test Design / Extraction Plan | Drafted | 2026-05-12 | Documentation only | none |
+| 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
+| 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |

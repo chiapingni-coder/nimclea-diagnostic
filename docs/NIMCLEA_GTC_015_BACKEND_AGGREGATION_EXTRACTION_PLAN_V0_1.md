@@ -144,7 +144,35 @@ The safer path is extraction first, smoke second. Extraction should be reviewed 
 
 ---
 
-## 9. 11-Series Progress
+## 9. 11-B4 Smoke Implementation
+
+11-B4 adds `scripts/check-golden-backend-aggregation.mjs`.
+
+Run from the repository root:
+
+```powershell
+node scripts/check-golden-backend-aggregation.mjs
+```
+
+Expected success:
+
+```text
+PASS: 5/5 golden backend aggregation smoke checks passed.
+```
+
+The smoke uses in-memory pseudo fixtures only. It does not call `/cases`, read or write backend/data files, call Supabase, call network APIs, render frontend pages, or change production behavior.
+
+Covered GTC-015 sub-cases:
+
+- GTC-015A Duplicate records keep receipt-ready lifecycle.
+- GTC-015B Event merge preserves explicit max event count.
+- GTC-015C Payment overlay does not erase receipt-ready eligibility.
+- GTC-015D Case ordering prefers `CASE-<timestamp>-...` over `updatedAt` churn.
+- GTC-015E Meaningful title is not downgraded by stale placeholder duplicate.
+
+---
+
+## 10. 11-Series Progress
 
 | Step | Status | Date | Scope | Code changes |
 | --- | --- | --- | --- | --- |
@@ -156,3 +184,5 @@ The safer path is extraction first, smoke second. Extraction should be reviewed 
 | 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-B1: Add GTC-013 Access-Mode Helper Smoke | PASS / committed | 2026-05-12 | Smoke/check script + documentation only | no production code changes |
 | 11-B2: GTC-015 Backend Aggregation Test Design / Extraction Plan | Drafted | 2026-05-12 | Documentation only | none |
+| 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
+| 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |

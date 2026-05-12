@@ -21,6 +21,7 @@ Run from the repository root:
 
 ```powershell
 node scripts/check-golden-readiness.mjs
+node scripts/check-golden-backend-aggregation.mjs
 ```
 
 Run this command:
@@ -37,8 +38,9 @@ Expected success behavior:
 - Prints a compact PASS/FAIL table.
 - Exits with code `0` when all checks pass.
 - Reports `PASS: 14/14 golden readiness smoke checks passed.`
+- Companion backend aggregation smoke reports `PASS: 5/5 golden backend aggregation smoke checks passed.`
 - Confirms the current v0.1 covered golden readiness checks still pass.
-- Does not mean all 15 golden cases are automated.
+- Confirms GTC-015 backend aggregation pseudo-fixture checks pass.
 
 Expected failure behavior:
 
@@ -77,7 +79,7 @@ The v0.1 smoke check validates deterministic readiness outcomes for representati
 - It does not test backend/data files.
 - It does not create runtime fixture files.
 - It does not validate full production hydration behavior.
-- GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
+- GTC-015 Case Ordering / Record Selection is covered by the companion backend aggregation smoke, not by the readiness smoke script.
 
 ---
 
@@ -105,6 +107,13 @@ Command run:
 
 ```powershell
 node scripts/check-golden-readiness.mjs
+node scripts/check-golden-backend-aggregation.mjs
+```
+
+Companion backend aggregation run:
+
+```text
+PASS: 5/5 golden backend aggregation smoke checks passed.
 ```
 
 ---
@@ -114,9 +123,8 @@ node scripts/check-golden-readiness.mjs
 - The v0.1 runnable smoke currently runs 14 checks.
 - Covered: GTC-001 through GTC-014.
 - GTC-013 Access-Mode Verification Fallback Case is covered as an access-mode helper smoke, not as a formal verification quality check.
-- Deferred from runnable smoke v0.1/v0.2:
-  - GTC-015 Case Ordering / Record Selection Case, because it requires backend aggregation / record-selection harness design.
-- This means 14/14 is expected for v0.1/v0.2 and does not mean all 15 golden cases are automated yet.
+- GTC-015 Case Ordering / Record Selection Case is covered by `scripts/check-golden-backend-aggregation.mjs` using in-memory pseudo fixtures.
+- This means 14/14 is expected for the readiness smoke and 5/5 is expected for the backend aggregation smoke.
 
 This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
 
@@ -134,3 +142,5 @@ This smoke check is now the first local regression command for readiness/scoring
 | 11-A6: Register Golden Readiness Smoke in Regression Checklist | PASS / committed | 2026-05-12 | Documentation only | none |
 | 11-B1: Add GTC-013 Access-Mode Helper Smoke | PASS / committed | 2026-05-12 | Smoke/check script + documentation only | no production code changes |
 | 11-B2: GTC-015 Backend Aggregation Test Design / Extraction Plan | Drafted | 2026-05-12 | Documentation only | none |
+| 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
+| 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |

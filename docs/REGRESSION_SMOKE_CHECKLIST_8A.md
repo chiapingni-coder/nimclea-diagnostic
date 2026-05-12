@@ -24,6 +24,7 @@ Commands:
 git status --short
 git log --oneline -5
 node scripts/check-golden-readiness.mjs
+node scripts/check-golden-backend-aggregation.mjs
 ```
 
 PASS criteria:
@@ -32,10 +33,13 @@ PASS criteria:
 - Latest expected commits are visible.
 - No uncommitted frontend/backend changes.
 - Golden readiness smoke prints `PASS: 14/14 golden readiness smoke checks passed.`
+- Golden backend aggregation smoke prints `PASS: 5/5 golden backend aggregation smoke checks passed.`
 
 Run the golden readiness smoke before changing readiness/scoring logic; after changing `frontend/utils/deterministicScore.js`, `frontend/utils/dataContractLifecycle.js`, or `frontend/utils/sharedReceiptVerificationContract.js`; after changing receipt/verification readiness behavior; and before committing future 11-series scoring/readiness changes.
 
-The command confirms the current v0.1 covered golden readiness checks still pass. It does not mean all 15 golden cases are automated: GTC-015 Case Ordering / Record Selection is deferred to backend aggregation / record-selection smoke.
+Run the golden backend aggregation smoke before changing `/cases` backend aggregation, duplicate record selection, event merge, case ordering, payment/receipt overlay behavior, or title/name preservation behavior.
+
+The readiness command confirms the current v0.1 covered golden readiness checks still pass. The backend aggregation command covers GTC-015 with in-memory pseudo fixtures.
 
 It does not render React pages, call network APIs, test backend/data files, or test Stripe/payment webhooks.
 
