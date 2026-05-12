@@ -173,6 +173,47 @@ function findCaseRecords(records = [], caseId = "") {
   return records.filter((item) => getRecordCaseId(item) === caseId);
 }
 
+function isPlaceholderCaseTitle(value, caseId = "") {
+  const text = String(value || "").trim();
+  if (!text) return true;
+  if (text.toLowerCase() === "untitled case") return true;
+  if (caseId && text === caseId) return true;
+  return false;
+}
+
+function resolvePreservedCaseTitle({ existing, incoming, caseId }) {
+  const existingTitleCandidates = [
+    existing?.title,
+    existing?.caseName,
+    existing?.name,
+    existing?.caseData?.title,
+    existing?.caseData?.caseName,
+    existing?.caseData?.name,
+  ];
+
+  const incomingTitleCandidates = [
+    incoming?.title,
+    incoming?.caseName,
+    incoming?.name,
+    incoming?.caseData?.title,
+    incoming?.caseData?.caseName,
+    incoming?.caseData?.name,
+  ];
+
+  const existingMeaningfulTitle = existingTitleCandidates.find(
+    (value) => !isPlaceholderCaseTitle(value, caseId)
+  );
+
+  const incomingMeaningfulTitle = incomingTitleCandidates.find(
+    (value) => !isPlaceholderCaseTitle(value, caseId)
+  );
+
+  if (existingMeaningfulTitle) return existingMeaningfulTitle;
+  if (incomingMeaningfulTitle) return incomingMeaningfulTitle;
+
+  return "Untitled case";
+}
+
 function normalizeRecordText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -405,14 +446,19 @@ router.post("/save", async (req, res) => {
 
     const now = new Date().toISOString();
     const resolvedCaseId = normalizeValidCaseId(caseId) || createCaseId();
-    const cases = readJsonFile(CASES_FILE, []);
-    const existingIndex = findCaseIndex(Array.isArray(cases) ? cases : [], resolvedCaseId);
+    const casesRaw = readJsonFile(CASES_FILE, []);
+    const cases = Array.isArray(casesRaw) ? casesRaw : [];
+    const existingIndex = findCaseIndex(cases, resolvedCaseId);
+    const localExistingCase = existingIndex >= 0 ? cases[existingIndex] : null;
+    const supabaseExistingCase = localExistingCase
+      ? null
+      : await findSupabaseCaseRecord(resolvedCaseId);
+    const existingCase = localExistingCase || supabaseExistingCase;
     const previousVersion =
       existingIndex >= 0
         ? Number(cases[existingIndex]?.version || 1)
         : 0;
-
-    const savedCase = upsertCaseRecord({
+    const incomingCase = {
       ...(req.body || {}),
       caseId: resolvedCaseId,
       userId,
@@ -425,6 +471,24 @@ router.post("/save", async (req, res) => {
       version: previousVersion + 1,
       savedAt: now,
       status: req.body?.status || "draft",
+    };
+    const preservedTitle = resolvePreservedCaseTitle({
+      existing: existingCase,
+      incoming: incomingCase,
+      caseId: resolvedCaseId,
+    });
+
+    const savedCase = upsertCaseRecord({
+      ...incomingCase,
+      title: preservedTitle,
+      name: preservedTitle,
+      caseName: preservedTitle,
+      caseData: {
+        ...(incomingCase.caseData || {}),
+        title: preservedTitle,
+        name: preservedTitle,
+        caseName: preservedTitle,
+      },
     });
 
     await mirrorCaseToSupabase(savedCase);
