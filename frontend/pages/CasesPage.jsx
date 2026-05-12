@@ -3367,10 +3367,7 @@ export default function CasesPage() {
                 style={{
                   width: "100%",
                   maxWidth: "460px",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: "16px",
                   padding: "16px",
-                  backgroundColor: "#FFFFFF",
                 }}
               >
                 <h3
