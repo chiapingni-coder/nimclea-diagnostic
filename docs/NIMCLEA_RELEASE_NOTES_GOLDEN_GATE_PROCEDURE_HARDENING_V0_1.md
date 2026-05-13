@@ -146,7 +146,7 @@ Reason:
 
 ## 10. Follow-up
 
-- 13-E can optionally create a lightweight release notes index.
+- 13-E1 creates a lightweight release notes index.
 - Future phase can add separate smoke procedures for live API, Stripe/payment, or UI visual checks.
 - CI integration should remain a later phase, not assumed by this record.
 
@@ -157,3 +157,4 @@ Reason:
 | Step | Title | Status | Type | Notes |
 | --- | --- | --- | --- | --- |
 | 13-D1 | First real release notes record | Drafted | Documentation only | Records 12-A through 13-C golden gate procedure hardening change set |
+| 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |

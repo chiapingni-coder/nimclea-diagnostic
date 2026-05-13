@@ -36,3 +36,5 @@ Use `docs/NIMCLEA_MANUAL_RELEASE_PROCEDURE_V0_1.md` for the minimal 5-step manua
 Use `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md` to document completed change sets after the manual procedure and golden gate pass.
 
 See `docs/NIMCLEA_RELEASE_NOTES_GOLDEN_GATE_PROCEDURE_HARDENING_V0_1.md` for the first release notes record covering the golden gate procedure hardening work.
+
+See `docs/NIMCLEA_RELEASE_NOTES_INDEX_V0_1.md` for the central release notes index.

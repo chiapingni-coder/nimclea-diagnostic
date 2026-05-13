@@ -17,6 +17,8 @@ After this procedure passes, use `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md` t
 
 For the first completed record, see `docs/NIMCLEA_RELEASE_NOTES_GOLDEN_GATE_PROCEDURE_HARDENING_V0_1.md`.
 
+For the central release notes index, see `docs/NIMCLEA_RELEASE_NOTES_INDEX_V0_1.md`.
+
 ---
 
 ## 2. When To Use This Procedure
@@ -161,3 +163,4 @@ It does not cover:
 | 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Converts checklist into 5-step manual release procedure |
 | 13-C1 | Release notes template | Drafted | Documentation only | Adds release notes / changelog template for golden-gate-validated changes |
 | 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |
+| 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |

@@ -63,6 +63,7 @@ The scope lock is intended to keep the next Nimclea regression/golden-smoke phas
 - 13-B1 defines the minimal 5-step manual release procedure around the final regression gate.
 - 13-C1 defines the release notes template for documenting completed golden-gate-validated change sets.
 - 13-D1 records the first real release notes entry for golden gate procedure hardening.
+- 13-E1 defines the lightweight release notes index.
 - Any new request outside this scope should become a separate later phase, not be mixed into the golden smoke phase.
 
 ---
@@ -77,3 +78,4 @@ The scope lock is intended to keep the next Nimclea regression/golden-smoke phas
 | 13-B1 Minimal manual release procedure | Drafted | 2026-05-12 | Documentation only | No |
 | 13-C1 Release notes template | Drafted | 2026-05-12 | Documentation only | No |
 | 13-D1 First real release notes record | Drafted | 2026-05-12 | Documentation only | No |
+| 13-E1 Release notes index | Drafted | 2026-05-12 | Documentation only | No |
