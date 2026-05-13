@@ -235,6 +235,99 @@ const smokeCases = [
       };
     },
   },
+  {
+    id: "GTC-015F",
+    name: "Route-shaped case merge preserves receipt-ready record",
+    run: () => {
+      const baseCase = {
+        caseId: "CASE-GTC-015F",
+        title: "Stable Route Case",
+        caseName: "Stable Route Case",
+        name: "Stable Route Case",
+        stage: "diagnostic_completed",
+        receiptEligible: false,
+        eventCount: 1,
+        events: [
+          {
+            eventId: "route-event-1",
+            caseId: "CASE-GTC-015F",
+            type: "pilot_event",
+            createdAt: "2026-05-12T00:00:00.000Z",
+          },
+        ],
+        updatedAt: "2026-05-12T00:00:00.000Z",
+      };
+      const receiptLikeRecord = {
+        caseId: "CASE-GTC-015F",
+        title: "Stable Route Case",
+        caseName: "Stable Route Case",
+        name: "Stable Route Case",
+        stage: "receipt_ready",
+        currentStep: "receipt",
+        receiptEligible: true,
+        caseReceiptEligible: true,
+        receiptStatus: "ready",
+        eventCount: 2,
+        eventLogs: [
+          {
+            eventId: "route-event-2",
+            caseId: "CASE-GTC-015F",
+            type: "receipt_evidence",
+            createdAt: "2026-05-12T01:00:00.000Z",
+          },
+        ],
+        updatedAt: "2026-05-12T02:00:00.000Z",
+      };
+      const backendLogs = [
+        {
+          eventId: "route-event-3",
+          caseId: "CASE-GTC-015F",
+          type: "formal_evidence_capture",
+          createdAt: "2026-05-12T03:00:00.000Z",
+        },
+      ];
+
+      const selected = pickRicherCaseRecord(baseCase, receiptLikeRecord);
+      const mergedEvents = mergeCaseEvents(
+        baseCase.events,
+        baseCase.eventLogs,
+        receiptLikeRecord.events,
+        receiptLikeRecord.eventLogs,
+        backendLogs
+      );
+      const mergedEventCount = deriveMergedCaseEventCount(
+        baseCase,
+        receiptLikeRecord,
+        mergedEvents
+      );
+      const finalStage = pickHigherStage(
+        baseCase.stage,
+        receiptLikeRecord.stage,
+        selected.receiptEligible === true ? "receipt_ready" : ""
+      );
+      const finalReceiptStatus = pickStrongestReceiptStatus(
+        baseCase.receiptStatus,
+        receiptLikeRecord.receiptStatus,
+        selected.receiptEligible === true ? "ready" : ""
+      );
+
+      return {
+        observed: `${finalStage}; receiptEligible=${selected.receiptEligible}; receiptStatus=${finalReceiptStatus}; title=${selected.title}; mergedEventCount=${mergedEventCount}`,
+        expected: "route-shaped merge keeps receipt-ready lifecycle, title/name, and merged events",
+        checks: [
+          expect(selected === receiptLikeRecord, "receipt-like record should be selected"),
+          expect(finalStage === "receipt_ready", "final stage should be receipt_ready"),
+          expect(selected.receiptEligible === true, "selected record should remain receipt eligible"),
+          expect(finalReceiptStatus === "ready", "final receipt status should be ready"),
+          expect(selected.title === "Stable Route Case", "title should remain Stable Route Case"),
+          expect(selected.caseName === "Stable Route Case", "caseName should remain Stable Route Case"),
+          expect(selected.name === "Stable Route Case", "name should remain Stable Route Case"),
+          expect(mergedEvents.length === 3, "merged events length should be 3"),
+          expect(mergedEventCount === 3, "merged eventCount should be 3"),
+        ],
+      };
+    },
+  },
 ];
 
 const results = smokeCases.map(assertCase);
