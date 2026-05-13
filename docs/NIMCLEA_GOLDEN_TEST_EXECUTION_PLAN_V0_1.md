@@ -60,7 +60,7 @@ It defines what each golden case should test, which layer it targets, the minima
 | GTC-012 | Verification Failed Case | Verification contract check | Manual smoke | `sharedReceiptVerificationContract.js` | At least one failed verification check | `expectVerificationStatus("Verification Failed")` | Phase 1 | Optional | Failed dominates warning/ready. |
 | GTC-013 | Access-Mode Verification Fallback Case | Access-mode check | Rule-layer classification review | `resolveAccessMode()` | `backendVerificationEligible: false`, `receiptEligible: true`, `eventCount > 0` | Verification view may be allowed; mark mixed/refactor risk | Phase 2 | No | Sentinel for blended access/eligibility. |
 | GTC-014 | Threshold Mismatch Sentinel Case | Threshold sentinel check | Shared contract check | `deterministicScore.js`, `sharedReceiptVerificationContract.js` | Score between 3.0 and 3.5 | `expectThresholdMismatchReported`; no silent resolution | Phase 1 | No | Must preserve ambiguity until explicit cleanup. |
-| GTC-015 | Case Ordering / Record Selection Case | Backend aggregation / record selection check | Manual production smoke | `backend/utils/caseAggregationHelpers.js` and `/cases` merge/richness/order logic | Duplicate case-shaped records with different timestamps/richness | `expectRecordSelectionDoesNotDowngrade`; backend aggregation smoke `PASS: 5/5` | Phase 3 smoke added in 11-B4 | Yes | Aggregation behavior, not scoring. |
+| GTC-015 | Case Ordering / Record Selection Case | Backend aggregation / record selection check | Manual production smoke | `backend/utils/caseAggregationHelpers.js` and `/cases` merge/richness/order logic | Duplicate case-shaped records with different timestamps/richness | `expectRecordSelectionDoesNotDowngrade`; backend aggregation smoke `PASS: 6/6` | Phase 3 smoke extended in 12-C2 | Yes | Aggregation behavior, not scoring. |
 
 ---
 
@@ -247,3 +247,4 @@ Recommendation: start with Phase 1 pure function checks only in a future step.
 | 12-C1 | Backend aggregation scope audit | Completed | Read-only audit | Existing helper smoke covered GTC-015A-E; one route-shaped in-memory sentinel recommended |
 | 12-C2 | Route-shaped backend aggregation smoke | Completed | scripts only | Added GTC-015F route-shaped in-memory smoke; npm run check:golden passed: 14/14 readiness + 6/6 backend aggregation |
 | 12-C3 | Documentation progress update | Drafted | Documentation only | Updates progress tables after GTC-015F route-shaped smoke |
+| 12-D1 | Final regression gate documentation | Drafted | Documentation only | npm run check:golden is now the required final regression gate |

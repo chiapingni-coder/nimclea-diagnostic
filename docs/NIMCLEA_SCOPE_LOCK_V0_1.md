@@ -58,6 +58,7 @@ The scope lock is intended to keep the next Nimclea regression/golden-smoke phas
 - 12-B should convert selected golden cases into runnable smoke/check scripts.
 - 12-C should validate backend aggregation behavior against the locked scope.
 - 12-D should update progress tables only after runnable checks pass.
+- 12-D1 defines `npm run check:golden` as the required final regression gate for this golden smoke phase.
 - Any new request outside this scope should become a separate later phase, not be mixed into the golden smoke phase.
 
 ---
@@ -67,3 +68,4 @@ The scope lock is intended to keep the next Nimclea regression/golden-smoke phas
 | Item | Status | Date | Type | Code changes |
 | --- | --- | --- | --- | --- |
 | Scope Lock v0.1 | Drafted | 2026-05-12 | Documentation only | No |
+| 12-D1 Final regression gate documentation | Drafted | 2026-05-12 | Documentation only | No |
