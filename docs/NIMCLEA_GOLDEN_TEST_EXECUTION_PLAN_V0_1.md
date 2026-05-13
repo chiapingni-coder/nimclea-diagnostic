@@ -242,3 +242,5 @@ Recommendation: start with Phase 1 pure function checks only in a future step.
 | 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
 | 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |
 | 12-A | Scope Lock v0.1 | Drafted | Documentation only | No code changes |
+| 12-B3 | Golden smoke package entry | Completed | package.json only | npm run check:golden passed: 14/14 readiness + 5/5 backend aggregation |
+| 12-B4 | Documentation progress update | Drafted | Documentation only | Updates progress tables after 12-B3 |
