@@ -13,6 +13,8 @@ This checklist turns the final golden regression gate into a daily development a
 
 It makes `npm run check:golden` the standard local validation command before merging or deploying risky changes in the current Nimclea golden smoke phase. It does not add CI integration, automated deployment blocking, live API testing, Stripe/payment testing, UI visual regression testing, or AI testing.
 
+For the minimal manual push/deploy procedure, see `docs/NIMCLEA_MANUAL_RELEASE_PROCEDURE_V0_1.md`.
+
 ---
 
 ## 2. When This Checklist Applies
@@ -104,3 +106,4 @@ git diff --check -- docs README.md package.json scripts frontend backend
 | Step | Title | Status | Type | Notes |
 | --- | --- | --- | --- | --- |
 | 13-A1 | Development and release checklist | Drafted | Documentation only | Converts `npm run check:golden` into daily development and pre-release checklist |
+| 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Adds 5-step manual release procedure around `npm run check:golden` |

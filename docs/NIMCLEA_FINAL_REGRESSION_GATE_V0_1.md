@@ -15,6 +15,8 @@ It solidifies the existing local golden smoke checks as the final regression gat
 
 For daily usage, see `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md`.
 
+For the minimal manual release procedure, see `docs/NIMCLEA_MANUAL_RELEASE_PROCEDURE_V0_1.md`.
+
 ---
 
 ## 2. Required Command
@@ -93,3 +95,4 @@ If `npm run check:golden` fails:
 | --- | --- | --- | --- | --- |
 | 12-D1 | Final regression gate documentation | Drafted | Documentation only | Solidifies `npm run check:golden` as required gate |
 | 13-A1 | Development and release checklist | Drafted | Documentation only | Adds daily/pre-release checklist for golden regression gate usage |
+| 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Adds 5-step manual release procedure around `npm run check:golden` |

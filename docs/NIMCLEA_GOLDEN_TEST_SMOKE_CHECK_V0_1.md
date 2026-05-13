@@ -128,6 +128,8 @@ This smoke check is now the first local regression command for readiness/scoring
 
 For daily development and release usage, see `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md`.
 
+For the minimal manual release procedure, see `docs/NIMCLEA_MANUAL_RELEASE_PROCEDURE_V0_1.md`.
+
 ---
 
 ## 11-Series Progress
@@ -152,3 +154,4 @@ For daily development and release usage, see `docs/NIMCLEA_DEVELOPMENT_RELEASE_C
 | 12-C3 | Documentation progress update | Drafted | Documentation only | Updates progress tables after GTC-015F route-shaped smoke |
 | 12-D1 | Final regression gate documentation | Drafted | Documentation only | npm run check:golden is now the required final regression gate |
 | 13-A1 | Development and release checklist | Drafted | Documentation only | Adds daily/pre-release checklist for golden regression gate usage |
+| 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Adds 5-step manual release procedure around npm run check:golden |
