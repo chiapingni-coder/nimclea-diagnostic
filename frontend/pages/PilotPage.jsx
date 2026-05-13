@@ -418,7 +418,7 @@ function WorkflowPicker({
   selectedWorkflow,
   onSelect,
   onStart,
-  title = "Choose a workflow",
+  title = "Select one workflow to test in this pilot",
   buttonLabel = "Continue Case",
 }) {
   const workflowOptions = [
@@ -446,7 +446,7 @@ function WorkflowPicker({
         </h2>
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1">
           <select
             id="workflow-select"
@@ -470,7 +470,7 @@ function WorkflowPicker({
         <button
           type="button"
           onClick={onStart}
-          className="inline-flex shrink-0 items-center justify-center rounded-full px-5 text-xs font-semibold shadow-sm transition sm:w-auto"
+          className="inline-flex w-full shrink-0 items-center justify-center rounded-full px-5 text-xs font-semibold shadow-sm transition md:w-auto"
           style={{
             height: "38px",
             minHeight: "38px",
@@ -1708,7 +1708,7 @@ navigate(
             selectedWorkflow={selectedWorkflow}
             onSelect={setSelectedWorkflow}
             onStart={handleStart}
-            title="Choose a workflow"
+            title="Select one workflow to test in this pilot"
             buttonLabel="Continue Case"
           />
 
