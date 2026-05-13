@@ -440,14 +440,46 @@ function WorkflowPicker({
 
   return (
     <Card className="p-6 md:p-7">
+      <style>{`
+        .pilot-workflow-control-row {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 12px;
+          width: 100%;
+        }
+
+        .pilot-workflow-select-wrap {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .pilot-workflow-continue {
+          width: auto;
+          flex-shrink: 0;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 520px) {
+          .pilot-workflow-control-row {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .pilot-workflow-continue {
+            width: 100%;
+          }
+        }
+      `}</style>
+
       <div>
         <h2 className="text-xl font-bold text-slate-950">
           {title}
         </h2>
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center">
-        <div className="relative flex-1">
+      <div className="pilot-workflow-control-row mt-5">
+        <div className="pilot-workflow-select-wrap relative">
           <select
             id="workflow-select"
             value={selectedWorkflow}
@@ -470,7 +502,7 @@ function WorkflowPicker({
         <button
           type="button"
           onClick={onStart}
-          className="inline-flex w-full shrink-0 items-center justify-center rounded-full px-5 text-xs font-semibold shadow-sm transition md:w-auto"
+          className="pilot-workflow-continue inline-flex items-center justify-center rounded-full px-5 text-xs font-semibold shadow-sm transition"
           style={{
             height: "38px",
             minHeight: "38px",
