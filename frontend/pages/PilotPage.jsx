@@ -66,6 +66,24 @@ function getEnglishScenarioLabel(preview) {
   return "No Dominant Scenario";
 }
 
+function buildGeneratedCaseTitle({ existingCaseName = "", workflow = "", preview = {}, caseId = "" }) {
+  const existingTitle = String(existingCaseName || "").trim();
+  if (existingTitle) return existingTitle;
+
+  const workflowLabel = String(workflow || "").trim();
+  const scenarioLabel = getEnglishScenarioLabel(preview);
+  if (workflowLabel && scenarioLabel) {
+    return `${workflowLabel} - ${scenarioLabel}`;
+  }
+
+  if (workflowLabel) return workflowLabel;
+
+  const previewTitle = String(preview?.title || "").trim();
+  if (!isPlaceholderCaseName(previewTitle, caseId)) return previewTitle;
+
+  return "Untitled case";
+}
+
 function safeParse(jsonString) {
   if (!jsonString) return null;
   try {
@@ -400,13 +418,8 @@ function WorkflowPicker({
   selectedWorkflow,
   onSelect,
   onStart,
-  caseName = "",
-  onCaseNameChange,
-  caseNameError = "",
-  isCaseNameRequired = false,
-  readOnlyCaseName = "",
-  title = "Choose a workflow & Name your case",
-  buttonLabel = "Create new case",
+  title = "Choose a workflow",
+  buttonLabel = "Continue Case",
 }) {
   const workflowOptions = [
     "Audit preparation",
@@ -427,32 +440,14 @@ function WorkflowPicker({
 
   return (
     <Card className="p-6 md:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div>
         <h2 className="text-xl font-bold text-slate-950">
           {title}
         </h2>
-
-        <button
-          type="button"
-          onClick={onStart}
-          className="shrink-0 inline-flex items-center justify-center rounded-full px-5 text-xs font-semibold shadow-sm transition"
-          style={{
-            height: "38px",
-            minHeight: "38px",
-            backgroundColor: "#059669",
-            color: "#ffffff",
-            border: "1px solid #047857",
-            minWidth: "100px",
-            visibility: "visible",
-            opacity: 1,
-          }}
-        >
-          {buttonLabel}
-        </button>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-2 md:items-start">
-        <div className="relative">
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
           <select
             id="workflow-select"
             value={selectedWorkflow}
@@ -472,40 +467,23 @@ function WorkflowPicker({
           </select>
         </div>
 
-        <div>
-          {readOnlyCaseName ? (
-            <div>
-              <p className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm">
-                {readOnlyCaseName}
-              </p>
-            </div>
-          ) : (
-            <input
-              id="case-name"
-              type="text"
-              value={caseName}
-              onChange={(event) => {
-                if (onCaseNameChange) {
-                  onCaseNameChange(event.target.value);
-                }
-              }}
-              placeholder="Case Name"
-              aria-required={isCaseNameRequired}
-              style={{
-                height: "38px",
-                minHeight: "38px",
-                lineHeight: "38px",
-              }}
-              className="w-full rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            />
-          )}
-
-          {!readOnlyCaseName && caseNameError ? (
-            <p className="mt-2 text-xs font-medium text-red-600">
-              {caseNameError}
-            </p>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          onClick={onStart}
+          className="inline-flex shrink-0 items-center justify-center rounded-full px-5 text-xs font-semibold shadow-sm transition sm:w-auto"
+          style={{
+            height: "38px",
+            minHeight: "38px",
+            backgroundColor: "#059669",
+            color: "#ffffff",
+            border: "1px solid #047857",
+            minWidth: "124px",
+            visibility: "visible",
+            opacity: 1,
+          }}
+        >
+          {buttonLabel}
+        </button>
       </div>
     </Card>
   );
@@ -1014,9 +992,7 @@ export default function PilotPage() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedWorkflow, setSelectedWorkflow] = useState("Audit preparation");
-  const [caseName, setCaseName] = useState("");
   const [existingCaseName, setExistingCaseName] = useState("");
-  const [caseNameError, setCaseNameError] = useState("");
   const access = resolveAccessMode(incomingCaseSchema || preview || location.state || {});
   const stripBreadcrumbState = (state = {}) => {
     const {
@@ -1051,10 +1027,6 @@ export default function PilotPage() {
     const nextCaseName = storedCaseName || routeCaseName;
 
     setExistingCaseName(nextCaseName);
-    if (nextCaseName) {
-      setCaseName(nextCaseName);
-      setCaseNameError("");
-    }
   }, [resolvedCaseId, location.state, incomingCaseSchema]);
   
   useEffect(() => {
@@ -1091,8 +1063,6 @@ export default function PilotPage() {
 
           if (!cancelled && nextBackendCaseName) {
             setExistingCaseName(nextBackendCaseName);
-            setCaseName(nextBackendCaseName);
-            setCaseNameError("");
           }
           const normalizedCaseData =
             caseRecord?.caseData && typeof caseRecord.caseData === "object"
@@ -1222,12 +1192,13 @@ export default function PilotPage() {
 
   const handleStart = useCallback(async () => {
     const workflow = selectedWorkflow || "Audit preparation";
-    const trimmedCaseName = (existingCaseName || caseName).trim();
-
-    if ((isCaseReview || resolvedCaseId) && !trimmedCaseName) {
-      setCaseNameError("Please name this case before continuing.");
-      return;
-    }
+    const resolvedCaseTitle = buildGeneratedCaseTitle({
+      existingCaseName,
+      workflow,
+      preview,
+      caseId: resolvedCaseId,
+    });
+    const shouldWriteGeneratedTitle = !existingCaseName;
 
     const scopeLock = {
       scopeStatement: `This case evaluates whether the selected workflow "${workflow}" can be executed, explained, and carried forward under a 7-day pilot record.`,
@@ -1406,8 +1377,8 @@ export default function PilotPage() {
     if (!incomingCaseId) {
       const createdCase = upsertCase({
         caseId: resolvedCaseId,
-        title: trimmedCaseName || undefined,
-        caseName: trimmedCaseName || undefined,
+        title: resolvedCaseTitle || undefined,
+        caseName: resolvedCaseTitle || undefined,
         source: "pilot",
         currentStep: "pilot",
         email: storedEmail || undefined,
@@ -1424,13 +1395,13 @@ export default function PilotPage() {
       caseIdForPilot = createdCase?.caseId || resolvedCaseId;
     }
 
-    if (caseIdForPilot && trimmedCaseName) {
+    if (caseIdForPilot && resolvedCaseTitle && shouldWriteGeneratedTitle) {
       upsertCase({
         caseId: caseIdForPilot,
-        title: trimmedCaseName,
-        caseName: trimmedCaseName,
+        title: resolvedCaseTitle,
+        caseName: resolvedCaseTitle,
         currentStep: "pilot",
-        source: "pilot_page_case_name",
+        source: "pilot_page_generated_title",
       });
 
       try {
@@ -1443,19 +1414,19 @@ export default function PilotPage() {
             trialId: trialSession.trialId,
             caseId: caseIdForPilot || resolvedCaseId,
             id: caseIdForPilot || resolvedCaseId,
-            title: trimmedCaseName,
-            caseName: trimmedCaseName,
+            title: resolvedCaseTitle,
+            caseName: resolvedCaseTitle,
             status: "workspace_active",
             stage: "pilot",
             currentStep: "pilot",
-            source: "pilot_page_case_name",
+            source: "pilot_page_generated_title",
             caseData: {
               ...(preview?.caseData || {}),
               ...(incomingCaseSchema || {}),
               caseId: caseIdForPilot || resolvedCaseId,
               id: caseIdForPilot || resolvedCaseId,
-              title: trimmedCaseName,
-              caseName: trimmedCaseName,
+              title: resolvedCaseTitle,
+              caseName: resolvedCaseTitle,
               workflow,
               scopeLock: scopedScopeLock,
               acceptanceChecklist: normalizedChecklist,
@@ -1553,8 +1524,8 @@ export default function PilotPage() {
       sessionId: resolvedSessionId,
       caseId: caseIdForPilot,
       case_id: caseIdForPilot,
-      caseName: trimmedCaseName,
-      title: trimmedCaseName,
+      caseName: resolvedCaseTitle,
+      title: resolvedCaseTitle,
       preview: stripBreadcrumbState(preview || {}),
       result: stripBreadcrumbState(preview || {}),
       sourceInput: stripBreadcrumbState(preview || {}),
@@ -1584,7 +1555,7 @@ export default function PilotPage() {
 
       pilot_setup: {
         workflow,
-        caseName: trimmedCaseName,
+        caseName: resolvedCaseTitle,
         created_from: "pilot_starter_page",
         scopeLock: scopedScopeLock,
         acceptanceChecklist: normalizedChecklist,
@@ -1702,7 +1673,6 @@ navigate(
     incomingProgressLabel,
     incomingNextAction,
     incomingCaseSchema,
-    caseName,
     existingCaseName,
     isCaseReview,
     pcMeta,
@@ -1738,16 +1708,8 @@ navigate(
             selectedWorkflow={selectedWorkflow}
             onSelect={setSelectedWorkflow}
             onStart={handleStart}
-            caseName={caseName}
-            onCaseNameChange={(value) => {
-              setCaseName(value);
-              if (caseNameError) setCaseNameError("");
-            }}
-            caseNameError={caseNameError}
-            isCaseNameRequired={Boolean(isCaseReview || resolvedCaseId)}
-            readOnlyCaseName={resolvedCaseId ? existingCaseName : ""}
-            title="Choose a workflow & Name your case"
-            buttonLabel={isCaseReview || resolvedCaseId ? "Continue Case" : "Create case"}
+            title="Choose a workflow"
+            buttonLabel="Continue Case"
           />
 
           <PilotPlanCard
