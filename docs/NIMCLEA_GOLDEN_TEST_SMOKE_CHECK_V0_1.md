@@ -123,8 +123,8 @@ PASS: 5/5 golden backend aggregation smoke checks passed.
 - The v0.1 runnable smoke currently runs 14 checks.
 - Covered: GTC-001 through GTC-014.
 - GTC-013 Access-Mode Verification Fallback Case is covered as an access-mode helper smoke, not as a formal verification quality check.
-- GTC-015 Case Ordering / Record Selection Case is covered by `scripts/check-golden-backend-aggregation.mjs` using in-memory pseudo fixtures.
-- This means 14/14 is expected for the readiness smoke and 5/5 is expected for the backend aggregation smoke.
+- GTC-015 Case Ordering / Record Selection Case is covered by `scripts/check-golden-backend-aggregation.mjs` using in-memory pseudo fixtures, including GTC-015F route-shaped in-memory smoke.
+- This means 14/14 is expected for the readiness smoke and 6/6 is expected for the backend aggregation smoke.
 
 This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
 
@@ -147,3 +147,6 @@ This smoke check is now the first local regression command for readiness/scoring
 | 12-A | Scope Lock v0.1 | Drafted | Documentation only | No code changes |
 | 12-B3 | Golden smoke package entry | Completed | package.json only | npm run check:golden passed: 14/14 readiness + 5/5 backend aggregation |
 | 12-B4 | Documentation progress update | Drafted | Documentation only | Updates progress tables after 12-B3 |
+| 12-C1 | Backend aggregation scope audit | Completed | Read-only audit | Existing helper smoke covered GTC-015A-E; one route-shaped in-memory sentinel recommended |
+| 12-C2 | Route-shaped backend aggregation smoke | Completed | scripts only | Added GTC-015F route-shaped in-memory smoke; npm run check:golden passed: 14/14 readiness + 6/6 backend aggregation |
+| 12-C3 | Documentation progress update | Drafted | Documentation only | Updates progress tables after GTC-015F route-shaped smoke |

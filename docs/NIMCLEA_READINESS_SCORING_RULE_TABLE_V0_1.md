@@ -199,3 +199,6 @@ Rules below are direct code observations unless marked "inferred".
 | 12-A | Scope Lock v0.1 | Drafted | Documentation only | No code changes |
 | 12-B3 | Golden smoke package entry | Completed | package.json only | npm run check:golden passed: 14/14 readiness + 5/5 backend aggregation |
 | 12-B4 | Documentation progress update | Drafted | Documentation only | Updates progress tables after 12-B3 |
+| 12-C1 | Backend aggregation scope audit | Completed | Read-only audit | Existing helper smoke covered GTC-015A-E; one route-shaped in-memory sentinel recommended |
+| 12-C2 | Route-shaped backend aggregation smoke | Completed | scripts only | Added GTC-015F route-shaped in-memory smoke; npm run check:golden passed: 14/14 readiness + 6/6 backend aggregation |
+| 12-C3 | Documentation progress update | Drafted | Documentation only | Updates progress tables after GTC-015F route-shaped smoke |

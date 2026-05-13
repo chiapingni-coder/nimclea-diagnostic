@@ -157,7 +157,7 @@ node scripts/check-golden-backend-aggregation.mjs
 Expected success:
 
 ```text
-PASS: 5/5 golden backend aggregation smoke checks passed.
+PASS: 6/6 golden backend aggregation smoke checks passed.
 ```
 
 The smoke uses in-memory pseudo fixtures only. It does not call `/cases`, read or write backend/data files, call Supabase, call network APIs, render frontend pages, or change production behavior.
@@ -169,6 +169,7 @@ Covered GTC-015 sub-cases:
 - GTC-015C Payment overlay does not erase receipt-ready eligibility.
 - GTC-015D Case ordering prefers `CASE-<timestamp>-...` over `updatedAt` churn.
 - GTC-015E Meaningful title is not downgraded by stale placeholder duplicate.
+- GTC-015F Route-shaped in-memory smoke preserves receipt-ready record, meaningful title/name, and merged event count.
 
 ---
 
@@ -186,3 +187,6 @@ Covered GTC-015 sub-cases:
 | 11-B2: GTC-015 Backend Aggregation Test Design / Extraction Plan | Drafted | 2026-05-12 | Documentation only | none |
 | 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
 | 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |
+| 12-C1 | Backend aggregation scope audit | Completed | Read-only audit | Existing helper smoke covered GTC-015A-E; one route-shaped in-memory sentinel recommended |
+| 12-C2 | Route-shaped backend aggregation smoke | Completed | scripts only | Added GTC-015F route-shaped in-memory smoke; npm run check:golden passed: 14/14 readiness + 6/6 backend aggregation |
+| 12-C3 | Documentation progress update | Drafted | Documentation only | Updates progress tables after GTC-015F route-shaped smoke |
