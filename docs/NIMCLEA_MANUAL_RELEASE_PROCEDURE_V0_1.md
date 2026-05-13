@@ -58,6 +58,7 @@ Command:
 
 ```powershell
 node scripts/check-release-gate.mjs
+Get-Content docs/NIMCLEA_LAUNCH_READINESS_FINAL_REVIEW_V0_1.md
 npm run check:golden
 ```
 
@@ -67,6 +68,7 @@ Required pass standard:
 - Release gate `WARN` allows release only if manual smoke items are reviewed or explicitly deferred.
 - Release gate `PASS` means the currently automated release gate checks passed.
 - Current release gate result may be `WARN` because several UI/payment/routing checks are still manual.
+- Final review doc is reviewed after the release gate, and any `WARN` items are manually reviewed or explicitly deferred.
 - `PASS: 14/14 golden readiness smoke checks passed.`
 - `PASS: 6/6 golden backend aggregation smoke checks passed.`
 
@@ -159,6 +161,7 @@ It does not cover:
 - Golden readiness: 14/14.
 - Backend aggregation: 6/6.
 - Release gate command: `node scripts/check-release-gate.mjs`.
+- Final review: `docs/NIMCLEA_LAUNCH_READINESS_FINAL_REVIEW_V0_1.md`.
 - Release gate `FAIL` blocks; `WARN` requires manual review or explicit deferral.
 - Command: `npm run check:golden`.
 - GTC-015F is route-shaped in-memory smoke, not live route/API integration.
@@ -175,3 +178,4 @@ It does not cover:
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |
 | 14-C1 | Release gate docs linkage | Drafted | Documentation only | Adds 14-A/14-B pre-release reminder; no code changed |
 | 14-D2 | Release gate workflow linkage | Drafted | Documentation only | Adds read-only release gate command to manual release flow |
+| 14-E1 | Launch readiness final review linkage | Drafted | Documentation only | Adds final review reminder to manual release flow |
