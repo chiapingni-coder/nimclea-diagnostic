@@ -102,6 +102,10 @@ runExistingScript(
   "scripts/check-golden-backend-aggregation.mjs",
   "backend /cases aggregation smoke"
 );
+runExistingScript(
+  "scripts/check-receipt-verification-contract.mjs",
+  "receipt verification access contract"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
