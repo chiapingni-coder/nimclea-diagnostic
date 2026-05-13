@@ -2716,7 +2716,7 @@ const shouldUnlockFormalReceiptFromReceiptCta =
   receiptEligible && !receiptActivated && canFormalizeProof;
 
 const receiptCtaLabel = !receiptEligible
-  ? "View Verification Status"
+  ? "Verification"
   : shouldUnlockFormalReceiptFromReceiptCta
   ? "Unlock Formal Receipt"
   : "Open Verification";
