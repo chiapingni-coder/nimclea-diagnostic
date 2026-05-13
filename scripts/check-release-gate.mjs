@@ -110,6 +110,10 @@ runExistingScript(
   "scripts/check-verification-locked-contract.mjs",
   "verification locked page contract"
 );
+runExistingScript(
+  "scripts/check-7-day-trial-lifecycle-contract.mjs",
+  "7-day trial lifecycle contract"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
