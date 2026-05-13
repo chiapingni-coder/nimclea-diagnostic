@@ -2,7 +2,7 @@
 
 Status date: 2026-05-12
 
-Scope: documentation-only 14-D0 plan. This document defines how the Golden Case release gate should become runnable later without changing application behavior now.
+Scope: 14-D0 plan plus 14-D1 script status. This document defines how the Golden Case release gate should become runnable without changing application behavior.
 
 References:
 
@@ -83,19 +83,19 @@ These checks should appear in the future release gate output as WARN/manual unti
 
 ## 6. Proposed Future Script
 
-Proposed script name:
+Script name:
 
 ```text
 scripts/check-release-gate.mjs
 ```
 
-Proposed command:
+Command:
 
 ```powershell
 node scripts/check-release-gate.mjs
 ```
 
-The first script should be read-only. It should not write fixture files, mutate localStorage, start servers, call live Stripe, change data files, or modify application state.
+14-D1 created the first read-only version of this script. It runs existing local Golden Case checks when available, verifies required release-gate documents exist, and reports manual-only release areas as WARN. It should not write fixture files, mutate localStorage, start servers, call live Stripe, change data files, or modify application state.
 
 ## 7. Minimum Gate Coverage
 
@@ -144,9 +144,9 @@ scripts/check-release-gate.mjs
 
 The script should call or mirror the existing Golden Case smoke results, print the release risk table, mark non-runnable launch risks as WARN/manual, and avoid any application behavior changes.
 
-## 10. No Code Changed
+## 10. No Application Code Changed
 
-This 14-D0 checkpoint is documentation only.
+14-D0 was documentation only. 14-D1 adds `scripts/check-release-gate.mjs` as a read-only local gate wrapper.
 
 No frontend code changed.
 No backend code changed.
@@ -154,6 +154,4 @@ No routes changed.
 No scoring changed.
 No payment behavior changed.
 No UI behavior changed.
-No scripts changed.
 No tests changed.
-
