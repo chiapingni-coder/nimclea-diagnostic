@@ -52,16 +52,21 @@ Only expected files should be modified.
 
 Also review `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md`, then `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md`. Confirm Golden Cases, receipt readiness, verification gating, payment ledger, and routing risks are covered by existing smoke checks or explicitly deferred.
 
-### Step 2: Run final golden regression gate
+### Step 2: Run release gate and final golden regression gate
 
 Command:
 
 ```powershell
+node scripts/check-release-gate.mjs
 npm run check:golden
 ```
 
 Required pass standard:
 
+- Release gate `FAIL` blocks release.
+- Release gate `WARN` allows release only if manual smoke items are reviewed or explicitly deferred.
+- Release gate `PASS` means the currently automated release gate checks passed.
+- Current release gate result may be `WARN` because several UI/payment/routing checks are still manual.
 - `PASS: 14/14 golden readiness smoke checks passed.`
 - `PASS: 6/6 golden backend aggregation smoke checks passed.`
 
@@ -107,7 +112,7 @@ Only push after the golden gate has passed and the working tree is clean.
 
 ## 4. Stop Rules
 
-If `npm run check:golden` fails:
+If `node scripts/check-release-gate.mjs` returns `FAIL` or `npm run check:golden` fails:
 
 - Stop the release.
 - Do not push completion claims.
@@ -153,6 +158,8 @@ It does not cover:
 
 - Golden readiness: 14/14.
 - Backend aggregation: 6/6.
+- Release gate command: `node scripts/check-release-gate.mjs`.
+- Release gate `FAIL` blocks; `WARN` requires manual review or explicit deferral.
 - Command: `npm run check:golden`.
 - GTC-015F is route-shaped in-memory smoke, not live route/API integration.
 
@@ -167,3 +174,4 @@ It does not cover:
 | 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |
 | 14-C1 | Release gate docs linkage | Drafted | Documentation only | Adds 14-A/14-B pre-release reminder; no code changed |
+| 14-D2 | Release gate workflow linkage | Drafted | Documentation only | Adds read-only release gate command to manual release flow |

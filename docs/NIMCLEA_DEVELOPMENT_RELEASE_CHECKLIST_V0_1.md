@@ -55,6 +55,9 @@ Use this checklist before committing, merging, or deploying changes touching:
 
 - Review `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md`, then `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md`.
 - Confirm Golden Cases, receipt readiness, verification gating, payment ledger, and routing risks are covered by existing smoke checks or explicitly deferred.
+- Run `node scripts/check-release-gate.mjs`.
+- `FAIL` blocks release; `WARN` allows release only if manual smoke items are reviewed or explicitly deferred; `PASS` means the currently automated release gate checks passed.
+- Current expected result may be `WARN` because several UI/payment/routing checks are still manual.
 - `npm run check:golden` must pass.
 - Expected pass standard:
   - `PASS: 14/14 golden readiness smoke checks passed.`
@@ -94,6 +97,7 @@ If `npm run check:golden` fails:
 
 ```powershell
 git status --short
+node scripts/check-release-gate.mjs
 npm run check:golden
 git diff --check -- docs README.md package.json scripts frontend backend
 ```
@@ -104,6 +108,8 @@ git diff --check -- docs README.md package.json scripts frontend backend
 
 - Golden readiness: 14/14.
 - Backend aggregation: 6/6.
+- Release gate command: `node scripts/check-release-gate.mjs`.
+- Release gate `FAIL` blocks; `WARN` requires manual review or explicit deferral.
 - Includes GTC-015F route-shaped in-memory backend aggregation smoke.
 - Does not imply live route/API integration.
 
@@ -119,3 +125,4 @@ git diff --check -- docs README.md package.json scripts frontend backend
 | 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |
 | 14-C1 | Release gate docs linkage | Drafted | Documentation only | Adds 14-A/14-B review reminder; no code changed |
+| 14-D2 | Release gate workflow linkage | Drafted | Documentation only | Adds read-only release gate command to pre-release docs |

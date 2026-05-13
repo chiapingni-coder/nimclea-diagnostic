@@ -97,6 +97,8 @@ node scripts/check-release-gate.mjs
 
 14-D1 created the first read-only version of this script. It runs existing local Golden Case checks when available, verifies required release-gate documents exist, and reports manual-only release areas as WARN. It should not write fixture files, mutate localStorage, start servers, call live Stripe, change data files, or modify application state.
 
+14-D2 links this command into the standard pre-release workflow. `FAIL` blocks release; `WARN` allows release only if manual smoke items are reviewed or explicitly deferred; `PASS` means the currently automated release gate checks passed. The current expected result may be `WARN` because several UI/payment/routing checks are still manual.
+
 ## 7. Minimum Gate Coverage
 
 | Coverage area | First runnable target | Initial status expectation |

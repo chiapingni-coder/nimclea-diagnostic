@@ -29,6 +29,8 @@ This smoke check is now the first local regression command for readiness/scoring
 
 `npm run check:golden` is the final regression gate for the current golden smoke phase before changes touching case lifecycle, readiness, receipt, verification, or backend aggregation behavior are released or merged.
 
+Run `node scripts/check-release-gate.mjs` before release. `FAIL` blocks release; `WARN` allows release only when manual smoke items are reviewed or explicitly deferred; `PASS` means the currently automated release gate checks passed. The current expected result may be `WARN` because several UI/payment/routing checks are still manual.
+
 Use `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md` as the daily development and release checklist for applying this gate.
 
 Before release, review `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md`, then `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md`, and confirm unresolved risks are covered by smoke checks or explicitly deferred.

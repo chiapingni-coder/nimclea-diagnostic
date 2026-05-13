@@ -29,6 +29,7 @@ It provides one central document for finding release notes records. It does not 
 | --- | --- | --- |
 | Progress and Risk Map v0.1 | Source progress/risk snapshot for launch readiness. | `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md` |
 | Release Gate Alignment v0.1 | Maps the progress/risk snapshot into existing and missing release checks. | `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md` |
+| Golden Case Release Gate Execution Plan v0.1 | Defines the read-only release gate command and manual WARN areas. | `docs/NIMCLEA_GOLDEN_CASE_RELEASE_GATE_EXECUTION_PLAN_V0_1.md` |
 
 ---
 
@@ -46,6 +47,9 @@ It provides one central document for finding release notes records. It does not 
 ## 5. Current Gate Standard
 
 - Command: `npm run check:golden`
+- Release gate command: `node scripts/check-release-gate.mjs`
+- Release gate `FAIL` blocks release; `WARN` requires manual smoke review or explicit deferral; `PASS` means currently automated checks passed
+- Current release gate result may be `WARN` because UI/payment/routing checks are still manual
 - Golden readiness: 14/14 passed
 - Backend aggregation: 6/6 passed
 - Includes GTC-015F route-shaped in-memory backend aggregation smoke
@@ -73,3 +77,4 @@ This index does not claim:
 | --- | --- | --- | --- | --- |
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds central index for release notes records |
 | 14-C1 | Release gate docs linkage | Drafted | Documentation only | Indexes 14-A/14-B release gate docs; no code changed |
+| 14-D2 | Release gate workflow linkage | Drafted | Documentation only | Adds read-only release gate command to release workflow docs |
