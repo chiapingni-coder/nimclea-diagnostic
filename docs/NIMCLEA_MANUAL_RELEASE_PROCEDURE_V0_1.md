@@ -13,6 +13,8 @@ This is a minimal manual release procedure for changes touching case lifecycle, 
 
 It turns the golden gate checklist into a concrete local procedure to follow before pushing or deploying lifecycle-related changes. It does not add CI integration, automatic deployment blocking, live API testing, Stripe/payment testing, UI visual regression testing, AI testing, or production deployment validation.
 
+After this procedure passes, use `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md` to document the completed change set.
+
 ---
 
 ## 2. When To Use This Procedure
@@ -155,3 +157,4 @@ It does not cover:
 | Step | Title | Status | Type | Notes |
 | --- | --- | --- | --- | --- |
 | 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Converts checklist into 5-step manual release procedure |
+| 13-C1 | Release notes template | Drafted | Documentation only | Adds release notes / changelog template for golden-gate-validated changes |

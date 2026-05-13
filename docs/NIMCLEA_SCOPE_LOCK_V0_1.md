@@ -61,6 +61,7 @@ The scope lock is intended to keep the next Nimclea regression/golden-smoke phas
 - 12-D1 defines `npm run check:golden` as the required final regression gate for this golden smoke phase.
 - 13-A1 defines the daily development and release checklist for using the final regression gate.
 - 13-B1 defines the minimal 5-step manual release procedure around the final regression gate.
+- 13-C1 defines the release notes template for documenting completed golden-gate-validated change sets.
 - Any new request outside this scope should become a separate later phase, not be mixed into the golden smoke phase.
 
 ---
@@ -73,3 +74,4 @@ The scope lock is intended to keep the next Nimclea regression/golden-smoke phas
 | 12-D1 Final regression gate documentation | Drafted | 2026-05-12 | Documentation only | No |
 | 13-A1 Development and release checklist | Drafted | 2026-05-12 | Documentation only | No |
 | 13-B1 Minimal manual release procedure | Drafted | 2026-05-12 | Documentation only | No |
+| 13-C1 Release notes template | Drafted | 2026-05-12 | Documentation only | No |
