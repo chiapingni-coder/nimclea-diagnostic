@@ -34,3 +34,5 @@ Use `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md` as the daily developmen
 Use `docs/NIMCLEA_MANUAL_RELEASE_PROCEDURE_V0_1.md` for the minimal 5-step manual release procedure before pushing or deploying lifecycle-related changes.
 
 Use `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md` to document completed change sets after the manual procedure and golden gate pass.
+
+See `docs/NIMCLEA_RELEASE_NOTES_GOLDEN_GATE_PROCEDURE_HARDENING_V0_1.md` for the first release notes record covering the golden gate procedure hardening work.

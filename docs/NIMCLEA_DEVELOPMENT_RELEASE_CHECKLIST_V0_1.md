@@ -17,6 +17,8 @@ For the minimal manual push/deploy procedure, see `docs/NIMCLEA_MANUAL_RELEASE_P
 
 For release notes after validation, see `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md`.
 
+For the first completed record, see `docs/NIMCLEA_RELEASE_NOTES_GOLDEN_GATE_PROCEDURE_HARDENING_V0_1.md`.
+
 ---
 
 ## 2. When This Checklist Applies
@@ -110,3 +112,4 @@ git diff --check -- docs README.md package.json scripts frontend backend
 | 13-A1 | Development and release checklist | Drafted | Documentation only | Converts `npm run check:golden` into daily development and pre-release checklist |
 | 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Adds 5-step manual release procedure around `npm run check:golden` |
 | 13-C1 | Release notes template | Drafted | Documentation only | Adds release notes / changelog template for golden-gate-validated changes |
+| 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |

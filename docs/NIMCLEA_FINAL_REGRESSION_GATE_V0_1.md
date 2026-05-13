@@ -19,6 +19,8 @@ For the minimal manual release procedure, see `docs/NIMCLEA_MANUAL_RELEASE_PROCE
 
 For release notes after validation, see `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md`.
 
+For the first completed record, see `docs/NIMCLEA_RELEASE_NOTES_GOLDEN_GATE_PROCEDURE_HARDENING_V0_1.md`.
+
 ---
 
 ## 2. Required Command
@@ -99,3 +101,4 @@ If `npm run check:golden` fails:
 | 13-A1 | Development and release checklist | Drafted | Documentation only | Adds daily/pre-release checklist for golden regression gate usage |
 | 13-B1 | Minimal manual release procedure | Drafted | Documentation only | Adds 5-step manual release procedure around `npm run check:golden` |
 | 13-C1 | Release notes template | Drafted | Documentation only | Adds release notes / changelog template for golden-gate-validated changes |
+| 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |

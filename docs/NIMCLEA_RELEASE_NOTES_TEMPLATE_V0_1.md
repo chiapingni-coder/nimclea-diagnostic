@@ -125,3 +125,4 @@ Release Decision:
 | Step | Title | Status | Type | Notes |
 | --- | --- | --- | --- | --- |
 | 13-C1 | Release notes template | Drafted | Documentation only | Adds minimal template for documenting completed change sets after golden gate validation |
+| 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |
