@@ -31,7 +31,7 @@ Explicitly excluded:
 
 | Area | Approx. completion | Notes |
 | --- | ---: | --- |
-| Receipt readiness UI | 85%-90% | Main ready/not-ready display is mostly stable. |
+| Receipt readiness UI | 85%-90% | Main not-ready display passed 15-A2 after FIX1; ready branch remains pending. |
 | Event captured display | 85%-90% | Event state is visible but should be checked after Quick Capture refresh. |
 | Score gating display | 80%-88% | Threshold-driven labels need manual confirmation across below/above-ready cases. |
 | Hydration/loading protection | 75%-82% | Loading guards exist, but backend hydration flash risk remains. |
@@ -51,6 +51,7 @@ Explicitly excluded:
 | Yellow state CTA copy regression | Medium | A not-ready case can show confusing action copy. |
 | Green state button/label regression | Medium | Ready cases can lose clear formal-ready messaging. |
 | Legacy case with incomplete `receiptRecords` | High | Older records may miss fields current UI expects for stable readiness display. |
+| Legacy case marked ready without real events | High | Inconsistent legacy records with `receiptEligible` true / `receipt_ready` but `eventCount` 0 and no real events are legacy-risk samples, not valid ready-case smoke samples. |
 | Payment CTA appearing too early | High | Payment visibility can imply readiness or activation before the receipt is ready. |
 | Deep link into ReceiptPage without full case context | Medium | Direct links can start from incomplete route state and rely on hydration correctness. |
 
@@ -58,14 +59,14 @@ Explicitly excluded:
 
 | ID | Manual smoke case | Expected focus | Status |
 | --- | --- | --- | --- |
-| 15A-RUI-001 | New case with no event | ReceiptPage shows not-ready state and explains event/evidence requirement. | NOT RUN |
-| 15A-RUI-002 | New case after one Quick Capture event | Event captured state appears and readiness updates without full page confusion. | NOT RUN |
+| 15A-RUI-001 | New case with no event | ReceiptPage shows not-ready state and explains event/evidence requirement. | PASS in 15-A2 |
+| 15A-RUI-002 | No captured evidence event | No captured evidence event keeps Receipt not ready. | PASS in 15-A2 |
 | 15A-RUI-003 | Case with score below readiness threshold | UI stays yellow/not-ready and does not show green/formal-ready state. | NOT RUN |
 | 15A-RUI-004 | Case with score above readiness threshold | UI shows green/ready state and stable ready label. | NOT RUN |
 | 15A-RUI-005 | Refresh ReceiptPage directly | Backend-owned receipt state survives refresh without red/failed flicker. | NOT RUN |
 | 15A-RUI-006 | Enter ReceiptPage from Cases Detail | Detail opens the correct ReceiptPage and preserves the same case readiness state. | NOT RUN |
-| 15A-RUI-007 | Return from ReceiptPage to Cases | Cases page status remains aligned with ReceiptPage status. | NOT RUN |
-| 15A-RUI-008 | Old case with missing receipt record | UI avoids false green, false red, or broken display while using fallback context. | NOT RUN |
+| 15A-RUI-007 | Yellow Receipt opens locked Verification | Not-ready Receipt can navigate to VerificationPage without issuing or unlocking verification. | PASS after FIX1 |
+| 15A-RUI-008 | Ready case persistence/flicker | Ready-case state persists and avoids insufficient-state flicker during hydration. | NOT RUN / pending |
 | 15A-RUI-009 | Paid/checkout-created case without real receipt activation | Payment CTA visibility does not imply real receipt activation or readiness. | NOT RUN |
 
 ## 6. Done Definition
@@ -79,19 +80,82 @@ Explicitly excluded:
 
 ## 7. Recommended Next Step
 
-15-B: run manual Receipt readiness UI smoke using this checklist.
+15-A2 ready branch remains pending.
+
+Next recommended step: create or identify a clean ready case with real evidence event, then run ready Receipt UI smoke.
+
+15-B: continue manual Receipt readiness UI smoke using this checklist.
 
 15-C: patch only confirmed Receipt readiness UI regressions.
 
 15-D: convert stable checks into golden regression coverage.
 
-## 8. No Code Changed
+## 8. No Implementation Changed By This Documentation Update
 
-This 15-A checkpoint is documentation only.
+This result update is documentation only.
 
 No frontend code changed.
 No backend code changed.
 No routes changed.
-No scripts changed.
+No scripts changed by this documentation update.
 No tests changed.
 
+## 9. 15-A2 Actual Result
+
+Result: 15-A2-NOTREADY: PASS after FIX1
+
+Tested sample:
+
+- Case ID: `CASE-1778651779384-STDNBU`
+- Email: `chiapingni+15a2notready@gmail.com`
+- Sample type: clean not-ready Receipt sample.
+- No Quick Capture evidence event was used for readiness.
+
+Backend state before UI smoke:
+
+- `status`: `diagnostic_completed`
+- `stage`: `result`
+- `currentStep`: `result`
+- `receiptEligible`: `false`
+- `verificationEligible`: `false`
+
+Actual UI result:
+
+- Receipt page displayed yellow / insufficient record state.
+- Receipt did not show green ready state.
+- Receipt did not prematurely issue or unlock verification.
+- Receipt CTA label after FIX1: `Verification`.
+- Clicking `Verification` opened the Verification page with the same `caseId`.
+- Verification page showed locked / not issuable state:
+  - `FORMAL VERIFICATION NOT YET ISSUABLE`
+  - `Formal verification is not active yet`
+- Verification page did not show issued, passed, verified, or active verification state.
+
+Smoke checklist mapping:
+
+- RUI-001: PASS, no red/green readiness flicker observed during this not-ready test.
+- RUI-002: PASS, no captured evidence event kept Receipt not ready.
+- RUI-007: PASS after FIX1, yellow Receipt can open locked Verification page.
+- RUI-008: NOT RUN in this sample, ready-case persistence/flicker still pending.
+- Ready-case branch: NOT RUN / pending.
+
+Regression guards added:
+
+- `scripts/check-receipt-verification-contract.mjs`
+  Purpose: prevents yellow Receipt CTA from regressing back to Pilot Result or long/confusing labels.
+- `scripts/check-verification-locked-contract.mjs`
+  Purpose: prevents Verification page from treating access as issued/passed/verified status.
+- `scripts/check-release-gate.mjs` now includes both:
+  - `receipt verification access contract`
+  - `verification locked page contract`
+
+Release gate status:
+
+- Latest guard validation passed.
+- Release gate has FAIL 0.
+- Final result may remain WARN because some UI smoke areas are still manual-only.
+
+Final current status:
+
+- 15-A2 not-ready branch is complete.
+- 15-A2 ready branch remains pending.
