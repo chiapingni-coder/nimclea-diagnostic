@@ -196,3 +196,4 @@ Rules below are direct code observations unless marked "inferred".
 | 11-B2: GTC-015 Backend Aggregation Test Design / Extraction Plan | Drafted | 2026-05-12 | Documentation only | none |
 | 11-B3: Extract backend aggregation helpers | Drafted | 2026-05-12 | Backend no-behavior-change refactor | no production behavior changes |
 | 11-B4: Add GTC-015 Backend Aggregation Smoke | Drafted | 2026-05-12 | Smoke/check script + documentation only | no production behavior changes |
+| 12-A | Scope Lock v0.1 | Drafted | Documentation only | No code changes |
