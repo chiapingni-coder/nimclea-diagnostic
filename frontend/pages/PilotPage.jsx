@@ -418,7 +418,7 @@ function WorkflowPicker({
   selectedWorkflow,
   onSelect,
   onStart,
-  title = "Select one workflow to test in this pilot",
+  title = "Choose the workflow for this case",
   buttonLabel = "Continue Case",
 }) {
   const workflowOptions = [
@@ -445,13 +445,15 @@ function WorkflowPicker({
           display: flex;
           flex-direction: row;
           align-items: center;
-          gap: 12px;
+          gap: 28px;
           width: 100%;
         }
 
         .pilot-workflow-select-wrap {
-          flex: 1 1 auto;
+          flex: 0 1 560px;
+          max-width: 560px;
           min-width: 0;
+          width: 100%;
         }
 
         .pilot-workflow-continue {
@@ -464,10 +466,13 @@ function WorkflowPicker({
           .pilot-workflow-control-row {
             flex-direction: column;
             align-items: stretch;
+            gap: 12px;
           }
 
+          .pilot-workflow-select-wrap,
           .pilot-workflow-continue {
             width: 100%;
+            max-width: none;
           }
         }
       `}</style>
@@ -1740,7 +1745,7 @@ navigate(
             selectedWorkflow={selectedWorkflow}
             onSelect={setSelectedWorkflow}
             onStart={handleStart}
-            title="Select one workflow to test in this pilot"
+            title="Choose the workflow for this case"
             buttonLabel="Continue Case"
           />
 
