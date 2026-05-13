@@ -23,7 +23,16 @@ It provides one central document for finding release notes records. It does not 
 
 ---
 
-## 3. How To Add A New Release Notes Record
+## 3. Current Release Gate Working Docs
+
+| Document | Purpose | Link |
+| --- | --- | --- |
+| Progress and Risk Map v0.1 | Source progress/risk snapshot for launch readiness. | `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md` |
+| Release Gate Alignment v0.1 | Maps the progress/risk snapshot into existing and missing release checks. | `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md` |
+
+---
+
+## 4. How To Add A New Release Notes Record
 
 - Complete the scoped change set.
 - Run the manual release procedure.
@@ -34,7 +43,7 @@ It provides one central document for finding release notes records. It does not 
 
 ---
 
-## 4. Current Gate Standard
+## 5. Current Gate Standard
 
 - Command: `npm run check:golden`
 - Golden readiness: 14/14 passed
@@ -44,7 +53,7 @@ It provides one central document for finding release notes records. It does not 
 
 ---
 
-## 5. Scope Boundary
+## 6. Scope Boundary
 
 This index does not claim:
 
@@ -58,8 +67,9 @@ This index does not claim:
 
 ---
 
-## 6. Status
+## 7. Status
 
 | Step | Title | Status | Type | Notes |
 | --- | --- | --- | --- | --- |
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds central index for release notes records |
+| 14-C1 | Release gate docs linkage | Drafted | Documentation only | Indexes 14-A/14-B release gate docs; no code changed |

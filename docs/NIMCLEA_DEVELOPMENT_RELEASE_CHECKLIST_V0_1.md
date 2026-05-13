@@ -53,6 +53,8 @@ Use this checklist before committing, merging, or deploying changes touching:
 
 ## 4. Pre-release Checklist
 
+- Review `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md`, then `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md`.
+- Confirm Golden Cases, receipt readiness, verification gating, payment ledger, and routing risks are covered by existing smoke checks or explicitly deferred.
 - `npm run check:golden` must pass.
 - Expected pass standard:
   - `PASS: 14/14 golden readiness smoke checks passed.`
@@ -116,3 +118,4 @@ git diff --check -- docs README.md package.json scripts frontend backend
 | 13-C1 | Release notes template | Drafted | Documentation only | Adds release notes / changelog template for golden-gate-validated changes |
 | 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |
+| 14-C1 | Release gate docs linkage | Drafted | Documentation only | Adds 14-A/14-B review reminder; no code changed |

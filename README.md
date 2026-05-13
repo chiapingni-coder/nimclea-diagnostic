@@ -31,6 +31,8 @@ This smoke check is now the first local regression command for readiness/scoring
 
 Use `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md` as the daily development and release checklist for applying this gate.
 
+Before release, review `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md`, then `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md`, and confirm unresolved risks are covered by smoke checks or explicitly deferred.
+
 Use `docs/NIMCLEA_MANUAL_RELEASE_PROCEDURE_V0_1.md` for the minimal 5-step manual release procedure before pushing or deploying lifecycle-related changes.
 
 Use `docs/NIMCLEA_RELEASE_NOTES_TEMPLATE_V0_1.md` to document completed change sets after the manual procedure and golden gate pass.

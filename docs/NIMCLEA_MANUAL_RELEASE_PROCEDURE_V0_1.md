@@ -50,6 +50,8 @@ Rule:
 
 Only expected files should be modified.
 
+Also review `docs/NIMCLEA_PROGRESS_AND_RISK_MAP_V0_1.md`, then `docs/NIMCLEA_RELEASE_GATE_ALIGNMENT_V0_1.md`. Confirm Golden Cases, receipt readiness, verification gating, payment ledger, and routing risks are covered by existing smoke checks or explicitly deferred.
+
 ### Step 2: Run final golden regression gate
 
 Command:
@@ -164,3 +166,4 @@ It does not cover:
 | 13-C1 | Release notes template | Drafted | Documentation only | Adds release notes / changelog template for golden-gate-validated changes |
 | 13-D1 | First real release notes record | Drafted | Documentation only | Adds first real release notes record for golden gate procedure hardening |
 | 13-E1 | Release notes index | Drafted | Documentation only | Adds lightweight index for release notes records |
+| 14-C1 | Release gate docs linkage | Drafted | Documentation only | Adds 14-A/14-B pre-release reminder; no code changed |
