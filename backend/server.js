@@ -31,6 +31,7 @@ import {
   deriveMergedCaseEventCount,
   getCaseSortTime,
   getEffectivePaymentStatus,
+  hasNestedCaseIdentityConflict,
   getRecordRichnessScore,
   mergeCaseEvents,
   normalizePaymentStatus,
@@ -38,6 +39,7 @@ import {
   normalizeRecordSource,
   pickHigherStage,
   pickRicherCaseRecord,
+  sanitizeCaseIdentity,
   pickStrongestPaymentStatus,
   pickStrongestReceiptStatus,
 } from "./utils/caseAggregationHelpers.js";
@@ -262,9 +264,26 @@ function normalizeCaseRecord(record = {}) {
     return {};
   }
 
-  const snapshot = record?.caseSnapshot || {};
-  const nestedCaseRecord = snapshot?.caseRecord || {};
-  const nestedCaseData = record?.caseData || {};
+  const canonicalRecordCaseId = String(
+    record?.caseId || record?.case_id || record?.id || ""
+  ).trim();
+  const rawSnapshot = record?.caseSnapshot || {};
+  const rawNestedCaseRecord = rawSnapshot?.caseRecord || {};
+  const rawNestedCaseData = record?.caseData || {};
+  const snapshotCaseId = String(rawSnapshot?.caseId || "").trim();
+  const snapshotRecordCaseId = String(rawNestedCaseRecord?.caseId || "").trim();
+  const nestedCaseDataCaseId = String(rawNestedCaseData?.caseId || "").trim();
+  const snapshotMatchesIdentity =
+    !canonicalRecordCaseId ||
+    ((!snapshotCaseId || snapshotCaseId === canonicalRecordCaseId) &&
+      (!snapshotRecordCaseId || snapshotRecordCaseId === canonicalRecordCaseId));
+  const caseDataMatchesIdentity =
+    !canonicalRecordCaseId ||
+    !nestedCaseDataCaseId ||
+    nestedCaseDataCaseId === canonicalRecordCaseId;
+  const snapshot = snapshotMatchesIdentity ? rawSnapshot : {};
+  const nestedCaseRecord = snapshotMatchesIdentity ? rawNestedCaseRecord : {};
+  const nestedCaseData = caseDataMatchesIdentity ? rawNestedCaseData : {};
   const snapshotEvents = Array.isArray(snapshot?.events) ? snapshot.events : [];
   const recordEvents = Array.isArray(record?.events) ? record.events : [];
   const caseRecordEvents = Array.isArray(nestedCaseRecord?.events) ? nestedCaseRecord.events : [];
@@ -818,6 +837,9 @@ app.get("/cases", async (req, res) => {
     });
 
     receiptRecords.forEach((item) => {
+      const rawCaseId = caseIdOf(item);
+      if (hasNestedCaseIdentityConflict(item, rawCaseId)) return;
+
       const normalizedItem = normalizeCaseRecord(item);
       const caseId = caseIdOf(normalizedItem);
       const hasCanonicalCaseSource = canonicalCaseIds.has(caseId);
@@ -842,9 +864,10 @@ app.get("/cases", async (req, res) => {
       .map((item) => {
         const caseId = String(item?.caseId || item?.id || "").trim();
         const baseCase = findLastMatchingRecord(cases, caseId) || {};
-        const receiptCase = normalizeCaseRecord(
-          findLastMatchingRecord(receiptRecords, caseId) || {}
-        );
+        const rawReceiptCase = findLastMatchingRecord(receiptRecords, caseId) || {};
+        const receiptCase = hasNestedCaseIdentityConflict(rawReceiptCase, caseId)
+          ? {}
+          : normalizeCaseRecord(rawReceiptCase);
 
         const matchedEventLogs = eventLogs.filter((event) => {
           return (
@@ -929,7 +952,7 @@ app.get("/cases", async (req, res) => {
           return null;
         }
 
-        return {
+        const mergedCase = {
           email: item?.email || email,
           caseId: caseId || receiptCase?.caseId || baseCase?.caseId || "",
           source: item?.source || "pilot_setup",
@@ -980,6 +1003,8 @@ app.get("/cases", async (req, res) => {
             baseCase?.pilotExtensionPaymentStatus ||
             "",
         };
+
+        return sanitizeCaseIdentity(mergedCase, caseId, email);
       })
       .filter((item) => {
         if (!item) return false;
@@ -1040,12 +1065,13 @@ app.get("/cases", async (req, res) => {
       if (isDeletedOrDiscardedCaseRecord(item)) return;
 
       const normalizedItem = normalizeCaseRecord(item);
+      const sanitizedItem = sanitizeCaseIdentity(normalizedItem, caseId, email);
       finalCaseMap.set(
         caseId,
         pickRicherCaseRecord(finalCaseMap.get(caseId) || {}, {
-          ...normalizedItem,
+          ...sanitizedItem,
           caseId,
-          email: normalizedItem?.email || item?.email || email,
+          email,
           _hasCanonicalCaseSource: true,
         })
       );
@@ -1062,7 +1088,7 @@ app.get("/cases", async (req, res) => {
           ...publicItem
         } = item;
 
-        return publicItem;
+        return sanitizeCaseIdentity(publicItem, caseIdOf(publicItem), email);
       });
 
     return res.json(finalCases);

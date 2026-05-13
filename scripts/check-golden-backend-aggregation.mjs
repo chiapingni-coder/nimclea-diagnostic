@@ -3,9 +3,11 @@
 import {
   deriveMergedCaseEventCount,
   getCaseSortTime,
+  hasNestedCaseIdentityConflict,
   mergeCaseEvents,
   pickHigherStage,
   pickRicherCaseRecord,
+  sanitizeCaseIdentity,
   pickStrongestPaymentStatus,
   pickStrongestReceiptStatus,
 } from "../backend/utils/caseAggregationHelpers.js";
@@ -310,10 +312,29 @@ const smokeCases = [
         receiptLikeRecord.receiptStatus,
         selected.receiptEligible === true ? "ready" : ""
       );
+      const mismatchedReceiptWrapper = {
+        caseId: "CASE-GTC-015F",
+        id: "CASE-GTC-015F",
+        email: "owner@example.com",
+        caseData: {
+          caseId: "CASE-GTC-015F-OTHER",
+          email: "other@example.com",
+          lead: { email: "other@example.com" },
+        },
+        caseSnapshot: {
+          caseId: "CASE-GTC-015F-OTHER",
+          caseRecord: { caseId: "CASE-GTC-015F-OTHER" },
+        },
+      };
+      const sanitizedIdentity = sanitizeCaseIdentity(
+        mismatchedReceiptWrapper,
+        "CASE-GTC-015F",
+        "owner@example.com"
+      );
 
       return {
-        observed: `${finalStage}; receiptEligible=${selected.receiptEligible}; receiptStatus=${finalReceiptStatus}; title=${selected.title}; mergedEventCount=${mergedEventCount}`,
-        expected: "route-shaped merge keeps receipt-ready lifecycle, title/name, and merged events",
+        observed: `${finalStage}; receiptEligible=${selected.receiptEligible}; receiptStatus=${finalReceiptStatus}; title=${selected.title}; mergedEventCount=${mergedEventCount}; identity=${sanitizedIdentity.caseId}/${sanitizedIdentity.id}`,
+        expected: "route-shaped merge keeps receipt-ready lifecycle, title/name, merged events, and canonical identity",
         checks: [
           expect(selected === receiptLikeRecord, "receipt-like record should be selected"),
           expect(finalStage === "receipt_ready", "final stage should be receipt_ready"),
@@ -324,6 +345,14 @@ const smokeCases = [
           expect(selected.name === "Stable Route Case", "name should remain Stable Route Case"),
           expect(mergedEvents.length === 3, "merged events length should be 3"),
           expect(mergedEventCount === 3, "merged eventCount should be 3"),
+          expect(
+            hasNestedCaseIdentityConflict(mismatchedReceiptWrapper, "CASE-GTC-015F") === true,
+            "mismatched nested receipt snapshot identity should be detected"
+          ),
+          expect(sanitizedIdentity.caseId === "CASE-GTC-015F", "sanitized caseId should match canonical caseId"),
+          expect(sanitizedIdentity.id === "CASE-GTC-015F", "sanitized id should match canonical caseId"),
+          expect(!sanitizedIdentity.caseData, "mismatched nested caseData should be ignored"),
+          expect(!sanitizedIdentity.caseSnapshot, "mismatched caseSnapshot should be ignored"),
         ],
       };
     },

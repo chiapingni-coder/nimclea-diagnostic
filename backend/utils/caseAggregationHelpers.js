@@ -219,3 +219,110 @@ export function getCaseSortTime(item = {}) {
 
   return 0;
 }
+
+export function getNestedCaseIdentityConflicts(item = {}, canonicalCaseId = "") {
+  const expectedCaseId = String(canonicalCaseId || item?.caseId || "").trim();
+
+  if (!expectedCaseId) return [];
+
+  const candidates = [
+    ["caseData.caseId", item?.caseData?.caseId],
+    ["caseSnapshot.caseId", item?.caseSnapshot?.caseId],
+    ["caseSnapshot.caseRecord.caseId", item?.caseSnapshot?.caseRecord?.caseId],
+  ];
+
+  return candidates.filter(([, value]) => {
+    const nextCaseId = String(value || "").trim();
+    return nextCaseId && nextCaseId !== expectedCaseId;
+  });
+}
+
+export function hasNestedCaseIdentityConflict(item = {}, canonicalCaseId = "") {
+  return getNestedCaseIdentityConflicts(item, canonicalCaseId).length > 0;
+}
+
+export function sanitizeCaseIdentity(item = {}, canonicalCaseId = "", requestedEmail = "") {
+  const nextCaseId = String(canonicalCaseId || item?.caseId || item?.id || "").trim();
+  const nextEmail = String(requestedEmail || item?.email || "").trim().toLowerCase();
+  const sanitized = { ...item };
+
+  if (nextCaseId) {
+    sanitized.caseId = nextCaseId;
+    sanitized.id = nextCaseId;
+  }
+
+  if (nextEmail) {
+    sanitized.email = nextEmail;
+  }
+
+  if (sanitized.caseData && typeof sanitized.caseData === "object") {
+    sanitized.caseData = { ...sanitized.caseData };
+    const caseDataCaseId = String(sanitized.caseData.caseId || "").trim();
+    if (!caseDataCaseId || caseDataCaseId === nextCaseId) {
+      sanitized.caseData.caseId = nextCaseId;
+      if (nextEmail) {
+        sanitized.caseData.email = nextEmail;
+        if (sanitized.caseData.lead && typeof sanitized.caseData.lead === "object") {
+          sanitized.caseData.lead = {
+            ...sanitized.caseData.lead,
+            email: nextEmail,
+          };
+        }
+      }
+    } else {
+      delete sanitized.caseData;
+    }
+  }
+
+  if (sanitized.caseSnapshot && typeof sanitized.caseSnapshot === "object") {
+    sanitized.caseSnapshot = { ...sanitized.caseSnapshot };
+    const snapshotCaseId = String(sanitized.caseSnapshot.caseId || "").trim();
+    const snapshotRecordCaseId = String(
+      sanitized.caseSnapshot.caseRecord?.caseId || ""
+    ).trim();
+    const snapshotMatches =
+      (!snapshotCaseId || snapshotCaseId === nextCaseId) &&
+      (!snapshotRecordCaseId || snapshotRecordCaseId === nextCaseId);
+
+    if (snapshotMatches) {
+      sanitized.caseSnapshot.caseId = nextCaseId;
+      if (nextEmail) {
+        sanitized.caseSnapshot.email = nextEmail;
+        if (
+          sanitized.caseSnapshot.lead &&
+          typeof sanitized.caseSnapshot.lead === "object"
+        ) {
+          sanitized.caseSnapshot.lead = {
+            ...sanitized.caseSnapshot.lead,
+            email: nextEmail,
+          };
+        }
+      }
+      if (
+        sanitized.caseSnapshot.caseRecord &&
+        typeof sanitized.caseSnapshot.caseRecord === "object"
+      ) {
+        sanitized.caseSnapshot.caseRecord = {
+          ...sanitized.caseSnapshot.caseRecord,
+          caseId: nextCaseId,
+        };
+        if (nextEmail) {
+          sanitized.caseSnapshot.caseRecord.email = nextEmail;
+          if (
+            sanitized.caseSnapshot.caseRecord.lead &&
+            typeof sanitized.caseSnapshot.caseRecord.lead === "object"
+          ) {
+            sanitized.caseSnapshot.caseRecord.lead = {
+              ...sanitized.caseSnapshot.caseRecord.lead,
+              email: nextEmail,
+            };
+          }
+        }
+      }
+    } else {
+      delete sanitized.caseSnapshot;
+    }
+  }
+
+  return sanitized;
+}
