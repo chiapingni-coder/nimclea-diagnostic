@@ -2716,7 +2716,7 @@ const shouldUnlockFormalReceiptFromReceiptCta =
   receiptEligible && !receiptActivated && canFormalizeProof;
 
 const receiptCtaLabel = !receiptEligible
-  ? "Improve Record to Issue Receipt"
+  ? "View Verification Status"
   : shouldUnlockFormalReceiptFromReceiptCta
   ? "Unlock Formal Receipt"
   : "Open Verification";
@@ -4360,21 +4360,6 @@ if (!canRenderReceipt) {
                     canShowFormalPaymentEntry,
                     dataDecisionStatus: data?.decisionStatus,
                   });
-
-                  if (!receiptEligible) {
-                    navigate(
-                      `${ROUTES.PILOT_RESULT}?caseId=${encodeURIComponent(
-                        inferredCaseId || data.caseData?.caseId || data.caseData?.id || ""
-                      )}`,
-                      {
-                      state: {
-                        ...stripCanonicalCaseFlowState(location.state || {}),
-                        caseId: inferredCaseId,
-                      },
-                    }
-                  );
-                  return;
-                }
 
                 if (receiptEligible) {
                  if (shouldUnlockFormalReceiptFromReceiptCta) {
