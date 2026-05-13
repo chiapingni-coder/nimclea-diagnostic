@@ -9,7 +9,10 @@
     "dev": "node backend/index.js",
     "build": "echo \"Build step placeholder\"",
     "start": "node backend/index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "check:golden:readiness": "node scripts/check-golden-readiness.mjs",
+    "check:golden:backend-aggregation": "node scripts/check-golden-backend-aggregation.mjs",
+    "check:golden": "npm run check:golden:readiness && npm run check:golden:backend-aggregation"
   },
 
   "dependencies": {
