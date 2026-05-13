@@ -13,6 +13,8 @@ This gate is the required pre-release / pre-merge check for changes touching cas
 
 It solidifies the existing local golden smoke checks as the final regression gate for this phase. It does not add CI integration, live API integration, production deployment protection, Stripe/payment testing, UI visual regression testing, or AI behavior testing.
 
+For daily usage, see `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md`.
+
 ---
 
 ## 2. Required Command
@@ -90,3 +92,4 @@ If `npm run check:golden` fails:
 | Step | Title | Status | Type | Notes |
 | --- | --- | --- | --- | --- |
 | 12-D1 | Final regression gate documentation | Drafted | Documentation only | Solidifies `npm run check:golden` as required gate |
+| 13-A1 | Development and release checklist | Drafted | Documentation only | Adds daily/pre-release checklist for golden regression gate usage |

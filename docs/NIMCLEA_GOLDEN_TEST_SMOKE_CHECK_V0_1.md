@@ -126,6 +126,8 @@ PASS: 6/6 golden backend aggregation smoke checks passed.
 
 This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
 
+For daily development and release usage, see `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md`.
+
 ---
 
 ## 11-Series Progress
@@ -149,3 +151,4 @@ This smoke check is now the first local regression command for readiness/scoring
 | 12-C2 | Route-shaped backend aggregation smoke | Completed | scripts only | Added GTC-015F route-shaped in-memory smoke; npm run check:golden passed: 14/14 readiness + 6/6 backend aggregation |
 | 12-C3 | Documentation progress update | Drafted | Documentation only | Updates progress tables after GTC-015F route-shaped smoke |
 | 12-D1 | Final regression gate documentation | Drafted | Documentation only | npm run check:golden is now the required final regression gate |
+| 13-A1 | Development and release checklist | Drafted | Documentation only | Adds daily/pre-release checklist for golden regression gate usage |

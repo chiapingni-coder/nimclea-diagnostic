@@ -28,3 +28,5 @@ Coverage limits:
 This smoke check is now the first local regression command for readiness/scoring work. Future automation should expand coverage rather than weaken or bypass this check.
 
 `npm run check:golden` is the final regression gate for the current golden smoke phase before changes touching case lifecycle, readiness, receipt, verification, or backend aggregation behavior are released or merged.
+
+Use `docs/NIMCLEA_DEVELOPMENT_RELEASE_CHECKLIST_V0_1.md` as the daily development and release checklist for applying this gate.
