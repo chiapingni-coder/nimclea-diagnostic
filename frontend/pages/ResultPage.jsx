@@ -2936,9 +2936,7 @@ const resultEntryCases = useMemo(() => {
   return [...stateCases, ...stateCaseItem].filter(Boolean);
 }, [location.state]);
 
-const hasStableCaseContext = isValidCaseId(resolvedCaseId);
-
-const isWorkspaceCaseContext = useMemo(() => {
+const hasStableCaseContext = useMemo(() => {
   const workspaceSources = new Set([
     "case",
     "cases",
@@ -2950,13 +2948,6 @@ const isWorkspaceCaseContext = useMemo(() => {
   ]);
   const stateFrom = String(location.state?.from || "").trim().toLowerCase();
   const stateSource = String(location.state?.source || "").trim().toLowerCase();
-  const hasStateCaseId = Boolean(location.state?.caseId || location.state?.case_id);
-  const hasOriginalStateCaseId =
-    hasStateCaseId &&
-    (
-      location.state?.resultIdentityStable !== true ||
-      location.state?.resultIdentityStableSourceHadCaseId === true
-    );
   const hasWorkspaceSource =
     workspaceSources.has(stateFrom) || workspaceSources.has(stateSource);
   const hasPersistedCurrentCaseId = (() => {
@@ -2973,20 +2964,17 @@ const isWorkspaceCaseContext = useMemo(() => {
   })();
 
   return Boolean(
-    hasStableCaseContext ||
-      isCaseReview ||
-      hasOriginalStateCaseId ||
+    isCaseReview ||
       hasWorkspaceSource ||
-      hasPersistedCurrentCaseId ||
-      (hasCaseIdInUrl && location.state?.resultIdentityStable !== true)
+      hasPersistedCurrentCaseId
   );
 }, [
-  hasCaseIdInUrl,
-  hasStableCaseContext,
   isCaseReview,
   location.state,
   resolvedCaseId,
 ]);
+
+const isWorkspaceCaseContext = hasStableCaseContext;
 
 const resultEntryCtaContract = useMemo(() => {
   try {
