@@ -2214,6 +2214,42 @@ const enhancedSourceInput = {
 
 const data = enhancedSourceInput;
 
+useEffect(() => {
+  if (!resolvedCaseId) return;
+  if (!hasCapturedEvents) return;
+
+  updateCase(resolvedCaseId, {
+    status: "pilot_result_ready",
+    currentStep: "pilot_result",
+    events: entries,
+    eventCount: entries.length,
+    normalizedScore: scoring.totalScore,
+    workspaceSummary: executionSummary,
+    receiptEligible: Boolean(canProceedToReceipt),
+    verificationEligible: Boolean(canProceedToReceipt),
+    pilot: {
+      ...(currentCase?.pilot || {}),
+      normalizedScore: scoring.totalScore,
+      events: entries,
+      eventCount: entries.length,
+      passed: Boolean(canProceedToReceipt),
+      workspaceSummary: executionSummary,
+      structureStatus: resolvedStructureStatus,
+      receiptEligible: Boolean(canProceedToReceipt),
+      updatedAt: new Date().toISOString(),
+    },
+  });
+}, [
+  canProceedToReceipt,
+  currentCase,
+  entries,
+  executionSummary,
+  hasCapturedEvents,
+  resolvedCaseId,
+  resolvedStructureStatus,
+  scoring.totalScore,
+]);
+
 const textSource =
   data?.caseInput ||
   data?.latestEvent?.description ||
