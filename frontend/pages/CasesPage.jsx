@@ -2850,99 +2850,121 @@ export default function CasesPage() {
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
       <div className="max-w-3xl mx-auto space-y-6 pt-10">
         {hasWorkspaceIdentity && (
-          <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold">Cases</h1>
-              {caseCreationError && (
-                <p className="mt-2 text-xs font-medium text-red-600">
-                  {sanitizeText(caseCreationError)}
-                </p>
-              )}
-            </div>
-            <div
-              style={{
-                marginLeft: "auto",
-                display: "inline-flex",
-                flexDirection: "column",
-                alignItems: "stretch",
-              }}
-            >
-              {formatEmail(savedEmail || resolvedEmail) && (
-                <div
-                  className="text-right text-[11px] font-normal text-slate-400"
-                  style={{
-                    paddingRight: "16px",
-                    whiteSpace: "nowrap",
-                    marginBottom: "10px",
-                  }}
-                >
-                  {formatEmail(savedEmail || resolvedEmail)}
-               </div>
-              )}
+          <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Cases</h1>
+                {caseCreationError && (
+                  <p className="mt-2 text-xs font-medium text-red-600">
+                    {sanitizeText(caseCreationError)}
+                  </p>
+                )}
+              </div>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  display: "inline-flex",
+                  flexDirection: "column",
+                  alignItems: "stretch",
+                }}
+              >
+                {formatEmail(savedEmail || resolvedEmail) && (
+                  <div
+                    className="text-right text-[11px] font-normal text-slate-400"
+                    style={{
+                      paddingRight: "16px",
+                      whiteSpace: "nowrap",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    {formatEmail(savedEmail || resolvedEmail)}
+                 </div>
+                )}
 
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                {planSurfaceContract?.showOuterCta !== false ? (
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {planSurfaceContract?.showOuterCta !== false ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubscriptionCheckoutError("");
+                        setShowSubscriptionOptions(true);
+                      }}
+                      className="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
+                    >
+                      {sanitizeText(planOuterCtaLabel, "Manage Access")}
+                    </button>
+                  ) : null}
+
                   <button
                     type="button"
-                    onClick={() => {
-                      setSubscriptionCheckoutError("");
-                      setShowSubscriptionOptions(true);
-                    }}
-                    className="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
+                    onClick={handleCreateNewCase}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
                   >
-                    {sanitizeText(planOuterCtaLabel, "Manage Access")}
+                    + Create new case
                   </button>
-                ) : null}
 
-                <button
-                  type="button"
-                  onClick={handleCreateNewCase}
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
-                >
-                  + Create new case
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSwitchEmail}
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
-                >
-                  Switch email
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleSwitchEmail}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+                  >
+                    Switch email
+                  </button>
+                </div>
               </div>
             </div>
-          </header>
-        )}
 
-        {hasWorkspaceIdentity && trialStatusDisplay && (
-          <section
-            className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"
-            aria-label="7-day trial status"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="whitespace-nowrap font-medium">
-                {trialStatusDisplay.summaryText}
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowTrialDetails((current) => !current)}
-                className="inline-flex min-h-8 items-center justify-center rounded-full border border-emerald-300 bg-emerald-100 px-4 py-2 text-xs font-medium text-emerald-900 transition hover:bg-emerald-200"
-                aria-expanded={showTrialDetails}
+            {trialStatusDisplay && (
+              <section
+                className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-950"
+                aria-label="7-day trial status"
               >
-                Pilot guide
-              </button>
-            </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="whitespace-nowrap font-medium">
+                    {trialStatusDisplay.trialDay ? (
+                      <>
+                        <span className="font-semibold text-emerald-950">7-Day Pilot</span>
+                        {" · Day "}
+                        <span className="font-semibold text-emerald-950">
+                          {trialStatusDisplay.trialDay}
+                        </span>
+                        {" of 7 · Cases created: "}
+                        <span className="font-semibold text-emerald-950">
+                          {trialStatusDisplay.activeCaseCount}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-emerald-950">7-Day Pilot</span>
+                        {" active · Cases created: "}
+                        <span className="font-semibold text-emerald-950">
+                          {trialStatusDisplay.activeCaseCount}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowTrialDetails((current) => !current)}
+                    className="inline-flex min-h-7 items-center justify-center rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-900 transition hover:bg-emerald-200"
+                    aria-expanded={showTrialDetails}
+                  >
+                    Pilot guide
+                  </button>
+                </div>
 
-            {showTrialDetails && (
-              <div className="mt-3 border-t border-emerald-100 pt-3 text-xs leading-5 text-emerald-900">
-                <p className="mb-1 font-semibold text-emerald-950">How this pilot works</p>
-                <p>Use this workspace to run real cases during the 7-day pilot.</p>
-                <p>Progress is tracked by cases created and evidence captured.</p>
-                <p>The Result page is the entry point; Cases is the control surface.</p>
-                <p>Keep each case small, real, and evidence-backed.</p>
-              </div>
+                {showTrialDetails && (
+                  <div className="mt-3 border-t border-emerald-100 pt-3 text-xs leading-5 text-emerald-900">
+                    <p className="mb-1 font-semibold text-emerald-950">How this pilot works</p>
+                    <p>Use this workspace to run real cases during the 7-day pilot.</p>
+                    <p>Progress is tracked by cases created and evidence captured.</p>
+                    <p>The Result page is the entry point; Cases is the control surface.</p>
+                    <p>Keep each case small, real, and evidence-backed.</p>
+                  </div>
+                )}
+              </section>
             )}
-          </section>
+          </header>
         )}
 
         {hasWorkspaceIdentity && (
