@@ -6,8 +6,6 @@ This checklist is for broader release readiness.
 
 It verifies the main user and product paths before release.
 
-It does not reopen deferred UI work such as the CasesPage green trial bar / trial status bar.
-
 The goal is to prove that the core paths work, case identity stays continuous, receipt and verification states remain correct, and production deployment is smoke-ready.
 
 ## 2. Smoke Execution Rules
@@ -20,7 +18,7 @@ The goal is to prove that the core paths work, case identity stays continuous, r
 - Do not migrate or edit backend data files during smoke.
 - Use clean test accounts or known test emails.
 - Any failure must be classified as `blocker`, `non-blocker`, or `deferred polish`.
-- Do not treat the missing green trial bar as a smoke failure.
+- Minor visual flicker is `deferred polish` unless the final route or final state is wrong.
 
 ## 3. Core Smoke Paths
 
@@ -34,7 +32,7 @@ Steps:
 2. Enter through the normal access or diagnostic entry path.
 3. Complete Diagnostic.
 4. Reach ResultPage.
-5. Confirm the first-run CTA says `Start 7-day pilot`.
+5. Confirm the first-run CTA says `Start 7-day Pilot`.
 6. Confirm ResultPage still behaves as a normal diagnostic result page:
    - diagnosis summary remains visible
    - weakest area remains visible
@@ -48,9 +46,68 @@ Steps:
 Expected result:
 
 - New user reaches ResultPage.
-- First-run CTA is `Start 7-day pilot`.
+- First-run CTA is `Start 7-day Pilot`.
+- First-run ResultPage does not show `Continue Case`.
 - Result content is not replaced by a workspace/returning-user review surface.
 - Case Plan / Pilot Plan receives the same caseId.
+
+### A1. Access Zero-Case Route Check
+
+Smoke ID: `BRSM-A1`
+
+Steps:
+
+1. Use a fresh incognito email.
+2. Enter through `https://app.nimclea.com/`.
+3. If the email has zero backend cases, confirm the user ends on `/diagnostic`.
+4. Confirm the user does not remain on `/cases` with `Active Cases (0)`.
+5. Record any minor visual flicker as polish if the final route is correct.
+
+Expected result:
+
+- Zero-case users reach `/diagnostic`.
+- Zero-case users do not stay on `/cases` with `Active Cases (0)`.
+- Minor visual flicker is not a blocker when the final route is correct.
+
+### A2. First ResultPage 7-Day Pilot Entry Check
+
+Smoke ID: `BRSM-A2`
+
+Steps:
+
+1. Complete a first diagnostic.
+2. Save contact where required.
+3. Confirm ResultPage shows `Start 7-day Pilot`.
+4. Confirm the 7-day pilot entry explanation may appear.
+5. Confirm ResultPage does not show `Continue Case` for the first-run diagnostic result.
+
+Expected result:
+
+- First-run ResultPage shows `Start 7-day Pilot`.
+- First-run ResultPage may show the 7-day pilot entry explanation.
+- First-run ResultPage does not show `Continue Case`.
+
+### A3. Pilot Started ResultPage Review Check
+
+Smoke ID: `BRSM-A3`
+
+Steps:
+
+1. From the first ResultPage, click `Start 7-day Pilot`.
+2. Enter the Case Plan / Pilot flow.
+3. Return to `/result?caseId=<id>&from=case`.
+4. Confirm the page shows normal diagnostic result review content.
+5. Confirm the page does not show:
+   - `Start 7-day Pilot`
+   - `Continue Case`
+   - lower 7-day pilot trigger card
+
+Expected result:
+
+- ResultPage review mode shows normal diagnostic result content.
+- ResultPage review mode has no green primary pilot CTA.
+- ResultPage review mode has no green `Continue Case` CTA.
+- ResultPage review mode has no lower 7-day pilot trigger card.
 
 ### B. Returning User Path
 
@@ -92,8 +149,36 @@ Expected result:
 
 Important:
 
-- The green trial bar is not required for this release smoke.
-- Do not fail this path because the green trial bar is absent.
+- CasesPage routing should not be changed by the 7-day trial status bar.
+- The 7-day trial status bar must not appear inside individual case cards.
+
+### C1. CasesPage 7-Day Trial Status Bar Check
+
+Smoke ID: `BRSM-C1`
+
+Steps:
+
+1. Open CasesPage for an email with an active or safely inferred 7-day trial session.
+2. Confirm the status bar appears below the top Cases header/action area and above the `Active Cases` / `Baseline Records` / `Historic Records` tabs.
+3. Confirm the status text shows either:
+   - `7-Day Pilot · Day X of 7 · Cases created: N`
+   - `7-Day Pilot active · Cases created: N`
+4. Confirm `Pilot guide` is available.
+5. Open `Pilot guide`.
+6. Confirm the guide does not contain:
+   - payment button
+   - summary CTA
+   - `$9`
+   - `$29`
+   - `checkout`
+   - `Stripe`
+
+Expected result:
+
+- CasesPage shows the 7-day trial status bar for active or safely inferred trial users.
+- Cases created count is visible.
+- Pilot guide is available.
+- Pilot guide does not introduce payment, checkout, Stripe, or summary CTA behavior.
 
 ### D. Receipt Readiness Path
 
@@ -242,19 +327,43 @@ Expected result:
 - API base is production-correct.
 - Core paths complete without blocking console/runtime errors.
 
+### J. Main Path Continuity
+
+Smoke ID: `BRSM-J`
+
+The existing main path remains required:
+
+1. Diagnostic
+2. ResultPage
+3. Start 7-day Pilot
+4. Case Plan / Pilot
+5. Pilot Result
+6. Receipt
+7. Verification eligibility boundary
+
+Expected result:
+
+- The full main path remains reachable.
+- No 17-D or 17-E regression changes break receipt, verification, or pilot result continuity.
+
 ## 4. Pass / Fail Recording Table
 
 | Smoke ID | Path | Environment | Test email | CaseId | Expected result | Actual result | Status: PASS / FAIL / DEFERRED | Blocker classification | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | BRSM-A | New user diagnostic -> result -> case plan |  |  |  | First-run ResultPage and same caseId into Case Plan |  |  |  |  |
+| BRSM-A1 | Access zero-case route |  |  |  | Zero-case users end on `/diagnostic`, not `/cases` with Active Cases (0) |  |  |  |  |
+| BRSM-A2 | First ResultPage 7-day pilot entry |  |  |  | Shows Start 7-day Pilot and not Continue Case |  |  |  |  |
+| BRSM-A3 | Pilot-started ResultPage review |  |  |  | Review shows no Start Pilot, Continue Case, or lower trigger card |  |  |  |  |
 | BRSM-B | Returning user -> `/cases` |  |  |  | Existing cases load without diagnostic reset |  |  |  |  |
 | BRSM-C | CasesPage routing -> ReceiptPage |  |  |  | Detail routes correctly and preserves caseId |  |  |  |  |
+| BRSM-C1 | CasesPage 7-day trial status bar |  |  |  | Shows 7-Day Pilot status and Pilot guide without payment/summary CTA |  |  |  |  |
 | BRSM-D | Receipt readiness |  |  |  | Ready/not-ready states match backend readiness |  |  |  |  |
 | BRSM-E | Verification unlock |  |  |  | Eligible unlocks, ineligible remains locked, caseId preserved |  |  |  |  |
 | BRSM-F | Backend `/cases` aggregation |  |  |  | Case appears with coherent aggregation fields |  |  |  |  |
 | BRSM-G | Identity/email/case binding |  |  |  | Email and caseId remain consistently bound |  |  |  |  |
 | BRSM-H | Payment boundary |  |  |  | No visible payment scope contradiction |  |  |  |  |
 | BRSM-I | Production deployment |  |  |  | Frontend/backend load and core paths are usable |  |  |  |  |
+| BRSM-J | Main path continuity |  |  |  | Diagnostic through verification eligibility boundary remains reachable |  |  |  |  |
 
 ## 5. Blocker Classification Rules
 
@@ -276,18 +385,22 @@ Everything else should be classified as:
 
 Examples of non-blockers:
 
-- missing CasesPage green trial bar
 - copy polish that does not affect eligibility or routing
 - minor visual spacing issue that does not block the core path
+- minor visual flicker when final route and state are correct
 - manual-only release-gate WARN with FAIL 0
 
 ## 6. Deferred / Do-Not-Touch Reminders
 
 Do not reopen these during broader release smoke:
 
-- CasesPage green trial bar / trial status bar
+- trial-ended summary behavior
+- payment prompt behavior
 - Pilot summary paid disappearance logic
 - $9 / $29 payment redesign
+- $9 / $29 logic
+- summary CTA
+- visual flicker polish unless it causes the wrong final route
 - non-essential UI polish
 - broad case routing refactor
 - receipt rewrite unless smoke proves a blocker
