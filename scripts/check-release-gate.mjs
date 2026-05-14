@@ -154,6 +154,10 @@ runExistingScript(
   "scripts/check-cases-page-trial-status-bar-ui-contract.mjs",
   "CasesPage trial status bar UI contract"
 );
+runExistingScript(
+  "scripts/check-result-review-cta-guard.mjs",
+  "ResultPage review CTA guard"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
