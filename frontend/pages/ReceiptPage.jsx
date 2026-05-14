@@ -2228,18 +2228,42 @@ const urlCaseId = String(
     if (isReceiptCaseHydrating) return;
 
     try {
+      const receiptReadyNow =
+        data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+        data.decisionStatus === "Verified" ||
+        explicitBackendReceiptReady === true ||
+        readinessContract?.receiptReady === true;
+
       upsertCase({
         caseId: inferredCaseId,
 
-        status: "result_ready",
+        status: receiptReadyNow ? "receipt_ready" : "result_ready",
+        currentStep: "receipt",
+        ...(receiptReadyNow
+          ? {
+              receiptEligible: true,
+              caseReceiptEligible: true,
+            }
+          : {}),
 
         caseData: normalized.caseData || resolvedPayload.caseData || {},
 
         receipt: {
+          eligible: receiptReadyNow,
           receiptId: data.receiptId,
           hash: data.receiptHash,
+          receiptHash: data.receiptHash,
           generatedAt: data.generatedAt,
           decisionStatus: data.decisionStatus,
+          preview: {
+            summaryText: data.summaryText || "",
+            scenarioLabel: data.scenarioLabel || "",
+            stageLabel: data.stageLabel || "",
+            totalRunHits: data.totalRunHits || 0,
+            executionSummary: data.executionSummary || null,
+            runEntries: Array.isArray(data.runEntries) ? data.runEntries : [],
+          },
+          updatedAt: new Date().toISOString(),
         },
 
         summary: data.summaryText || "",
