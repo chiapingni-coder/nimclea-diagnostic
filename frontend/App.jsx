@@ -13,6 +13,7 @@ import ROUTES from "./routes";
 import RunLedgerPage from "./pages/RunLedgerPage";
 import AnalyticsPage from "./pages/AnalyticsPage.jsx";
 import CasesPage from "./pages/CasesPage.jsx";
+import AccessEntryPage from "./pages/AccessEntryPage.jsx";
 export const PC_META = {
   pc_id: "PC-001",
   pc_name: "Decision Risk Diagnostic"
@@ -28,7 +29,7 @@ export default function App() {
       <Route path={ROUTES.HOME} element={<EntryRedirect />} />
       <Route
         path={ROUTES.ACCESS}
-        element={<CasesPage pcMeta={PC_META} entryMode="access" />}
+        element={<AccessEntryPage />}
       />
 
       <Route

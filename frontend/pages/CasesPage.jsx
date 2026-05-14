@@ -1659,7 +1659,8 @@ export default function CasesPage() {
     setEmailStatus("");
 
     try {
-      const response = await fetch(`${API_BASE}/cases?email=${encodeURIComponent(email)}`);
+      const casesLookupUrl = `${API_BASE}/cases?email=${encodeURIComponent(email)}`;
+      const response = await fetch(casesLookupUrl);
 
       const payload = await response.json().catch(() => []);
 
