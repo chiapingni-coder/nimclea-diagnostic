@@ -118,6 +118,10 @@ runExistingScript(
   "scripts/check-save-eligibility-boundary.mjs",
   "save eligibility boundary contract"
 );
+runExistingScript(
+  "scripts/check-receipt-readiness-transition-contract.mjs",
+  "receipt readiness transition contract"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
