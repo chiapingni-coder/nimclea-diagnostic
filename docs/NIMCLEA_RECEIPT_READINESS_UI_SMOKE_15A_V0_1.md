@@ -31,10 +31,10 @@ Explicitly excluded:
 
 | Area | Approx. completion | Notes |
 | --- | ---: | --- |
-| Receipt readiness UI | 85%-90% | Main not-ready display passed 15-A2 after FIX1; ready branch remains pending. |
+| Receipt readiness UI | 86%-91% | Main not-ready display passed 15-A2 after FIX1; 15-A3/15-A4 completed contract and guard coverage for readiness transition rules. |
 | Event captured display | 85%-90% | Event state is visible but should be checked after Quick Capture refresh. |
 | Score gating display | 80%-88% | Threshold-driven labels need manual confirmation across below/above-ready cases. |
-| Hydration/loading protection | 75%-82% | Loading guards exist, but backend hydration flash risk remains. |
+| Hydration/loading protection | 78%-84% | Contract-level guard now records that hydration must not show insufficient/failure before backend readiness is known; runtime smoke remains pending. |
 | Quick Capture refresh behavior | 75%-85% | Needs manual check that new event state appears without stale display. |
 | Detail -> Receipt routing | 90%-95% | Routing is documented as repaired but should remain in smoke coverage. |
 | Payment CTA smoke visibility | 65%-75% | Only visibility is in scope; real payment is excluded. |
@@ -47,13 +47,15 @@ Explicitly excluded:
 | Hydration flash before backend receipt status loads | High | Ready cases may briefly show failed/insufficient state before backend truth arrives. |
 | Stale localStorage case data overriding backend state | High | Local fallback state can misclassify a backend-ready or backend-not-ready receipt. |
 | Event captured but UI not refreshing immediately | Medium | Quick Capture may succeed while ReceiptPage still displays old readiness state. |
-| `receiptEligible` true but Cases page status not aligned | Medium | Cases and ReceiptPage may disagree about readiness. |
+| `receiptEligible` true but Cases page status not aligned | Medium-Low | 15-A3 locks that `/cases` and `/case/:caseId` should converge on receipt readiness; runtime validation remains pending. |
 | Yellow state CTA copy regression | Medium | A not-ready case can show confusing action copy. |
 | Green state button/label regression | Medium | Ready cases can lose clear formal-ready messaging. |
 | Legacy case with incomplete `receiptRecords` | High | Older records may miss fields current UI expects for stable readiness display. |
 | Legacy case marked ready without real events | High | Inconsistent legacy records with `receiptEligible` true / `receipt_ready` but `eventCount` 0 and no real events are legacy-risk samples, not valid ready-case smoke samples. |
 | Payment CTA appearing too early | High | Payment visibility can imply readiness or activation before the receipt is ready. |
 | Deep link into ReceiptPage without full case context | Medium | Direct links can start from incomplete route state and rely on hydration correctness. |
+| Readiness downgrade after `checkout_created` | Medium-Low | 15-A3 states `checkout_created` must not downgrade `receipt_ready`; 15-A4 guards the contract text, but live fixture behavior still needs later smoke coverage. |
+| `paymentStatus` or `paid=false` misread as readiness | Medium-Low | 15-A3 separates `receiptEligible`, `paymentStatus`, and `paid`; paid-flow runtime validation remains outside 15-A. |
 
 ## 5. Smoke Checklist
 
@@ -82,7 +84,9 @@ Explicitly excluded:
 
 15-A2 ready branch remains pending.
 
-Next recommended step: create or identify a clean ready case with real evidence event, then run ready Receipt UI smoke.
+Next possible step: 15-A6 or later can add a runtime smoke for receipt readiness behavior using fixture/mock case records, but only after the contract-level guard remains stable.
+
+A manual ready-case Receipt UI smoke is still useful when a clean ready case with real evidence event is available.
 
 15-B: continue manual Receipt readiness UI smoke using this checklist.
 
@@ -159,3 +163,48 @@ Final current status:
 
 - 15-A2 not-ready branch is complete.
 - 15-A2 ready branch remains pending.
+
+## 10. 15-A3 and 15-A4 Progress Update
+
+### 15-A3: Receipt readiness transition contract
+
+Status: Completed
+
+Nature: Documentation-only contract
+
+Artifact:
+
+- `docs/NIMCLEA_RECEIPT_READINESS_TRANSITION_CONTRACT_V0_1.md`
+
+What it locked:
+
+- Receipt readiness should not be downgraded by checkout/payment states.
+- `receiptEligible` and `paymentStatus` are separate concepts.
+- `checkout_created` must not overwrite `receipt_ready`.
+- `paid=false` must not imply `receiptEligible=false`.
+- Hydration/loading should not briefly display failure before backend readiness is known.
+- `/cases` and `/case/:caseId` should converge on the same readiness interpretation.
+
+### 15-A4: Receipt readiness transition smoke guard
+
+Status: Completed
+
+Nature: Regression smoke guard
+
+What it added:
+
+- `scripts/check-receipt-readiness-transition-contract.mjs`
+- Release gate integration in `scripts/check-release-gate.mjs`
+
+Validation:
+
+- Contract smoke passed 28/28.
+- Release gate final result WARN, FAIL 0 after known sandbox `spawnSync node EPERM`.
+- `git diff --check` passed.
+
+Remaining risks:
+
+- The guard currently validates the contract text, not live backend behavior.
+- A future runtime smoke may still be needed to create or simulate actual case records.
+- Receipt readiness, payment activation, and verification unlock still need end-to-end paid-flow validation later.
+- Stripe real-payment behavior is still outside the current 15-A scope.
