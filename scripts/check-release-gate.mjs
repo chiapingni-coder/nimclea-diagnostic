@@ -122,6 +122,10 @@ runExistingScript(
   "scripts/check-receipt-readiness-transition-contract.mjs",
   "receipt readiness transition contract"
 );
+runExistingScript(
+  "scripts/check-cases-page-trial-status-bar-contract.mjs",
+  "CasesPage trial status bar contract"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
