@@ -1600,6 +1600,7 @@ export default function CasesPage() {
   const [emailError, setEmailError] = React.useState("");
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
+  const [diagnosticHandoffInProgress, setDiagnosticHandoffInProgress] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
   const [showActiveCaseLimitModal, setShowActiveCaseLimitModal] = React.useState(false);
   const [highRiskDeleteTarget, setHighRiskDeleteTarget] = React.useState(null);
@@ -1610,6 +1611,7 @@ export default function CasesPage() {
   const [savingTitleCaseId, setSavingTitleCaseId] = React.useState("");
   const [titleEditError, setTitleEditError] = React.useState({ caseId: "", message: "" });
   const titleInputRef = React.useRef(null);
+  const diagnosticHandoffInProgressRef = React.useRef(false);
   const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
   const resolvedWorkspaceEmail = formatEmail(savedEmail || resolvedEmail);
   const hasWorkspaceIdentity =
@@ -1704,6 +1706,8 @@ export default function CasesPage() {
     if (!email || !email.includes("@")) {
       console.log("[CasesPage] invalid email, forcing access state");
 
+      diagnosticHandoffInProgressRef.current = false;
+      setDiagnosticHandoffInProgress(false);
       localStorage.removeItem(EMAIL_STORAGE_KEY);
       setSavedEmail("");
       setEmailInput("");
@@ -1713,6 +1717,8 @@ export default function CasesPage() {
       return;
     }
 
+    diagnosticHandoffInProgressRef.current = false;
+    setDiagnosticHandoffInProgress(false);
     setLoadingCases(true);
     setEmailError("");
     setEmailStatus("");
@@ -1804,6 +1810,8 @@ export default function CasesPage() {
           setShowNoCaseModal(true);
           localStorage.removeItem("nimclea_email_verified");
         } else {
+          diagnosticHandoffInProgressRef.current = true;
+          setDiagnosticHandoffInProgress(true);
           setShowNoCaseModal(false);
           navigate(ROUTES.DIAGNOSTIC, {
             replace: true,
@@ -1917,7 +1925,9 @@ export default function CasesPage() {
       setEmailStatus("");
       setEmailError("Could not load cases. Please try again.");
     } finally {
-      setLoadingCases(false);
+      if (!diagnosticHandoffInProgressRef.current) {
+        setLoadingCases(false);
+      }
     }
   }, [navigate]);
 
@@ -2166,6 +2176,8 @@ export default function CasesPage() {
   }, [emailInput, loadCasesForEmail, navigate]);
 
   const handleSwitchEmail = React.useCallback(() => {
+    diagnosticHandoffInProgressRef.current = false;
+    setDiagnosticHandoffInProgress(false);
     localStorage.removeItem(EMAIL_STORAGE_KEY);
     localStorage.removeItem("nimclea_email_verified");
     localStorage.removeItem("nimclea_current_case_id");
@@ -2981,7 +2993,7 @@ export default function CasesPage() {
           </nav>
         )}
 
-        {!loadingCases && !hasWorkspaceIdentity && (
+        {!loadingCases && !diagnosticHandoffInProgress && !hasWorkspaceIdentity && (
           <section className="flex justify-center">
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
               <div className="mb-8 flex flex-col items-center">
@@ -3506,7 +3518,7 @@ export default function CasesPage() {
         )}
       </div>
 
-      {showNoCaseModal && (
+      {showNoCaseModal && !diagnosticHandoffInProgress && (
         <div
           style={{
             position: "fixed",
