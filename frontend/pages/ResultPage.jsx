@@ -2950,28 +2950,14 @@ const hasStableCaseContext = useMemo(() => {
   const stateSource = String(location.state?.source || "").trim().toLowerCase();
   const hasWorkspaceSource =
     workspaceSources.has(stateFrom) || workspaceSources.has(stateSource);
-  const hasPersistedCurrentCaseId = (() => {
-    if (typeof window === "undefined" || !resolvedCaseId) return false;
-
-    try {
-      return (
-        localStorage.getItem("nimclea_current_case_id") === resolvedCaseId ||
-        localStorage.getItem("current_case_id") === resolvedCaseId
-      );
-    } catch {
-      return false;
-    }
-  })();
 
   return Boolean(
     isCaseReview ||
-      hasWorkspaceSource ||
-      hasPersistedCurrentCaseId
+      hasWorkspaceSource
   );
 }, [
   isCaseReview,
   location.state,
-  resolvedCaseId,
 ]);
 
 const isWorkspaceCaseContext = hasStableCaseContext;
