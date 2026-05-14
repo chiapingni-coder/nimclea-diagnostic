@@ -131,6 +131,53 @@ function formatEmail(value = "") {
   return String(value || "").trim();
 }
 
+function getTrialStartValue(source = {}) {
+  if (!source || typeof source !== "object") return "";
+
+  return (
+    source.trialStartedAt ||
+    source.startedAt ||
+    source.createdAt ||
+    source.trialSession?.trialStartedAt ||
+    source.trialSession?.startedAt ||
+    source.trialSession?.createdAt ||
+    ""
+  );
+}
+
+function hasSafeTrialState(source = {}) {
+  if (!source || typeof source !== "object") return false;
+
+  return Boolean(
+    source.trialId ||
+      source.sessionId ||
+      source.session_id ||
+      source.userId ||
+      source.trialStartedAt ||
+      source.startedAt ||
+      source.trialSession?.trialId ||
+      source.trialSession?.sessionId ||
+      source.trialSession?.session_id ||
+      source.trialSession?.userId ||
+      source.trialSession?.trialStartedAt ||
+      source.trialSession?.startedAt ||
+      source.trialSession?.createdAt
+  );
+}
+
+function computeTrialDay(rawStartedAt = "") {
+  if (!rawStartedAt) return null;
+
+  const startedAtMs = new Date(rawStartedAt).getTime();
+  const nowMs = Date.now();
+
+  if (!Number.isFinite(startedAtMs) || startedAtMs > nowMs) return null;
+
+  const elapsedDays = Math.floor((nowMs - startedAtMs) / (24 * 60 * 60 * 1000)) + 1;
+
+  return Math.min(7, Math.max(1, elapsedDays));
+}
+
 async function logCaseEmail({ email, caseId, source }) {
   const trimmedEmail = formatEmail(email);
   if (!trimmedEmail || !caseId) return null;
@@ -1559,6 +1606,7 @@ export default function CasesPage() {
   const [caseView, setCaseView] = React.useState("active");
   const [editingCaseId, setEditingCaseId] = React.useState("");
   const [editingTitle, setEditingTitle] = React.useState("");
+  const [showTrialDetails, setShowTrialDetails] = React.useState(false);
   const [savingTitleCaseId, setSavingTitleCaseId] = React.useState("");
   const [titleEditError, setTitleEditError] = React.useState({ caseId: "", message: "" });
   const titleInputRef = React.useRef(null);
@@ -2584,6 +2632,42 @@ export default function CasesPage() {
     [workspaceCases]
   );
 
+  const trialStatusDisplay = React.useMemo(() => {
+    const workspaceEmail = formatEmail(savedEmail || resolvedEmail);
+    const activeCaseCount = visibleActiveCases.length;
+
+    if (!workspaceEmail || activeCaseCount === 0) return null;
+
+    const trialSession = getTrialSession() || {};
+    const inferredTrialCase = visibleActiveCases.find((caseItem) =>
+      hasSafeTrialState(caseItem)
+    );
+    const inferredTrialStart = inferredTrialCase
+      ? getTrialStartValue(inferredTrialCase)
+      : "";
+    const hasTrialSession =
+      hasSafeTrialState(trialSession) ||
+      Boolean(trialSession?.createdAt);
+    const hasInferredTrialState = Boolean(inferredTrialCase);
+
+    if (!hasTrialSession && !hasInferredTrialState) return null;
+
+    const rawStartedAt =
+      getTrialStartValue(trialSession) ||
+      inferredTrialStart ||
+      "";
+    const trialDay = computeTrialDay(rawStartedAt);
+    const summaryText = trialDay
+      ? `Trial Day ${trialDay} of 7 · Cases created: ${activeCaseCount}`
+      : `Trial active · Cases created: ${activeCaseCount}`;
+
+    return {
+      activeCaseCount,
+      summaryText,
+      trialDay,
+    };
+  }, [resolvedEmail, savedEmail, visibleActiveCases]);
+
   // Derived only; not wired into the UI yet. Current rendering still uses
   // visibleActiveCases / archivedCases until the three-section UI is introduced.
   const activeCaseSectionGroups = React.useMemo(() => {
@@ -2816,6 +2900,37 @@ export default function CasesPage() {
               </div>
             </div>
           </header>
+        )}
+
+        {hasWorkspaceIdentity && trialStatusDisplay && (
+          <section
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"
+            aria-label="7-day trial status"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="whitespace-nowrap font-medium">
+                {trialStatusDisplay.summaryText}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowTrialDetails((current) => !current)}
+                className="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100"
+                aria-expanded={showTrialDetails}
+              >
+                7-day pilot details
+              </button>
+            </div>
+
+            {showTrialDetails && (
+              <div className="mt-3 border-t border-emerald-100 pt-3 text-xs leading-5 text-emerald-900">
+                <p>The 7-day pilot is a lightweight trial period.</p>
+                <p>Users can create and run cases during the trial.</p>
+                <p>Progress is measured by cases created and evidence captured.</p>
+                <p>ResultPage is only the first entry point, not the ongoing trial surface.</p>
+                <p>CasesPage is the trial control surface.</p>
+              </div>
+            )}
+          </section>
         )}
 
         {hasWorkspaceIdentity && (
