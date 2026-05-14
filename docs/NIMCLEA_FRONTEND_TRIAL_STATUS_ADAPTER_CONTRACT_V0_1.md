@@ -266,3 +266,23 @@ Why:
 - It keeps the trial status bar implementation deferred to a later explicit UI step.
 
 Do not implement the adapter or CasesPage UI until the frontend adapter contract smoke guard exists and passes.
+
+## 12. Recommended 16-A18
+
+Recommended next step after the 16-A17 smoke guard passes: implement frontend adapter only.
+
+16-A18 should:
+
+- implement `getTrialStatusDisplayModel({ email })`
+- use `frontend/lib/trialStatusApi.js`
+- reuse `API_BASE` from `frontend/lib/trialApi.js`
+- call `GET /trial-status?email=...`
+- return the safe hidden display model on failure
+
+16-A18 must not:
+
+- connect CasesPage to `/trial-status`
+- add CasesPage UI
+- add trial status bar UI
+- add pilot summary entry UI
+- alter case cards, Detail buttons, foldouts, routes, payment, receipt, verification, scoring, or `/cases` behavior
