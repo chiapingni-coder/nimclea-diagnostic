@@ -2444,10 +2444,10 @@ const receiptDisplayState = receiptHydrationFailed
   ? "unable"
   : hasReadyReceipt
   ? "ready"
-  : hasConfirmedNonReadyReceipt
-  ? "insufficient"
   : receiptReadinessPending
   ? "pending"
+  : hasConfirmedNonReadyReceipt
+  ? "insufficient"
   : hasPilotResultContext
   ? "insufficient"
   : "pending";
