@@ -114,6 +114,10 @@ runExistingScript(
   "scripts/check-7-day-trial-lifecycle-contract.mjs",
   "7-day trial lifecycle contract"
 );
+runExistingScript(
+  "scripts/check-save-eligibility-boundary.mjs",
+  "save eligibility boundary contract"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
