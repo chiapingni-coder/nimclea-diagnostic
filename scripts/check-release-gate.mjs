@@ -134,6 +134,10 @@ runExistingScript(
   "scripts/check-backend-trial-status-helper-runtime.mjs",
   "backend trial status helper runtime smoke"
 );
+runExistingScript(
+  "scripts/check-backend-trial-status-endpoint-contract.mjs",
+  "backend trial status endpoint contract"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");

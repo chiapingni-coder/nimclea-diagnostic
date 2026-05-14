@@ -177,16 +177,17 @@ It should not return:
 - payment provider payloads
 - Stripe session, customer, subscription, or webhook payload details
 
-## 10. Recommended 16-A13
+## 10. Recommended 16-A14
 
-Recommended next step: A) endpoint contract smoke guard.
+Recommended next step: read-only endpoint implementation, only after the endpoint contract smoke guard exists and passes.
 
 Why:
 
-- The endpoint contract should be locked before any route is added.
-- The guard can require safe failure response shape, read-only boundaries, and `/cases` separation.
-- It can prevent accidental endpoint implementation that exposes raw records or trusts generic paid fields.
+- The endpoint contract is now the precondition for adding any route.
+- The endpoint implementation should be read-only and should call `buildTrialStatus`.
+- The implementation must preserve safe failure response shape, read-only boundaries, and `/cases` separation.
+- The implementation must not expose raw records or trust generic paid fields.
 - It preserves the helper-first, endpoint-later architecture.
 - It keeps frontend adapter work deferred until the backend contract is guarded.
 
-Do not implement the endpoint until the endpoint contract guard exists and passes.
+Do not implement the endpoint until the endpoint contract smoke guard exists and passes.
