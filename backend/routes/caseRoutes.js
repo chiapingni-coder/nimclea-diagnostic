@@ -426,16 +426,23 @@ function upsertCaseRecord(input = {}) {
 
 router.post("/save", async (req, res) => {
   try {
+    const body = req.body || {};
+    const {
+      receiptEligible: _ignoredReceiptEligible,
+      caseReceiptEligible: _ignoredCaseReceiptEligible,
+      verificationEligible: _ignoredVerificationEligible,
+      caseVerificationEligible: _ignoredCaseVerificationEligible,
+      caseData = {},
+      ...safeBody
+    } = body;
+
     const {
       userId,
       trialId,
       caseId,
       stage,
       score = null,
-      receiptEligible = false,
-      verificationEligible = false,
-      caseData = {},
-    } = req.body || {};
+    } = safeBody;
 
     if (!userId || !trialId || !stage) {
       return res.status(400).json({
@@ -454,23 +461,53 @@ router.post("/save", async (req, res) => {
       ? null
       : await findSupabaseCaseRecord(resolvedCaseId);
     const existingCase = localExistingCase || supabaseExistingCase;
+    const pickExistingBoolean = (...values) =>
+      values.find((value) => typeof value === "boolean");
+
+    const preservedReceiptEligible = pickExistingBoolean(
+      existingCase?.receiptEligible,
+      existingCase?.caseReceiptEligible,
+      existingCase?.caseData?.receiptEligible,
+      existingCase?.caseData?.caseReceiptEligible
+    );
+
+    const preservedVerificationEligible = pickExistingBoolean(
+      existingCase?.verificationEligible,
+      existingCase?.caseData?.verificationEligible
+    );
+
+    const sanitizedCaseData = {
+      ...(caseData || {}),
+    };
+
+    delete sanitizedCaseData.receiptEligible;
+    delete sanitizedCaseData.caseReceiptEligible;
+    delete sanitizedCaseData.verificationEligible;
+
     const previousVersion =
       existingIndex >= 0
         ? Number(cases[existingIndex]?.version || 1)
         : 0;
     const incomingCase = {
-      ...(req.body || {}),
+      ...safeBody,
       caseId: resolvedCaseId,
       userId,
       trialId,
       stage,
       score,
-      receiptEligible,
-      verificationEligible,
-      caseData,
+      ...(typeof preservedReceiptEligible === "boolean"
+        ? {
+            receiptEligible: preservedReceiptEligible,
+            caseReceiptEligible: preservedReceiptEligible,
+          }
+        : {}),
+      ...(typeof preservedVerificationEligible === "boolean"
+        ? { verificationEligible: preservedVerificationEligible }
+        : {}),
+      caseData: sanitizedCaseData,
       version: previousVersion + 1,
       savedAt: now,
-      status: req.body?.status || "draft",
+      status: safeBody?.status || "draft",
     };
     const preservedTitle = resolvePreservedCaseTitle({
       existing: existingCase,
@@ -484,7 +521,7 @@ router.post("/save", async (req, res) => {
       name: preservedTitle,
       caseName: preservedTitle,
       caseData: {
-        ...(incomingCase.caseData || {}),
+        ...(sanitizedCaseData || {}),
         title: preservedTitle,
         name: preservedTitle,
         caseName: preservedTitle,
@@ -503,7 +540,7 @@ router.post("/save", async (req, res) => {
 
     if (hasCaseResultSignal) {
       await mirrorCaseResultToSupabase({
-        ...(req.body || {}),
+        ...safeBody,
         caseId: savedCase.caseId,
         userId: savedCase.userId,
         email: savedCase.email,
@@ -513,8 +550,15 @@ router.post("/save", async (req, res) => {
           "result_ready",
         score: savedCase.score ?? req.body?.score,
         eventCount: savedCase.eventCount ?? req.body?.eventCount,
-        receiptEligible: savedCase.receiptEligible,
-        verificationEligible: savedCase.verificationEligible,
+        ...(typeof preservedReceiptEligible === "boolean"
+          ? {
+              receiptEligible: preservedReceiptEligible,
+              caseReceiptEligible: preservedReceiptEligible,
+            }
+          : {}),
+        ...(typeof preservedVerificationEligible === "boolean"
+          ? { verificationEligible: preservedVerificationEligible }
+          : {}),
         result: req.body?.result || savedCase.result,
         preview: req.body?.preview || savedCase.preview,
         caseSchema: req.body?.caseSchema || savedCase.caseSchema,
