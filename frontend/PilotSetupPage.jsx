@@ -15,6 +15,7 @@ import {
   attachRoutedEventToCase,
   saveStandaloneRoutedEvent,
   updateCaseScopeLock,
+  updateCaseAcceptanceChecklist,
 } from "./utils/caseRegistry.js";
 
 import { registerTrialUser, startTrial, logTrialEvent } from "./lib/trialApi";
@@ -2366,9 +2367,8 @@ const handleConfirm = async () => {
   try {
     if (hardenedCaseId) {
       updateCaseScopeLock(hardenedCaseId, hardenedScopeLock);
-      updateCaseStatus(hardenedCaseId, "workspace_active", {
-        acceptanceChecklist: hardenedAcceptanceChecklist,
-      });
+      updateCaseAcceptanceChecklist(hardenedCaseId, hardenedAcceptanceChecklist);
+      updateCaseStatus(hardenedCaseId, "workspace_active");
     }
   } catch (error) {
     console.warn("Failed to save hardened case lock/checklist", error);
