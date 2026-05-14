@@ -376,6 +376,17 @@ function getStoredPreview(sessionId = "") {
   return null;
 }
 
+function hasStartedPilotForCase(caseId = "") {
+  if (typeof window === "undefined") return false;
+  if (!caseId) return false;
+
+  try {
+    return localStorage.getItem(`nimclea_pilot_started_case_${caseId}`) === "true";
+  } catch {
+    return false;
+  }
+}
+
 function toArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -2992,6 +3003,7 @@ const resultEntryCtaContract = useMemo(() => {
 const showPilotCtas =
   !hasStableCaseContext &&
   !isWorkspaceCaseContext &&
+  !hasStartedPilotForCase(reviewCaseId || resolvedCaseId) &&
   resultEntryCtaContract?.ctaKey === "start_7_day_pilot";
 const showContinueCasePlanCta =
   !showPilotCtas &&
@@ -3598,6 +3610,10 @@ if (typeof window !== "undefined") {
     try {
       localStorage.setItem("nimclea_current_case_id", resolvedCaseId);
       localStorage.setItem("current_case_id", resolvedCaseId);
+
+      if (isValidCaseId(resolvedCaseId)) {
+        localStorage.setItem(`nimclea_pilot_started_case_${resolvedCaseId}`, "true");
+      }
     } catch (error) {
       console.warn("Failed to persist current case id before pilot navigation", error);
     }
