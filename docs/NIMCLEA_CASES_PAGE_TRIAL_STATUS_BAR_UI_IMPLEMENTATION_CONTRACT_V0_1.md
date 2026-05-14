@@ -279,3 +279,30 @@ Why:
 - It preserves a clean sequence: contract, guard, then minimal UI implementation.
 
 Do not implement the CasesPage trial status bar UI until the 16-A21 smoke guard exists and passes.
+
+## 15. Recommended 16-A22
+
+Recommended next step after the 16-A21 smoke guard passes: minimal CasesPage UI implementation.
+
+16-A22 should:
+
+- import adapter `getTrialStatusDisplayModel`
+- add isolated state for `trialStatusDisplayModel`
+- call the adapter only when resolved email exists
+- render one isolated `TrialStatusBar` block above the Active Cases list
+- preserve the same-line `Trial Day X of 7 · Cases created: N` copy
+- keep the implementation additive and workspace-level
+
+16-A22 must not:
+
+- add payment actions
+- add a modal
+- alter case cards
+- alter Detail button behavior
+- alter Continue Case behavior
+- alter foldout behavior
+- alter routing
+- alter `/cases` behavior
+- alter payment, receipt, verification, scoring, or PilotResultPage behavior
+
+In short: no payment actions and no modal in 16-A22.
