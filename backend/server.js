@@ -18,6 +18,7 @@ import runScenarioEngine from "./scenarioEngine.js";
 import generatePreview from "./previewGenerator.js";
 import trialRegisterRoutes from "./routes/trialRegisterRoutes.js";
 import trialStartRoutes from "./routes/trialStartRoutes.js";
+import trialStatusRoutes from "./routes/trialStatusRoutes.js";
 import caseRoutes from "./routes/caseRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
@@ -134,6 +135,7 @@ app.use(express.json());
 
 app.use("/trial", trialRegisterRoutes);
 app.use("/trial", trialStartRoutes);
+app.use("/trial-status", trialStatusRoutes);
 app.use("/case", caseRoutes);
 app.use("/event", eventRoutes);
 function findLastMatchingRecord(records, caseId) {
