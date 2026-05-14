@@ -106,6 +106,17 @@ function rememberKnownWorkspaceEmail(email = "") {
   return next;
 }
 
+function forgetKnownWorkspaceEmail(email = "") {
+  const normalizedEmail = formatEmail(email);
+  if (!normalizedEmail) return getKnownWorkspaceEmails();
+
+  const next = getKnownWorkspaceEmails().filter(
+    (knownEmail) => knownEmail !== normalizedEmail
+  );
+  localStorage.setItem(KNOWN_WORKSPACE_EMAILS_KEY, JSON.stringify(next));
+  return next;
+}
+
 function isKnownWorkspaceEmail(email = "") {
   const normalizedEmail = formatEmail(email);
   if (!normalizedEmail) return false;
@@ -1739,13 +1750,20 @@ export default function CasesPage() {
         setEmailStatus("");
         localStorage.setItem(EMAIL_STORAGE_KEY, email);
         localStorage.removeItem("nimclea_current_case_id");
+        forgetKnownWorkspaceEmail(email);
 
         if (showNoCaseModalForEmpty) {
           setShowNoCaseModal(true);
           localStorage.removeItem("nimclea_email_verified");
         } else {
-          rememberKnownWorkspaceEmail(email);
           setShowNoCaseModal(false);
+          navigate(ROUTES.DIAGNOSTIC, {
+            replace: true,
+            state: {
+              email,
+              from: "zero_case_workspace_redirect",
+            },
+          });
         }
 
         return;
