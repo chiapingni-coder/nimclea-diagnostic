@@ -151,8 +151,8 @@ runExistingScript(
   "frontend trial status adapter runtime smoke"
 );
 runExistingScript(
-  "scripts/check-cases-page-trial-status-bar-ui-contract.mjs",
-  "CasesPage trial status bar UI contract"
+  "scripts/check-cases-page-trial-status-bar-guard.mjs",
+  "CasesPage 7-day trial status bar guard"
 );
 runExistingScript(
   "scripts/check-result-review-cta-guard.mjs",
