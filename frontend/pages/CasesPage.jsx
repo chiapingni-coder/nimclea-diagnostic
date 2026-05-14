@@ -2658,8 +2658,8 @@ export default function CasesPage() {
       "";
     const trialDay = computeTrialDay(rawStartedAt);
     const summaryText = trialDay
-      ? `Trial Day ${trialDay} of 7 · Cases created: ${activeCaseCount}`
-      : `Trial active · Cases created: ${activeCaseCount}`;
+      ? `7-Day Pilot · Day ${trialDay} of 7 · Cases created: ${activeCaseCount}`
+      : `7-Day Pilot active · Cases created: ${activeCaseCount}`;
 
     return {
       activeCaseCount,
@@ -2914,20 +2914,20 @@ export default function CasesPage() {
               <button
                 type="button"
                 onClick={() => setShowTrialDetails((current) => !current)}
-                className="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100"
+                className="inline-flex min-h-8 items-center justify-center rounded-full border border-emerald-300 bg-emerald-100 px-4 py-2 text-xs font-medium text-emerald-900 transition hover:bg-emerald-200"
                 aria-expanded={showTrialDetails}
               >
-                7-day pilot details
+                Pilot guide
               </button>
             </div>
 
             {showTrialDetails && (
               <div className="mt-3 border-t border-emerald-100 pt-3 text-xs leading-5 text-emerald-900">
-                <p>The 7-day pilot is a lightweight trial period.</p>
-                <p>Users can create and run cases during the trial.</p>
-                <p>Progress is measured by cases created and evidence captured.</p>
-                <p>ResultPage is only the first entry point, not the ongoing trial surface.</p>
-                <p>CasesPage is the trial control surface.</p>
+                <p className="mb-1 font-semibold text-emerald-950">How this pilot works</p>
+                <p>Use this workspace to run real cases during the 7-day pilot.</p>
+                <p>Progress is tracked by cases created and evidence captured.</p>
+                <p>The Result page is the entry point; Cases is the control surface.</p>
+                <p>Keep each case small, real, and evidence-backed.</p>
               </div>
             )}
           </section>
