@@ -3007,7 +3007,9 @@ const showPilotCtas =
   resultEntryCtaContract?.ctaKey === "start_7_day_pilot";
 const showContinueCasePlanCta =
   !showPilotCtas &&
+  !isCaseReview &&
   hasStableCaseContext &&
+  !hasStartedPilotForCase(reviewCaseId || resolvedCaseId) &&
   (
     resultEntryCtaContract?.ctaKey === "continue_case" ||
     resultEntryCtaContract?.ctaKey === undefined
