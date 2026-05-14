@@ -2274,12 +2274,6 @@ const isReady =
   data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
   data.decisionStatus === "Verified";
 
-const buttonState = isReady
-  ? "ready"
-  : hasEvents
-  ? "has_event_not_ready"
-  : "no_event";
-
 const summarySignals = Array.isArray(data.topSignals) ? data.topSignals : [];
 
 function formatSummaryLevel(value) {
@@ -2451,6 +2445,16 @@ const receiptDisplayState = receiptHydrationFailed
   : hasPilotResultContext
   ? "insufficient"
   : "pending";
+
+const buttonState = receiptDisplayState === "ready"
+  ? "ready"
+  : receiptDisplayState === "pending" || receiptDisplayState === "unable"
+  ? "checking"
+  : isReady
+  ? "ready"
+  : hasEvents
+  ? "has_event_not_ready"
+  : "no_event";
 
 console.log("[ReceiptPage readiness trace]", {
   caseId: inferredCaseId,
@@ -3573,6 +3577,10 @@ if (!canRenderReceipt) {
               <button
                 type="button"
                 onClick={() => {
+                  if (buttonState === "checking") {
+                    return;
+                  }
+
                   // Lead capture should not block payment during receipt checkout.
                   validateAndSaveLead();
 
@@ -3612,20 +3620,28 @@ if (!canRenderReceipt) {
                   backgroundColor:
                     buttonState === "ready"
                       ? "#D97706"
+                      : buttonState === "checking"
+                      ? "#F8FAFC"
                       : "#FEF3C7",
                   color:
                     buttonState === "ready"
                       ? "#ffffff"
+                      : buttonState === "checking"
+                      ? "#475569"
                       : "#92400E",
                   border:
                     buttonState === "ready"
                       ? "1px solid #D97706"
+                      : buttonState === "checking"
+                      ? "1px solid #CBD5E1"
                       : "1px solid #FCD34D",
                   boxShadow:
                     buttonState === "ready"
                       ? "0 4px 14px rgba(194,65,12,0.28)"
+                      : buttonState === "checking"
+                      ? "none"
                       : "0 2px 8px rgba(245,158,11,0.16)",
-                  cursor: "pointer",
+                  cursor: buttonState === "checking" ? "default" : "pointer",
                   opacity: 1,
                 }}
                 className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-xs font-semibold transition"
@@ -3634,6 +3650,8 @@ if (!canRenderReceipt) {
                   ? receiptActivated
                     ? "Open Verification"
                     : "Unlock Formal Receipt"
+                  : buttonState === "checking"
+                  ? "Checking receipt status"
                   : buttonState === "no_event"
                   ? "Capture first event"
                   : "Improve Record to Pass"}
