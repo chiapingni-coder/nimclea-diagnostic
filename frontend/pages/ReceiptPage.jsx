@@ -2456,6 +2456,11 @@ const buttonState = receiptDisplayState === "ready"
   ? "has_event_not_ready"
   : "no_event";
 
+const isReceiptStatusChecking =
+  receiptDisplayState === "pending" ||
+  buttonState === "checking" ||
+  String(data.decisionStatus || "").toLowerCase() === "checking receipt status";
+
 console.log("[ReceiptPage readiness trace]", {
   caseId: inferredCaseId,
   activeCurrentCaseSource,
@@ -2536,6 +2541,13 @@ React.useEffect(() => {
 ]);
 
 const receiptExpressionModel = (() => {
+  if (isReceiptStatusChecking) {
+    return {
+      structureLabel: "Checking receipt status",
+      statusText: "Nimclea is confirming receipt readiness before showing the final receipt state.",
+    };
+  }
+
   if (isVerified || data.decisionStatus === "Verified") {
     return {
       structureLabel: "Verified structure locked",
@@ -2565,6 +2577,10 @@ const receiptExpressionModel = (() => {
 
 const decisionTone = (() => {
   const status = String(data.decisionStatus || "").toLowerCase();
+
+  if (isReceiptStatusChecking) {
+    return "checking";
+  }
 
   if (status === "verified" || status === "ready for formal determination") {
     return "ready";
@@ -3294,7 +3310,9 @@ if (!canRenderReceipt) {
                     alignItems: "center",
                     gap: "8px",
                     margin: "0 0 8px 0",
-                    color: !hasEventBackedBaseline
+                    color: isReceiptStatusChecking
+                      ? "#475569"
+                      : !hasEventBackedBaseline
                       ? "#64748B"
                       : !isEvidenceLockedConsistent
                       ? "#DC2626"
@@ -3313,7 +3331,9 @@ if (!canRenderReceipt) {
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: "999px",
-                      background: !hasEventBackedBaseline
+                      background: isReceiptStatusChecking
+                        ? "#94A3B8"
+                        : !hasEventBackedBaseline
                         ? "#94A3B8"
                         : !isEvidenceLockedConsistent
                         ? "#DC2626"
@@ -3325,6 +3345,8 @@ if (!canRenderReceipt) {
                     }}
                   >
                     {!hasEventBackedBaseline
+                      ? "-"
+                      : isReceiptStatusChecking
                       ? "-"
                       : !isEvidenceLockedConsistent
                       ? "!"
@@ -3348,7 +3370,9 @@ if (!canRenderReceipt) {
                   </span>
 
                   <span>
-                    {!hasEventBackedBaseline
+                    {isReceiptStatusChecking
+                      ? "Checking"
+                      : !hasEventBackedBaseline
                       ? "Not activated"
                       : !isEvidenceLockedConsistent
                       ? "Broken"
@@ -3359,7 +3383,9 @@ if (!canRenderReceipt) {
                 </div>
 
                 <p style={{ fontSize: "11px", color: "#64748B", margin: 0, lineHeight: 1.5 }}>
-                  {!hasEventBackedBaseline
+                  {isReceiptStatusChecking
+                    ? "Receipt readiness is being confirmed before the evidence chain is locked."
+                    : !hasEventBackedBaseline
                     ? "Evidence lock is established after the first event-backed baseline."
                     : !isEvidenceLockedConsistent
                     ? "Evidence chain mismatch detected."
@@ -3404,12 +3430,16 @@ if (!canRenderReceipt) {
                   background:
                     decisionTone === "ready"
                       ? "#F0FDF4"
+                      : decisionTone === "checking"
+                      ? "#F8FAFC"
                       : decisionTone === "warning"
                       ? "#FFFBEB"
                       : "#FEF2F2",
                   border:
                     decisionTone === "ready"
                       ? "1px solid #86EFAC"
+                      : decisionTone === "checking"
+                      ? "1px solid #CBD5E1"
                       : decisionTone === "warning"
                       ? "1px solid #FCD34D"
                       : "1px solid #FCA5A5",
@@ -3421,6 +3451,8 @@ if (!canRenderReceipt) {
                     color:
                       decisionTone === "ready"
                         ? "#059669"
+                        : decisionTone === "checking"
+                        ? "#475569"
                         : decisionTone === "warning"
                         ? "#92400E"
                         : "#B91C1C",
@@ -3448,6 +3480,8 @@ if (!canRenderReceipt) {
                       background:
                         decisionTone === "ready"
                           ? "#059669"
+                          : decisionTone === "checking"
+                          ? "#94A3B8"
                           : decisionTone === "warning"
                           ? "#F59E0B"
                           : "#DC2626",
@@ -3489,6 +3523,8 @@ if (!canRenderReceipt) {
                         color:
                           decisionTone === "ready"
                             ? "#047857"
+                            : decisionTone === "checking"
+                            ? "#475569"
                             : decisionTone === "warning"
                             ? "#92400E"
                             : "#991B1B",
