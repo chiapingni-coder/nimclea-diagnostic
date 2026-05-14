@@ -146,6 +146,10 @@ runExistingScript(
   "scripts/check-frontend-trial-status-adapter-contract.mjs",
   "frontend trial status adapter contract"
 );
+runExistingScript(
+  "scripts/check-frontend-trial-status-adapter-runtime.mjs",
+  "frontend trial status adapter runtime smoke"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");

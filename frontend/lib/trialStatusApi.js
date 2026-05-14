@@ -1,4 +1,4 @@
-import { API_BASE } from "./trialApi";
+const API_BASE = import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
 
 const SAFE_HIDDEN_TRIAL_STATUS = {
   loading: false,
