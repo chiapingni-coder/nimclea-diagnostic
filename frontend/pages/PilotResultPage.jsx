@@ -2218,27 +2218,45 @@ useEffect(() => {
   if (!resolvedCaseId) return;
   if (!hasCapturedEvents) return;
 
-  updateCase(resolvedCaseId, {
-    status: "pilot_result_ready",
-    currentStep: "pilot_result",
-    events: entries,
-    eventCount: entries.length,
-    normalizedScore: scoring.totalScore,
-    workspaceSummary: executionSummary,
-    receiptEligible: Boolean(canProceedToReceipt),
-    verificationEligible: Boolean(canProceedToReceipt),
-    pilot: {
-      ...(currentCase?.pilot || {}),
-      normalizedScore: scoring.totalScore,
-      events: entries,
+  const compactEvents = Array.isArray(entries)
+    ? entries.slice(-5).map((entry, index) => ({
+        id: entry?.id || entry?.eventId || `pilot_event_${index + 1}`,
+        timestamp: entry?.timestamp || entry?.createdAt || entry?.time || "",
+        eventType: entry?.eventType || entry?.type || entry?.eventInput?.eventType || "",
+        summary:
+          entry?.summary ||
+          entry?.eventInput?.summaryContext ||
+          entry?.eventInput?.description ||
+          entry?.text ||
+          "",
+      }))
+    : [];
+
+  try {
+    updateCase(resolvedCaseId, {
+      status: "pilot_result_ready",
+      currentStep: "pilot_result",
+      events: compactEvents,
       eventCount: entries.length,
-      passed: Boolean(canProceedToReceipt),
+      normalizedScore: scoring.totalScore,
       workspaceSummary: executionSummary,
-      structureStatus: resolvedStructureStatus,
       receiptEligible: Boolean(canProceedToReceipt),
-      updatedAt: new Date().toISOString(),
-    },
-  });
+      verificationEligible: Boolean(canProceedToReceipt),
+      pilot: {
+        ...(currentCase?.pilot || {}),
+        normalizedScore: scoring.totalScore,
+        events: compactEvents,
+        eventCount: entries.length,
+        passed: Boolean(canProceedToReceipt),
+        workspaceSummary: executionSummary,
+        structureStatus: resolvedStructureStatus,
+        receiptEligible: Boolean(canProceedToReceipt),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.warn("Failed to persist pilot result snapshot", error);
+  }
 }, [
   canProceedToReceipt,
   currentCase,
