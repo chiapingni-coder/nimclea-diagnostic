@@ -43,6 +43,22 @@ Required production smoke:
 6. Repeat with a second ready receipt case.
 7. Optionally test Pilot Result → Receipt.
 
+## Boundary contract anchors
+
+Production release readiness is now anchored to these completed 12-A2 documents:
+
+- docs/NIMCLEA_ACCEPTANCE_BOUNDARY_CONTRACT_V0_1.md
+- docs/NIMCLEA_RESPONSIBILITY_BOUNDARY_CONTRACT_V0_1.md
+- docs/NIMCLEA_EVIDENCE_BOUNDARY_CONTRACT_V0_1.md
+- docs/NIMCLEA_EXPORT_BOUNDARY_CONTRACT_V0_1.md
+- docs/NIMCLEA_ACCEPTANCE_CHECKLIST_V0_1.md
+
+- Acceptance readiness must follow the acceptance boundary and acceptance checklist.
+- Responsibility readiness must not imply Nimclea guarantees the real-world truth of user-provided facts.
+- Evidence readiness must not treat placeholder, mock, stale local-only, or unlinked data as authoritative evidence.
+- Export readiness must not expose mock data, unstable local-only state, or unrelated case data.
+- Any violation of these boundary contracts is a release HOLD or STOP condition.
+
 ## Release interpretation
 
 This is a guarded readiness baseline, not a new feature expansion.
