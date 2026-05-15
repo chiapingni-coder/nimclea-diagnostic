@@ -2405,7 +2405,10 @@ const hasReadyReceipt =
   hydratedReceiptRecord?.caseReceiptEligible === true ||
   currentCase?.receiptEligible === true ||
   currentCase?.caseReceiptEligible === true ||
-  activeReceiptStatus === "ready";
+  activeReceiptStatus === "ready" ||
+  activeReceiptLifecycleValues.some((value) =>
+    ["receipt ready", "receipt_ready", "ready", "issued", "baseline issued"].includes(value)
+  );
 const hasPilotResultContext =
   Boolean(activeCurrentCase?.result) ||
   Boolean(activeCurrentCase?.preview) ||
@@ -2436,10 +2439,19 @@ const receiptReadinessPending =
   backendCaseRepairing ||
   isReceiptBackendSyncPending;
 
+const receiptReadinessAuthoritative =
+  backendCaseLookupComplete &&
+  receiptRecordHydrationComplete &&
+  !backendCaseLoading &&
+  !backendCaseRepairing &&
+  !isReceiptCaseHydrating &&
+  !isReceiptBackendSyncPending;
+
 const hasConfirmedNonReadyReceipt =
   hasReceiptCaseContext &&
   hasPilotResultContext &&
   !hasReadyReceipt &&
+  receiptReadinessAuthoritative &&
   (
     activeCurrentCase?.receiptEligible === false ||
     activeCurrentCase?.caseReceiptEligible === false ||
@@ -2458,27 +2470,40 @@ const receiptHydrationFailed =
       needsReceiptBackendPresence &&
       !hasReceiptCaseContext
   );
+const canRenderReceiptInsufficient =
+  receiptReadinessAuthoritative &&
+  hasConfirmedNonReadyReceipt &&
+  !hasReadyReceipt &&
+  !receiptHydrationFailed;
 const receiptDisplayState = receiptHydrationFailed
   ? "unable"
   : hasReadyReceipt
   ? "ready"
-  : receiptReadinessPending
-  ? "pending"
-  : hasConfirmedNonReadyReceipt
-  ? "insufficient"
-  : hasPilotResultContext
+  : canRenderReceiptInsufficient
   ? "insufficient"
   : "pending";
 
+const visualDecisionStatus =
+  receiptDisplayState === "pending"
+    ? "Checking receipt status"
+    : receiptDisplayState === "ready"
+    ? "READY FOR FORMAL DETERMINATION"
+    : data.decisionStatus;
+
+const visualStatusTone =
+  receiptDisplayState === "ready"
+    ? "success"
+    : receiptDisplayState === "insufficient"
+    ? "warning"
+    : "neutral";
+
 const buttonState = receiptDisplayState === "ready"
   ? "ready"
-  : receiptDisplayState === "pending" || receiptDisplayState === "unable"
-  ? "checking"
-  : isReady
-  ? "ready"
-  : hasEvents
-  ? "has_event_not_ready"
-  : "no_event";
+  : receiptDisplayState === "insufficient"
+  ? hasEvents
+    ? "has_event_not_ready"
+    : "no_event"
+  : "checking";
 
 const isReceiptStatusChecking =
   receiptDisplayState === "pending" ||
@@ -2600,25 +2625,25 @@ const receiptExpressionModel = (() => {
 })();
 
 const decisionTone = (() => {
-  const status = String(data.decisionStatus || "").toLowerCase();
-
-  if (isReceiptStatusChecking) {
+  if (visualStatusTone === "neutral") {
     return "checking";
   }
 
-  if (status === "verified" || status === "ready for formal determination") {
+  if (visualStatusTone === "success") {
     return "ready";
   }
 
-  if (status === "receipt pending review" || status === "insufficient record") {
+  if (visualStatusTone === "warning") {
     return "warning";
   }
+
+  const status = String(visualDecisionStatus || "").toLowerCase();
 
   if (status === "receipt failed" || status === "failed") {
     return "failed";
   }
 
-  return "warning";
+  return "checking";
 })();
 
 const formatEventText = (event) => {
@@ -3554,7 +3579,7 @@ if (!canRenderReceipt) {
                             : "#991B1B",
                       }}
                     >
-                      {sanitizeText(data.decisionStatus).toUpperCase()}
+                      {sanitizeText(visualDecisionStatus).toUpperCase()}
                     </p>
               
                     <p
@@ -3565,7 +3590,7 @@ if (!canRenderReceipt) {
                         lineHeight: 1.5,
                       }}
                     >
-                      {data.decisionStatus === "Insufficient Record"
+                      {receiptDisplayState === "insufficient"
                         ? "Add at least one real event to activate baseline issuance."
                         : "Baseline issuance is required for a valid and enforceable determination."}
                     </p>
@@ -3806,7 +3831,11 @@ if (!canRenderReceipt) {
                 <div className="space-y-1">
                   <p
                     className={`text-xs ${
-                      receiptEligible ? "text-emerald-700" : "text-amber-700"
+                      receiptDisplayState === "ready"
+                        ? "text-emerald-700"
+                        : receiptDisplayState === "insufficient"
+                        ? "text-amber-700"
+                        : "text-slate-600"
                     }`}
                   >
                     Receipt eligibility is based on four checks: Evidence,
