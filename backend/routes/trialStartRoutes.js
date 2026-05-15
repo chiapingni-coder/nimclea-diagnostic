@@ -13,6 +13,10 @@ const trialsFile = path.join(__dirname, "../data/trials.json");
 router.post("/start", (req, res) => {
   try {
     const { userId, trialId, entryPoint = "unknown", pcCode = "PC-CORE" } = req.body || {};
+    const normalizedEmail =
+      typeof req.body?.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
 
     if (!trialId || !userId) {
       return res.status(400).json({
@@ -39,6 +43,8 @@ router.post("/start", (req, res) => {
     trials[targetIndex] = {
       ...trials[targetIndex],
       trialSessionId: trials[targetIndex].trialSessionId || makeId("ts"),
+      email: normalizedEmail || trials[targetIndex].email || trials[targetIndex].userEmail || "",
+      userEmail: normalizedEmail || trials[targetIndex].userEmail || trials[targetIndex].email || "",
       status: "active",
       entryPoint,
       pcCode,
@@ -55,6 +61,8 @@ router.post("/start", (req, res) => {
         trialId: trials[targetIndex].trialId,
         trialSessionId: trials[targetIndex].trialSessionId,
         userId: trials[targetIndex].userId,
+        email: trials[targetIndex].email,
+        userEmail: trials[targetIndex].userEmail,
         pcCode: trials[targetIndex].pcCode,
         entryPoint: trials[targetIndex].entryPoint,
         status: trials[targetIndex].status,

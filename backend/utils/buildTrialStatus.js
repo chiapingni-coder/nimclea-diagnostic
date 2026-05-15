@@ -111,6 +111,22 @@ function isRelatedRecord(record = {}, selectedTrial = {}, targetUserId = "", tar
   return false;
 }
 
+function inferUserIdForEmail(records = [], targetEmail = "") {
+  const email = normalizeEmail(targetEmail);
+
+  if (!email || !Array.isArray(records)) return "";
+
+  const matchedRecord = records.find(
+    (record) =>
+      record &&
+      typeof record === "object" &&
+      hasEmailMatch(record, email) &&
+      getRecordUserId(record)
+  );
+
+  return matchedRecord ? getRecordUserId(matchedRecord) : "";
+}
+
 function hasStartedTrial(record = {}) {
   return Boolean(parseTime(record.startedAt || record.trialStartedAt));
 }
@@ -335,7 +351,16 @@ export function buildTrialStatus({
   // This helper is read-only: it only normalizes supplied inputs.
   const nowDate = normalizeNow(now);
   const targetEmail = normalizeEmail(email);
-  const targetUserId = normalizeText(userId);
+  const targetUserId =
+    normalizeText(userId) ||
+    inferUserIdForEmail(
+      [
+        ...(Array.isArray(caseRecords) ? caseRecords : []),
+        ...(Array.isArray(paymentRecords) ? paymentRecords : []),
+        ...(Array.isArray(subscriptionRecords) ? subscriptionRecords : []),
+      ],
+      targetEmail
+    );
   const selectedTrial = selectTrialRecord({
     trialRecords,
     email: targetEmail,

@@ -46,6 +46,8 @@ router.post("/register", async (req, res) => {
     const trialRecord = {
       trialId: makeId("trial"),
       userId: userRecord.userId,
+      email: normalizedEmail,
+      userEmail: normalizedEmail,
       status: "registered",
       createdAt: now,
       startedAt: null,
