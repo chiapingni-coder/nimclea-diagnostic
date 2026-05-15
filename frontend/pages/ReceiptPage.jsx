@@ -2711,6 +2711,90 @@ const customerRecordCaseText =
   data.summaryText ||
   "No case origin provided.";
 
+const decisionScopeCandidates = [
+  activeCurrentCase?.title,
+  activeCurrentCase?.caseTitle,
+  activeCurrentCase?.caseName,
+  activeCurrentCase?.decisionSubject,
+  activeCurrentCase?.caseData?.workflow,
+  activeCurrentCase?.caseData?.decisionSubject,
+  hydratedReceiptRecord?.title,
+  hydratedReceiptRecord?.caseTitle,
+  hydratedReceiptRecord?.caseName,
+  hydratedReceiptRecord?.decisionSubject,
+  hydratedReceiptRecord?.caseData?.workflow,
+  normalized?.caseData?.workflow,
+  normalized?.caseData?.decisionSubject,
+  data.receiptTitle,
+  data.summaryText,
+  data.scenarioLabel,
+  customerRecordCaseOrigin,
+].map((value) => String(value || "").trim());
+const decisionScopeText =
+  decisionScopeCandidates.find(
+    (value) =>
+      value &&
+      !["decision receipt", "receipt preview", "formal receipt"].includes(
+        value.toLowerCase()
+      )
+  ) || "Decision scope not specified yet.";
+const hasDecisionScope = decisionScopeText !== "Decision scope not specified yet.";
+const hasSupportingContext = Boolean(
+  data.summaryText ||
+    data.scenarioLabel ||
+    data.stageLabel ||
+    data.executionSummary?.latestEventDescription ||
+    data.executionSummary?.mainObservedShift ||
+    data.executionSummary?.nextCalibrationAction ||
+    customerRecordCaseOrigin ||
+    safeCustomerRecordEvents.length > 0
+);
+const scopeSnapshotChecks = [
+  {
+    label: "Decision subject identified",
+    status: hasDecisionScope ? "Passed" : "Missing",
+  },
+  {
+    label: "Case event captured",
+    status: hasEvents || effectiveEventCaptured || receiptEventCount > 0 ? "Passed" : "Missing",
+  },
+  {
+    label: "Evidence or supporting context present",
+    status: hasSupportingContext ? "Passed" : hasEvents ? "Weak" : "Missing",
+  },
+  {
+    label: "Receipt readiness evaluated",
+    status:
+      receiptDisplayState === "pending"
+        ? "Checking"
+        : receiptDisplayState === "ready"
+        ? "Passed"
+        : "Weak",
+  },
+];
+const firstScopeSnapshotGap = scopeSnapshotChecks.find((item) =>
+  ["Missing", "Weak", "Checking"].includes(item.status)
+);
+const scopeSnapshotGapText = firstScopeSnapshotGap
+  ? `${firstScopeSnapshotGap.label}: ${firstScopeSnapshotGap.status}`
+  : "No blocking acceptance gap detected.";
+const scopeSnapshotRepairAction = (() => {
+  if (!hasDecisionScope) return "Clarify the decision being evaluated.";
+  if (!hasEvents && !effectiveEventCaptured && receiptEventCount <= 0) {
+    return "Capture at least one real event before relying on this receipt.";
+  }
+  if (!hasSupportingContext) {
+    return "Add supporting context or evidence for the decision record.";
+  }
+  if (receiptDisplayState === "pending") {
+    return "Wait for receipt readiness to finish checking.";
+  }
+  if (receiptDisplayState === "ready") {
+    return "Receipt record is ready to support the next step.";
+  }
+  return "Add supporting context or evidence for the decision record.";
+})();
+
 const finalEvidenceLock = {
   receiptId: data.receiptId,
   receiptHash: data.receiptHash,
@@ -3745,6 +3829,95 @@ if (!canRenderReceipt) {
               </button>
             </div>
           </div>
+
+          <section
+            className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            aria-label="Decision scope and acceptance snapshot"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-slate-400">
+                  Decision Scope & Acceptance Snapshot
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {sanitizeText(decisionScopeText)}
+                </p>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-500">
+                Read-only
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              {scopeSnapshotChecks.map((item) => {
+                const tone =
+                  item.status === "Passed"
+                    ? {
+                        background: "#ECFDF5",
+                        border: "#A7F3D0",
+                        color: "#047857",
+                      }
+                    : item.status === "Checking"
+                    ? {
+                        background: "#F8FAFC",
+                        border: "#CBD5E1",
+                        color: "#475569",
+                      }
+                    : item.status === "Weak"
+                    ? {
+                        background: "#FFFBEB",
+                        border: "#FDE68A",
+                        color: "#92400E",
+                      }
+                    : {
+                        background: "#FEF2F2",
+                        border: "#FECACA",
+                        color: "#991B1B",
+                      };
+
+                return (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2"
+                    style={{ borderColor: "#E2E8F0" }}
+                  >
+                    <span className="text-xs font-medium text-slate-700">
+                      {sanitizeText(item.label)}
+                    </span>
+                    <span
+                      className="rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                      style={{
+                        backgroundColor: tone.background,
+                        borderColor: tone.border,
+                        color: tone.color,
+                      }}
+                    >
+                      {sanitizeText(item.status)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 grid gap-3 border-t border-slate-200 pt-3 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-medium uppercase text-slate-400">
+                  Weak / missing item
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-700">
+                  {sanitizeText(scopeSnapshotGapText)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase text-slate-400">
+                  Repair action
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-700">
+                  {sanitizeText(scopeSnapshotRepairAction)}
+                </p>
+              </div>
+            </div>
+          </section>
         </header>
 
           <section className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
