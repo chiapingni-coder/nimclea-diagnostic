@@ -37,14 +37,52 @@ router.post("/start", (req, res) => {
       });
     }
 
+    const existingTrial = trials[targetIndex] || {};
+    const existingStartedAt = existingTrial.startedAt || existingTrial.trialStartedAt || "";
+
+    if (existingStartedAt) {
+      const shouldBackfillEmail = Boolean(
+        normalizedEmail && (!existingTrial.email || !existingTrial.userEmail)
+      );
+      const startedTrial = shouldBackfillEmail
+        ? {
+            ...existingTrial,
+            email: existingTrial.email || normalizedEmail,
+            userEmail: existingTrial.userEmail || normalizedEmail,
+          }
+        : existingTrial;
+
+      if (shouldBackfillEmail) {
+        trials[targetIndex] = startedTrial;
+        writeJsonFile(trialsFile, trials);
+      }
+
+      return res.json({
+        success: true,
+        message: "Trial already started",
+        data: {
+          trialId: startedTrial.trialId,
+          trialSessionId: startedTrial.trialSessionId,
+          userId: startedTrial.userId,
+          email: startedTrial.email,
+          userEmail: startedTrial.userEmail,
+          pcCode: startedTrial.pcCode,
+          entryPoint: startedTrial.entryPoint,
+          status: startedTrial.status,
+          startedAt: startedTrial.startedAt || startedTrial.trialStartedAt,
+          expiresAt: startedTrial.expiresAt || startedTrial.trialEndsAt,
+        },
+      });
+    }
+
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     trials[targetIndex] = {
-      ...trials[targetIndex],
-      trialSessionId: trials[targetIndex].trialSessionId || makeId("ts"),
-      email: normalizedEmail || trials[targetIndex].email || trials[targetIndex].userEmail || "",
-      userEmail: normalizedEmail || trials[targetIndex].userEmail || trials[targetIndex].email || "",
+      ...existingTrial,
+      trialSessionId: existingTrial.trialSessionId || makeId("ts"),
+      email: normalizedEmail || existingTrial.email || existingTrial.userEmail || "",
+      userEmail: normalizedEmail || existingTrial.userEmail || existingTrial.email || "",
       status: "active",
       entryPoint,
       pcCode,
