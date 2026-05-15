@@ -130,6 +130,10 @@ runExistingScript(
   "receipt readiness visual gate"
 );
 runExistingScript(
+  "scripts/check-receipt-pdf-deliverable-trust.mjs",
+  "receipt PDF deliverable trust guard"
+);
+runExistingScript(
   "scripts/check-cases-page-trial-status-bar-contract.mjs",
   "CasesPage trial status bar contract"
 );
