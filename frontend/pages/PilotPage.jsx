@@ -857,6 +857,8 @@ export default function PilotPage() {
     [location.search]
   );
 
+  const urlCaseId = searchParams.get("caseId") || "";
+
   const isCaseReview = useMemo(
     () =>
       searchParams.get("from") === "case" ||
@@ -908,14 +910,26 @@ export default function PilotPage() {
     () =>
       resolveCaseId({
         caseId:
+          (isCaseReview && urlCaseId ? urlCaseId : "") ||
           location.state?.caseId ||
           location.state?.case_id ||
-          searchParams.get("caseId") ||
+          urlCaseId ||
           incomingCaseSchema?.caseId ||
           "",
       }),
-    [location.state, searchParams, incomingCaseSchema]
+    [isCaseReview, urlCaseId, location.state, incomingCaseSchema]
   );
+
+  React.useEffect(() => {
+    if (!isCaseReview || !resolvedCaseId) return;
+
+    setCurrentCaseId(resolvedCaseId);
+    try {
+      localStorage.setItem("current_case_id", resolvedCaseId);
+    } catch {
+      // URL caseId remains canonical for case review routing.
+    }
+  }, [isCaseReview, resolvedCaseId]);
 
   const weakestDimension =
     incomingCaseSchema?.weakestDimension ||
