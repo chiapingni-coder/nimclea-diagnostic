@@ -130,7 +130,11 @@ export default function AccessEntryPage() {
         clearCurrentCase();
         navigate(ROUTES.DIAGNOSTIC, {
           replace: true,
-          state: { email },
+          state: {
+            email,
+            from: "access_zero_case_email",
+            autoStartDiagnostic: true,
+          },
         });
       } catch (error) {
         console.warn("[AccessEntryPage] Failed to resolve email access", error);

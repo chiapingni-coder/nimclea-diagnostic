@@ -189,7 +189,13 @@ export default function Questionnaire({ pcMeta }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [phase, setPhase] = useState(PHASE.LANDING);
+  const shouldAutoStartDiagnostic =
+    location.state?.autoStartDiagnostic === true ||
+    location.state?.from === "access_zero_case_email";
+
+  const [phase, setPhase] = useState(() =>
+    shouldAutoStartDiagnostic ? PHASE.CORE : PHASE.LANDING
+  );
   const searchParams = new URLSearchParams(location.search || "");
   const incomingCaseId =
     searchParams.get("caseId") ||
