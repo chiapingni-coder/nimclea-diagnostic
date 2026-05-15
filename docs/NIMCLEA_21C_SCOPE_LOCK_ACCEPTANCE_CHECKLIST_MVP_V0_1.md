@@ -8,7 +8,73 @@ The goal is not to ask real customers to casually try the product.
 
 The goal is to make sure the first customer experience is credible, bounded, understandable, and does not create false confidence.
 
-## 2. MVP Scope Lock
+## 2. Current Launch Scope Lock after 21-E
+
+### What the Trial MVP Includes
+
+- Diagnostic / result.
+- Case plan / pilot flow.
+- Case dashboard.
+- Receipt readiness.
+- Event capture.
+- Receipt PDF deliverable.
+- Hash / ledger display if available.
+- Verification path only where already unlocked by current rules.
+
+### What the Trial MVP Does Not Include Yet
+
+- Full audit opinion.
+- Legal/regulatory certification.
+- Fully automated customer onboarding.
+- Fully polished marketing site.
+- Full AI interpretation layer.
+- Full payment live-card smoke if not yet completed.
+- Custom customer-specific report design.
+
+### Customer-Facing Deliverables
+
+- Diagnostic result.
+- Case / pilot plan.
+- Receipt page.
+- Receipt PDF with Nimclea wordmark, formal title, case fields, evidence status, ledger/hash area, and disclaimer.
+
+### Launch Acceptance Checklist
+
+Required PASS:
+
+- [ ] New user can start diagnostic.
+- [ ] Returning user can reach CasesPage.
+- [ ] Result can lead to case/pilot plan.
+- [ ] Case can reach ReceiptPage.
+- [ ] Event capture can support receipt readiness.
+- [ ] Receipt ready state does not show wrong blocking state.
+- [ ] Receipt PDF exports with core fields.
+- [ ] Verification is not reachable unless current unlock rules allow it.
+- [ ] Release gate has FAIL 0.
+
+Acceptable WARN:
+
+- Manual-only release areas.
+- Existing html2pdf mixed import warning.
+- Existing Vite chunk-size warning.
+- Live payment final card test if explicitly marked deferred.
+
+Blocking FAIL:
+
+- White screen.
+- Broken diagnostic entry.
+- Broken CasesPage.
+- Receipt PDF missing core fields.
+- Receipt readiness wrong state.
+- Verification unlock bypass.
+- Payment route causing unintended access.
+- Release gate FAIL > 0.
+
+### Final Launch Interpretation
+
+The MVP is acceptable for controlled trial outreach when all required PASS items are confirmed and no blocking FAIL remains. The product should be presented as a decision receipt and evidence-backed workflow MVP, not as a legal, audit, or regulatory certification product.
+
+## 3. MVP Scope Lock
 
 For this MVP outreach decision, scope is locked to the following:
 
@@ -23,7 +89,7 @@ For this MVP outreach decision, scope is locked to the following:
 - Payment live smoke remains partially deferred if real card payment cannot yet be completed.
 - UI polish is allowed only if it directly affects trust or comprehension before outreach.
 
-## 3. Trust Standard
+## 4. Trust Standard
 
 The acceptance question is not "can a user test it?"
 
@@ -33,7 +99,7 @@ Nimclea may be incomplete, but it must not be misleading.
 
 Any state that appears authoritative must be backed by real routing, real evidence, real case context, or clearly documented limitation.
 
-## 4. Explicit Out of Scope
+## 5. Explicit Out of Scope
 
 The following items are deferred only because they are not required for first-contact trust:
 
@@ -46,7 +112,7 @@ The following items are deferred only because they are not required for first-co
 - Full automation dashboard.
 - Non-critical visual refinements.
 
-## 5. Acceptance Checklist Before Sending Emails
+## 6. Acceptance Checklist Before Sending Emails
 
 ### MUST
 
@@ -71,7 +137,7 @@ The following items are deferred only because they are not required for first-co
 - [ ] Error/fallback language is not alarming.
 - [ ] User can recover by going back to CasesPage.
 
-## 6. Stop Line
+## 7. Stop Line
 
 Outreach must be blocked if any of the following are active:
 
@@ -83,7 +149,7 @@ Outreach must be blocked if any of the following are active:
 - Customer cannot understand what to do next.
 - Any screen creates false confidence about evidence, receipt, verification, or payment.
 
-## 7. Outreach Permission Rule
+## 8. Outreach Permission Rule
 
 If all MUST items pass and no Stop Line item is active, Nimclea may begin limited real outreach.
 
@@ -95,7 +161,7 @@ If any MUST item fails, do not send real customer emails yet.
 
 SHOULD items may be deferred only if they do not affect trust, routing, evidence, payment truth, verification boundaries, or comprehension.
 
-## 8. Recommended Next Action
+## 9. Recommended Next Action
 
 After this document is created:
 
