@@ -2941,19 +2941,10 @@ export default function CasesPage() {
                         <span className="font-semibold text-emerald-950">
                           {trialStatusDisplay.trialDay}
                         </span>
-                        {" of 7 · Cases created: "}
-                        <span className="font-semibold text-emerald-950">
-                          {trialStatusDisplay.activeCaseCount}
-                        </span>
+                        {" of 7"}
                       </>
                     ) : (
-                      <>
-                        <span className="font-semibold text-emerald-950">7-Day Pilot</span>
-                        {" active · Cases created: "}
-                        <span className="font-semibold text-emerald-950">
-                          {trialStatusDisplay.activeCaseCount}
-                        </span>
-                      </>
+                      <span className="font-semibold text-emerald-950">7-Day Pilot active</span>
                     )}
                   </p>
                   <button
