@@ -691,6 +691,7 @@ app.get("/cases", async (req, res) => {
     const storedCases = readJsonFile("cases.json", []);
     const storedReceiptRecords = readJsonFile("receiptRecords.json", []);
     const storedEventLogs = readJsonFile("eventLogs.json", []);
+    const storedTrials = readJsonFile("trials.json", []);
     const storedSubscriptionRecords = readJsonFile("subscriptionRecords.json", []);
     const storedUsers = readJsonFile("users.json", []);
 
@@ -704,6 +705,7 @@ app.get("/cases", async (req, res) => {
       : Array.isArray(storedEventLogs?.logs)
       ? storedEventLogs.logs
       : [];
+    const localTrials = Array.isArray(storedTrials) ? storedTrials : [];
     const subscriptionRecords = Array.isArray(storedSubscriptionRecords)
       ? storedSubscriptionRecords
       : [];
@@ -713,6 +715,7 @@ app.get("/cases", async (req, res) => {
       ...localCases,
       ...localReceiptRecords,
       ...localEventLogs,
+      ...localTrials,
     ]);
     const supabaseSources = await loadSupabaseCaseSourcesForEmail(email, localDeletedCaseIds);
     const deletedCaseIds = new Set([
@@ -1082,6 +1085,10 @@ app.get("/cases", async (req, res) => {
     // receipt_snapshot rows are overlay/protected-only and must not seed ordinary workspace cases.
     const finalCases = Array.from(finalCaseMap.values())
       .filter((item) => !isUnpaidReceiptSnapshotArtifact(item))
+      .filter((item) => {
+        const caseId = caseIdOf(item);
+        return !caseId || !deletedCaseIds.has(caseId);
+      })
       .sort((a, b) => getCaseSortTime(b) - getCaseSortTime(a))
       .map((item) => {
         const {

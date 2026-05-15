@@ -5,7 +5,6 @@ import {
   appendJsonRecord,
 } from "../utils/jsonStore.js";
 import {
-  deleteCaseMirrorRowsFromSupabase,
   mirrorDeletedCaseToSupabase,
   mirrorCaseToSupabase,
   mirrorCasePlanToSupabase,
@@ -282,6 +281,7 @@ function buildDiscardPatch(existing = {}, reqBody = {}) {
 
   return {
     deletedAt,
+    caseDeletedAt: deletedAt,
     discardedAt: deletedAt,
     deletedBy: reqBody.deletedBy || "user",
     deletionReason: reqBody.deletionReason || "user_confirmed_delete",
@@ -300,6 +300,12 @@ function recordDeletedCase(caseId = "", discardPatch = {}, reqBody = {}) {
   const tombstone = {
     caseId,
     deletedAt: discardPatch.deletedAt || new Date().toISOString(),
+    caseDeletedAt:
+      discardPatch.caseDeletedAt ||
+      discardPatch.deletedAt ||
+      new Date().toISOString(),
+    isDeleted: true,
+    deleted: true,
     deletedBy: discardPatch.deletedBy || reqBody.deletedBy || "user",
     deletionReason:
       discardPatch.deletionReason ||
@@ -317,6 +323,51 @@ function recordDeletedCase(caseId = "", discardPatch = {}, reqBody = {}) {
   writeJsonFile(DELETED_CASES_FILE, nextDeletedCases);
 
   return tombstone;
+}
+
+function upsertCaseDeletionTombstone(caseId = "", sourceRecord = {}, discardPatch = {}) {
+  if (!caseId) return null;
+
+  const casesRaw = readJsonFile(CASES_FILE, []);
+  const cases = Array.isArray(casesRaw) ? casesRaw : [];
+  const existingIndex = findCaseIndex(cases, caseId);
+  const existing = existingIndex >= 0 ? cases[existingIndex] || {} : sourceRecord || {};
+  const deletedAt =
+    discardPatch.deletedAt ||
+    discardPatch.caseDeletedAt ||
+    existing.deletedAt ||
+    existing.caseDeletedAt ||
+    new Date().toISOString();
+  const tombstonedCase = {
+    ...existing,
+    id: existing.id || caseId,
+    caseId: existing.caseId || caseId,
+    deletedAt,
+    caseDeletedAt: discardPatch.caseDeletedAt || deletedAt,
+    discardedAt: discardPatch.discardedAt || deletedAt,
+    isDeleted: true,
+    deleted: true,
+    deletedBy: discardPatch.deletedBy || existing.deletedBy || "user",
+    deletionReason:
+      discardPatch.deletionReason ||
+      existing.deletionReason ||
+      "user_confirmed_delete",
+    deletedFrom:
+      discardPatch.deletedFrom ||
+      existing.deletedFrom ||
+      "cases_page",
+    updatedAt: deletedAt,
+  };
+
+  if (existingIndex >= 0) {
+    cases[existingIndex] = tombstonedCase;
+  } else {
+    cases.push(tombstonedCase);
+  }
+
+  writeJsonFile(CASES_FILE, cases);
+
+  return tombstonedCase;
 }
 
 function getDeletedCaseIdSet(extraRecords = []) {
@@ -874,9 +925,13 @@ router.patch("/:caseId/discard", async (req, res) => {
 
       const discardPatch = buildDiscardPatch(sourceRecord, req.body || {});
       const tombstone = recordDeletedCase(resolvedCaseId, discardPatch, req.body || {});
-      const removed = hardDeleteCaseArtifacts(resolvedCaseId);
+      const caseTombstone = upsertCaseDeletionTombstone(
+        resolvedCaseId,
+        sourceRecord,
+        discardPatch
+      );
       await mirrorDeletedCaseToSupabase(tombstone);
-      await deleteCaseMirrorRowsFromSupabase(resolvedCaseId);
+      await mirrorCaseToSupabase(caseTombstone);
 
       return res.json({
         success: true,
@@ -884,7 +939,7 @@ router.patch("/:caseId/discard", async (req, res) => {
         data: {
           caseId: resolvedCaseId,
           deletedAt: tombstone.deletedAt,
-          removed,
+          tombstoned: true,
           tombstoneOnly: true,
         },
       });
@@ -921,9 +976,13 @@ router.patch("/:caseId/discard", async (req, res) => {
 
     const discardPatch = buildDiscardPatch(existing, req.body || {});
     const tombstone = recordDeletedCase(resolvedCaseId, discardPatch, req.body || {});
-    const removed = hardDeleteCaseArtifacts(resolvedCaseId);
+    const caseTombstone = upsertCaseDeletionTombstone(
+      resolvedCaseId,
+      existing,
+      discardPatch
+    );
     await mirrorDeletedCaseToSupabase(tombstone);
-    await deleteCaseMirrorRowsFromSupabase(resolvedCaseId);
+    await mirrorCaseToSupabase(caseTombstone);
 
     return res.json({
       success: true,
@@ -931,7 +990,7 @@ router.patch("/:caseId/discard", async (req, res) => {
       data: {
         caseId: resolvedCaseId,
         deletedAt: tombstone.deletedAt,
-        removed,
+        tombstoned: true,
       },
     });
   } catch (error) {
