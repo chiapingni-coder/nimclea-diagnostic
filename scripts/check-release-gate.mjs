@@ -123,6 +123,10 @@ runExistingScript(
   "receipt readiness transition contract"
 );
 runExistingScript(
+  "scripts/check-receipt-readiness-visual-gate.mjs",
+  "receipt readiness visual gate"
+);
+runExistingScript(
   "scripts/check-cases-page-trial-status-bar-contract.mjs",
   "CasesPage trial status bar contract"
 );
