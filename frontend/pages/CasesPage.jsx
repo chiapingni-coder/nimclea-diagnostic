@@ -1600,6 +1600,9 @@ export default function CasesPage() {
   const [emailError, setEmailError] = React.useState("");
   const [emailStatus, setEmailStatus] = React.useState("");
   const [loadingCases, setLoadingCases] = React.useState(false);
+  const [workspaceLookupSettled, setWorkspaceLookupSettled] = React.useState(
+    () => !formatEmail(resolvedEmail).includes("@")
+  );
   const [diagnosticHandoffInProgress, setDiagnosticHandoffInProgress] = React.useState(false);
   const [showNoCaseModal, setShowNoCaseModal] = React.useState(false);
   const [showActiveCaseLimitModal, setShowActiveCaseLimitModal] = React.useState(false);
@@ -1621,6 +1624,12 @@ export default function CasesPage() {
       archivedCases.length > 0 ||
       isKnownWorkspaceEmail(resolvedWorkspaceEmail)
     );
+  const hasResolvedEmailForLookup = Boolean(
+    resolvedWorkspaceEmail && resolvedWorkspaceEmail.includes("@")
+  );
+  const workspaceLookupUnsettled =
+    hasResolvedEmailForLookup && !workspaceLookupSettled && !hasWorkspaceIdentity;
+  const shouldSuppressWorkspaceOnboardingSurface = workspaceLookupUnsettled;
   const hasBackendConfirmedPilotExtension =
     pilotExtensionAccess?._backendConfirmed === true &&
     pilotExtensionAccess?.pilotExtensionPaid === true &&
@@ -1713,12 +1722,14 @@ export default function CasesPage() {
       setEmailInput("");
       setCases([]);
       setArchivedCases([]);
+      setWorkspaceLookupSettled(true);
 
       return;
     }
 
     diagnosticHandoffInProgressRef.current = false;
     setDiagnosticHandoffInProgress(false);
+    setWorkspaceLookupSettled(false);
     setLoadingCases(true);
     setEmailError("");
     setEmailStatus("");
@@ -1925,6 +1936,7 @@ export default function CasesPage() {
       setEmailStatus("");
       setEmailError("Could not load cases. Please try again.");
     } finally {
+      setWorkspaceLookupSettled(true);
       if (!diagnosticHandoffInProgressRef.current) {
         setLoadingCases(false);
       }
@@ -2189,6 +2201,7 @@ export default function CasesPage() {
     setEmailError("");
     setEmailStatus("");
     setLoadingCases(false);
+    setWorkspaceLookupSettled(true);
     setShowNoCaseModal(false);
     setCaseView("active");
 
@@ -3015,7 +3028,10 @@ export default function CasesPage() {
           </nav>
         )}
 
-        {!loadingCases && !diagnosticHandoffInProgress && !hasWorkspaceIdentity && (
+        {!loadingCases &&
+          !diagnosticHandoffInProgress &&
+          !hasWorkspaceIdentity &&
+          !shouldSuppressWorkspaceOnboardingSurface && (
           <section className="flex justify-center">
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
               <div className="mb-8 flex flex-col items-center">
