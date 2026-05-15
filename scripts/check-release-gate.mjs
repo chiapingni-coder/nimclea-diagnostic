@@ -165,6 +165,10 @@ runExistingScript(
   "scripts/check-result-review-cta-guard.mjs",
   "ResultPage review CTA guard"
 );
+runExistingScript(
+  "scripts/check-event-review-contract.mjs",
+  "20A event review boundary guard"
+);
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
