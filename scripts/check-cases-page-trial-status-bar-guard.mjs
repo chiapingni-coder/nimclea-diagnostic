@@ -33,6 +33,27 @@ function extractBetween(source, startNeedle, endNeedle) {
   return source.slice(start, end);
 }
 
+function extractAroundAll(source, anchors, radius = 1800) {
+  const windows = [];
+
+  for (const anchor of anchors) {
+    let searchFrom = 0;
+
+    while (searchFrom < source.length) {
+      const index = source.indexOf(anchor, searchFrom);
+
+      if (index === -1) break;
+
+      const start = Math.max(0, index - radius);
+      const end = Math.min(source.length, index + anchor.length + radius);
+      windows.push(source.slice(start, end));
+      searchFrom = index + anchor.length;
+    }
+  }
+
+  return windows.join("\n");
+}
+
 function normalize(source = "") {
   return String(source).replace(/\s+/g, " ").trim();
 }
@@ -44,11 +65,16 @@ const displayModelBlock = extractBetween(
   "const trialStatusDisplay = React.useMemo(() => {",
   "// Derived only; not wired into the UI yet."
 );
-const renderBlock = extractBetween(
-  source,
-  "{hasWorkspaceIdentity && trialStatusDisplay && (",
-  "{hasWorkspaceIdentity && ("
-);
+const renderBlock = extractAroundAll(source, [
+  "Trial Day",
+  "Cases created:",
+  "trialStatusDisplay.trialDay",
+  "trialStatusDisplay.casesCreatedDuringTrial",
+  "trialStatusDisplay.activeCaseCount",
+  "trialStatusDisplay",
+  "Pilot guide",
+  "How this pilot works",
+]);
 const trialStatusArea = normalize(`${displayModelBlock}\n${renderBlock}`);
 
 const requiredStrings = [

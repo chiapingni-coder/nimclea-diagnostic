@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -10,7 +11,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
 const backendDir = path.join(repoRoot, "backend");
-const port = 3000;
+const backendServerPath = path.join(backendDir, "server.js");
+
+let port = Number(process.env.NIMCLEA_TRIAL_STATUS_RUNTIME_PORT || 0);
+if (!Number.isInteger(port) || port <= 0) {
+  port = await getFreePort();
+}
 const baseUrl = `http://127.0.0.1:${port}`;
 
 const canonicalFields = [
@@ -163,6 +169,27 @@ function requestJson(requestPath) {
   });
 }
 
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const selectedPort = address && typeof address === "object" ? address.port : 0;
+
+      server.close(() => {
+        if (selectedPort > 0) {
+          resolve(selectedPort);
+          return;
+        }
+
+        reject(new Error("Could not allocate a free runtime port."));
+      });
+    });
+  });
+}
+
 function isPortOpen() {
   return new Promise((resolve) => {
     const socket = net.connect(port, "127.0.0.1");
@@ -204,9 +231,21 @@ async function waitForServer(child, logs) {
 
 function startBackend() {
   const logs = [];
-  const child = spawn(process.execPath, ["server.js"], {
+  const tempServerPath = path.join(
+    backendDir,
+    `.trial-status-runtime-server-${process.pid}-${Date.now()}.mjs`
+  );
+  const serverSource = readFileSync(backendServerPath, "utf8");
+  const patchedSource = serverSource.replace(
+    "const PORT = 3000;",
+    "const PORT = Number(process.env.PORT) || 3000;"
+  );
+
+  writeFileSync(tempServerPath, patchedSource, "utf8");
+
+  const child = spawn(process.execPath, [tempServerPath], {
     cwd: backendDir,
-    env: { ...process.env },
+    env: { ...process.env, PORT: String(port) },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -214,11 +253,16 @@ function startBackend() {
   child.stdout.on("data", (chunk) => logs.push(chunk.toString()));
   child.stderr.on("data", (chunk) => logs.push(chunk.toString()));
 
-  return { child, logs };
+  return { child, logs, tempServerPath };
 }
 
-async function stopBackend(child) {
+async function stopBackend(backend) {
+  const child = backend?.child;
+
   if (!child || child.exitCode !== null) {
+    if (backend?.tempServerPath && existsSync(backend.tempServerPath)) {
+      unlinkSync(backend.tempServerPath);
+    }
     return;
   }
 
@@ -227,6 +271,10 @@ async function stopBackend(child) {
     child.kill();
     setTimeout(resolve, 3000);
   });
+
+  if (backend?.tempServerPath && existsSync(backend.tempServerPath)) {
+    unlinkSync(backend.tempServerPath);
+  }
 }
 
 async function run() {
@@ -339,7 +387,7 @@ async function run() {
   } catch (error) {
     checks.push(fail("endpoint runtime smoke failed to complete", error.message));
   } finally {
-    await stopBackend(backend?.child);
+    await stopBackend(backend);
   }
 
   return checks;
