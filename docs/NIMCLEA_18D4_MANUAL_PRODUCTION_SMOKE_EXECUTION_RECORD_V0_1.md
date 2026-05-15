@@ -18,7 +18,7 @@ It does not introduce new product requirements, runtime behavior, payment behavi
 |---|---|---|---|---|
 | Receipt readiness UI smoke | No yellow flash was reproduced. | MANUAL ACCEPTED | Not blocking current release posture. | If receipt readiness flashes yellow before authoritative readiness is known, stop release. |
 | Verification unlock UI smoke | Verification unlock is reachable only from Receipt authority. It cannot be reached through Case Plan without the Receipt path. | MANUAL ACCEPTED | Not blocking current release posture. | If Verification can be reached without Receipt authority, stop release. |
-| Payment ledger / Stripe dry-run smoke | Real payment / Stripe flow has not been fully tested. | NOT EXECUTED / RELEASE HOLD FOR PAYMENT-SCOPED RELEASE | Blocks any release that includes live payment behavior. | If payment, checkout, receipt-issued, or verification state crosses cases, disappears, or unlocks unrelated records, release must STOP. |
+| Payment ledger / Stripe dry-run smoke | Payment chain is implemented. Real live-money payment has not been executed. No cross-case payment leakage, disappearing paid state, or unrelated verification unlock has been reproduced in the current manual smoke record. Live settlement remains unverified until a real production payment or approved production-equivalent payment test is completed. | IMPLEMENTED / LIVE SETTLEMENT NOT EXECUTED | Does not block RC if payment is clearly marked live-settlement-unverified; blocks any claim that production live payment has been fully validated. | If payment, checkout, receipt-issued, or verification state crosses cases, disappears, or unlocks unrelated records, release must STOP. |
 | New vs returning user routing smoke | New user routes directly to Diagnostic; returning customer remains on CasesPage. | MANUAL ACCEPTED | Not blocking current release posture. | If new users are misrouted to CasesPage or returning customers are forced into Diagnostic incorrectly, stop release. |
 | Stale local case naming smoke | No current case-name confusion was reproduced. | MANUAL ACCEPTED | Not blocking current release posture. | If stale local names override backend case names or create case identity confusion, stop release. |
 
@@ -27,13 +27,13 @@ It does not introduce new product requirements, runtime behavior, payment behavi
 Current manual smoke posture:
 
 - 4 manual areas accepted.
-- 1 payment area not executed.
+- 1 payment area implemented but live settlement not executed.
 - 0 stop-line failures reproduced.
 
 Release candidate status:
 
-- Not yet full release candidate if payment is in production scope.
-- Eligible for non-payment scoped release candidate only if payment behavior is explicitly excluded, disabled, or documented as dry-run only.
+- Eligible for release candidate if payment is documented as implementation-ready but live-settlement-unverified.
+- Not eligible to claim full live payment validation until a real production payment or approved production-equivalent payment test is completed.
 
 ## Validation
 
