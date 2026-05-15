@@ -2679,6 +2679,19 @@ const formatEventText = (event) => {
   );
 };
 
+const escapeReceiptPdfHtml = (value, fallback = "Not available") =>
+  sanitizeText(value, fallback)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const formatReceiptPdfValue = (value, fallback = "Not available") => {
+  const text = sanitizeText(value, "");
+  return text ? text : fallback;
+};
+
 const customerRecordCaseOrigin =
   activeCurrentCase?.caseOrigin ||
   activeCurrentCase?.origin ||
@@ -2869,6 +2882,177 @@ const canFormalizeProof =
 
 const shouldUnlockFormalReceiptFromReceiptCta =
   receiptEligible && !receiptActivated && canFormalizeProof;
+
+const receiptPdfCaseId = formatReceiptPdfValue(
+  inferredCaseId || data.caseData?.caseId || data.caseData?.id,
+  "Not available"
+);
+const receiptPdfCaseTitle = formatReceiptPdfValue(
+  decisionScopeText,
+  "Not available"
+);
+const receiptPdfCustomer = formatReceiptPdfValue(
+  lead.company ||
+    activeCurrentCase?.lead?.company ||
+    activeCurrentCase?.company ||
+    currentCase?.lead?.company ||
+    currentCase?.company ||
+    backendCaseRecord?.lead?.company ||
+    backendCaseRecord?.company,
+  "Not available"
+);
+const receiptPdfStatus = formatReceiptPdfValue(
+  activeReceiptStatus || (isPaid ? "Formal Receipt" : "Receipt Preview"),
+  "Pending"
+);
+const receiptPdfReadinessStatus = formatReceiptPdfValue(
+  visualDecisionStatus,
+  "Pending"
+);
+const receiptPdfEvidenceEventCount = Number.isFinite(receiptEventCount)
+  ? String(receiptEventCount)
+  : "Pending";
+const receiptPdfIssuedDate = formatReceiptPdfValue(
+  data.verifiedAt || data.generatedAt,
+  "Pending"
+);
+const receiptPdfGeneratedDate = formatReceiptPdfValue(
+  data.generatedAt,
+  "Pending"
+);
+const receiptPdfVerificationEligibility = isReceiptStatusChecking
+  ? "Pending"
+  : canEnterVerification
+  ? "Eligible"
+  : formatReceiptPdfValue(verificationBlockedReason, "Not available");
+const receiptPdfLedgerReference = formatReceiptPdfValue(
+  data.receiptHash || ledgerReceiptHash || receiptLedgerRecord?.hash,
+  "Pending"
+);
+
+const buildReceiptPdfDeliverableHtml = () => {
+  const generatedDate = escapeReceiptPdfHtml(receiptPdfGeneratedDate, "Pending");
+  const caseId = escapeReceiptPdfHtml(receiptPdfCaseId, "Not available");
+  const row = (label, value, fallback = "Not available") => `
+    <tr>
+      <th>${escapeReceiptPdfHtml(label)}</th>
+      <td>${escapeReceiptPdfHtml(value, fallback)}</td>
+    </tr>
+  `;
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; padding: 28px; line-height: 1.45;">
+      <style>
+        .receipt-pdf-kicker {
+          color: #475569;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .receipt-pdf-section {
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          margin-top: 16px;
+          padding: 14px 16px;
+        }
+        .receipt-pdf-section h2 {
+          font-size: 15px;
+          margin: 0 0 10px 0;
+        }
+        .receipt-pdf-table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+        .receipt-pdf-table th,
+        .receipt-pdf-table td {
+          border-top: 1px solid #e2e8f0;
+          font-size: 12px;
+          padding: 9px 8px;
+          text-align: left;
+          vertical-align: top;
+          word-break: break-word;
+        }
+        .receipt-pdf-table th {
+          color: #475569;
+          font-weight: 700;
+          width: 36%;
+        }
+      </style>
+
+      <section style="border-bottom: 2px solid #0f172a; padding-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; gap: 18px;">
+          <div>
+            <div style="color: #0467a5; font-size: 24px; font-weight: 800; letter-spacing: 0;">Nimclea</div>
+            <h1 style="font-size: 26px; margin: 18px 0 4px 0;">Nimclea Decision Receipt</h1>
+            <p style="font-size: 14px; color: #475569; margin: 0;">Evidence-backed decision record</p>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #334155;">
+            <div class="receipt-pdf-kicker">Receipt PDF</div>
+            <div style="margin-top: 8px;"><strong>Generated date:</strong> ${generatedDate}</div>
+            <div style="margin-top: 4px;"><strong>Case ID:</strong> ${caseId}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="receipt-pdf-section">
+        <div class="receipt-pdf-kicker">A. Header / brand block</div>
+        <p style="font-size: 12px; margin: 8px 0 0 0;">
+          Nimclea wordmark, formal receipt title, document label, generated date, and case identity are included for PDF recognition.
+        </p>
+      </section>
+
+      <section class="receipt-pdf-section">
+        <h2>B. Receipt identity block</h2>
+        <table class="receipt-pdf-table">
+          <tbody>
+            ${row("Case ID", receiptPdfCaseId)}
+            ${row("Case name or decision title", receiptPdfCaseTitle)}
+            ${row("Customer / organization if available", receiptPdfCustomer)}
+            ${row("Generated date", receiptPdfGeneratedDate, "Pending")}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="receipt-pdf-section">
+        <h2>C. Decision summary block</h2>
+        <table class="receipt-pdf-table">
+          <tbody>
+            ${row("Receipt status", receiptPdfStatus, "Pending")}
+            ${row("Decision readiness / receipt readiness status", receiptPdfReadinessStatus, "Pending")}
+            ${row("Baseline / receipt issued date if available", receiptPdfIssuedDate, "Pending")}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="receipt-pdf-section">
+        <h2>D. Evidence status block</h2>
+        <table class="receipt-pdf-table">
+          <tbody>
+            ${row("Evidence event count", receiptPdfEvidenceEventCount, "Pending")}
+            ${row("Verification eligibility if available", receiptPdfVerificationEligibility, "Not available")}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="receipt-pdf-section">
+        <h2>E. Ledger / integrity block</h2>
+        <table class="receipt-pdf-table">
+          <tbody>
+            ${row("Hash / ledger reference if available", receiptPdfLedgerReference, "Pending")}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="receipt-pdf-section">
+        <h2>F. Footer disclaimer block</h2>
+        <p style="font-size: 11px; color: #475569; margin: 0;">
+          This receipt summarizes the available case record at the time of generation. It is not a legal opinion, audit opinion, or regulatory certification.
+        </p>
+      </section>
+    </div>
+  `;
+};
 
 const receiptCtaLabel = !receiptEligible
   ? "Verification"
@@ -4373,35 +4557,18 @@ if (!canRenderReceipt) {
                       e.preventDefault();
                       e.stopPropagation();
 
-                      const content = `
-                        <h2>Customer Record Snapshot</h2>
-
-                        <h3>Case origin</h3>
-                        <p>${sanitizeText(customerRecordCaseText)}</p>
-
-                        <h3>Supporting events</h3>
-                        <ul>
-                          ${safeCustomerRecordEvents
-                            .slice(0, 3)
-                            .map((event) => `<li>${sanitizeText(formatEventText(event), "Event recorded, but no readable text was captured.")}</li>`)
-                            .join("")}
-                        </ul>
-
-                        <h3>Record integrity</h3>
-                        <p>${safeCustomerRecordEvents.length} structured events included</p>
-                        <p>No conflicting inputs detected</p>
-                      `;
+                      const content = buildReceiptPdfDeliverableHtml();
 
                       const element = document.createElement("div");
                       element.innerHTML = content;
 
                       const html2pdfModule = await import("html2pdf.js");
                       const html2pdf = html2pdfModule.default || html2pdfModule;
-                      html2pdf().from(element).save("nimclea-baseline-record.pdf");
+                      html2pdf().from(element).save("nimclea-decision-receipt.pdf");
                     }}
                     className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
                   >
-                    Export Summary
+                    Export Receipt PDF
                   </button>
                 </div>
               </div>
