@@ -1748,6 +1748,7 @@ const urlCaseId = String(
 
     return () => {
       cancelled = true;
+      setBackendCaseRepairing(false);
     };
   }, [
     backendCaseLoading,
@@ -2471,8 +2472,9 @@ const receiptHydrationFailed =
       !hasReceiptCaseContext
   );
 const canRenderReceiptInsufficient =
-  receiptReadinessAuthoritative &&
-  hasConfirmedNonReadyReceipt &&
+  !receiptReadinessPending &&
+  hasReceiptCaseContext &&
+  hasPilotResultContext &&
   !hasReadyReceipt &&
   !receiptHydrationFailed;
 const receiptDisplayState = receiptHydrationFailed
