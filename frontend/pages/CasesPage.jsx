@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 import { sanitizeText } from "../lib/sanitizeText";
 import { saveCaseSnapshot } from "../lib/trialApi";
+import { getTrialStatusDisplayModel } from "../lib/trialStatusApi";
 import { getTrialSession } from "../lib/trialSession";
 import { getPlanSurfaceContract } from "../lib/planSurfaceContract";
 import { createCaseId, upsertCase, getAllCases, deleteCase as deleteLocalCase } from "../utils/caseRegistry.js";
@@ -129,53 +130,6 @@ function normalizeEmail(value = "") {
 
 function formatEmail(value = "") {
   return String(value || "").trim();
-}
-
-function getTrialStartValue(source = {}) {
-  if (!source || typeof source !== "object") return "";
-
-  return (
-    source.trialStartedAt ||
-    source.startedAt ||
-    source.createdAt ||
-    source.trialSession?.trialStartedAt ||
-    source.trialSession?.startedAt ||
-    source.trialSession?.createdAt ||
-    ""
-  );
-}
-
-function hasSafeTrialState(source = {}) {
-  if (!source || typeof source !== "object") return false;
-
-  return Boolean(
-    source.trialId ||
-      source.sessionId ||
-      source.session_id ||
-      source.userId ||
-      source.trialStartedAt ||
-      source.startedAt ||
-      source.trialSession?.trialId ||
-      source.trialSession?.sessionId ||
-      source.trialSession?.session_id ||
-      source.trialSession?.userId ||
-      source.trialSession?.trialStartedAt ||
-      source.trialSession?.startedAt ||
-      source.trialSession?.createdAt
-  );
-}
-
-function computeTrialDay(rawStartedAt = "") {
-  if (!rawStartedAt) return null;
-
-  const startedAtMs = new Date(rawStartedAt).getTime();
-  const nowMs = Date.now();
-
-  if (!Number.isFinite(startedAtMs) || startedAtMs > nowMs) return null;
-
-  const elapsedDays = Math.floor((nowMs - startedAtMs) / (24 * 60 * 60 * 1000)) + 1;
-
-  return Math.min(7, Math.max(1, elapsedDays));
 }
 
 async function logCaseEmail({ email, caseId, source }) {
@@ -1611,12 +1565,40 @@ export default function CasesPage() {
   const [editingCaseId, setEditingCaseId] = React.useState("");
   const [editingTitle, setEditingTitle] = React.useState("");
   const [showTrialDetails, setShowTrialDetails] = React.useState(false);
+  const [trialStatusDisplay, setTrialStatusDisplay] = React.useState(null);
   const [savingTitleCaseId, setSavingTitleCaseId] = React.useState("");
   const [titleEditError, setTitleEditError] = React.useState({ caseId: "", message: "" });
   const titleInputRef = React.useRef(null);
   const diagnosticHandoffInProgressRef = React.useRef(false);
   const pilotExtensionConfirmAttemptedRef = React.useRef(new Set());
   const resolvedWorkspaceEmail = formatEmail(savedEmail || resolvedEmail);
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadTrialStatusDisplay() {
+      if (!resolvedWorkspaceEmail) {
+        setTrialStatusDisplay(null);
+        return;
+      }
+
+      const result = await getTrialStatusDisplayModel({
+        email: resolvedWorkspaceEmail,
+      });
+
+      if (cancelled) return;
+
+      setTrialStatusDisplay(
+        result?.shouldShowTrialStatusBar === true ? result : null
+      );
+    }
+
+    void loadTrialStatusDisplay();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedWorkspaceEmail]);
+
   const hasWorkspaceIdentity =
     Boolean(resolvedWorkspaceEmail) &&
     (
@@ -2656,42 +2638,6 @@ export default function CasesPage() {
     () => workspaceCases.filter(isVisibleActiveCase),
     [workspaceCases]
   );
-
-  const trialStatusDisplay = React.useMemo(() => {
-    const workspaceEmail = formatEmail(savedEmail || resolvedEmail);
-    const activeCaseCount = visibleActiveCases.length;
-
-    if (!workspaceEmail || activeCaseCount === 0) return null;
-
-    const trialSession = getTrialSession() || {};
-    const inferredTrialCase = visibleActiveCases.find((caseItem) =>
-      hasSafeTrialState(caseItem)
-    );
-    const inferredTrialStart = inferredTrialCase
-      ? getTrialStartValue(inferredTrialCase)
-      : "";
-    const hasTrialSession =
-      hasSafeTrialState(trialSession) ||
-      Boolean(trialSession?.createdAt);
-    const hasInferredTrialState = Boolean(inferredTrialCase);
-
-    if (!hasTrialSession && !hasInferredTrialState) return null;
-
-    const rawStartedAt =
-      getTrialStartValue(trialSession) ||
-      inferredTrialStart ||
-      "";
-    const trialDay = computeTrialDay(rawStartedAt);
-    const summaryText = trialDay
-      ? `7-Day Pilot · Day ${trialDay} of 7 · Cases created: ${activeCaseCount}`
-      : `7-Day Pilot active · Cases created: ${activeCaseCount}`;
-
-    return {
-      activeCaseCount,
-      summaryText,
-      trialDay,
-    };
-  }, [resolvedEmail, savedEmail, visibleActiveCases]);
 
   // Derived only; not wired into the UI yet. Current rendering still uses
   // visibleActiveCases / archivedCases until the three-section UI is introduced.
