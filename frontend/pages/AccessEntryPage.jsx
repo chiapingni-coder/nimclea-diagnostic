@@ -133,7 +133,6 @@ export default function AccessEntryPage() {
           state: {
             email,
             from: "access_zero_case_email",
-            autoStartDiagnostic: true,
           },
         });
       } catch (error) {

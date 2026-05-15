@@ -190,8 +190,7 @@ export default function Questionnaire({ pcMeta }) {
   const location = useLocation();
 
   const shouldAutoStartDiagnostic =
-    location.state?.autoStartDiagnostic === true ||
-    location.state?.from === "access_zero_case_email";
+    location.state?.autoStartDiagnostic === true;
 
   const [phase, setPhase] = useState(() =>
     shouldAutoStartDiagnostic ? PHASE.CORE : PHASE.LANDING
