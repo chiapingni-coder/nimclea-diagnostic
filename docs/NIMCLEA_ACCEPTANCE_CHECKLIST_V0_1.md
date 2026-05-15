@@ -2,84 +2,97 @@
 
 ## Purpose
 
-This checklist defines the current release stabilization acceptance path for Nimclea.
+This checklist defines the minimal release acceptance path for the current Nimclea stabilization phase. It aligns with existing release gate, stop-line, smoke, and boundary documents and does not introduce new product requirements.
 
-Use:
+## 1. Release acceptance boundary
 
-- PASS: release may continue for this item.
-- HOLD: investigate before release continues.
-- STOP: block release until fixed and re-smoked.
+Release acceptance is limited to the existing protected Nimclea path:
 
-## Acceptance Checklist
+1. Access entry
+2. CasesPage workspace continuity
+3. Diagnostic Result
+4. Case Plan / Pilot Plan
+5. Pilot Result
+6. Receipt
+7. Verification eligibility
 
-### 1. Access entry correctness
+Acceptance is based on existing automated release checks, documented manual smoke behavior, and release stop lines.
 
-- PASS: `/access` accepts a valid email, shows a resolving state during lookup, and routes based on backend case ownership.
-- HOLD: access copy or loading timing is unclear but final route is correct.
-- STOP: `/access` sends a known returning user to the wrong lifecycle path or exposes contradictory entry prompts.
+## 2. What must pass before release
 
-### 2. New vs returning user routing
+- Required release documentation exists.
+- `npm --prefix frontend run build` completes successfully.
+- `node scripts/check-release-gate.mjs` reports no FAIL items.
+- Access routes new and returning users correctly.
+- CasesPage preserves `caseId`, email context, case names, and lifecycle actions.
+- ResultPage first-run and review CTAs match the case context.
+- Pilot Result preserves case continuity into Receipt.
+- Receipt does not show a trust-breaking pending, insufficient, or ready-state flicker.
+- Verification remains gated by receipt authority.
+- Payment, paid, receipt-issued, and verification states do not cross cases or disappear.
 
-- PASS: a zero-case email reaches Diagnostic Question 1 through the access boundary; an existing-case email reaches CasesPage.
-- HOLD: harmless visual timing issue with correct final route.
-- STOP: a new user sees a workspace dashboard first, or a returning user sees diagnostic onboarding before case lookup settles.
+## 3. What is explicitly not required for this release
 
-### 3. CasesPage case continuity
+- New product features.
+- New payment pricing or checkout behavior.
+- New trial-ended summary behavior.
+- New export formats.
+- New scoring rules.
+- New backend lifecycle APIs.
+- Broad routing refactors.
+- UI redesign beyond release-stability fixes.
 
-- PASS: CasesPage displays the correct cases for the resolved email and preserves `caseId` through Detail, Continue, Receipt, and Verification paths.
-- HOLD: case counts or labels need polish but the selected case remains correct.
-- STOP: CasesPage attaches a CTA to the wrong case, drops `caseId`, or mixes records between users.
+Deferred work may remain only if it does not violate the release stop line or create a trust-breaking state.
 
-### 4. Diagnostic Result to Case Plan flow
+## 4. Manual smoke acceptance items
 
-- PASS: first-run ResultPage shows the 7-day pilot entry, starts Case Plan / Pilot flow, and preserves the resolved case.
-- HOLD: non-blocking copy or spacing issue.
-- STOP: ResultPage review shows first-run pilot CTA, shows Continue Case in review mode, or routes a review case into the wrong step.
+- Access entry: new email reaches Diagnostic Question 1; existing email reaches CasesPage.
+- CasesPage: returning accounts do not flash diagnostic onboarding before lookup settles.
+- Diagnostic Result: first-run shows pilot entry; review mode does not show pilot or Continue Case CTAs.
+- Pilot Result: eligible result routes to Receipt for the same case.
+- Receipt: pending hydration is neutral; final ready state is stable green when ready.
+- Verification: unlock behavior follows receipt authority.
+- Payment continuity: paid or checkout state remains tied to the same case.
+- Case naming: renamed cases do not create ambiguity in downstream pages.
+- Flicker: any temporary state must be neutral and must not communicate a wrong decision.
 
-### 5. Pilot Result to Receipt flow
+## 5. Blocker vs non-blocker classification
 
-- PASS: Pilot Result persists a compact result snapshot, preserves event count, and routes eligible cases to Receipt without losing case identity.
-- HOLD: summary language needs polish while data continuity is correct.
-- STOP: full event payloads cause storage failure, receipt eligibility is lost, or Receipt opens against the wrong case.
+Blocker:
 
-### 6. Receipt readiness stability
+- Wrong account route.
+- Lost or mismatched `caseId`.
+- Wrong lifecycle CTA.
+- Receipt yellow, amber, insufficient, or misleading gray flash before confirmed ready.
+- Verification opens without receipt authority.
+- Paid state crosses cases, disappears, or unlocks unrelated records.
+- Mock, placeholder, stale local-only, or unlinked data is treated as authoritative.
 
-- PASS: Receipt shows neutral checking while readiness is pending, then stable green ready or authoritative insufficient after hydration settles.
-- HOLD: neutral loading duration feels long but no wrong state appears.
-- STOP: Receipt flashes yellow, amber, insufficient, or misleading gray before a ready state.
+Non-blocker:
 
-### 7. Verification unlock behavior
+- Minor copy polish.
+- Minor layout polish.
+- Neutral loading state that does not imply a decision.
+- Manual-only release gate WARN item with recorded stop-line disposition.
+- Deferred feature explicitly listed as out of scope.
 
-- PASS: Verification is reachable only from an eligible, issued, paid, or otherwise authorized receipt state.
-- HOLD: unlock copy needs polish but eligibility remains correct.
-- STOP: Verification opens without receipt authority or remains locked after confirmed eligibility.
+## 6. Final release decision states
 
-### 8. Payment / paid-state continuity
+- PASS: all required checks pass, manual smoke has no stop-line violation, and no protected-path blocker is reproduced.
+- PASS WITH DEFERRED ITEMS: required checks pass, manual-only WARN items are documented, and deferred items do not violate a stop line.
+- BLOCKED: any automated FAIL, failed build, missing required release document, or reproduced stop-line violation.
 
-- PASS: paid, checkout-created, receipt-issued, and verification states remain tied to the same case and do not regress after navigation.
-- HOLD: payment management copy is unclear but state remains correct.
-- STOP: paid state disappears, crosses cases, unlocks unrelated records, or changes routing incorrectly.
+## 7. Execution record
 
-### 9. Case naming consistency
-
-- PASS: renamed cases retain the stable name across CasesPage, Receipt, Verification, and return navigation.
-- HOLD: stale display name appears in a non-primary location but case identity is correct.
-- STOP: stale naming creates ambiguity about which case is active or exported.
-
-### 10. No trust-breaking flicker
-
-- PASS: temporary loading states are neutral and do not imply a wrong product decision.
-- HOLD: minor visual flicker that does not communicate a lifecycle, readiness, or routing decision.
-- STOP: any flicker briefly shows the wrong account state, wrong CTA, wrong readiness decision, or wrong case continuity.
-
-### 11. Build and release gate checks
-
-- PASS: production build succeeds and release gate has no FAIL results.
-- HOLD: release gate WARN items are manual-only and have documented smoke status.
-- STOP: build fails, release gate has FAIL results, or required stability documentation is missing.
-
-## Final release decision
-
-- PASS: all checklist items are PASS, with only documented manual WARN/HOLD items that do not violate a stop line.
-- HOLD: one or more items need investigation but no stop-line issue is reproduced.
-- STOP: any protected path item reproduces a trust-breaking regression.
+| Area | Check | Expected Result | Actual Result | Status | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Access entry | New email and returning email routing | New email enters Diagnostic Question 1; returning email reaches CasesPage | TBD | TBD | Manual smoke |
+| CasesPage continuity | Existing workspace load | Case list loads without diagnostic onboarding flash and preserves case identity | TBD | TBD | Manual smoke |
+| ResultPage | First-run and review CTA behavior | First-run shows pilot entry; review hides pilot and Continue Case CTAs | TBD | TBD | Manual smoke |
+| Pilot Result | Receipt handoff | Same `caseId` reaches Receipt with compact persisted result context | TBD | TBD | Manual smoke |
+| Receipt | Readiness hydration | Neutral pending state, then stable authoritative ready or insufficient state | TBD | TBD | Manual smoke |
+| Verification | Unlock gating | Verification follows receipt authority only | TBD | TBD | Manual smoke |
+| Payment continuity | Paid and checkout state | Payment state remains tied to the selected case | TBD | TBD | Manual smoke |
+| Case naming | Downstream display consistency | No stale name creates active, paid, receipted, verified, or exported ambiguity | TBD | TBD | Manual smoke |
+| Build | `npm --prefix frontend run build` | Build completes successfully | TBD | TBD | Automated |
+| Release gate | `node scripts/check-release-gate.mjs` | No FAIL results | TBD | TBD | Automated |

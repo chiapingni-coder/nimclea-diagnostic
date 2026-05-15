@@ -89,6 +89,8 @@ const requiredDocs = [
   "docs/NIMCLEA_GOLDEN_TEST_EXECUTION_PLAN_V0_1.md",
   "docs/NIMCLEA_READINESS_SCORING_RULE_TABLE_V0_1.md",
   "docs/NIMCLEA_17G5A_RELEASE_STABILITY_STOP_LINE_V0_1.md",
+  "docs/NIMCLEA_SCOPE_LOCK_V0_1.md",
+  "docs/NIMCLEA_ACCEPTANCE_CHECKLIST_V0_1.md",
 ];
 
 for (const doc of requiredDocs) {
