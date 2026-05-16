@@ -1,4 +1,5 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TRIAL_START_GRACE_MS = 60 * 1000;
 
 const SAFE_DEFAULT = Object.freeze({
   trialActive: false,
@@ -383,7 +384,7 @@ export function buildTrialStatus({
     return safeDefault();
   }
 
-  const futureTrial = nowMs < startMs;
+  const futureTrial = nowMs + TRIAL_START_GRACE_MS < startMs;
   const trialActive = !futureTrial && nowMs < endMs;
   const trialEnded = nowMs >= endMs;
   const elapsedDays = Math.floor((Math.max(nowMs, startMs) - startMs) / DAY_MS) + 1;
