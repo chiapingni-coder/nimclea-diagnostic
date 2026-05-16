@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { appendJsonFile, makeId, readJsonFile } from "../utils/fileStore.js";
 import { persistEmailRecord } from "../db/emailStore.js";
+import { upsertSupabaseTrial } from "../utils/supabaseTrialStore.js";
 
 const router = express.Router();
 
@@ -56,6 +57,7 @@ router.post("/register", async (req, res) => {
     };
 
     appendJsonFile(trialsFile, trialRecord, []);
+    await upsertSupabaseTrial(trialRecord);
 
     try {
       await persistEmailRecord({

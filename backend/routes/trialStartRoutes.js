@@ -2,6 +2,10 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { makeId, readJsonFile, writeJsonFile } from "../utils/fileStore.js";
+import {
+  getSupabaseTrial,
+  upsertSupabaseTrial,
+} from "../utils/supabaseTrialStore.js";
 
 const router = express.Router();
 
@@ -10,7 +14,7 @@ const __dirname = path.dirname(__filename);
 
 const trialsFile = path.join(__dirname, "../data/trials.json");
 
-router.post("/start", (req, res) => {
+router.post("/start", async (req, res) => {
   try {
     const { userId, trialId, entryPoint = "unknown", pcCode = "PC-CORE" } = req.body || {};
     const normalizedEmail =
@@ -29,15 +33,20 @@ router.post("/start", (req, res) => {
     const targetIndex = trials.findIndex(
       (item) => item.trialId === trialId && item.userId === userId
     );
+    const supabaseLookup = await getSupabaseTrial({ trialId, userId });
+    const supabaseTrial = supabaseLookup.record;
 
-    if (targetIndex === -1) {
+    if (targetIndex === -1 && !supabaseTrial) {
       return res.status(404).json({
         success: false,
         message: "Trial not found",
       });
     }
 
-    const existingTrial = trials[targetIndex] || {};
+    const existingTrial =
+      supabaseTrial ||
+      trials[targetIndex] ||
+      {};
     const existingStartedAt = existingTrial.startedAt || existingTrial.trialStartedAt || "";
 
     if (existingStartedAt) {
@@ -53,8 +62,15 @@ router.post("/start", (req, res) => {
         : existingTrial;
 
       if (shouldBackfillEmail) {
-        trials[targetIndex] = startedTrial;
-        writeJsonFile(trialsFile, trials);
+        if (targetIndex >= 0) {
+          trials[targetIndex] = {
+            ...trials[targetIndex],
+            email: startedTrial.email,
+            userEmail: startedTrial.userEmail,
+          };
+          writeJsonFile(trialsFile, trials);
+        }
+        await upsertSupabaseTrial(startedTrial);
       }
 
       return res.json({
@@ -78,7 +94,7 @@ router.post("/start", (req, res) => {
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    trials[targetIndex] = {
+    const startedTrial = {
       ...existingTrial,
       trialSessionId: existingTrial.trialSessionId || makeId("ts"),
       email: normalizedEmail || existingTrial.email || existingTrial.userEmail || "",
@@ -90,22 +106,27 @@ router.post("/start", (req, res) => {
       expiresAt: expiresAt.toISOString(),
     };
 
-    writeJsonFile(trialsFile, trials);
+    if (targetIndex >= 0) {
+      trials[targetIndex] = startedTrial;
+      writeJsonFile(trialsFile, trials);
+    }
+
+    await upsertSupabaseTrial(startedTrial);
 
     return res.json({
       success: true,
       message: "Trial started",
       data: {
-        trialId: trials[targetIndex].trialId,
-        trialSessionId: trials[targetIndex].trialSessionId,
-        userId: trials[targetIndex].userId,
-        email: trials[targetIndex].email,
-        userEmail: trials[targetIndex].userEmail,
-        pcCode: trials[targetIndex].pcCode,
-        entryPoint: trials[targetIndex].entryPoint,
-        status: trials[targetIndex].status,
-        startedAt: trials[targetIndex].startedAt,
-        expiresAt: trials[targetIndex].expiresAt,
+        trialId: startedTrial.trialId,
+        trialSessionId: startedTrial.trialSessionId,
+        userId: startedTrial.userId,
+        email: startedTrial.email,
+        userEmail: startedTrial.userEmail,
+        pcCode: startedTrial.pcCode,
+        entryPoint: startedTrial.entryPoint,
+        status: startedTrial.status,
+        startedAt: startedTrial.startedAt,
+        expiresAt: startedTrial.expiresAt,
       },
     });
   } catch (error) {

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildTrialStatus } from "../utils/buildTrialStatus.js";
+import { readSupabaseTrialsForStatus } from "../utils/supabaseTrialStore.js";
 
 const router = express.Router();
 
@@ -58,16 +59,22 @@ router.get("/", async (req, res) => {
 
   try {
     const [
-      trialRecords,
+      supabaseTrialsResult,
+      jsonTrialRecords,
       caseRecords,
       paymentRecords,
       subscriptionRecords,
     ] = await Promise.all([
+      readSupabaseTrialsForStatus({ email, userId }),
       readJsonArray("trials.json"),
       readJsonArray("cases.json"),
       readJsonArray("paymentRecords.json"),
       readJsonArray("subscriptionRecords.json"),
     ]);
+    const trialRecords =
+      supabaseTrialsResult.available === true
+        ? supabaseTrialsResult.records
+        : jsonTrialRecords;
 
     const data = buildTrialStatus({
       email,

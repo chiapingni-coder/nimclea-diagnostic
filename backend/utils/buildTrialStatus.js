@@ -414,7 +414,11 @@ export function buildTrialStatus({
     endDate,
   });
 
-  const sourceParts = ["backend_trial_record"];
+  const sourceParts = [
+    selectedTrial.source === "supabase_trial_record"
+      ? "supabase_trial_record"
+      : "backend_trial_record",
+  ];
 
   if (casesCreatedDuringTrial > 0) sourceParts.push("with_cases");
   if (pilotSummaryPaid) sourceParts.push("with_payment");
