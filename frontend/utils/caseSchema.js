@@ -46,6 +46,22 @@ export const EVENT_SOURCE = {
   UNKNOWN: "unknown",
 };
 
+const CLEAN_DATABASE_AUTHORITY_DEFAULT = {
+  sourceOfTruth: "",
+  authorityStatus: "not_cut_over",
+  cleanDatabaseId: "",
+  legacySource: "",
+  migratedFromLegacy: false,
+};
+
+const EVENT_REVIEW_DEFAULT = {
+  status: "not_reviewed",
+  latestReviewId: "",
+  reviews: [],
+  receiptReadinessImpact: "",
+  verificationRelevance: "",
+};
+
 /**
  * 创建一份空白 case
  */
@@ -54,8 +70,13 @@ export function createEmptyCaseSchema(overrides = {}) {
     schemaVersion: CASE_SCHEMA_VERSION,
 
     caseId: "",
+    customerId: "",
+    caseName: "",
+    status: "",
+    currentStep: "",
     createdAt: "",
     updatedAt: "",
+    deletedAt: "",
 
     source: EVENT_SOURCE.UNKNOWN,
     scenarioCode: "",
@@ -108,6 +129,81 @@ export function createEmptyCaseSchema(overrides = {}) {
       reason: "",
     },
 
+    cleanDatabaseAuthority: { ...CLEAN_DATABASE_AUTHORITY_DEFAULT },
+
+    customer: {
+      customerId: "",
+      organizationName: "",
+      contactEmail: "",
+      contactName: "",
+      workspaceId: "",
+    },
+
+    diagnostic: {
+      diagnosticId: "",
+      primaryPressure: "",
+      dominantScenario: "",
+      scoreSummary: null,
+      resultSummary: "",
+      createdAt: "",
+    },
+
+    pilotPlan: {
+      pilotPlanId: "",
+      planStatus: "",
+      startedAt: "",
+      completedAt: "",
+      scopeLock: null,
+      acceptanceChecklist: null,
+      nextAction: "",
+    },
+
+    eventReview: { ...EVENT_REVIEW_DEFAULT },
+
+    receipt: {
+      receiptId: "",
+      receiptStatus: "",
+      receiptEligible: false,
+      readinessState: "",
+      issuedAt: "",
+      receiptHash: "",
+      ledgerReference: "",
+      pdfGeneratedAt: "",
+    },
+
+    verification: {
+      verificationId: "",
+      verificationStatus: "",
+      verificationEligible: false,
+      verificationHash: "",
+      ledgerReference: "",
+      issuedAt: "",
+      reviewedAt: "",
+    },
+
+    payment: {
+      paymentId: "",
+      paymentType: "",
+      paymentStatus: "",
+      stripeSessionId: "",
+      stripeCustomerId: "",
+      paidAt: "",
+      authoritySource: "",
+    },
+
+    trialLifecycle: {
+      trialId: "",
+      userId: "",
+      email: "",
+      status: "",
+      startedAt: "",
+      expiresAt: "",
+      trialSessionId: "",
+      authoritySource: "",
+    },
+
+    auditTrail: [],
+
     meta: {
       tags: [],
       notes: "",
@@ -150,6 +246,48 @@ function toArray(value) {
  */
 function isPlainObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergePlainObject(defaults = {}, value = {}) {
+  return {
+    ...defaults,
+    ...(isPlainObject(value) ? value : {}),
+  };
+}
+
+function normalizeEventReview(value = {}) {
+  const input = isPlainObject(value) ? value : {};
+  const reviews = toArray(input.reviews).map((review) => {
+    if (!isPlainObject(review)) return review;
+
+    return {
+      eventReviewId: toSafeString(review.eventReviewId),
+      caseId: toSafeString(review.caseId),
+      eventId: toSafeString(review.eventId),
+      eventType: toSafeString(review.eventType),
+      externalPressure: review.externalPressure ?? "",
+      boundaryState: review.boundaryState ?? "",
+      evidenceState: review.evidenceState ?? "",
+      weakestDimension: toSafeString(review.weakestDimension),
+      reviewResult: review.reviewResult ?? null,
+      caseSchemaSnapshot: review.caseSchemaSnapshot ?? null,
+      receiptReadinessImpact: review.receiptReadinessImpact ?? "",
+      verificationRelevance: review.verificationRelevance ?? "",
+      reviewedAt: toSafeString(review.reviewedAt),
+      reviewedBy: toSafeString(review.reviewedBy),
+      audit: review.audit ?? null,
+    };
+  });
+
+  return {
+    ...EVENT_REVIEW_DEFAULT,
+    ...input,
+    status: toSafeString(input.status) || EVENT_REVIEW_DEFAULT.status,
+    latestReviewId: toSafeString(input.latestReviewId),
+    reviews,
+    receiptReadinessImpact: input.receiptReadinessImpact ?? "",
+    verificationRelevance: input.verificationRelevance ?? "",
+  };
 }
 
 /**
@@ -284,8 +422,13 @@ export function normalizeCaseInput(input = {}, options = {}) {
 
   const normalized = createEmptyCaseSchema({
     caseId: toSafeString(safeInput.caseId || options.caseId),
+    customerId: toSafeString(safeInput.customerId),
+    caseName: toSafeString(safeInput.caseName || safeInput.name || safeInput.title),
+    status: toSafeString(safeInput.status),
+    currentStep: toSafeString(safeInput.currentStep || safeInput.step),
     createdAt: toSafeString(safeInput.createdAt) || now,
     updatedAt: now,
+    deletedAt: toSafeString(safeInput.deletedAt),
 
     source: toSafeString(safeInput.source || options.source) || EVENT_SOURCE.UNKNOWN,
     scenarioCode: toSafeString(safeInput.scenarioCode),
@@ -326,6 +469,38 @@ export function normalizeCaseInput(input = {}, options = {}) {
     chainId: toSafeString(safeInput.chainId),
     stage: toSafeString(safeInput.stage),
     fallbackRunCode: toSafeString(safeInput.fallbackRunCode),
+
+    cleanDatabaseAuthority: mergePlainObject(
+      CLEAN_DATABASE_AUTHORITY_DEFAULT,
+      safeInput.cleanDatabaseAuthority
+    ),
+
+    customer: mergePlainObject(createEmptyCaseSchema().customer, safeInput.customer),
+
+    diagnostic: mergePlainObject(createEmptyCaseSchema().diagnostic, safeInput.diagnostic),
+
+    pilotPlan: mergePlainObject(
+      createEmptyCaseSchema().pilotPlan,
+      safeInput.pilotPlan || safeInput.pilot
+    ),
+
+    eventReview: normalizeEventReview(safeInput.eventReview),
+
+    receipt: mergePlainObject(createEmptyCaseSchema().receipt, safeInput.receipt),
+
+    verification: mergePlainObject(
+      createEmptyCaseSchema().verification,
+      safeInput.verification
+    ),
+
+    payment: mergePlainObject(createEmptyCaseSchema().payment, safeInput.payment),
+
+    trialLifecycle: mergePlainObject(
+      createEmptyCaseSchema().trialLifecycle,
+      safeInput.trialLifecycle || safeInput.trialSession
+    ),
+
+    auditTrail: toArray(safeInput.auditTrail),
 
     meta: {
       tags: toArray(safeInput.meta?.tags),
