@@ -147,6 +147,7 @@ create table public.event_reviews (
   case_id uuid not null references public.cases(case_id),
   diagnostic_id uuid references public.diagnostics(diagnostic_id),
   case_plan_id uuid references public.case_plans(case_plan_id),
+  event_log_id uuid,
   review_status text not null default 'draft',
   review_type text,
   weakest_dimension text,
@@ -210,6 +211,10 @@ using (
       and c.auth_user_id = auth.uid()
   )
 );
+
+alter table public.event_reviews
+add constraint event_reviews_event_log_id_fkey
+foreign key (event_log_id) references public.event_logs(event_log_id);
 
 create table public.receipts (
   receipt_id uuid primary key default gen_random_uuid(),
