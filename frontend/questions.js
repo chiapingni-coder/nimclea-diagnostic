@@ -23,14 +23,14 @@ export const questions = [
     stage: "core",
     type: "single_select",
     prompt:
-      "In the past 12 months, has your organization experienced any of the following?",
+      "Which situation best describes the primary reason your organization may need a defensible decision record right now?",
     example: null,
     options: [
       { value: "external_audit", label: "External audit" },
       { value: "customer_or_partner_verification_request", label: "Customer or partner verification request" },
       { value: "compliance_review_or_regulatory_check", label: "Compliance review or regulatory check" },
       { value: "incident_investigation", label: "Incident investigation" },
-      { value: "none_of_the_above", label: "None of the above", exclusive: true }
+      { value: "none_of_the_above", label: "No active external pressure at this time", exclusive: true }
     ]
   },
   {
