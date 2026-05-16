@@ -11,7 +11,7 @@ const requiredTables = [
   'diagnostics',
   'case_plans',
   'event_reviews',
-  'event_logs',
+  'case_events',
   'receipts',
   'verifications',
   'payments',
@@ -179,13 +179,13 @@ if (!existsSync(migrationPath)) {
   }
 
   const eventReviewsBlock = getTableBlock(sql, 'event_reviews');
-  const eventLogsBlock = getTableBlock(sql, 'event_logs');
+  const caseEventsBlock = getTableBlock(sql, 'case_events');
 
   const sourceOnlyGuardChecks = [
     [
-      'event_reviews includes event_log_id uuid',
+      'event_reviews includes case_event_id uuid',
       eventReviewsBlock,
-      /\bevent_log_id\s+uuid\b/i,
+      /\bcase_event_id\s+uuid\b/i,
     ],
     [
       'event_reviews includes review_result text',
@@ -198,24 +198,24 @@ if (!existsSync(migrationPath)) {
       /\bcase_schema\s+jsonb\b/i,
     ],
     [
-      'event_logs includes event_log_id uuid primary key',
-      eventLogsBlock,
-      /\bevent_log_id\s+uuid\s+primary\s+key\b/i,
+      'case_events includes case_event_id uuid primary key',
+      caseEventsBlock,
+      /\bcase_event_id\s+uuid\s+primary\s+key\b/i,
     ],
     [
-      'event_logs includes event_type text not null',
-      eventLogsBlock,
+      'case_events includes event_type text not null',
+      caseEventsBlock,
       /\bevent_type\s+text\s+not\s+null\b/i,
     ],
     [
-      'event_logs includes raw_event jsonb',
-      eventLogsBlock,
+      'case_events includes raw_event jsonb',
+      caseEventsBlock,
       /\braw_event\s+jsonb\b/i,
     ],
     [
-      'deferred FK exists from event_reviews.event_log_id to event_logs.event_log_id',
+      'deferred FK exists from event_reviews.case_event_id to case_events.case_event_id',
       normalizedSql,
-      /alter\s+table\s+public\.event_reviews\s+add\s+constraint\s+event_reviews_event_log_id_fkey\s+foreign\s+key\s+\(event_log_id\)\s+references\s+public\.event_logs\s*\(\s*event_log_id\s*\)\s*;/i,
+      /alter\s+table\s+public\.event_reviews\s+add\s+constraint\s+event_reviews_case_event_id_fkey\s+foreign\s+key\s+\(case_event_id\)\s+references\s+public\.case_events\s*\(\s*case_event_id\s*\)\s*;/i,
     ],
   ];
 
@@ -242,5 +242,5 @@ if (failures.length > 0) {
 } else {
   console.log('PASS');
   console.log('');
-  console.log(`Validated ${requiredTables.length} required tables, event-review authority link guards, pgcrypto preflight, grants, RLS, policies, and static safety rules.`);
+  console.log(`Validated ${requiredTables.length} required tables, case-event review authority link guards, pgcrypto preflight, grants, RLS, policies, and static safety rules.`);
 }

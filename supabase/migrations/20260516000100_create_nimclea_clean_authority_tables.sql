@@ -147,7 +147,7 @@ create table public.event_reviews (
   case_id uuid not null references public.cases(case_id),
   diagnostic_id uuid references public.diagnostics(diagnostic_id),
   case_plan_id uuid references public.case_plans(case_plan_id),
-  event_log_id uuid,
+  case_event_id uuid,
   review_status text not null default 'draft',
   review_type text,
   weakest_dimension text,
@@ -179,8 +179,8 @@ using (
   )
 );
 
-create table public.event_logs (
-  event_log_id uuid primary key default gen_random_uuid(),
+create table public.case_events (
+  case_event_id uuid primary key default gen_random_uuid(),
   customer_id uuid references public.customers(customer_id),
   case_id uuid references public.cases(case_id),
   event_type text not null,
@@ -193,13 +193,13 @@ create table public.event_logs (
   created_at timestamptz not null default now()
 );
 
-grant select on table public.event_logs to authenticated;
-grant select, insert, update, delete on table public.event_logs to service_role;
+grant select on table public.case_events to authenticated;
+grant select, insert, update, delete on table public.case_events to service_role;
 
-alter table public.event_logs enable row level security;
+alter table public.case_events enable row level security;
 
-create policy event_logs_authenticated_customer_select
-on public.event_logs
+create policy case_events_authenticated_customer_select
+on public.case_events
 for select
 to authenticated
 using (
@@ -207,14 +207,14 @@ using (
   and exists (
     select 1
     from public.customers c
-    where c.customer_id = event_logs.customer_id
+    where c.customer_id = case_events.customer_id
       and c.auth_user_id = auth.uid()
   )
 );
 
 alter table public.event_reviews
-add constraint event_reviews_event_log_id_fkey
-foreign key (event_log_id) references public.event_logs(event_log_id);
+add constraint event_reviews_case_event_id_fkey
+foreign key (case_event_id) references public.case_events(case_event_id);
 
 create table public.receipts (
   receipt_id uuid primary key default gen_random_uuid(),

@@ -25,7 +25,7 @@ The purpose is to describe the intended authority areas, relationships, data own
 
 ## 4. Clean Database Authority Principle
 
-The clean Supabase database should become the future authority for customer, case, diagnostic, case plan, event review, event log, receipt, verification, payment, trial lifecycle, audit trail, and hash ledger records.
+The clean Supabase database should become the future authority for customer, case, diagnostic, case plan, event review, case event, receipt, verification, payment, trial lifecycle, audit trail, and hash ledger records.
 
 The clean authority database should start from intentional schema contracts, not from accidental shapes found in old Render JSON files. Existing JSON files may be used for debugging, sample fixtures, edge-case analysis, or migration test design, but they are not canonical production history for the clean authority database.
 
@@ -83,15 +83,15 @@ No current production behavior should read from or write to the clean authority 
 - Should not store: Raw append-only event log stream, payment authority, receipt authority, or verification authority.
 - Authority type: Core authority.
 
-### 5.6 event_logs
+### 5.6 case_events
 
-- Purpose: Append-oriented case and system event history used to reconstruct meaningful lifecycle transitions.
-- Likely primary key: `event_log_id`.
+- Purpose: Core case-scoped event history and eventHistory authority used to reconstruct meaningful lifecycle transitions.
+- Likely primary key: `case_event_id`.
 - Relationship to `customer_id` and `case_id`: Usually belongs to one `customer_id`; belongs to one `case_id` when the event is case-scoped.
-- First-class columns: event log identifier, customer identifier, case identifier where applicable, event type, actor type, event timestamp, source.
-- JSONB: Event payload, request context, structured metadata, non-sensitive before/after summary, and correlation details.
+- First-class columns: case event identifier, customer identifier, case identifier where applicable, event type, actor type, raw event input, event timestamp, source, metadata.
+- JSONB: Raw event input, request context, structured metadata, non-sensitive before/after summary, and correlation details.
 - Should not store: Full secrets, payment card data, private credentials, or replace the authority tables for cases, receipts, payments, or verifications.
-- Authority type: Audit/supporting data.
+- Authority type: Core authority.
 
 ### 5.7 receipts
 
@@ -158,7 +158,7 @@ No current production behavior should read from or write to the clean authority 
 - `customers` is the root ownership table for customer-scoped authority.
 - `cases` belongs to `customers` and acts as the primary lifecycle shell for case-scoped work.
 - `diagnostics`, `case_plans`, and `event_reviews` belong to both `customers` and `cases`.
-- `event_logs` records lifecycle and system events and should reference `customers` and `cases` when applicable.
+- `case_events` records lifecycle and system events and should reference `customers` and `cases` when applicable.
 - `receipts`, `verifications`, and `payments` belong to `customers` and may belong to `cases` when the record is case-scoped.
 - `trial_lifecycle` belongs to `customers` and may reference a case when trial state is tied to case creation or case plan completion.
 - `audit_trail` and `hash_ledger` support integrity, review, and traceability across the authority tables.
@@ -210,11 +210,11 @@ Security principles:
 - Do not mix old JSON authority with the future clean Supabase authority.
 - Do not grant broad anon access to core Nimclea data.
 - Do not define payment processor secret handling in client-accessible tables.
-- Do not make event logs, audit trail, or hash ledger replace the core authority tables.
+- Do not make case events, audit trail, or hash ledger replace the core authority tables.
 
 ## 11. Acceptance Criteria
 
-- The plan identifies all required schema areas: customers, cases, diagnostics, case_plans, event_reviews, event_logs, receipts, verifications, payments, trial_lifecycle, audit_trail, and hash_ledger.
+- The plan identifies all required schema areas: customers, cases, diagnostics, case_plans, event_reviews, case_events, receipts, verifications, payments, trial_lifecycle, audit_trail, and hash_ledger.
 - Each schema area defines purpose, likely primary key, relationship to `customer_id` and `case_id`, JSONB versus first-class column guidance, exclusions, and authority type.
 - The accepted clean database principles are preserved.
 - The Supabase implementation order is explicit: create table, explicit GRANT per role, enable row level security, create policy.
