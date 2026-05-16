@@ -1523,6 +1523,7 @@ export default function VerificationPage() {
   const [workflowEventLogs, setWorkflowEventLogs] = useState([]);
   const [restoredCaseRecord, setRestoredCaseRecord] = useState(null);
   const [restoredCaseLoading, setRestoredCaseLoading] = useState(false);
+  const [restoredCaseLookupComplete, setRestoredCaseLookupComplete] = useState(false);
   const [backendCaseRecord, setBackendCaseRecord] = useState(null);
   const [backendCaseLoading, setBackendCaseLoading] = useState(false);
   const [backendCaseError, setBackendCaseError] = useState(null);
@@ -1671,6 +1672,7 @@ export default function VerificationPage() {
     if (!restoreCaseId) {
       setRestoredCaseRecord(null);
       setRestoredCaseLoading(false);
+      setRestoredCaseLookupComplete(true);
       return;
     }
 
@@ -1678,6 +1680,7 @@ export default function VerificationPage() {
 
     async function loadBackendCaseRecord() {
       setRestoredCaseLoading(true);
+      setRestoredCaseLookupComplete(false);
 
       try {
         const response = await fetch(
@@ -1685,8 +1688,10 @@ export default function VerificationPage() {
         );
         const payload = await response.json().catch(() => ({}));
 
-        if (!cancelled && payload?.data) {
+        if (!cancelled && response.ok && payload?.success !== false && payload?.data) {
           setRestoredCaseRecord(payload.data);
+        } else if (!cancelled) {
+          setRestoredCaseRecord(null);
         }
       } catch (error) {
         console.warn("VerificationPage case restore failed:", error);
@@ -1696,6 +1701,7 @@ export default function VerificationPage() {
       } finally {
         if (!cancelled) {
           setRestoredCaseLoading(false);
+          setRestoredCaseLookupComplete(true);
         }
       }
     }
@@ -1861,9 +1867,17 @@ export default function VerificationPage() {
 
   const backendCanonicalCase =
     backendCaseRecord || restoredCaseRecord || null;
+  const needsVerificationBackendAuthority = Boolean(inferredCaseId || caseId);
+  const verificationBackendAuthorityMissing = Boolean(
+    needsVerificationBackendAuthority &&
+      restoredCaseLookupComplete &&
+      !restoredCaseLoading &&
+      !backendCaseLoading &&
+      !backendCanonicalCase
+  );
 
   const effectiveCaseRecord =
-    backendCanonicalCase || currentCase || null;
+    verificationBackendAuthorityMissing ? null : backendCanonicalCase || currentCase || null;
 
   const backendVerificationEligible =
     hasBackendVerificationEligibleSignal(backendCanonicalCase);
@@ -1904,7 +1918,9 @@ export default function VerificationPage() {
   const receiptPath = activeCaseId
     ? `/receipt?caseId=${encodeURIComponent(activeCaseId)}&from=verification`
     : "/cases";
-  const canOpenVerificationPage = Boolean(activeCaseId || inferredCaseId);
+  const canOpenVerificationPage = Boolean(
+    !verificationBackendAuthorityMissing && (activeCaseId || inferredCaseId)
+  );
 
   const accessMode = getAccessMode(backendCanonicalCase);
   const isPaid = backendReceiptPaidActivatedIssued || accessMode === "paid";
@@ -2903,13 +2919,18 @@ const displayReceiptHash =
               Verification not available
             </p>
             <h1 className="text-2xl font-bold mb-3">
-              No case record is attached
+              {verificationBackendAuthorityMissing
+                ? "Case record could not be confirmed"
+                : "No case record is attached"}
             </h1>
             <p className="text-slate-700 leading-7">
-              Open Verification from a case or receipt record so the review can stay attached to a case id.
+              {verificationBackendAuthorityMissing
+                ? "We could not load this case record from the workspace authority. Please return to all cases or restart from the saved diagnostic record."
+                : "Open Verification from a case or receipt record so the review can stay attached to a case id."}
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            {!verificationBackendAuthorityMissing ? (
+              <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 to={receiptPath}
                 state={stripCanonicalCaseFlowState(routeEnvelope || {})}
@@ -2918,6 +2939,7 @@ const displayReceiptHash =
                 Back to Receipt
               </Link>
             </div>
+            ) : null}
           </div>
         </div>
       </div>

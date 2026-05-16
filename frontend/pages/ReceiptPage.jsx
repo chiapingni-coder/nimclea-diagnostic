@@ -1443,7 +1443,7 @@ const urlCaseId = String(
     const safeCaseId = typeof inferredCaseId === "string" ? inferredCaseId.trim() : "";
     const email = String(resolveReceiptEmailSource(routeEnvelope) || "").trim();
 
-    if (!safeCaseId || !email) {
+    if (!safeCaseId) {
       setBackendCaseRecord(null);
       setBackendCaseLoading(false);
       setBackendCaseError(null);
@@ -1507,30 +1507,32 @@ const urlCaseId = String(
           return;
         }
 
-        try {
-          const response = await fetch(
-            `${HASH_LEDGER_API_BASE}/cases?email=${encodeURIComponent(email)}`
-          );
+        if (email) {
+          try {
+            const response = await fetch(
+              `${HASH_LEDGER_API_BASE}/cases?email=${encodeURIComponent(email)}`
+            );
 
-          if (response.ok) {
-            const payload = await response.json().catch(() => null);
-            const items = Array.isArray(payload)
-              ? payload
-              : Array.isArray(payload?.data)
-              ? payload.data
-              : Array.isArray(payload?.cases)
-              ? payload.cases
-              : Array.isArray(payload?.records)
-              ? payload.records
-              : [];
-            matchedRecord =
-              items.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
-          } else if (response.status !== 404 && !lookupError) {
-            lookupError = new Error(`Failed to fetch backend case list: ${response.status}`);
-          }
-        } catch (error) {
-          if (!lookupError) {
-            lookupError = error;
+            if (response.ok) {
+              const payload = await response.json().catch(() => null);
+              const items = Array.isArray(payload)
+                ? payload
+                : Array.isArray(payload?.data)
+                ? payload.data
+                : Array.isArray(payload?.cases)
+                ? payload.cases
+                : Array.isArray(payload?.records)
+                ? payload.records
+                : [];
+              matchedRecord =
+                items.find((item) => getCaseIdFromAny(item) === safeCaseId) || null;
+            } else if (response.status !== 404 && !lookupError) {
+              lookupError = new Error(`Failed to fetch backend case list: ${response.status}`);
+            }
+          } catch (error) {
+            if (!lookupError) {
+              lookupError = error;
+            }
           }
         }
 
@@ -1579,26 +1581,17 @@ const urlCaseId = String(
   const receiptBackendEmail = String(
     resolveReceiptEmailSource(routeEnvelope) || ""
   ).trim();
-  const needsReceiptBackendPresence = Boolean(
-    inferredCaseId && receiptBackendEmail
-  );
+  const needsReceiptBackendPresence = Boolean(inferredCaseId);
   const hasReceiptReadyBackendCase = isSameReceiptReadyCase(
     backendCaseRecord,
     inferredCaseId
   );
-  const hasReceiptReadyHydratedCase = isSameReceiptReadyCase(
-    hydratedReceiptRecord,
-    inferredCaseId
-  );
-  const hasReceiptReadyLocalCase = isSameReceiptReadyCase(
-    currentCase,
-    inferredCaseId
-  );
-  const hasReceiptBackendPresence = Boolean(
-    hasReceiptReadyBackendCase ||
-      hasReceiptReadyHydratedCase ||
-      hasReceiptReadyLocalCase ||
-      backendCaseRepairSucceeded
+  const hasReceiptBackendPresence = Boolean(hasReceiptReadyBackendCase);
+  const hasReceiptBackendAuthorityMissing = Boolean(
+    needsReceiptBackendPresence &&
+      backendCaseLookupComplete &&
+      !backendCaseLoading &&
+      !backendCaseRecord
   );
   const isReceiptBackendSyncPending =
     needsReceiptBackendPresence &&
@@ -1629,6 +1622,8 @@ const urlCaseId = String(
     const email = receiptBackendEmail;
 
     if (!safeCaseId || !email) return;
+    if (!backendCaseLookupComplete) return;
+    if (hasReceiptBackendAuthorityMissing) return;
     if (backendCaseLoading || backendCaseRecord) return;
     if (hasReceiptBackendPresence) return;
     if (isSameReceiptReadyCase(activeCurrentCase, safeCaseId)) return;
@@ -1752,7 +1747,9 @@ const urlCaseId = String(
     };
   }, [
     backendCaseLoading,
+    backendCaseLookupComplete,
     backendCaseRecord,
+    hasReceiptBackendAuthorityMissing,
     hasReceiptBackendPresence,
     currentCase,
     activeCurrentCase,
@@ -2398,18 +2395,19 @@ const receiptEventCount = Number(
     submittedEvents ??
     0
 );
-const hasReadyReceipt =
-  receiptEligible === true ||
-  activeCurrentCase?.receiptEligible === true ||
-  activeCurrentCase?.caseReceiptEligible === true ||
-  hydratedReceiptRecord?.receiptEligible === true ||
-  hydratedReceiptRecord?.caseReceiptEligible === true ||
-  currentCase?.receiptEligible === true ||
-  currentCase?.caseReceiptEligible === true ||
-  activeReceiptStatus === "ready" ||
-  activeReceiptLifecycleValues.some((value) =>
-    ["receipt ready", "receipt_ready", "ready", "issued", "baseline issued"].includes(value)
-  );
+const hasReadyReceipt = needsReceiptBackendPresence
+  ? hasReceiptReadyBackendCase
+  : receiptEligible === true ||
+    activeCurrentCase?.receiptEligible === true ||
+    activeCurrentCase?.caseReceiptEligible === true ||
+    hydratedReceiptRecord?.receiptEligible === true ||
+    hydratedReceiptRecord?.caseReceiptEligible === true ||
+    currentCase?.receiptEligible === true ||
+    currentCase?.caseReceiptEligible === true ||
+    activeReceiptStatus === "ready" ||
+    activeReceiptLifecycleValues.some((value) =>
+      ["receipt ready", "receipt_ready", "ready", "issued", "baseline issued"].includes(value)
+    );
 const hasPilotResultContext =
   Boolean(activeCurrentCase?.result) ||
   Boolean(activeCurrentCase?.preview) ||
@@ -2427,12 +2425,13 @@ const hasPilotResultContext =
       value
     )
   );
-const hasReceiptCaseContext =
-  Boolean(activeCurrentCase) ||
-  Boolean(currentCase) ||
-  Boolean(backendCaseRecord) ||
-  Boolean(hydratedReceiptRecord) ||
-  hasPilotResultContext;
+const hasReceiptCaseContext = needsReceiptBackendPresence
+  ? Boolean(backendCaseRecord)
+  : Boolean(activeCurrentCase) ||
+    Boolean(currentCase) ||
+    Boolean(backendCaseRecord) ||
+    Boolean(hydratedReceiptRecord) ||
+    hasPilotResultContext;
 const receiptReadinessPending =
   isReceiptCaseHydrating ||
   !receiptRecordHydrationComplete ||
@@ -2463,6 +2462,7 @@ const hasConfirmedNonReadyReceipt =
   );
 const receiptHydrationFailed =
   !inferredCaseId ||
+  hasReceiptBackendAuthorityMissing ||
   Boolean(backendCaseError) ||
   Boolean(backendCaseRepairFailed && !hasReceiptCaseContext) ||
   Boolean(
