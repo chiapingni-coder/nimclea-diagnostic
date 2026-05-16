@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -53,6 +53,42 @@ function runExistingScript(relativeFile, area) {
   const stdout = (result.stdout || "").trim();
   const detail = stderr || stdout || `exit code ${result.status}`;
   addResult("FAIL", area, `${relativeFile} failed: ${detail.split(/\r?\n/).slice(-1)[0]}`);
+}
+
+function checkNoCaseDiagnosticModalGuard() {
+  const relativeFile = "frontend/pages/CasesPage.jsx";
+  const absoluteFile = path.join(repoRoot, relativeFile);
+
+  if (!existsSync(absoluteFile)) {
+    addResult("FAIL", "no-case diagnostic modal guard", `${relativeFile} is missing`);
+    return;
+  }
+
+  const source = readFileSync(absoluteFile, "utf8");
+
+  if (source.includes("showNoCaseModalForEmpty: !isKnownWorkspaceEmail(email)")) {
+    addResult(
+      "FAIL",
+      "no-case diagnostic modal guard",
+      "FAIL guard: no-case diagnostic modal trigger was re-enabled"
+    );
+    return;
+  }
+
+  if (source.includes("showNoCaseModalForEmpty: false")) {
+    addResult(
+      "PASS",
+      "no-case diagnostic modal guard",
+      "PASS guard: no-case diagnostic modal remains disabled"
+    );
+    return;
+  }
+
+  addResult(
+    "FAIL",
+    "no-case diagnostic modal guard",
+    "FAIL guard: no-case diagnostic modal trigger was re-enabled"
+  );
 }
 
 function printResults() {
@@ -181,6 +217,7 @@ runExistingScript(
   "scripts/check-event-review-contract.mjs",
   "20A event review boundary guard"
 );
+checkNoCaseDiagnosticModalGuard();
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
 addResult("WARN", "verification unlock UI smoke", "manual-only release area");
