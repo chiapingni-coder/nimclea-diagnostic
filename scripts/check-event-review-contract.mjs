@@ -180,6 +180,35 @@ if (scannedPageCount > 0) {
   addResult("FAIL", "no frontend page files were available for runtime coupling scan");
 }
 
+const eventReviewEngineFile = "frontend/utils/eventReviewEngine.js";
+const eventReviewEnginePath = path.join(repoRoot, eventReviewEngineFile);
+
+if (!existsSync(eventReviewEnginePath)) {
+  addResult("FAIL", `${eventReviewEngineFile} is missing`);
+} else {
+  const eventReviewEngineSource = readRepoFile(eventReviewEngineFile);
+  const requiredEventReviewSkeletonMarkers = [
+    "export function reviewEventEntry",
+    "reviewMode",
+    "structureDelta",
+    "hasEvidence",
+    "hasResponse",
+    "hasBoundary",
+    "nextStepHint",
+    "receipt_ready",
+    "structured_progress",
+    "summary_only",
+  ];
+
+  for (const marker of requiredEventReviewSkeletonMarkers) {
+    if (eventReviewEngineSource.includes(marker)) {
+      addResult("PASS", `${eventReviewEngineFile} passive skeleton marker present: ${marker}`);
+    } else {
+      addResult("FAIL", `${eventReviewEngineFile} passive skeleton marker missing: ${marker}`);
+    }
+  }
+}
+
 const failed = results.some((result) => result.status === "FAIL");
 
 console.log("");
