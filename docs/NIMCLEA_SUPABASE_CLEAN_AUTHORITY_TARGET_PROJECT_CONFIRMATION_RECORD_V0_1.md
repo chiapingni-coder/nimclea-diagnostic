@@ -41,7 +41,7 @@ Fill manually before live apply.
 
 - Supabase project name: nimclea-db
 - Supabase project ref: nljnzjewucymgjvpmqfw
-- Environment: test
+- Environment: production branch / clean empty foundation target
 - Confirmed by: BINGNI XIA
 - Confirmation date: 2026-05-16
 - Apply method: Dashboard SQL Editor 
@@ -72,4 +72,5 @@ Stop if:
 ## Decision
 
 The clean authority migration must not be applied until the target Supabase project and environment are confirmed in this record.
+
 
