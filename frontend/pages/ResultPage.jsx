@@ -1451,6 +1451,41 @@ function ReportHero({
           </div>
         </div>
 
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">
+            Why this result
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            This result is based on the diagnostic signals provided in your answers. Nimclea looks for pressure, boundary clarity, ownership, approval, and responsibility patterns before recommending the next step.
+          </p>
+
+          <div className="mt-4 grid gap-2 text-sm">
+            <div className="flex flex-col gap-1 rounded-xl bg-slate-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="font-medium text-slate-500">Primary pressure</span>
+              <span className="text-slate-900">Captured from diagnostic answers</span>
+            </div>
+            <div className="flex flex-col gap-1 rounded-xl bg-slate-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="font-medium text-slate-500">Weakest boundary signal</span>
+              <span className="text-slate-900">
+                {sanitizeText(
+                  getWeakestDimensionDisplay(weakestDimension),
+                  "Boundary clarity, ownership, or approval risk"
+                )}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1 rounded-xl bg-slate-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="font-medium text-slate-500">Decision risk pattern</span>
+              <span className="text-slate-900">
+                {sanitizeText(result?.scenario?.label, "Diagnostic pattern identified")}
+              </span>
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            This is a diagnostic interpretation, not a verification finding. The Case Plan is the next step for turning the result into a clearer decision record.
+          </p>
+        </div>
+
         {showPilotCtas && onStartPilot ? (
           <div className="mt-6 flex flex-col items-start justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
