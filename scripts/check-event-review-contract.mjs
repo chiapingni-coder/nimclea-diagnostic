@@ -209,6 +209,36 @@ if (!existsSync(eventReviewEnginePath)) {
   }
 }
 
+const schemaMapperFile = "frontend/utils/schemaMapper.js";
+const schemaMapperPath = path.join(repoRoot, schemaMapperFile);
+
+if (!existsSync(schemaMapperPath)) {
+  addResult("FAIL", `${schemaMapperFile} is missing`);
+} else {
+  const schemaMapperSource = readRepoFile(schemaMapperFile);
+  const requiredSchemaBridgeMarkers = [
+    "import",
+    "createEmptyCaseSchema",
+    "normalizeCaseInput",
+    "EVENT_SOURCE",
+    "export function mapResultToCaseSchema",
+    "export function mapPilotInputToCaseSchema",
+    "export function appendEventToSchema",
+    "EVENT_SOURCE.DIAGNOSTIC",
+    "EVENT_SOURCE.PILOT",
+    "meta",
+    "events",
+  ];
+
+  for (const marker of requiredSchemaBridgeMarkers) {
+    if (schemaMapperSource.includes(marker)) {
+      addResult("PASS", `${schemaMapperFile} passive schema bridge marker present: ${marker}`);
+    } else {
+      addResult("FAIL", `${schemaMapperFile} passive schema bridge marker missing: ${marker}`);
+    }
+  }
+}
+
 const failed = results.some((result) => result.status === "FAIL");
 
 console.log("");
