@@ -1,4 +1,4 @@
-﻿# NIMCLEA Supabase Clean Authority Target Project Confirmation Record v0.1
+# NIMCLEA Supabase Clean Authority Target Project Confirmation Record v0.1
 
 ## Purpose
 
@@ -72,5 +72,3 @@ Stop if:
 ## Decision
 
 The clean authority migration must not be applied until the target Supabase project and environment are confirmed in this record.
-
-
