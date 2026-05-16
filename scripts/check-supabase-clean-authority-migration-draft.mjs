@@ -30,6 +30,20 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const hasPattern = (text, pattern) => pattern.test(text);
 
+const getTableBlock = (sql, table, tableNames = requiredTables) => {
+  const tableName = escapeRegExp(table);
+  const nextTablePattern = tableNames
+    .filter((candidate) => candidate !== table)
+    .map(escapeRegExp)
+    .join('|');
+  const tableBlockPattern = new RegExp(
+    `create\\s+table\\s+public\\.${tableName}\\s*\\([\\s\\S]*?(?=\\ncreate\\s+table\\s+public\\.(${nextTablePattern})\\s*\\(|$)`,
+    'i',
+  );
+
+  return sql.match(tableBlockPattern)?.[0] ?? '';
+};
+
 const hasPositivePaymentEligibilityWording = (sql) => {
   const positiveReceiptPatterns = [
     /\bpayment\b[\s\S]{0,80}\bcreates?\b[\s\S]{0,80}\breceipt\s+eligibility\b/i,
@@ -120,15 +134,7 @@ if (!existsSync(migrationPath)) {
 
   for (const table of requiredTables) {
     const tableName = escapeRegExp(table);
-    const nextTablePattern = requiredTables
-      .filter((candidate) => candidate !== table)
-      .map(escapeRegExp)
-      .join('|');
-    const tableBlockPattern = new RegExp(
-      `create\\s+table\\s+public\\.${tableName}\\s*\\([\\s\\S]*?(?=\\ncreate\\s+table\\s+public\\.(${nextTablePattern})\\s*\\(|$)`,
-      'i',
-    );
-    const tableBlock = sql.match(tableBlockPattern)?.[0] ?? '';
+    const tableBlock = getTableBlock(sql, table);
 
     if (!tableBlock) {
       addFailure(`Missing required table: ${table}`);
@@ -171,6 +177,55 @@ if (!existsSync(migrationPath)) {
       }
     }
   }
+
+  const eventReviewsBlock = getTableBlock(sql, 'event_reviews');
+  const eventLogsBlock = getTableBlock(sql, 'event_logs');
+
+  const sourceOnlyGuardChecks = [
+    [
+      'event_reviews includes event_log_id uuid',
+      eventReviewsBlock,
+      /\bevent_log_id\s+uuid\b/i,
+    ],
+    [
+      'event_reviews includes review_result text',
+      eventReviewsBlock,
+      /\breview_result\s+text\b/i,
+    ],
+    [
+      'event_reviews includes case_schema jsonb',
+      eventReviewsBlock,
+      /\bcase_schema\s+jsonb\b/i,
+    ],
+    [
+      'event_logs includes event_log_id uuid primary key',
+      eventLogsBlock,
+      /\bevent_log_id\s+uuid\s+primary\s+key\b/i,
+    ],
+    [
+      'event_logs includes event_type text not null',
+      eventLogsBlock,
+      /\bevent_type\s+text\s+not\s+null\b/i,
+    ],
+    [
+      'event_logs includes raw_event jsonb',
+      eventLogsBlock,
+      /\braw_event\s+jsonb\b/i,
+    ],
+    [
+      'deferred FK exists from event_reviews.event_log_id to event_logs.event_log_id',
+      normalizedSql,
+      /alter\s+table\s+public\.event_reviews\s+add\s+constraint\s+event_reviews_event_log_id_fkey\s+foreign\s+key\s+\(event_log_id\)\s+references\s+public\.event_logs\s*\(\s*event_log_id\s*\)\s*;/i,
+    ],
+  ];
+
+  for (const [label, text, pattern] of sourceOnlyGuardChecks) {
+    if (hasPattern(text, pattern)) {
+      addPass(`${label}.`);
+    } else {
+      addFailure(`Missing source-only guard: ${label}.`);
+    }
+  }
 }
 
 console.log('Supabase clean authority migration draft guard');
@@ -187,5 +242,5 @@ if (failures.length > 0) {
 } else {
   console.log('PASS');
   console.log('');
-  console.log(`Validated ${requiredTables.length} required tables, pgcrypto preflight, grants, RLS, policies, and static safety rules.`);
+  console.log(`Validated ${requiredTables.length} required tables, event-review authority link guards, pgcrypto preflight, grants, RLS, policies, and static safety rules.`);
 }
