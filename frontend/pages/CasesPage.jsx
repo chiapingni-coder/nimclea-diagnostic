@@ -196,6 +196,14 @@ function normalizeCaseText(value = "") {
   return String(value || "").trim().toLowerCase();
 }
 
+function isBackendCaseAuthorityMissing(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  return (
+    normalized?._backendCaseAuthority === "missing" ||
+    normalized?.backendCaseMissing === true
+  );
+}
+
 const NON_EVIDENCE_EVENT_TYPES = new Set([
   "entry_viewed",
   "entry_clicked",
@@ -380,26 +388,40 @@ async function hydrateCaseDetails(cases = []) {
           detailCache.set(
             caseId,
             fetch(`${API_BASE}/case/${encodeURIComponent(caseId)}`)
-              .then((response) =>
-                response.ok ? response.json().catch(() => ({})) : null
-              )
-              .then((payload) => payload?.data || null)
+              .then(async (response) => {
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || payload?.success === false || !payload?.data) {
+                  return { found: false, detail: null };
+                }
+                return { found: true, detail: payload.data };
+              })
               .catch((error) => {
                 console.warn("Failed to hydrate case detail", caseId, error);
-                return null;
+                return { found: false, detail: null };
               })
           );
         }
 
-        const detail = await detailCache.get(caseId);
+        const detailResult = await detailCache.get(caseId);
+        const detail = detailResult?.detail || null;
 
-        if (!detail || typeof detail !== "object") return caseItem;
+        if (!detailResult?.found || !detail || typeof detail !== "object") {
+          return {
+            ...caseItem,
+            caseId,
+            id: caseItem?.id || caseId,
+            _backendCaseAuthority: "missing",
+            backendCaseMissing: true,
+          };
+        }
 
         return {
           ...caseItem,
           ...detail,
           caseId,
           id: caseItem?.id || detail?.id || caseId,
+          _backendCaseAuthority: "confirmed",
+          backendCaseMissing: false,
           caseData: {
             ...(caseItem?.caseData || {}),
             ...(detail?.caseData || {}),
@@ -548,6 +570,42 @@ function hasCanonicalBackendReceiptReadySignal(item = {}) {
 
 function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
+
+  if (isBackendCaseAuthorityMissing(normalized)) {
+    return {
+      normalized,
+      evidenceEventCount: 0,
+      hasEvidenceEvent: false,
+      receiptReady: false,
+      checkoutStarted: false,
+      paid: false,
+      displayStatus: "Record needs sync",
+      readinessContract: {
+        receiptReady: false,
+        readinessLevel: "integrity_boundary",
+        blockers: ["Case record was not found in the workspace authority."],
+        criticalBlockers: ["backend_case_missing"],
+        checks: [],
+      },
+      hasReceiptStageSignal: false,
+      directBackendReceiptReady: false,
+      hasPilotOrCaseResultContext: false,
+      hasReceiptPathContext: false,
+      hasReceiptNonReadySignal: false,
+      hasReceiptNotReadyDisplaySignal: false,
+      hasConcreteReceiptProgress: false,
+      legacyReceiptReadySignal: false,
+      snapshotOnly: false,
+      concreteProgressReasons: {},
+      paymentStatusText: "",
+      hasRealPaymentObject: false,
+      trustedPaymentProgress: false,
+      readinessDetailLabel: "",
+      diagnosticOnly: false,
+      diagnosticContinuation: false,
+    };
+  }
+
   const evidenceEventCount = getEvidenceEvents(normalized).length;
   const diagnosticOnly = isDiagnosticOnlyCase(normalized, { evidenceEventCount });
   const diagnosticContinuation =
@@ -812,6 +870,10 @@ function hasDiagnosticResultData(item) {
 function hasReceiptDetailRouteSignal(item) {
   const normalized = normalizeCaseItem(item);
 
+  if (isBackendCaseAuthorityMissing(normalized)) {
+    return false;
+  }
+
   if (
     isDiagnosticContinuationCase(normalized) ||
     deriveCaseListState(normalized).diagnosticOnly === true
@@ -865,6 +927,10 @@ function getCaseDetailRoute(item, explicitCaseId = "") {
   const encodedCaseId = encodeURIComponent(caseIdSafe);
   const normalized = normalizeCaseItem(item);
   const derived = deriveCaseListState(normalized);
+
+  if (isBackendCaseAuthorityMissing(normalized)) {
+    return "/cases";
+  }
 
   if (
     derived.receiptReady ||
@@ -3086,6 +3152,7 @@ export default function CasesPage() {
               const caseId = normalizedItem?.caseId || normalizedItem?.case_id || normalizedItem?.id || "";
               const hasDiagnosticData = hasDiagnosticResultData(normalizedItem);
               const hasProgress = hasPostDiagnosticProgress(normalizedItem);
+              const hasBackendAuthorityIssue = isBackendCaseAuthorityMissing(normalizedItem);
               const isDiagnosticCompletedOnly =
                 (hasDiagnosticData && !hasProgress) ||
                 isDiagnosticContinuationCase(normalizedItem);
@@ -3132,13 +3199,18 @@ export default function CasesPage() {
                 checks: derived.readinessContract?.checks,
               });
               const shouldContinueDiagnostic =
+                !hasBackendAuthorityIssue &&
                 (derived.diagnosticOnly || isDiagnosticContinuation) &&
                 !derived.hasReceiptStageSignal &&
                 !derived.receiptReady;
               const primaryActionPath = shouldContinueDiagnostic && primaryResolvedCaseId
                 ? `${ROUTES.PILOT || "/pilot"}?caseId=${encodeURIComponent(primaryResolvedCaseId)}&from=case`
                 : detailPath;
-              const primaryActionLabel = shouldContinueDiagnostic ? "Continue Case" : "Detail";
+              const primaryActionLabel = hasBackendAuthorityIssue
+                ? "Record needs sync"
+                : shouldContinueDiagnostic
+                ? "Continue Case"
+                : "Detail";
               const redoDiagnosticCaseId = primaryResolvedCaseId;
               const redoDiagnosticPath = redoDiagnosticCaseId
                 ? `${ROUTES.DIAGNOSTIC}?caseId=${encodeURIComponent(redoDiagnosticCaseId)}&redo=1`
@@ -3315,6 +3387,13 @@ export default function CasesPage() {
 
                         if (!resolvedCaseId) {
                           console.warn("[CasesPage Detail route] missing clicked caseId", normalizedItem);
+                          return;
+                        }
+
+                        if (isBackendCaseAuthorityMissing(normalizedItem)) {
+                          console.warn("[CasesPage Detail route] backend authority missing; navigation blocked", {
+                            clickedCaseId: resolvedCaseId,
+                          });
                           return;
                         }
 

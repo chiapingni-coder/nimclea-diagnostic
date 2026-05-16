@@ -1400,11 +1400,20 @@ export default function PilotResultPage() {
   const isCaseReview =
     searchParams.get("from") === "case" || Boolean(searchParams.get("caseId"));
   const [backendCaseRecord, setBackendCaseRecord] = useState(null);
+  const [backendCaseAuthorityStatus, setBackendCaseAuthorityStatus] = useState("idle");
+  const requiresBackendCaseAuthority = Boolean(isCaseReview && resolvedCaseId);
+  const hasBackendBackedCaseAuthority =
+    !requiresBackendCaseAuthority || backendCaseAuthorityStatus === "confirmed";
 
   useEffect(() => {
-    if (!resolvedCaseId) return;
+    if (!resolvedCaseId) {
+      setBackendCaseAuthorityStatus("idle");
+      setBackendCaseRecord(null);
+      return;
+    }
 
     let cancelled = false;
+    setBackendCaseAuthorityStatus("checking");
 
     async function loadBackendCaseRecord() {
       try {
@@ -1415,11 +1424,22 @@ export default function PilotResultPage() {
         const payload = await response.json().catch(() => ({}));
         const caseRecord = payload?.data || null;
 
-        if (!cancelled && caseRecord) {
+        if (cancelled) return;
+
+        if (response.ok && payload?.success !== false && caseRecord) {
           setBackendCaseRecord(caseRecord);
+          setBackendCaseAuthorityStatus("confirmed");
+          return;
         }
+
+        setBackendCaseRecord(null);
+        setBackendCaseAuthorityStatus("missing");
       } catch (error) {
         console.warn("PilotResultPage backend case load failed:", error);
+        if (!cancelled) {
+          setBackendCaseRecord(null);
+          setBackendCaseAuthorityStatus("missing");
+        }
       }
     }
 
@@ -1466,7 +1486,8 @@ export default function PilotResultPage() {
   const visibleEvents = Array.isArray(capturedEvents)
     ? capturedEvents.filter((event) => getEventText(event).length > 0)
     : [];
-  const hasCapturedEvents = capturedEvents.length > 0;
+  const hasCapturedEvents =
+    hasBackendBackedCaseAuthority && capturedEvents.length > 0;
 
   useEffect(() => {
     if (!resolvedCaseId) return;
@@ -2308,6 +2329,47 @@ const acceptanceStatusClass =
 const resolvedChecklistItems = Array.isArray(resolvedAcceptanceChecklist?.items)
   ? resolvedAcceptanceChecklist.items
   : [];
+
+if (requiresBackendCaseAuthority && backendCaseAuthorityStatus === "missing") {
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <TopRightCasesCapsule />
+      <div className="max-w-3xl mx-auto">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">
+            We could not load this case record from the workspace authority.
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            Please return to all cases or restart from the saved diagnostic record.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.CASES || "/cases")}
+            className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+          >
+            View all cases
+          </button>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+if (
+  requiresBackendCaseAuthority &&
+  backendCaseAuthorityStatus !== "confirmed"
+) {
+  return (
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-10">
+      <TopRightCasesCapsule />
+      <div className="max-w-3xl mx-auto">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm leading-6 text-slate-700">Loading case record...</p>
+        </section>
+      </div>
+    </div>
+  );
+}
 
 if (!hasCapturedEvents) {
   const pilotPath = resolvedCaseId
