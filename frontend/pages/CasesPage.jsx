@@ -2231,7 +2231,7 @@ export default function CasesPage() {
     }
 
     void loadCasesForEmail(email, {
-      showNoCaseModalForEmpty: !isKnownWorkspaceEmail(email),
+      showNoCaseModalForEmpty: false,
     });
   }, [emailInput, loadCasesForEmail, navigate]);
 
