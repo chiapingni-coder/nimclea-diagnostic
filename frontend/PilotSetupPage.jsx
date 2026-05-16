@@ -1605,20 +1605,44 @@ const handleConfirm = async () => {
     isMismatchedTrialSession
   ) {
     if (isCaseFlowSubmission) {
-      existingTrialSession = {
-        userId:
-          stableUserId ||
-          localStorage.getItem("stableUserId") ||
-          `case_user_${resolvedCaseId}`,
-        trialId: `case_${resolvedCaseId}`,
-        caseId: resolvedCaseId,
-        email: activeLeadEmail || lead.email || "",
-        status: "case_flow",
-        createdAt: new Date().toISOString(),
-        lockedScopeSnapshot: resolvedLockedScopeSnapshot,
-      };
+      try {
+        const registerRes = await registerTrialUser({
+          email: activeLeadEmail || "pilot@nimclea.local",
+          name: lead.name || "",
+          company: lead.company || "",
+        });
 
-      setTrialSession(existingTrialSession);
+        existingTrialSession = {
+          userId: registerRes?.data?.userId || "",
+          trialId: registerRes?.data?.trialId || "",
+          email:
+            registerRes?.data?.email ||
+            activeLeadEmail ||
+            lead.email ||
+            "pilot@nimclea.local",
+          status: registerRes?.data?.status || "registered",
+          createdAt: registerRes?.data?.createdAt || "",
+          caseId: resolvedCaseId,
+          lockedScopeSnapshot: resolvedLockedScopeSnapshot,
+        };
+
+        if (!existingTrialSession?.userId || !existingTrialSession?.trialId) {
+          console.error("PilotSetupPage registerTrialUser returned empty session", {
+            registerRes,
+          });
+          confirmLockedRef.current = false;
+          alert("Workspace session was not created.");
+          return;
+        }
+
+        setTrialSession(existingTrialSession);
+        localStorage.setItem("stableUserId", existingTrialSession.userId);
+      } catch (error) {
+        console.error("PilotSetupPage registerTrialUser error:", error);
+        confirmLockedRef.current = false;
+        alert(error?.message || "Failed to create workspace session.");
+        return;
+      }
     } else {
       try {
         const registerRes = await registerTrialUser({
