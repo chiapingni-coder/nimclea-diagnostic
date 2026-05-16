@@ -366,9 +366,10 @@ async function run() {
   const casesPageSource = readTextIfPresent("frontend/pages/CasesPage.jsx");
   checks.push(
     expect(
-      !/trialStatusApi|getTrialStatusDisplayModel|trial-status/.test(casesPageSource),
-      "CasesPage does not import adapter or reference trial-status",
-      "CasesPage contains adapter or trial-status reference"
+      casesPageSource.includes('import { getTrialStatusDisplayModel } from "../lib/trialStatusApi";') &&
+        casesPageSource.includes("getTrialStatusDisplayModel({"),
+      "CasesPage uses backend trial-status display adapter",
+      "CasesPage does not import or call getTrialStatusDisplayModel"
     )
   );
 

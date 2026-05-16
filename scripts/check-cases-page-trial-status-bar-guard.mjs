@@ -62,26 +62,20 @@ const sourceExists = existsSync(casesPagePath);
 const source = sourceExists ? readFileSync(casesPagePath, "utf8") : "";
 const displayModelBlock = extractBetween(
   source,
-  "const trialStatusDisplay = React.useMemo(() => {",
-  "// Derived only; not wired into the UI yet."
+  "const [trialStatusDisplay, setTrialStatusDisplay] = React.useState(null);",
+  "const hasWorkspaceIdentity ="
 );
-const renderBlock = extractAroundAll(source, [
-  "Trial Day",
-  "Cases created:",
-  "trialStatusDisplay.trialDay",
-  "trialStatusDisplay.casesCreatedDuringTrial",
-  "trialStatusDisplay.activeCaseCount",
-  "trialStatusDisplay",
-  "Pilot guide",
-  "How this pilot works",
-]);
+const renderBlock = extractBetween(
+  source,
+  "{trialStatusDisplay && (",
+  "{hasWorkspaceIdentity && ("
+);
 const trialStatusArea = normalize(`${displayModelBlock}\n${renderBlock}`);
 
 const requiredStrings = [
   "7-Day Pilot",
   "Day",
   "of 7",
-  "Cases created",
   "7-Day Pilot active",
   "Pilot guide",
   "Use this workspace to run real cases during the 7-day pilot.",
@@ -112,8 +106,18 @@ const checks = [
     )
   ),
   expect(
-    displayModelBlock.includes("getTrialSession()"),
-    "trial status display model uses getTrialSession()"
+    displayModelBlock.includes("getTrialStatusDisplayModel({") &&
+      displayModelBlock.includes("setTrialStatusDisplay("),
+    "trial status display model uses backend trial-status adapter"
+  ),
+  expect(
+    !displayModelBlock.includes("getTrialSession()") &&
+      !displayModelBlock.includes("computeTrialDay("),
+    "trial status display model does not infer from local session timing"
+  ),
+  expect(
+    !trialStatusArea.includes("Cases created"),
+    "trial status bar does not show unreliable case count"
   ),
   ...forbiddenTrialAreaStrings.map((forbiddenString) =>
     expect(

@@ -162,6 +162,10 @@ runExistingScript(
   "frontend trial status adapter runtime smoke"
 );
 runExistingScript(
+  "scripts/check-trial-supabase-authority-contract.mjs",
+  "trial Supabase authority contract guard"
+);
+runExistingScript(
   "scripts/check-cases-page-trial-status-bar-guard.mjs",
   "CasesPage 7-day trial status bar guard"
 );
