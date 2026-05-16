@@ -217,6 +217,10 @@ runExistingScript(
   "scripts/check-event-review-contract.mjs",
   "20A event review boundary guard"
 );
+runExistingScript(
+  "scripts/check-supabase-clean-authority-migration-draft.mjs",
+  "Supabase clean authority migration draft guard"
+);
 checkNoCaseDiagnosticModalGuard();
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
