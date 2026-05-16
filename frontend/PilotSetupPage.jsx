@@ -1660,8 +1660,12 @@ const handleConfirm = async () => {
 
   let didWriteRoutingDecision = false;
   let writtenRoutingCaseId = "";
+  const hasStartedTrialSession =
+    Boolean(existingTrialSession?.startedAt) ||
+    Boolean(existingTrialSession?.trialStartedAt) ||
+    existingTrialSession?.status === "active";
 
-  if (isCaseFlowSubmission) {
+  if (isCaseFlowSubmission && hasStartedTrialSession) {
     mergedTrialSession = {
       ...existingTrialSession,
       status: "case_flow_active",
