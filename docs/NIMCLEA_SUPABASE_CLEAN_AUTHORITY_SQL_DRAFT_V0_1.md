@@ -309,6 +309,7 @@ create table public.event_reviews (
   event_review_id uuid primary key default gen_random_uuid(),
   customer_id uuid not null references public.customers(customer_id),
   case_id uuid not null references public.cases(case_id),
+  event_log_id uuid,
   diagnostic_id uuid references public.diagnostics(diagnostic_id),
   case_plan_id uuid references public.case_plans(case_plan_id),
   review_status text not null default 'draft',
@@ -379,6 +380,8 @@ with check (
 
 Policy adjustment needed later: decide whether event review writes are customer-visible but backend-authored only.
 
+Documentation note: `event_logs` is the current SQL-draft name for case-scoped event history / case_events. It stores raw event input and `event_type`. `event_reviews` must bind to a specific `event_log_id` before this SQL can be executed. `event_logs` must not be treated as only generic analytics/audit logs when used for case trust foundation.
+
 ### 4.6 event_logs
 
 ```sql
@@ -417,6 +420,14 @@ using (
 ```
 
 Policy adjustment needed later: event logs should likely be backend-append-only. Authenticated insert/update is intentionally not granted in this draft.
+
+Documentation-only follow-up draft:
+
+```sql
+alter table public.event_reviews
+add constraint event_reviews_event_log_id_fkey
+foreign key (event_log_id) references public.event_logs(event_log_id);
+```
 
 ### 4.7 receipts
 
@@ -679,6 +690,7 @@ Policy adjustment needed later: hash ledger writes should be backend-controlled,
 - Which tables should allow authenticated client inserts or updates, if any?
 - Should receipts, verifications, payments, trial lifecycle, audit trail, and hash ledger be fully backend-only with no authenticated direct table access?
 - Should payment references use a stricter unique constraint per processor?
+- Should `event_logs` be renamed to `case_events` before execution, or kept as `event_logs` with explicit case-scoped `eventHistory` semantics?
 - Should lifecycle status fields use enums, check constraints, or text with application-level validation?
 - Should `updated_at` be maintained by database triggers or backend writes?
 - Should audit and event log tables be made insert-only by role and protected from update/delete even for service workflows?
