@@ -106,6 +106,10 @@ runExistingScript(
   "backend /cases aggregation smoke"
 );
 runExistingScript(
+  "scripts/check-diagnostic-q1-primary-pressure.mjs",
+  "Diagnostic Q1 primary pressure wording guard"
+);
+runExistingScript(
   "scripts/check-receipt-verification-contract.mjs",
   "receipt verification access contract"
 );
