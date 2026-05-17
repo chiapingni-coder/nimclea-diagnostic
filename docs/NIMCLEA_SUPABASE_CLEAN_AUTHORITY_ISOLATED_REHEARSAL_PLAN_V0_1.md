@@ -99,3 +99,37 @@ Do not apply this migration to production until the isolated rehearsal passes an
 Do not use production data for the rehearsal.
 
 Do not promote the candidate into a live migration path until identity mapping and backend-only write boundaries remain aligned with the rehearsal result.
+
+## Execution Readiness Stop-Line
+
+The rehearsal is not execution-ready until a specific isolated Supabase project or a local isolated Supabase target is named.
+
+The SQL source must remain `docs/NIMCLEA_SUPABASE_CORE_TABLES_MIGRATION_CANDIDATE_V0_1.md` until isolated rehearsal passes.
+
+No production Supabase project may be touched before a rehearsal pass record is committed.
+
+A real migration file should not be created yet.
+
+## Identity-to-Customer Binding Check
+
+The rehearsal must verify how `email` maps to `userId`.
+
+The rehearsal must verify how `userId` maps to backend `customer_id` if `customer_id` is used.
+
+The rehearsal must verify how `caseId` maps to `case_records`.
+
+The rehearsal must verify that `case_events` and `receipt_records` attach to the same `caseId` / customer boundary.
+
+The rehearsal must verify that frontend and `anon` cannot directly write core tables.
+
+The rehearsal must verify that backend and `service_role` is the only write path for core tables.
+
+## Precheck Decision
+
+Current decision: not execution-ready yet.
+
+Reason: SQL shape and grants can be rehearsed, but the authority boundary is not proven until identity/customer binding and backend-only write checks pass.
+
+Next allowed step: create an isolated rehearsal runbook or checklist.
+
+Still not allowed: production migration, real migration file, JSON fallback removal, route rewiring.
