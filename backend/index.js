@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import QUESTION_VALUES from "./questionValues.js";
 import SIGNAL_CALC_TABLE from "./signalCalcTable.js";
 import generatePreview from "./previewGenerator.js";
+import { insertCaseEvent } from "./utils/supabaseCoreAuthorityStore.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -481,6 +482,160 @@ function parseRequestBody(req) {
   });
 }
 
+const REHEARSAL_ENDPOINT_FLAG = "NIMCLEA_ENABLE_REHEARSAL_ENDPOINTS";
+const REHEARSAL_CASE_ID_PATTERN = /^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/;
+const REHEARSAL_CASE_HINT_PATTERN = /(rehearsal|test|smoke|fixture)/i;
+const REHEARSAL_ALLOWED_CASE_IDS = new Set([
+  "00000000-0000-4000-8000-000000000024",
+]);
+const REHEARSAL_EMAIL_PATTERN = /@nimclea\.test$/i;
+
+function isRehearsalEndpointsEnabled() {
+  return String(process.env[REHEARSAL_ENDPOINT_FLAG] || "").trim().toLowerCase() === "true";
+}
+
+function isFixtureOnlyCaseId(caseId = "") {
+  const value = String(caseId || "").trim();
+  if (!value) return false;
+  return (
+    REHEARSAL_ALLOWED_CASE_IDS.has(value) ||
+    (REHEARSAL_CASE_ID_PATTERN.test(value) && REHEARSAL_CASE_HINT_PATTERN.test(value)) ||
+    REHEARSAL_CASE_HINT_PATTERN.test(value)
+  );
+}
+
+function isFixtureOnlyActorEmail(actorEmail = "") {
+  const value = String(actorEmail || "").trim().toLowerCase();
+  return Boolean(value && REHEARSAL_EMAIL_PATTERN.test(value));
+}
+
+function isFixtureOnlyEventType(eventType = "") {
+  const value = String(eventType || "").trim();
+  return Boolean(value) && (value === "rehearsal.case_event_fixture" || value.startsWith("rehearsal."));
+}
+
+function normalizeRehearsalEventPayload(payload = {}, actorEmail = "") {
+  const safePayload = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const trimmedKeys = Object.keys(safePayload).slice(0, 20);
+  const limitedPayload = {};
+
+  for (const key of trimmedKeys) {
+    const value = safePayload[key];
+    limitedPayload[key] = value;
+  }
+
+  limitedPayload.rehearsal = true;
+  limitedPayload.fixture = true;
+  limitedPayload.actorEmail = String(actorEmail || "").trim().toLowerCase();
+  limitedPayload.endpoint = "/internal/rehearsal/case-events";
+
+  return limitedPayload;
+}
+
+async function handleRehearsalCaseEventsRequest(req, res) {
+  if (!isRehearsalEndpointsEnabled()) {
+    return sendJson(res, 404, {
+      success: false,
+      message: "Not found",
+    });
+  }
+
+  try {
+    const parsedBody = await parseRequestBody(req);
+    const caseId = String(parsedBody?.caseId || "").trim();
+    const eventType = String(parsedBody?.eventType || "").trim();
+    const actorEmail = String(parsedBody?.actorEmail || "").trim().toLowerCase();
+    const rehearsalKey = String(parsedBody?.rehearsalKey || "").trim();
+    const eventPayload = normalizeRehearsalEventPayload(parsedBody?.eventPayload, actorEmail);
+
+    if (!isFixtureOnlyCaseId(caseId)) {
+      return sendJson(res, 400, {
+        success: false,
+        message: "Fixture caseId required",
+      });
+    }
+
+    if (!isFixtureOnlyActorEmail(actorEmail)) {
+      return sendJson(res, 400, {
+        success: false,
+        message: "Fixture actorEmail required",
+      });
+    }
+
+    if (!isFixtureOnlyEventType(eventType)) {
+      return sendJson(res, 400, {
+        success: false,
+        message: "Fixture rehearsal eventType required",
+      });
+    }
+
+    if (rehearsalKey && rehearsalKey !== "aac05") {
+      return sendJson(res, 400, {
+        success: false,
+        message: "Invalid rehearsalKey",
+      });
+    }
+
+    const insertResult = await insertCaseEvent({
+      caseId,
+      eventType,
+      eventSource: "aac05_fixture_endpoint",
+      eventPayload,
+      eventReview: {
+        rehearsal: true,
+        fixture: true,
+      },
+      authoritySource: "supabase_core_authority",
+      createdAt: new Date().toISOString(),
+    });
+
+    if (insertResult?.disabled) {
+      return sendJson(res, 503, {
+        success: false,
+        message: "Rehearsal store unavailable",
+      });
+    }
+
+    if (!insertResult?.ok) {
+      return sendJson(res, 500, {
+        success: false,
+        message: "Failed to record rehearsal case event",
+      });
+    }
+
+    return sendJson(res, 200, {
+      success: true,
+      message: "Rehearsal case event recorded",
+      data: {
+        caseId,
+        eventType,
+        actorEmail,
+        rehearsal: true,
+      },
+    });
+  } catch (error) {
+    if (error?.message === "INVALID_JSON_BODY") {
+      return sendJson(res, 400, {
+        success: false,
+        message: "Invalid JSON body",
+      });
+    }
+
+    if (error?.message === "REQUEST_BODY_TOO_LARGE") {
+      return sendJson(res, 413, {
+        success: false,
+        message: "Request body too large",
+      });
+    }
+
+    console.error("[AAC-05 rehearsal] POST /internal/rehearsal/case-events error:", error);
+    return sendJson(res, 500, {
+      success: false,
+      message: "Failed to record rehearsal case event",
+    });
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     return sendEmpty(res, 200);
@@ -547,6 +702,10 @@ const server = http.createServer(async (req, res) => {
         message: error.message
       });
     }
+  }
+
+  if (req.method === "POST" && req.url === "/internal/rehearsal/case-events") {
+    return handleRehearsalCaseEventsRequest(req, res);
   }
 
   return sendJson(res, 404, {

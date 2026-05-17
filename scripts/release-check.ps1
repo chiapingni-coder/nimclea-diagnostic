@@ -21,6 +21,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
+Write-Host "3) Running safe-to-commit check..."
+.\scripts\check-safe-to-commit.ps1
+if ($LASTEXITCODE -ne 0) {
+  Write-Host ""
+  Write-Host "FAILED: safe-to-commit check failed. Stop."
+  exit 1
+}
+
+Write-Host ""
 Write-Host "3) Running frontend build..."
 npm --prefix frontend run build
 if ($LASTEXITCODE -ne 0) {
