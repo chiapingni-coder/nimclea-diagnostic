@@ -7,6 +7,19 @@ function toDate(value) {
   return date && !Number.isNaN(date.getTime()) ? date : null;
 }
 
+function normalizeEmail(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized || "";
+}
+
+function isSafeEmail(value) {
+  return Boolean(value && value.includes("@") && !/\s/.test(value));
+}
+
 export function normalizeTrialLifecycleRow(row = {}) {
   const now = new Date();
   const startedAt = toDate(row.started_at);
@@ -32,6 +45,34 @@ export function normalizeTrialLifecycleRow(row = {}) {
     shouldShowTrialStatusBar: trialStatus === "active" || trialEnded,
     source: "supabase_trial_lifecycle",
   };
+}
+
+export async function getCustomerByEmail(email) {
+  if (!isSupabaseEnabled || !supabase) {
+    return null;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  if (!isSafeEmail(normalizedEmail)) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, email")
+    .eq("email", normalizedEmail)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  return data[0];
 }
 
 export async function createTrialLifecycle(record = {}) {
@@ -145,4 +186,12 @@ export async function getTrialLifecycleByCustomer(customerId) {
   return normalizeTrialLifecycleRow(data[0]);
 }
 
-// Email lookup requires a safe customers table lookup in a later phase.
+// Email lookup is read-only and depends on customers.email.
+export async function getTrialLifecycleByEmail(email) {
+  const customer = await getCustomerByEmail(email);
+  if (!customer) {
+    return null;
+  }
+
+  return getTrialLifecycleByCustomer(customer.id);
+}
