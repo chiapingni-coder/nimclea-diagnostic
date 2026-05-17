@@ -1453,7 +1453,7 @@ function ReportHero({
 
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">
-            Why this result
+            Why this diagnostic result
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             This result is based on the diagnostic signals provided in your answers. Nimclea looks for pressure, boundary clarity, ownership, approval, and responsibility patterns before recommending the next step.
