@@ -416,9 +416,11 @@ export function buildTrialStatus({
   });
 
   const sourceParts = [
-    selectedTrial.source === "supabase_trial_record"
-      ? "supabase_trial_record"
-      : "backend_trial_record",
+    selectedTrial.source === "supabase_trial_lifecycle"
+      ? "supabase_trial_lifecycle"
+      : selectedTrial.source === "supabase_trial_record"
+        ? "supabase_trial_record"
+        : "backend_trial_record",
   ];
 
   if (casesCreatedDuringTrial > 0) sourceParts.push("with_cases");
