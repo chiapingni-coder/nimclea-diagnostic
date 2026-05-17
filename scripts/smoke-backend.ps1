@@ -62,7 +62,7 @@ function Test-Endpoint {
   }
 }
 
-$EncodedEmail = [System.Web.HttpUtility]::UrlEncode($Email)
+$EncodedEmail = [uri]::EscapeDataString($Email)
 
 $TrialStatusUrl = "$BaseUrl/trial-status?email=$EncodedEmail"
 if (Test-Endpoint -Name "trial-status endpoint" -Url $TrialStatusUrl -AllowedStatusCodes @(200)) {
