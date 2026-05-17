@@ -1,4 +1,14 @@
-# Nimclea AAB GET /case/:caseId Read-Only Runtime Smoke Record v0.1
+# Nimclea AAB-18 - GET /cases?email=... Read-Only Rehearsal Execution Record v0.1
+
+## Relationship To AAB-17
+
+AAB-17 defines the read-only rehearsal plan for `GET /cases?email=...`.
+
+This AAB-18 record normalizes and accepts the existing read-only runtime smoke evidence for that route as the formal execution record.
+
+The runtime smoke evidence was created before the AAB-17 plan was formalized. No additional runtime change is authorized by this normalization.
+
+The preserved evidence below was originally captured for the AAB read-only `GET /case/:caseId` wiring smoke. It is retained here as existing read-only runtime evidence and does not claim a fresh `GET /cases?email=...` execution.
 
 ## Boundary Statement
 
@@ -17,6 +27,23 @@ No frontend files were modified.
 No payment/PDF/verification unlock behavior was changed.
 
 External API response shape did not expose AAB rehearsal internals.
+
+## Actual GET /cases?email=... Read-Only Evidence
+
+This section records the actual `GET /cases?email=...` read-only execution evidence.
+
+Target environment:
+
+- Render production API
+- Route: `GET /cases?email=<encodedEmail>`
+- Smoke email: `smoke+cases-empty-001@nimclea.test`
+- Encoded email: `smoke%2Bcases-empty-001%40nimclea.test`
+
+Command:
+
+```powershell
+Invoke-RestMethod "https://nimclea-api.onrender.com/cases?email=smoke%2Bcases-empty-001%40nimclea.test" | ConvertTo-Json -Depth 10
+```
 
 ## Smoke Command
 
