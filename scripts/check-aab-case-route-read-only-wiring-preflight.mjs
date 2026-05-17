@@ -49,6 +49,12 @@ function checkIncludes(source, needle, message) {
   check(source.includes(needle), message);
 }
 
+function checkAllMissing(source, needles, messagePrefix) {
+  for (const needle of needles) {
+    checkMissing(source, needle, `${messagePrefix}: ${needle}`);
+  }
+}
+
 try {
   console.log("Nimclea AAB Case Route Read-Only Wiring Preflight Guard v0.1");
   console.log("");
@@ -66,41 +72,71 @@ try {
       caseRoutesSource.includes("GET /case/:caseId"),
     "caseRoutes.js contains GET /case/:caseId or equivalent caseId route handling"
   );
-  checkMissing(
+
+  checkAllMissing(
     caseRoutesSource,
-    "aabCaseAuthorityReadAdapterRehearsal",
-    "caseRoutes.js has not imported the AAB case authority read adapter"
+    [
+      "renderJsonMigration",
+      "importRenderJson",
+      "migrate Render JSON",
+      "bulk migration",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "service_role",
+      "frontendServiceRoleAccess",
+      "localStorageAuthority",
+      "productionWrite",
+      "writeFile",
+      "appendFile",
+    ],
+    "caseRoutes.js forbidden preflight marker absent"
   );
-  checkMissing(
-    caseRoutesSource,
+
+  const adapterImportPresent = caseRoutesSource.includes(
+    "aabCaseAuthorityReadAdapterRehearsal"
+  );
+  const readOnlyFunctionNames = [
     "createAabCaseAuthorityReadPlan",
-    "caseRoutes.js does not call createAabCaseAuthorityReadPlan"
-  );
-  checkMissing(
-    caseRoutesSource,
     "selectAabCaseAuthoritySource",
-    "caseRoutes.js does not call selectAabCaseAuthoritySource"
+    "describeAabCaseAuthorityReadBoundary",
+    "assertNoAabCaseAuthorityMigrationIntent",
+  ];
+  const readOnlyFunctionUsed = readOnlyFunctionNames.some((name) =>
+    caseRoutesSource.includes(name)
   );
-  checkMissing(
-    caseRoutesSource,
-    "renderJsonMigration",
-    "caseRoutes.js has no renderJsonMigration intent"
-  );
-  checkMissing(
-    caseRoutesSource,
-    "importRenderJson",
-    "caseRoutes.js has no importRenderJson intent"
-  );
-  checkMissing(
-    caseRoutesSource,
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "caseRoutes.js does not expose SUPABASE_SERVICE_ROLE_KEY"
-  );
-  checkMissing(
-    caseRoutesSource,
-    "frontendServiceRoleAccess",
-    "caseRoutes.js has no frontend service-role authority flag"
-  );
+  const isControlledWiringMode = adapterImportPresent || readOnlyFunctionUsed;
+
+  if (!isControlledWiringMode) {
+    check(true, "Mode A: caseRoutes.js remains unwired for AAB read adapter");
+  } else {
+    check(true, "Mode B: controlled read-only AAB route wiring detected");
+
+    const aabFunctionNames = Array.from(
+      new Set(caseRoutesSource.match(/\b\w*Aab\w*\b/g) || [])
+    );
+    const disallowedAabFunctionNames = aabFunctionNames.filter(
+      (name) => !readOnlyFunctionNames.includes(name)
+    );
+
+    check(
+      disallowedAabFunctionNames.length === 0,
+      "caseRoutes.js uses only approved AAB read-only functions"
+    );
+    checkAllMissing(
+      caseRoutesSource,
+      [
+        "confirmAabPayment",
+        "paymentConfirmed",
+        "confirm-checkout-session",
+        "pdfExportUnlocked",
+        "pdfExportUnlock",
+        "verificationUnlocked",
+        "verificationUnlock",
+        "createMigration",
+        "migration script",
+      ],
+      "caseRoutes.js controlled preflight write/unlock marker absent"
+    );
+  }
 
   checkIncludes(
     adapterSource,

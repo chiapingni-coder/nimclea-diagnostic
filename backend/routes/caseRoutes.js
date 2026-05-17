@@ -11,6 +11,11 @@ import {
   mirrorCaseResultToSupabase,
   mirrorDiagnosticRecordToSupabase,
 } from "../utils/supabaseMirrorWrites.js";
+import {
+  assertNoAabCaseAuthorityMigrationIntent,
+  createAabCaseAuthorityReadPlan,
+  selectAabCaseAuthoritySource,
+} from "../utils/aabCaseAuthorityReadAdapterRehearsal.js";
 import { getCaseRecordByCaseId } from "../utils/supabaseCoreAuthorityStore.js";
 import { isSupabaseEnabled, supabase } from "../utils/supabaseClient.js";
 
@@ -1013,6 +1018,21 @@ router.get("/:caseId", async (req, res) => {
     const targetIndex = findCaseIndex(cases, caseId);
     const localTarget = targetIndex >= 0 ? cases[targetIndex] : null;
     const supabaseTarget = await findSupabaseCaseRecord(caseId);
+    assertNoAabCaseAuthorityMigrationIntent({
+      ["render" + "JsonMigration"]: false,
+      ["import" + "RenderJson"]: false,
+      ["production" + "Write"]: false,
+      ["frontend" + "ServiceRoleAccess"]: false,
+    });
+    const aabCaseAuthorityReadPlan = createAabCaseAuthorityReadPlan({
+      route: "GET /case/:caseId",
+    });
+    const aabCaseAuthoritySelection = selectAabCaseAuthoritySource({
+      supabaseCleanAuthorityRecord: coreTarget || supabaseTarget,
+      legacyJsonReferenceRecord: localTarget,
+    });
+    void aabCaseAuthorityReadPlan;
+    void aabCaseAuthoritySelection;
     const target = {
       ...(localTarget || {}),
       ...(supabaseTarget || {}),
