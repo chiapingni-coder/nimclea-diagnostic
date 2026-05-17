@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 // import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
+import { reviewEventEntry } from "../utils/eventReviewEngine";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { sanitizeText } from "../lib/sanitizeText";
@@ -3072,6 +3073,18 @@ const handleQuickCaptureSubmit = () => {
   }
 
   const capturedAt = new Date().toISOString();
+  const normalizedCase = normalizeCaseInput(data.caseData || resolvedPayload.caseData || {}, {
+    source: "receipt",
+  });
+  const eventReview = reviewEventEntry(
+    {
+      evidenceText: quickCaptureNote.trim(),
+      evidenceState: quickCaptureNote.trim().length >= 12 ? "present" : "unknown",
+      responseState: quickCaptureSuggestion?.type ? "present" : "unknown",
+      boundaryState: quickCaptureSuggestion?.signalImpact ? "present" : "unknown",
+    },
+    normalizedCase
+  );
 
   const quickCaptureEvent = {
     id: `qc_${inferredCaseId}_${Date.now()}_${quickCaptureSuggestion.type}_${quickCaptureSuggestion.signalImpact}`,
@@ -3080,6 +3093,7 @@ const handleQuickCaptureSubmit = () => {
     signalImpact: quickCaptureSuggestion.signalImpact,
     note: quickCaptureNote.trim().slice(0, 120),
     capturedAt,
+    eventReview,
   };
 
   upsertCase({
@@ -3114,16 +3128,17 @@ const handleQuickCaptureSubmit = () => {
       localStorage.getItem("nimclea_user_id") ||
       quickCaptureSession?.userId ||
       "anonymous_user",
-    meta: {
-      source: "receipt_quick_capture",
-      caseId: inferredCaseId,
-      quickCaptureId: quickCaptureEvent.id,
-      quickCaptureType: quickCaptureEvent.type,
-      signalImpact: quickCaptureEvent.signalImpact,
-      note: quickCaptureEvent.note,
-      capturedAt: quickCaptureEvent.capturedAt,
-    },
-  });
+      meta: {
+        source: "receipt_quick_capture",
+        caseId: inferredCaseId,
+        quickCaptureId: quickCaptureEvent.id,
+        quickCaptureType: quickCaptureEvent.type,
+        signalImpact: quickCaptureEvent.signalImpact,
+        note: quickCaptureEvent.note,
+        capturedAt: quickCaptureEvent.capturedAt,
+        eventReview,
+      },
+    });
 
   setLatestQuickCapture(quickCaptureEvent);
   setQuickCaptureOpen(false);
