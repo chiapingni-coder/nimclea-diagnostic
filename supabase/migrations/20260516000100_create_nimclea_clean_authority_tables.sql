@@ -27,6 +27,7 @@ create table public.customers (
 
 revoke all on table public.customers from anon;
 revoke all on table public.customers from public;
+revoke all on table public.customers from authenticated;
 
 grant select on table public.customers to authenticated;
 grant select, insert, update, delete on table public.customers to service_role;
@@ -59,6 +60,7 @@ create table public.cases (
 
 revoke all on table public.cases from anon;
 revoke all on table public.cases from public;
+revoke all on table public.cases from authenticated;
 
 grant select on table public.cases to authenticated;
 grant select, insert, update, delete on table public.cases to service_role;
@@ -97,6 +99,7 @@ create table public.diagnostics (
 
 revoke all on table public.diagnostics from anon;
 revoke all on table public.diagnostics from public;
+revoke all on table public.diagnostics from authenticated;
 
 grant select on table public.diagnostics to authenticated;
 grant select, insert, update, delete on table public.diagnostics to service_role;
@@ -134,6 +137,7 @@ create table public.case_plans (
 
 revoke all on table public.case_plans from anon;
 revoke all on table public.case_plans from public;
+revoke all on table public.case_plans from authenticated;
 
 grant select on table public.case_plans to authenticated;
 grant select, insert, update, delete on table public.case_plans to service_role;
@@ -175,6 +179,7 @@ create table public.event_reviews (
 
 revoke all on table public.event_reviews from anon;
 revoke all on table public.event_reviews from public;
+revoke all on table public.event_reviews from authenticated;
 
 grant select on table public.event_reviews to authenticated;
 grant select, insert, update, delete on table public.event_reviews to service_role;
@@ -210,6 +215,7 @@ create table public.case_events (
 
 revoke all on table public.case_events from anon;
 revoke all on table public.case_events from public;
+revoke all on table public.case_events from authenticated;
 
 grant select on table public.case_events to authenticated;
 grant select, insert, update, delete on table public.case_events to service_role;
@@ -253,6 +259,7 @@ create table public.receipts (
 
 revoke all on table public.receipts from anon;
 revoke all on table public.receipts from public;
+revoke all on table public.receipts from authenticated;
 
 grant select on table public.receipts to authenticated;
 grant select, insert, update, delete on table public.receipts to service_role;
@@ -291,6 +298,7 @@ create table public.verifications (
 
 revoke all on table public.verifications from anon;
 revoke all on table public.verifications from public;
+revoke all on table public.verifications from authenticated;
 
 grant select on table public.verifications to authenticated;
 grant select, insert, update, delete on table public.verifications to service_role;
@@ -330,6 +338,7 @@ create table public.payments (
 
 revoke all on table public.payments from anon;
 revoke all on table public.payments from public;
+revoke all on table public.payments from authenticated;
 
 grant select on table public.payments to authenticated;
 grant select, insert, update, delete on table public.payments to service_role;
@@ -368,6 +377,7 @@ create table public.trial_lifecycle (
 
 revoke all on table public.trial_lifecycle from anon;
 revoke all on table public.trial_lifecycle from public;
+revoke all on table public.trial_lifecycle from authenticated;
 
 grant select on table public.trial_lifecycle to authenticated;
 grant select, insert, update, delete on table public.trial_lifecycle to service_role;
@@ -405,6 +415,7 @@ create table public.audit_trail (
 
 revoke all on table public.audit_trail from anon;
 revoke all on table public.audit_trail from public;
+revoke all on table public.audit_trail from authenticated;
 
 grant select on table public.audit_trail to authenticated;
 grant select, insert, update, delete on table public.audit_trail to service_role;
@@ -441,6 +452,7 @@ create table public.hash_ledger (
 
 revoke all on table public.hash_ledger from anon;
 revoke all on table public.hash_ledger from public;
+revoke all on table public.hash_ledger from authenticated;
 
 grant select on table public.hash_ledger to authenticated;
 grant select, insert, update, delete on table public.hash_ledger to service_role;
