@@ -278,6 +278,10 @@ runExistingScript(
   "scripts/check-aab-case-route-read-only-wiring-boundary.mjs",
   "AAB case route read-only wiring boundary guard"
 );
+runExistingScript(
+  "scripts/check-aab-case-route-read-only-wiring-preflight.mjs",
+  "AAB case route read-only wiring preflight guard"
+);
 runInlineNodeCheck(
   "import('./backend/utils/supabaseCoreAuthorityStore.js').then(m=>{const expected=['getCaseEventsByCaseId','getCaseRecordByCaseId','getReceiptRecordByReceiptId','insertCaseEvent','isSupabaseCoreAuthorityEnabled','upsertCaseRecord','upsertReceiptRecord'].sort(); const actual=Object.keys(m).sort(); const missing=expected.filter(k=>!actual.includes(k)); const extra=actual.filter(k=>!expected.includes(k)); if(missing.length || extra.length){console.error({missing, extra, actual}); process.exit(1);} console.log('PASS supabase core authority store exports');})",
   "supabase core authority store exports smoke"
