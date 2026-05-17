@@ -11,6 +11,7 @@ import {
   mirrorCaseResultToSupabase,
   mirrorDiagnosticRecordToSupabase,
 } from "../utils/supabaseMirrorWrites.js";
+import { getCaseRecordByCaseId } from "../utils/supabaseCoreAuthorityStore.js";
 import { isSupabaseEnabled, supabase } from "../utils/supabaseClient.js";
 
 const router = express.Router();
@@ -1005,6 +1006,8 @@ router.patch("/:caseId/discard", async (req, res) => {
 router.get("/:caseId", async (req, res) => {
   try {
     const { caseId } = req.params;
+    const coreCaseResult = await getCaseRecordByCaseId(caseId);
+    const coreTarget = coreCaseResult?.ok === true ? coreCaseResult.data : null;
     const casesRaw = readJsonFile(CASES_FILE, []);
     const cases = Array.isArray(casesRaw) ? casesRaw : [];
     const targetIndex = findCaseIndex(cases, caseId);
@@ -1013,8 +1016,9 @@ router.get("/:caseId", async (req, res) => {
     const target = {
       ...(localTarget || {}),
       ...(supabaseTarget || {}),
-      caseId: localTarget?.caseId || supabaseTarget?.caseId || caseId,
-      id: localTarget?.id || supabaseTarget?.id || caseId,
+      ...(coreTarget || {}),
+      caseId: coreTarget?.caseId || localTarget?.caseId || supabaseTarget?.caseId || caseId,
+      id: coreTarget?.id || localTarget?.id || supabaseTarget?.id || caseId,
     };
     const deletedCaseIds = getDeletedCaseIdSet();
 
