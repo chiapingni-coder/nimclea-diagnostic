@@ -55,6 +55,29 @@ function runExistingScript(relativeFile, area) {
   addResult("FAIL", area, `${relativeFile} failed: ${detail.split(/\r?\n/).slice(-1)[0]}`);
 }
 
+function runInlineNodeCheck(script, area) {
+  const result = spawnSync("node", ["-e", script], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  if (result.error) {
+    addResult("FAIL", area, `inline node check could not run: ${result.error.message}`);
+    return;
+  }
+
+  if (result.status === 0) {
+    addResult("PASS", area, "node -e smoke exited 0");
+    return;
+  }
+
+  const stderr = (result.stderr || "").trim();
+  const stdout = (result.stdout || "").trim();
+  const detail = stderr || stdout || `exit code ${result.status}`;
+  addResult("FAIL", area, `inline node check failed: ${detail.split(/\r?\n/).slice(-1)[0]}`);
+}
+
 function checkNoCaseDiagnosticModalGuard() {
   const relativeFile = "frontend/pages/CasesPage.jsx";
   const absoluteFile = path.join(repoRoot, relativeFile);
@@ -222,6 +245,10 @@ runExistingScript(
 runExistingScript(
   "scripts/check-trial-supabase-authority-contract.mjs",
   "trial Supabase authority contract guard"
+);
+runInlineNodeCheck(
+  "import('./backend/utils/supabaseCoreAuthorityStore.js').then(m=>{const expected=['getCaseEventsByCaseId','getCaseRecordByCaseId','getReceiptRecordByReceiptId','insertCaseEvent','isSupabaseCoreAuthorityEnabled','upsertCaseRecord','upsertReceiptRecord'].sort(); const actual=Object.keys(m).sort(); const missing=expected.filter(k=>!actual.includes(k)); const extra=actual.filter(k=>!expected.includes(k)); if(missing.length || extra.length){console.error({missing, extra, actual}); process.exit(1);} console.log('PASS supabase core authority store exports');})",
+  "supabase core authority store exports smoke"
 );
 runExistingScript(
   "scripts/check-cases-page-trial-status-bar-guard.mjs",
