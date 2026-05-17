@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -208,6 +208,7 @@ const requiredDocs = [
   "docs/NIMCLEA_AAC02_CASE_EVENTS_CONTROLLED_WRITE_CANDIDATE_RECORD_V0_1.md",
   'docs/NIMCLEA_AAC03_CASE_EVENTS_BACKEND_STORE_BOUNDARY_INSPECTION_RECORD_V0_1.md',
   'docs/NIMCLEA_AAC04_FIXTURE_ONLY_CASE_EVENTS_REHEARSAL_ENDPOINT_CANDIDATE_RECORD_V0_1.md',
+  'docs/NIMCLEA_AAC05_FIXTURE_ONLY_CASE_EVENTS_REHEARSAL_ENDPOINT_IMPLEMENTATION_RECORD_V0_1.md',
 ];
 
 for (const doc of requiredDocs) {
