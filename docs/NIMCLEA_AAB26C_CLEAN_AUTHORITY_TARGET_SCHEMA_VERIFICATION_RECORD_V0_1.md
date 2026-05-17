@@ -2,7 +2,7 @@
 
 ## Status
 
-PENDING / READY FOR MANUAL SCHEMA VERIFICATION
+BLOCKED / CLEAN-AUTHORITY TARGET NOT VERIFIED
 
 ## Relationship To AAB-26, AAB-26A, And AAB-26B
 
@@ -121,15 +121,27 @@ where case_id = '00000000-0000-4000-8000-000000000024'
 
 ## Verification Result
 
-No actual schema verification SQL output is available in this record.
+Manual schema verification was performed with read-only SQL.
 
-Verification has not yet been executed.
+Observed result:
+
+- `information_schema.tables` returned only `public.cases`, `public.hash_ledger`, and `public.receipt_records`
+- `public.customers` was not present
+- therefore the selected target still does not satisfy the clean-authority schema expected by AAB-24/AAB-26
+
+No insert, update, or delete SQL was executed.
+
+The selected target remains unverified for clean-authority fixture creation.
 
 ## Decision
 
-PENDING
+BLOCKED
 
-This record cannot confirm clean-authority schema alignment until the read-only verification SQL is run and reviewed.
+AAB-26 fixture creation remains blocked.
+
+AAB-27 remains blocked.
+
+The selected target cannot be treated as a clean-authority fixture target until it is corrected or replaced.
 
 ## Stop Line Conditions
 
@@ -146,17 +158,7 @@ Stop if:
 
 ## Next Action
 
-If PASS:
-
-- `AAB-26D controlled fixture creation execution update` or `AAB-26 fixture creation PASS update`
-
-If PENDING:
-
-- manually run schema verification SQL first
-
-If BLOCKED:
-
-- return to target creation or migration plan
+Create or locate a true isolated clean-authority Supabase target, not fixture insert.
 
 Not next:
 
