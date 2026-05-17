@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 // import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
 import { normalizeCaseInput, getSafeCaseSummary } from "../utils/caseSchema";
-import { reviewEventEntry } from "../utils/eventReviewEngine";
 import { logTrialEvent } from "../lib/trialApi";
 import { getTrialSession } from "../lib/trialSession";
 import { sanitizeText } from "../lib/sanitizeText";
@@ -3073,18 +3072,17 @@ const handleQuickCaptureSubmit = () => {
   }
 
   const capturedAt = new Date().toISOString();
-  const normalizedCase = normalizeCaseInput(data.caseData || resolvedPayload.caseData || {}, {
-    source: "receipt",
-  });
-  const eventReview = reviewEventEntry(
-    {
-      evidenceText: quickCaptureNote.trim(),
-      evidenceState: quickCaptureNote.trim().length >= 12 ? "present" : "unknown",
-      responseState: quickCaptureSuggestion?.type ? "present" : "unknown",
-      boundaryState: quickCaptureSuggestion?.signalImpact ? "present" : "unknown",
+  const eventReview = {
+    reviewMode: "structured_progress",
+    structureDelta: {
+      hasEvidence: quickCaptureNote.trim().length >= 12,
+      hasResponse: Boolean(quickCaptureSuggestion?.type),
+      hasBoundary: Boolean(quickCaptureSuggestion?.signalImpact),
     },
-    normalizedCase
-  );
+    nextStepHint: "Receipt quick capture recorded for downstream schema/event review.",
+    source: "receipt_quick_capture_snapshot",
+    capturedAt,
+  };
 
   const quickCaptureEvent = {
     id: `qc_${inferredCaseId}_${Date.now()}_${quickCaptureSuggestion.type}_${quickCaptureSuggestion.signalImpact}`,
