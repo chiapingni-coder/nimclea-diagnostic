@@ -25,6 +25,9 @@ create table public.customers (
   updated_at timestamptz not null default now()
 );
 
+revoke all on table public.customers from anon;
+revoke all on table public.customers from public;
+
 grant select on table public.customers to authenticated;
 grant select, insert, update, delete on table public.customers to service_role;
 
@@ -53,6 +56,9 @@ create table public.cases (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+revoke all on table public.cases from anon;
+revoke all on table public.cases from public;
 
 grant select on table public.cases to authenticated;
 grant select, insert, update, delete on table public.cases to service_role;
@@ -89,6 +95,9 @@ create table public.diagnostics (
   updated_at timestamptz not null default now()
 );
 
+revoke all on table public.diagnostics from anon;
+revoke all on table public.diagnostics from public;
+
 grant select on table public.diagnostics to authenticated;
 grant select, insert, update, delete on table public.diagnostics to service_role;
 
@@ -122,6 +131,9 @@ create table public.case_plans (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+revoke all on table public.case_plans from anon;
+revoke all on table public.case_plans from public;
 
 grant select on table public.case_plans to authenticated;
 grant select, insert, update, delete on table public.case_plans to service_role;
@@ -161,6 +173,9 @@ create table public.event_reviews (
   updated_at timestamptz not null default now()
 );
 
+revoke all on table public.event_reviews from anon;
+revoke all on table public.event_reviews from public;
+
 grant select on table public.event_reviews to authenticated;
 grant select, insert, update, delete on table public.event_reviews to service_role;
 
@@ -192,6 +207,9 @@ create table public.case_events (
   occurred_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+revoke all on table public.case_events from anon;
+revoke all on table public.case_events from public;
 
 grant select on table public.case_events to authenticated;
 grant select, insert, update, delete on table public.case_events to service_role;
@@ -233,6 +251,9 @@ create table public.receipts (
   updated_at timestamptz not null default now()
 );
 
+revoke all on table public.receipts from anon;
+revoke all on table public.receipts from public;
+
 grant select on table public.receipts to authenticated;
 grant select, insert, update, delete on table public.receipts to service_role;
 
@@ -267,6 +288,9 @@ create table public.verifications (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+revoke all on table public.verifications from anon;
+revoke all on table public.verifications from public;
 
 grant select on table public.verifications to authenticated;
 grant select, insert, update, delete on table public.verifications to service_role;
@@ -304,6 +328,9 @@ create table public.payments (
   updated_at timestamptz not null default now()
 );
 
+revoke all on table public.payments from anon;
+revoke all on table public.payments from public;
+
 grant select on table public.payments to authenticated;
 grant select, insert, update, delete on table public.payments to service_role;
 
@@ -339,6 +366,9 @@ create table public.trial_lifecycle (
   updated_at timestamptz not null default now()
 );
 
+revoke all on table public.trial_lifecycle from anon;
+revoke all on table public.trial_lifecycle from public;
+
 grant select on table public.trial_lifecycle to authenticated;
 grant select, insert, update, delete on table public.trial_lifecycle to service_role;
 
@@ -373,6 +403,9 @@ create table public.audit_trail (
   created_at timestamptz not null default now()
 );
 
+revoke all on table public.audit_trail from anon;
+revoke all on table public.audit_trail from public;
+
 grant select on table public.audit_trail to authenticated;
 grant select, insert, update, delete on table public.audit_trail to service_role;
 
@@ -405,6 +438,9 @@ create table public.hash_ledger (
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+revoke all on table public.hash_ledger from anon;
+revoke all on table public.hash_ledger from public;
 
 grant select on table public.hash_ledger to authenticated;
 grant select, insert, update, delete on table public.hash_ledger to service_role;
