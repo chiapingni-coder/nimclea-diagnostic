@@ -12,6 +12,29 @@ No database write has occurred.
 
 AAB-26 is prepared for manual controlled fixture creation only. It does not claim that the fixture exists, does not claim readback success, and does not authorize Smoke 3 yet.
 
+## Manual Pre-Execution Stop-Line Result
+
+Record that manual Supabase SQL precheck was performed before fixture insert.
+
+Observed result:
+
+- `public.customers` does not exist in the selected target project.
+- `public.cases` exists, but its columns match the legacy/current runtime schema, not the AAB-24 clean-authority SQL candidate.
+- observed `public.cases` columns include `case_id`, `user_id`, `email`, `title`, `status`, `stage`, `receipt_eligible`, `case_receipt_eligible`, `verification_eligible`, `event_count`, `source`, `created_at`, `updated_at`, `raw_payload`, `result`, `case_data`, `raw_record`, `company`, and `name`.
+- Therefore the selected target project does not match the clean-authority schema expected by AAB-24/AAB-25/AAB-26.
+
+Decision:
+
+- Do not execute the AAB-24/AAB-26 insert SQL.
+- Do not replace rollback with commit.
+- Do not proceed to AAB-27.
+- Keep AAB-26 status as `PENDING / READY FOR MANUAL FIXTURE CREATION`, but blocked by schema mismatch until the correct isolated clean-authority target exists or the target schema is migrated in a separately approved step.
+
+Next action:
+
+- Create a separate target schema alignment decision record before any fixture creation.
+- Do not adapt the fixture SQL to this legacy cases table inside AAB-26.
+
 ## Relationship To AAB-21 / AAB-22 / AAB-23 / AAB-24 / AAB-25
 
 AAB-21 defined the existing-case fixture creation plan and rollback boundary.
