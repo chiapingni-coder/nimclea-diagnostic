@@ -66,12 +66,12 @@ if ($ArrayEndIndex -lt 0) {
 }
 
 $LineToInsert = "  '$NormalizedDocPath',"
-$UpdatedGateContent =
-  $GateContent.Substring(0, $ArrayEndIndex) +
-  $LineToInsert + "`r`n" +
-  $GateContent.Substring($ArrayEndIndex)
+$Prefix = $GateContent.Substring(0, $ArrayEndIndex).TrimEnd("`r", "`n", " ", "`t")
+$Suffix = $GateContent.Substring($ArrayEndIndex).TrimStart("`r", "`n")
+$UpdatedGateContent = "$Prefix`r`n$LineToInsert`r`n$Suffix"
+$UpdatedGateContent = $UpdatedGateContent.TrimEnd("`r", "`n") + "`r`n"
 
-Set-Content -Path $GatePath -Value $UpdatedGateContent -Encoding UTF8
+[System.IO.File]::WriteAllText($GatePath, $UpdatedGateContent, [System.Text.UTF8Encoding]::new($true))
 
 Write-Host ""
 Write-Host "DONE: added document to release gate:"
