@@ -1042,7 +1042,7 @@ router.get("/:caseId", async (req, res) => {
     };
     const deletedCaseIds = getDeletedCaseIdSet();
 
-    if ((!localTarget && !supabaseTarget) || deletedCaseIds.has(caseId)) {
+    if ((!coreTarget && !localTarget && !supabaseTarget) || deletedCaseIds.has(caseId)) {
       return res.status(404).json({
         success: false,
         message: "Case not found",
