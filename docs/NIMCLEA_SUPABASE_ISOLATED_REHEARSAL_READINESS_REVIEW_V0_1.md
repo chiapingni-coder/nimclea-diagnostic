@@ -49,7 +49,7 @@ Expected tables:
 - `diagnostics`
 - `case_plans`
 - `event_reviews`
-- `event_logs`
+- `case_events`
 - `receipts`
 - `verifications`
 - `payments`
