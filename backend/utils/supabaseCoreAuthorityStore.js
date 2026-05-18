@@ -73,18 +73,69 @@ function normalizeCaseEventInput(record = {}) {
 }
 
 function normalizeReceiptRecordInput(record = {}) {
+  const source = normalizeText(
+    record.source ||
+      record.receiptSource ||
+      record.receipt_source ||
+      record.authoritySource ||
+      record.authority_source
+  ) || "supabase_clean_authority";
+  const receiptPayload = {
+    ...(record.receiptPayload && typeof record.receiptPayload === "object" && !Array.isArray(record.receiptPayload)
+      ? record.receiptPayload
+      : record.receipt_payload && typeof record.receipt_payload === "object" && !Array.isArray(record.receipt_payload)
+        ? record.receipt_payload
+        : {}),
+  };
+  const metadata = {
+    ...(record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+      ? record.metadata
+      : record.receiptMetadata && typeof record.receiptMetadata === "object" && !Array.isArray(record.receiptMetadata)
+        ? record.receiptMetadata
+        : record.receipt_metadata && typeof record.receipt_metadata === "object" && !Array.isArray(record.receipt_metadata)
+          ? record.receipt_metadata
+          : {}),
+  };
+  const authoritySource = normalizeText(record.authoritySource || record.authority_source);
+  const paymentStatus = normalizeText(record.paymentStatus || record.payment_status);
+  const readinessPayload = record.readinessPayload || record.readiness_payload || {};
+  const paymentPayload = record.paymentPayload || record.payment_payload || {};
+  const exportPayload = record.exportPayload || record.export_payload || {};
+
+  if (authoritySource) {
+    receiptPayload.authority_source = authoritySource;
+    metadata.authority_source = authoritySource;
+  }
+
+  if (paymentStatus) {
+    receiptPayload.payment_status = paymentStatus;
+  }
+
+  if (readinessPayload && typeof readinessPayload === "object" && !Array.isArray(readinessPayload)) {
+    receiptPayload.readiness_payload = readinessPayload;
+  }
+
+  if (paymentPayload && typeof paymentPayload === "object" && !Array.isArray(paymentPayload)) {
+    receiptPayload.payment_payload = paymentPayload;
+  }
+
+  if (exportPayload && typeof exportPayload === "object" && !Array.isArray(exportPayload)) {
+    receiptPayload.export_payload = exportPayload;
+  }
+
   return {
     case_id: normalizeText(record.caseId || record.case_id),
     receipt_id: normalizeText(record.receiptId || record.receipt_id),
-    receipt_status: normalizeText(record.receiptStatus || record.receipt_status) || "not_ready",
-    payment_status: normalizeText(record.paymentStatus || record.payment_status) || "pending",
-    receipt_payload: record.receiptPayload || record.receipt_payload || {},
-    readiness_payload: record.readinessPayload || record.readiness_payload || {},
-    payment_payload: record.paymentPayload || record.payment_payload || {},
-    export_payload: record.exportPayload || record.export_payload || {},
-    authority_source: normalizeText(record.authoritySource || record.authority_source) ||
-      "supabase_core_authority",
+    customer_id: normalizeText(record.customerId || record.customer_id),
+    payment_id: normalizeText(record.paymentId || record.payment_id) || null,
+    receipt_number: normalizeText(record.receiptNumber || record.receipt_number) || null,
+    receipt_status: normalizeText(record.receiptStatus || record.receipt_status) || "draft",
+    source,
+    is_authority_record: record.isAuthorityRecord ?? record.is_authority_record ?? true,
+    receipt_payload: receiptPayload,
+    metadata,
     issued_at: record.issuedAt || record.issued_at || null,
+    voided_at: record.voidedAt || record.voided_at || null,
     created_at: record.createdAt || record.created_at || null,
     updated_at: record.updatedAt || record.updated_at || null,
   };
@@ -155,13 +206,17 @@ export async function upsertReceiptRecord(record = {}) {
     return { ok: false, error: "receipt_id_required" };
   }
 
+  if (!payload.customer_id) {
+    return { ok: false, error: "customer_id_required" };
+  }
+
   if (!payload.case_id) {
     return { ok: false, error: "case_id_required" };
   }
 
   try {
     const { data, error } = await client
-      .from("receipt_records")
+      .from("receipts")
       .upsert(payload, { onConflict: "receipt_id" })
       .select("*")
       .limit(1);
