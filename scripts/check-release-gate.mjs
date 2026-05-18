@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -267,6 +267,7 @@ const requiredDocs = [
   'docs/NIMCLEA_V0_9_4R_DEPLOYED_AUTHORITY_AVAILABILITY_RESOLUTION_CANDIDATE_RECORD_V0_1.md',
   'docs/NIMCLEA_V0_9_AUTO1_WORK_ITEM_PIPELINE_SCRIPT_RECORD_V0_1.md',
   'docs/NIMCLEA_V0_9_4S_DEPLOYED_AUTHORITY_PROBE_IMPLEMENTATION_RECORD_V0_1.md',
+  'docs/NIMCLEA_V0_9_4T_DEPLOYED_AUTHORITY_PROBE_UNAVAILABLE_BLOCKER_RECORD_V0_1.md',
 ];
 
 for (const doc of requiredDocs) {
@@ -370,7 +371,7 @@ runExistingScript(
   "AAB case route response-shape exposure guard"
 );
 runInlineNodeCheck(
-  "import('./backend/utils/supabaseCoreAuthorityStore.js').then(m=>{const expected=['getCaseEventsByCaseId','getCaseRecordByCaseId','getReceiptRecordByReceiptId','insertCaseEvent','isSupabaseCoreAuthorityEnabled','linkReceiptToPayment','upsertCaseRecord','upsertPaymentRecord','upsertReceiptRecord'].sort(); const actual=Object.keys(m).sort(); const missing=expected.filter(k=>!actual.includes(k)); const extra=actual.filter(k=>!expected.includes(k)); if(missing.length || extra.length){console.error({missing, extra, actual}); process.exit(1);} console.log('PASS supabase core authority store exports');})",
+  "import('./backend/utils/supabaseCoreAuthorityStore.js').then(m=>{const expected=['getCaseEventsByCaseId','getCaseRecordByCaseId','getCaseRecordsByEmail','getReceiptRecordByReceiptId','insertCaseEvent','isSupabaseCoreAuthorityEnabled','linkReceiptToPayment','upsertCaseRecord','upsertPaymentRecord','upsertReceiptRecord'].sort(); const actual=Object.keys(m).sort(); const missing=expected.filter(k=>!actual.includes(k)); const extra=actual.filter(k=>!expected.includes(k)); if(missing.length || extra.length){console.error({missing, extra, actual}); process.exit(1);} console.log('PASS supabase core authority store exports');})",
   "supabase core authority store exports smoke"
 );
 runExistingScript(
