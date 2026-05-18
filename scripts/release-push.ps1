@@ -48,14 +48,23 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "6) Final status:"
+Write-Host "6) Checking Render alive..."
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\check-render-alive.ps1"
+if ($LASTEXITCODE -ne 0) {
+  Write-Host ""
+  Write-Host "FAILED: Render alive check failed after push. Stop."
+  exit 1
+}
+
+Write-Host ""
+Write-Host "7) Final status:"
 git status --short
 
 Write-Host ""
-Write-Host "7) Latest commits:"
+Write-Host "8) Latest commits:"
 git log --oneline --decorate -3
 
 Write-Host ""
-Write-Host "DONE: GitHub push completed."
-Write-Host "Render should auto-deploy if it is connected to GitHub master."
+Write-Host "DONE: GitHub push completed and Render alive check passed."
+Write-Host "Render auto-deploy should be connected to GitHub master."
 Write-Host "Supabase Storage is not included yet."
