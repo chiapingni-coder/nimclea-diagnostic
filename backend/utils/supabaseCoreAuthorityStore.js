@@ -478,10 +478,31 @@ export async function getCaseRecordsByEmail(email) {
   }
 
   try {
+    const { data: customerRows, error: customerError } = await client
+      .from("customers")
+      .select("customer_id")
+      .eq("email", safeEmail);
+
+    if (customerError) {
+      return { ok: false, error: customerError.message || String(customerError) };
+    }
+
+    const customerIds = Array.from(
+      new Set(
+        (Array.isArray(customerRows) ? customerRows : [])
+          .map((row) => normalizeText(row?.customer_id))
+          .filter(Boolean)
+      )
+    );
+
+    if (customerIds.length === 0) {
+      return { ok: true, data: [] };
+    }
+
     const { data, error } = await client
       .from("cases")
       .select("*")
-      .eq("email", safeEmail)
+      .in("customer_id", customerIds)
       .order("created_at", { ascending: false });
 
     if (error) {
