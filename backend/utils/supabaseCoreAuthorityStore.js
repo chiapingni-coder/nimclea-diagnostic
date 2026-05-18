@@ -27,8 +27,6 @@ function normalizeCaseRecordInput(record = {}) {
     diagnostic_payload: record.diagnosticPayload || record.diagnostic_payload || {},
     result_payload: record.resultPayload || record.result_payload || {},
     case_metadata: record.caseMetadata || record.case_metadata || {},
-    authority_source: normalizeText(record.authoritySource || record.authority_source) ||
-      "supabase_core_authority",
     created_at: record.createdAt || record.created_at || null,
     updated_at: record.updatedAt || record.updated_at || null,
   };
