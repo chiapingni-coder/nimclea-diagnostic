@@ -17,16 +17,25 @@ function ensureSupabase() {
 }
 
 function normalizeCaseRecordInput(record = {}) {
+  const source = normalizeText(record.source || record.authoritySource || record.authority_source) ||
+    "supabase_clean_authority";
+  const caseSchema = record.caseSchema || record.case_schema || record.diagnosticPayload || record.diagnostic_payload || {};
+  const metadata = record.metadata ||
+    record.caseMetadata ||
+    record.case_metadata ||
+    record.resultPayload ||
+    record.result_payload ||
+    {};
+
   return {
     case_id: normalizeText(record.caseId || record.case_id),
-    user_email: normalizeText(record.userEmail || record.user_email),
     customer_id: normalizeText(record.customerId || record.customer_id),
-    case_title: normalizeText(record.caseTitle || record.case_title),
-    status: normalizeText(record.status) || "draft",
-    stage: normalizeText(record.stage || record.caseStage || record.case_stage),
-    diagnostic_payload: record.diagnosticPayload || record.diagnostic_payload || {},
-    result_payload: record.resultPayload || record.result_payload || {},
-    case_metadata: record.caseMetadata || record.case_metadata || {},
+    case_status: normalizeText(record.caseStatus || record.status || record.case_status) || "draft",
+    case_type: normalizeText(record.caseType || record.case_type || record.caseTitle || record.case_title) || null,
+    lifecycle_stage: normalizeText(record.lifecycleStage || record.stage || record.caseStage || record.case_stage) || null,
+    source,
+    case_schema: caseSchema,
+    metadata,
     created_at: record.createdAt || record.created_at || null,
     updated_at: record.updatedAt || record.updated_at || null,
   };
