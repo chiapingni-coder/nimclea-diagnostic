@@ -51,6 +51,16 @@ Interpretation:
 - the backend adapter payload and the canonical Supabase schema are out of contract
 - do not assume a broader runtime failure before checking the adapter payload allowlist / mapper
 
+General pattern:
+
+`Could not find the '<column>' column of '<table>' in the schema cache`
+
+Use the same backend / Supabase schema-contract drift attribution for this pattern.
+
+Smallest proof command:
+
+- Run the smallest controlled write/read-back smoke for the affected table, or inspect the backend adapter payload against the canonical Supabase table schema.
+
 ## Stop Line
 
 Do not keep chasing single missing fields.
@@ -72,4 +82,3 @@ Use this checkpoint shape after triage:
 Release Automation v0.9 step 1 uses this protocol to keep failures narrowly attributed before any code or schema change is considered.
 
 No runtime behavior changes are authorized by this document.
-
