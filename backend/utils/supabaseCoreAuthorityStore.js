@@ -35,15 +35,32 @@ function normalizeCaseRecordInput(record = {}) {
 }
 
 function normalizeCaseEventInput(record = {}) {
+  const rawEvent = record.eventPayload || record.event_payload || {};
+  const reviewPayload = record.eventReview || record.event_review || {};
+  const authoritySource = normalizeText(record.authoritySource || record.authority_source);
+  const source = normalizeText(record.source || record.eventSource || record.event_source) ||
+    "supabase_core_authority";
+
   return {
     case_id: normalizeText(record.caseId || record.case_id),
     event_type: normalizeText(record.eventType || record.event_type),
-    event_source: normalizeText(record.eventSource || record.event_source) ||
-      "supabase_core_authority",
-    event_payload: record.eventPayload || record.event_payload || {},
-    event_review: record.eventReview || record.event_review || {},
-    authority_source: normalizeText(record.authoritySource || record.authority_source) ||
-      "supabase_core_authority",
+    actor_type: normalizeText(record.actorType || record.actor_type) || "rehearsal",
+    actor_id: normalizeText(
+      record.actorId ||
+        record.actor_id ||
+        record.actorEmail ||
+        record.actor_email
+    ) || null,
+    source,
+    raw_event: {
+      ...(rawEvent && typeof rawEvent === "object" && !Array.isArray(rawEvent) ? rawEvent : {}),
+      ...(authoritySource ? { authority_source: authoritySource } : {}),
+    },
+    metadata: {
+      ...(reviewPayload && typeof reviewPayload === "object" && !Array.isArray(reviewPayload) ? reviewPayload : {}),
+      ...(authoritySource ? { authority_source: authoritySource } : {}),
+    },
+    occurred_at: record.occurredAt || record.occurred_at || record.createdAt || record.created_at || null,
     created_at: record.createdAt || record.created_at || null,
   };
 }
