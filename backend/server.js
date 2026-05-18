@@ -667,10 +667,11 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
 
   try {
     const caseRecordsResult = await getCaseRecordsByEmail(email);
+    const helperRowsAreEmailScoped = caseRecordsResult.ok === true;
     let caseRows = [];
 
-    if (caseRecordsResult.ok) {
-      caseRows = caseRecordsResult.data;
+    if (helperRowsAreEmailScoped) {
+      caseRows = Array.isArray(caseRecordsResult.data) ? caseRecordsResult.data : [];
     } else {
       const { data: fallbackCaseRows = [], error: casesError } = await supabase
         .from("cases")
@@ -683,12 +684,17 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
     const filteredCaseRows = (Array.isArray(caseRows) ? caseRows : []).filter((row) => {
       const normalizedRow = normalizeSupabaseCaseRow(row);
       const caseId = String(row?.case_id || normalizedRow?.caseId || "").trim();
-      const rowEmail = getEmailFromCaseRecord(normalizedRow);
 
-      return (
-        rowEmail === email &&
-        (!caseId || !deletedCaseIds.has(caseId))
-      );
+      if (caseId && deletedCaseIds.has(caseId)) {
+        return false;
+      }
+
+      if (helperRowsAreEmailScoped) {
+        return true;
+      }
+
+      const rowEmail = getEmailFromCaseRecord(normalizedRow);
+      return rowEmail === email;
     });
 
     const caseIds = Array.from(
