@@ -468,6 +468,32 @@ export async function getCaseRecordByCaseId(caseId) {
   }
 }
 
+export async function getCaseRecordsByEmail(email) {
+  const client = ensureSupabase();
+  if (!client) return disabledResult();
+
+  const safeEmail = normalizeText(email).toLowerCase();
+  if (!safeEmail) {
+    return { ok: false, error: "email_required" };
+  }
+
+  try {
+    const { data, error } = await client
+      .from("cases")
+      .select("*")
+      .eq("email", safeEmail)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { ok: false, error: error.message || String(error) };
+    }
+
+    return { ok: true, data: Array.isArray(data) ? data : [] };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
+
 export async function getCaseEventsByCaseId(caseId) {
   const client = ensureSupabase();
   if (!client) return disabledResult();

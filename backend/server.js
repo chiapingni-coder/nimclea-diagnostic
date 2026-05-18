@@ -28,6 +28,7 @@ import { ensureDataFiles } from "./utils/ensureDataFiles.js";
 import { readJsonFile } from "./utils/jsonStore.js";
 import { persistEmailRecord } from "./db/emailStore.js";
 import { isSupabaseEnabled, supabase } from "./utils/supabaseClient.js";
+import { getCaseRecordsByEmail } from "./utils/supabaseCoreAuthorityStore.js";
 import {
   deriveMergedCaseEventCount,
   getCaseSortTime,
@@ -544,11 +545,19 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
   }
 
   try {
-    const { data: caseRows = [], error: casesError } = await supabase
-      .from("cases")
-      .select("*");
+    const caseRecordsResult = await getCaseRecordsByEmail(email);
+    let caseRows = [];
 
-    if (casesError) throw casesError;
+    if (caseRecordsResult.ok) {
+      caseRows = caseRecordsResult.data;
+    } else {
+      const { data: fallbackCaseRows = [], error: casesError } = await supabase
+        .from("cases")
+        .select("*");
+
+      if (casesError) throw casesError;
+      caseRows = fallbackCaseRows;
+    }
 
     const filteredCaseRows = (Array.isArray(caseRows) ? caseRows : []).filter((row) => {
       const normalizedRow = normalizeSupabaseCaseRow(row);
