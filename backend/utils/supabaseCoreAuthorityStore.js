@@ -309,6 +309,107 @@ export async function upsertReceiptRecord(record = {}) {
   }
 }
 
+export async function linkReceiptToPayment(record = {}) {
+  const client = ensureSupabase();
+  if (!client) return disabledResult();
+
+  const receiptId = normalizeText(record.receiptId || record.receipt_id);
+  const paymentId = normalizeText(record.paymentId || record.payment_id);
+  const caseId = normalizeText(record.caseId || record.case_id);
+  const customerId = normalizeText(record.customerId || record.customer_id);
+  const receiptStatus = normalizeText(record.receiptStatus || record.receipt_status) || "paid";
+  const source =
+    normalizeText(record.source || record.authoritySource || record.authority_source) ||
+    "supabase_clean_authority";
+
+  if (!receiptId) {
+    return { ok: false, error: "receipt_id_required" };
+  }
+
+  if (!paymentId) {
+    return { ok: false, error: "payment_id_required" };
+  }
+
+  if (!caseId && !customerId) {
+    return { ok: false, error: "case_id_or_customer_id_required" };
+  }
+
+  try {
+    const { data: existingRows, error: readError } = await client
+      .from("receipts")
+      .select("*")
+      .eq("receipt_id", receiptId)
+      .limit(1);
+
+    if (readError) {
+      return { ok: false, error: readError.message || String(readError) };
+    }
+
+    const existing = Array.isArray(existingRows) ? existingRows[0] || null : existingRows || null;
+
+    if (!existing) {
+      return { ok: false, error: "receipt_not_found" };
+    }
+
+    if (caseId && normalizeText(existing.case_id) && normalizeText(existing.case_id) !== caseId) {
+      return { ok: false, error: "case_id_mismatch" };
+    }
+
+    if (
+      customerId &&
+      normalizeText(existing.customer_id) &&
+      normalizeText(existing.customer_id) !== customerId
+    ) {
+      return { ok: false, error: "customer_id_mismatch" };
+    }
+
+    const payload = {
+      ...existing,
+      case_id: normalizeText(existing.case_id || caseId),
+      customer_id: normalizeText(existing.customer_id || customerId),
+      payment_id: paymentId,
+      receipt_status: receiptStatus,
+      source: normalizeText(existing.source || source) || source,
+      is_authority_record:
+        existing.is_authority_record ?? record.isAuthorityRecord ?? record.is_authority_record ?? true,
+      receipt_payload: {
+        ...((existing.receipt_payload && typeof existing.receipt_payload === "object" && !Array.isArray(existing.receipt_payload))
+          ? existing.receipt_payload
+          : {}),
+        ...((record.receiptPayload && typeof record.receiptPayload === "object" && !Array.isArray(record.receiptPayload))
+          ? record.receiptPayload
+          : {}),
+        ...((record.receipt_payload && typeof record.receipt_payload === "object" && !Array.isArray(record.receipt_payload))
+          ? record.receipt_payload
+          : {}),
+      },
+      metadata: {
+        ...((existing.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata))
+          ? existing.metadata
+          : {}),
+        ...((record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata))
+          ? record.metadata
+          : {}),
+      },
+      updated_at: record.updatedAt || record.updated_at || new Date().toISOString(),
+    };
+
+    const { data, error } = await client
+      .from("receipts")
+      .upsert(payload, { onConflict: "receipt_id" })
+      .select("*")
+      .limit(1);
+
+    if (error) {
+      return { ok: false, error: error.message || String(error) };
+    }
+
+    return { ok: true, data: Array.isArray(data) ? data[0] || null : data || null };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
+
 export async function upsertPaymentRecord(record = {}) {
   const client = ensureSupabase();
   if (!client) return disabledResult();

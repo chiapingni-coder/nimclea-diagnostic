@@ -247,6 +247,7 @@ const requiredDocs = [
   'docs/NIMCLEA_AAC37_PAYMENTS_BACKEND_AUTHORITY_CLOSURE_SCOPE_RECORD_V0_1.md',
   'docs/NIMCLEA_AAC38_RECEIPT_PAYMENT_LINKAGE_AUTHORITY_DECISION_RECORD_V0_1.md',
   'docs/NIMCLEA_AAC39_RECEIPT_PAYMENT_LINKAGE_ADAPTER_CANDIDATE_RECORD_V0_1.md',
+  'docs/NIMCLEA_AAC40_RECEIPT_PAYMENT_LINKAGE_IMPLEMENTATION_SMOKE_RECORD_V0_1.md',
 ];
 
 for (const doc of requiredDocs) {
@@ -350,7 +351,7 @@ runExistingScript(
   "AAB case route response-shape exposure guard"
 );
 runInlineNodeCheck(
-  "import('./backend/utils/supabaseCoreAuthorityStore.js').then(m=>{const expected=['getCaseEventsByCaseId','getCaseRecordByCaseId','getReceiptRecordByReceiptId','insertCaseEvent','isSupabaseCoreAuthorityEnabled','upsertCaseRecord','upsertReceiptRecord'].sort(); const actual=Object.keys(m).sort(); const missing=expected.filter(k=>!actual.includes(k)); const extra=actual.filter(k=>!expected.includes(k)); if(missing.length || extra.length){console.error({missing, extra, actual}); process.exit(1);} console.log('PASS supabase core authority store exports');})",
+  "import('./backend/utils/supabaseCoreAuthorityStore.js').then(m=>{const expected=['getCaseEventsByCaseId','getCaseRecordByCaseId','getReceiptRecordByReceiptId','insertCaseEvent','isSupabaseCoreAuthorityEnabled','linkReceiptToPayment','upsertCaseRecord','upsertPaymentRecord','upsertReceiptRecord'].sort(); const actual=Object.keys(m).sort(); const missing=expected.filter(k=>!actual.includes(k)); const extra=actual.filter(k=>!expected.includes(k)); if(missing.length || extra.length){console.error({missing, extra, actual}); process.exit(1);} console.log('PASS supabase core authority store exports');})",
   "supabase core authority store exports smoke"
 );
 runExistingScript(
