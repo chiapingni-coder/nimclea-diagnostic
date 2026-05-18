@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -268,6 +268,7 @@ const requiredDocs = [
   'docs/NIMCLEA_V0_9_AUTO1_WORK_ITEM_PIPELINE_SCRIPT_RECORD_V0_1.md',
   'docs/NIMCLEA_V0_9_4S_DEPLOYED_AUTHORITY_PROBE_IMPLEMENTATION_RECORD_V0_1.md',
   'docs/NIMCLEA_V0_9_4T_DEPLOYED_AUTHORITY_PROBE_UNAVAILABLE_BLOCKER_RECORD_V0_1.md',
+  'docs/NIMCLEA_V0_9_4U_DEPLOYED_AUTHORITY_PROBE_ROUTE_ENV_AVAILABILITY_INSPECTION_RECORD_V0_1.md',
 ];
 
 for (const doc of requiredDocs) {
