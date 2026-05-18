@@ -28,7 +28,11 @@ import { ensureDataFiles } from "./utils/ensureDataFiles.js";
 import { readJsonFile } from "./utils/jsonStore.js";
 import { persistEmailRecord } from "./db/emailStore.js";
 import { isSupabaseEnabled, supabase } from "./utils/supabaseClient.js";
-import { getCaseRecordsByEmail } from "./utils/supabaseCoreAuthorityStore.js";
+import {
+  getCaseRecordByCaseId,
+  getCaseRecordsByEmail,
+  isSupabaseCoreAuthorityEnabled,
+} from "./utils/supabaseCoreAuthorityStore.js";
 import {
   deriveMergedCaseEventCount,
   getCaseSortTime,
@@ -139,6 +143,123 @@ app.use("/trial", trialStartRoutes);
 app.use("/trial-status", trialStatusRoutes);
 app.use("/case", caseRoutes);
 app.use("/event", eventRoutes);
+
+const DEFAULT_AUTHORITY_PROBE_EMAIL = "smoke+cases-existing-001@nimclea.test";
+const DEFAULT_AUTHORITY_PROBE_CASE_ID = "00000000-0000-4000-8000-000000000024";
+const AUTHORITY_PROBE_ALLOWED_CASE_IDS = new Set([
+  "00000000-0000-4000-8000-000000000024",
+  "00000000-0000-4000-8000-000000009401",
+]);
+
+function areRehearsalEndpointsEnabled() {
+  return String(process.env.NIMCLEA_ENABLE_REHEARSAL_ENDPOINTS || "")
+    .trim()
+    .toLowerCase() === "true";
+}
+
+function sanitizeProbeError(error) {
+  const rawMessage = String(error || "").trim();
+  if (!rawMessage) return undefined;
+
+  let message = rawMessage;
+  [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_ANON_KEY,
+    process.env.SUPABASE_URL,
+  ]
+    .filter(Boolean)
+    .forEach((value) => {
+      message = message.split(value).join("[redacted]");
+    });
+
+  return message.slice(0, 240);
+}
+
+function summarizeProbeResult(result = {}) {
+  return {
+    ok: result.ok === true,
+    disabled: result.disabled === true,
+    reason: result.reason,
+    error: sanitizeProbeError(result.error),
+  };
+}
+
+app.get("/internal/rehearsal/authority-probe", async (req, res) => {
+  if (!areRehearsalEndpointsEnabled()) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  const email = String(req.query?.email || DEFAULT_AUTHORITY_PROBE_EMAIL)
+    .trim()
+    .toLowerCase();
+  const caseId = String(req.query?.caseId || DEFAULT_AUTHORITY_PROBE_CASE_ID).trim();
+
+  if (!email.endsWith("@nimclea.test")) {
+    return res.status(400).json({ error: "fixture_email_required" });
+  }
+
+  if (!AUTHORITY_PROBE_ALLOWED_CASE_IDS.has(caseId)) {
+    return res.status(400).json({ error: "fixture_case_id_required" });
+  }
+
+  const supabaseCoreAuthorityEnabled = isSupabaseCoreAuthorityEnabled();
+
+  if (!supabaseCoreAuthorityEnabled) {
+    return res.json({
+      success: true,
+      probe: "deployed_authority_availability",
+      rehearsal: true,
+      supabaseCoreAuthorityEnabled: false,
+      emailLookup: {
+        email,
+        ok: false,
+        disabled: true,
+        reason: "supabase_disabled",
+        count: 0,
+        caseIds: [],
+      },
+      caseLookup: {
+        requestedCaseId: caseId,
+        ok: false,
+        disabled: true,
+        reason: "supabase_disabled",
+        found: false,
+      },
+    });
+  }
+
+  const emailResult = await getCaseRecordsByEmail(email);
+  const emailRows = Array.isArray(emailResult.data) ? emailResult.data : [];
+  const caseIds = emailRows
+    .map((row) => String(row?.case_id || "").trim())
+    .filter(Boolean);
+
+  const caseResult = await getCaseRecordByCaseId(caseId);
+  const caseRow = caseResult?.data && typeof caseResult.data === "object"
+    ? caseResult.data
+    : null;
+  const foundCaseId = String(caseRow?.case_id || "").trim();
+
+  return res.json({
+    success: true,
+    probe: "deployed_authority_availability",
+    rehearsal: true,
+    supabaseCoreAuthorityEnabled: true,
+    emailLookup: {
+      email,
+      ...summarizeProbeResult(emailResult),
+      count: emailRows.length,
+      caseIds,
+    },
+    caseLookup: {
+      requestedCaseId: caseId,
+      ...summarizeProbeResult(caseResult),
+      found: Boolean(foundCaseId),
+      ...(foundCaseId ? { caseId: foundCaseId } : {}),
+    },
+  });
+});
+
 function findLastMatchingRecord(records, caseId) {
   if (!Array.isArray(records) || !caseId) {
     return null;
