@@ -2,6 +2,29 @@ $ErrorActionPreference = "Stop"
 
 $RepoPath = "E:\Nimclea_Products\diagnostic"
 
+function Write-FailureAttributionBlock {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$WhatFailed,
+
+    [Parameter(Mandatory = $true)]
+    [string]$LikelyLayer,
+
+    [Parameter(Mandatory = $true)]
+    [string]$SmallestProofCommand,
+
+    [Parameter(Mandatory = $true)]
+    [string]$StopLine
+  )
+
+  Write-Host ""
+  Write-Host "=== Failure Attribution Block ==="
+  Write-Host "What failed: $WhatFailed"
+  Write-Host "Likely layer: $LikelyLayer"
+  Write-Host "Smallest proof command: $SmallestProofCommand"
+  Write-Host "Stop line: $StopLine"
+}
+
 Write-Host ""
 Write-Host "=== Nimclea release check ==="
 
@@ -17,6 +40,11 @@ git diff --check
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
   Write-Host "FAILED: git diff --check found issues. Stop."
+  Write-FailureAttributionBlock `
+    -WhatFailed "whitespace / diff issues" `
+    -LikelyLayer "repo hygiene / release gate" `
+    -SmallestProofCommand "git diff --check" `
+    -StopLine "Do not push until whitespace or diff issues are resolved."
   exit 1
 }
 
@@ -26,6 +54,11 @@ Write-Host "3) Running safe-to-commit check..."
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
   Write-Host "FAILED: safe-to-commit check failed. Stop."
+  Write-FailureAttributionBlock `
+    -WhatFailed "safe-to-commit check" `
+    -LikelyLayer "repo hygiene / safety boundary" `
+    -SmallestProofCommand ".\scripts\check-safe-to-commit.ps1" `
+    -StopLine "Do not push until safe-to-commit returns FAIL 0."
   exit 1
 }
 
@@ -35,6 +68,11 @@ npm --prefix frontend run build
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
   Write-Host "FAILED: frontend build failed. Stop."
+  Write-FailureAttributionBlock `
+    -WhatFailed "frontend build" `
+    -LikelyLayer "frontend / build" `
+    -SmallestProofCommand "npm --prefix frontend run build" `
+    -StopLine "Do not push until frontend build passes."
   exit 1
 }
 
@@ -44,6 +82,11 @@ node scripts/check-release-gate.mjs
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
   Write-Host "FAILED: release gate failed. Stop."
+  Write-FailureAttributionBlock `
+    -WhatFailed "Golden Case release gate" `
+    -LikelyLayer "release-gate / docs-or-guard" `
+    -SmallestProofCommand "node scripts/check-release-gate.mjs" `
+    -StopLine "Do not push until Golden Case release gate returns FAIL 0."
   exit 1
 }
 
