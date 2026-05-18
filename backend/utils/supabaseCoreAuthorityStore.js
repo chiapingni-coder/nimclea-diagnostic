@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isSupabaseEnabled, supabase } from "./supabaseClient.js";
 
 function normalizeText(value = "") {
@@ -141,6 +142,83 @@ function normalizeReceiptRecordInput(record = {}) {
   };
 }
 
+function normalizePaymentRecordInput(record = {}) {
+  const source =
+    normalizeText(record.source || record.authoritySource || record.authority_source) ||
+    "supabase_clean_authority";
+  const processor =
+    normalizeText(record.processor || record.paymentProcessor || record.payment_processor) ||
+    "stripe";
+  const stripeEventId = normalizeText(record.stripeEventId || record.stripe_event_id);
+  const stripeEventType = normalizeText(record.stripeEventType || record.stripe_event_type);
+  const stripeSessionId = normalizeText(record.stripeSessionId || record.stripe_session_id);
+  const stripeCustomerId = normalizeText(record.stripeCustomerId || record.stripe_customer_id);
+  const stripeSubscriptionId = normalizeText(
+    record.stripeSubscriptionId || record.stripe_subscription_id
+  );
+  const paymentType = normalizeText(record.paymentType || record.payment_type);
+  const priceType = normalizeText(record.priceType || record.price_type);
+  const paymentScope = normalizeText(record.paymentScope || record.payment_scope);
+  const userId = normalizeText(record.userId || record.user_id);
+  const receiptId = normalizeText(record.receiptId || record.receipt_id);
+  const hash = normalizeText(record.hash);
+  const email = normalizeText(record.email);
+  const status = normalizeText(record.status || record.paymentStatus || record.payment_status);
+  const processorPaymentReference =
+    normalizeText(
+      record.processorPaymentReference ||
+        record.processor_payment_reference ||
+        stripeSessionId ||
+        stripeSubscriptionId ||
+        stripeEventId
+    ) || null;
+  const amountCentsValue = Number(record.amountCents ?? record.amount_cents ?? record.amount);
+  const amountCents = Number.isFinite(amountCentsValue) ? Math.trunc(amountCentsValue) : 0;
+  const paymentId =
+    normalizeText(record.paymentId || record.payment_id) ||
+    processorPaymentReference ||
+    randomUUID();
+
+  return {
+    payment_id: paymentId,
+    customer_id: normalizeText(record.customerId || record.customer_id || stripeCustomerId),
+    case_id: normalizeText(record.caseId || record.case_id),
+    processor,
+    processor_payment_reference: processorPaymentReference,
+    amount_cents: amountCents,
+    currency: normalizeText(record.currency) || "usd",
+    payment_status: normalizeText(record.paymentStatus || record.payment_status || status) || "pending",
+    source,
+    is_authority_record: record.isAuthorityRecord ?? record.is_authority_record ?? true,
+    processor_metadata: {
+      ...(record.processorMetadata && typeof record.processorMetadata === "object" && !Array.isArray(record.processorMetadata)
+        ? record.processorMetadata
+        : {}),
+      ...(stripeEventId ? { stripe_event_id: stripeEventId } : {}),
+      ...(stripeEventType ? { stripe_event_type: stripeEventType } : {}),
+      ...(stripeSessionId ? { stripe_session_id: stripeSessionId } : {}),
+      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+      ...(stripeSubscriptionId ? { stripe_subscription_id: stripeSubscriptionId } : {}),
+    },
+    metadata: {
+      ...(record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+        ? record.metadata
+        : {}),
+      ...(paymentType ? { payment_type: paymentType } : {}),
+      ...(priceType ? { price_type: priceType } : {}),
+      ...(paymentScope ? { payment_scope: paymentScope } : {}),
+      ...(userId ? { user_id: userId } : {}),
+      ...(receiptId ? { receipt_id: receiptId } : {}),
+      ...(hash ? { hash } : {}),
+      ...(email ? { email } : {}),
+      ...(status ? { status } : {}),
+    },
+    settled_at: record.settledAt || record.settled_at || null,
+    created_at: record.createdAt || record.created_at || null,
+    updated_at: record.updatedAt || record.updated_at || null,
+  };
+}
+
 export function isSupabaseCoreAuthorityEnabled() {
   return Boolean(ensureSupabase());
 }
@@ -218,6 +296,36 @@ export async function upsertReceiptRecord(record = {}) {
     const { data, error } = await client
       .from("receipts")
       .upsert(payload, { onConflict: "receipt_id" })
+      .select("*")
+      .limit(1);
+
+    if (error) {
+      return { ok: false, error: error.message || String(error) };
+    }
+
+    return { ok: true, data: Array.isArray(data) ? data[0] || null : data || null };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
+
+export async function upsertPaymentRecord(record = {}) {
+  const client = ensureSupabase();
+  if (!client) return disabledResult();
+
+  const payload = normalizePaymentRecordInput(record);
+  if (!payload.customer_id) {
+    return { ok: false, error: "customer_id_required" };
+  }
+
+  if (!payload.case_id) {
+    return { ok: false, error: "case_id_required" };
+  }
+
+  try {
+    const { data, error } = await client
+      .from("payments")
+      .upsert(payload, { onConflict: "payment_id" })
       .select("*")
       .limit(1);
 
