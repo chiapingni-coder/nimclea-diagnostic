@@ -552,7 +552,7 @@ export async function getReceiptRecordByReceiptId(receiptId) {
 
   try {
     const { data, error } = await client
-      .from("receipt_records")
+      .from("receipts")
       .select("*")
       .eq("receipt_id", safeReceiptId)
       .order("created_at", { ascending: false })
