@@ -2850,6 +2850,10 @@ const backendReceiptPaidActivatedIssued = Boolean(
     hydratedReceiptLifecycleSignals.receiptIssued
 );
 
+const canExportReceiptPdf = Boolean(
+  backendReceiptPaidActivatedIssued && !hasReceiptBackendAuthorityMissing
+);
+
 const backendVerificationEligible = Boolean(
   backendCaseLifecycleSignals.verificationEligible ||
     backendCaseLifecycleSignals.verificationReady ||
@@ -4570,6 +4574,8 @@ if (!canRenderReceipt) {
                       e.preventDefault();
                       e.stopPropagation();
 
+                      if (!canExportReceiptPdf) return;
+
                       const content = buildReceiptPdfDeliverableHtml();
 
                       const element = document.createElement("div");
@@ -4579,7 +4585,18 @@ if (!canRenderReceipt) {
                       const html2pdf = html2pdfModule.default || html2pdfModule;
                       html2pdf().from(element).save("nimclea-decision-receipt.pdf");
                     }}
-                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                    disabled={!canExportReceiptPdf}
+                    aria-disabled={!canExportReceiptPdf}
+                    title={
+                      canExportReceiptPdf
+                        ? "Export Receipt PDF"
+                        : "PDF export unlocks after backend paid receipt authority is confirmed."
+                    }
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                      canExportReceiptPdf
+                        ? "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        : "cursor-not-allowed border-slate-200 text-slate-300"
+                    }`}
                   >
                     Export Receipt PDF
                   </button>
