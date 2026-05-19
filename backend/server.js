@@ -328,7 +328,9 @@ app.get("/internal/rehearsal/cases-email-final-assembly-observability", async (r
 
     const deletedCaseIds = await getDeletedCaseIdSet([]);
     const supabaseSources = await loadSupabaseCaseSourcesForEmail(email, deletedCaseIds);
-    const assemblyAllowlistedCaseIds = getAllowlistedAuthorityProbeCaseIds(supabaseSources.cases);
+    const assemblyAllowlistedCaseIds = getAllowlistedAuthorityProbeCaseIds(
+      supabaseSources.cases.filter((item) => canSeedWorkspaceCase(item))
+    );
 
     response.assembly.finalAllowlistedCaseIds = assemblyAllowlistedCaseIds;
     response.assembly.missingExpectedCaseIds =
@@ -414,6 +416,7 @@ function hasRealCanonicalCaseSource(record = {}) {
 
 function canSeedWorkspaceCase(record = {}) {
   if (isReceiptSnapshotSource(record)) return false;
+  if (record?._emailScopedByCleanAuthority === true) return true;
   if (record?._supabaseSource === "cases") return hasRealCanonicalCaseSource(record);
   return true;
 }
@@ -764,26 +767,32 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
       caseRows = fallbackCaseRows;
     }
 
-    const filteredCaseRows = (Array.isArray(caseRows) ? caseRows : []).filter((row) => {
-      const normalizedRow = normalizeSupabaseCaseRow(row);
-      const caseId = String(row?.case_id || normalizedRow?.caseId || "").trim();
+    const normalizedCaseRows = (Array.isArray(caseRows) ? caseRows : [])
+      .map((row) => {
+        const normalizedRow = normalizeSupabaseCaseRow(row);
+        return helperRowsAreEmailScoped
+          ? { ...normalizedRow, _emailScopedByCleanAuthority: true }
+          : normalizedRow;
+      })
+      .filter((row) => {
+        const caseId = String(row?.case_id || row?.caseId || "").trim();
 
-      if (caseId && deletedCaseIds.has(caseId)) {
-        return false;
-      }
+        if (caseId && deletedCaseIds.has(caseId)) {
+          return false;
+        }
 
-      if (helperRowsAreEmailScoped) {
-        return true;
-      }
+        if (helperRowsAreEmailScoped) {
+          return true;
+        }
 
-      const rowEmail = getEmailFromCaseRecord(normalizedRow);
-      return rowEmail === email;
-    });
+        const rowEmail = getEmailFromCaseRecord(row);
+        return rowEmail === email;
+      });
 
     const caseIds = Array.from(
       new Set(
-        filteredCaseRows
-          .map((row) => String(row?.case_id || "").trim())
+        normalizedCaseRows
+          .map((row) => String(row?.case_id || row?.caseId || "").trim())
           .filter(Boolean)
       )
     );
@@ -792,31 +801,33 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
     let eventRows = [];
 
     if (caseIds.length > 0) {
-      const { data: nextReceiptRows = [], error: receiptError } = await supabase
-        .from("receipt_records")
-        .select("*")
-        .in("case_id", caseIds);
+      try {
+        const { data: nextReceiptRows = [], error: receiptError } = await supabase
+          .from("receipt_records")
+          .select("*")
+          .in("case_id", caseIds);
 
-      if (receiptError) throw receiptError;
-      receiptRows = Array.isArray(nextReceiptRows) ? nextReceiptRows : [];
+        if (receiptError) throw receiptError;
+        receiptRows = Array.isArray(nextReceiptRows) ? nextReceiptRows : [];
+      } catch {
+        console.warn("[supabase:/cases] receipt overlay reader failed; continuing with case rows");
+      }
 
-      const { data: nextEventRows = [], error: eventError } = await supabase
-        .from("event_logs")
-        .select("*")
-        .in("case_id", caseIds);
+      try {
+        const { data: nextEventRows = [], error: eventError } = await supabase
+          .from("event_logs")
+          .select("*")
+          .in("case_id", caseIds);
 
-      if (eventError) throw eventError;
-      eventRows = Array.isArray(nextEventRows) ? nextEventRows : [];
+        if (eventError) throw eventError;
+        eventRows = Array.isArray(nextEventRows) ? nextEventRows : [];
+      } catch {
+        console.warn("[supabase:/cases] event overlay reader failed; continuing with case rows");
+      }
     }
 
     return {
-      cases: filteredCaseRows.map((row) => {
-        const normalizedRow = normalizeSupabaseCaseRow(row);
-
-        return helperRowsAreEmailScoped
-          ? { ...normalizedRow, _emailScopedByCleanAuthority: true }
-          : normalizedRow;
-      }),
+      cases: normalizedCaseRows,
       receiptRecords: receiptRows
         .filter((row) => {
           const caseId = String(row?.case_id || "").trim();
@@ -1014,7 +1025,7 @@ app.get("/cases", async (req, res) => {
       cases
         .filter((item) => {
           return (
-            emailFromPersistedCase(item) === email &&
+            isEmailVisibleCase(item) &&
             canSeedWorkspaceCase(item)
           );
         })
@@ -1079,6 +1090,8 @@ app.get("/cases", async (req, res) => {
       const hasCanonicalCaseSource = canonicalCaseIds.has(caseId);
       const isProtectedFormalRecord = isProtectedFormalOverlayRecord(normalizedItem);
       const hasMatchingEmail =
+        item?._emailScopedByCleanAuthority === true ||
+        normalizedItem?._emailScopedByCleanAuthority === true ||
         emailFromPersistedCase(item) === email ||
         emailFromPersistedCase(normalizedItem) === email;
 
