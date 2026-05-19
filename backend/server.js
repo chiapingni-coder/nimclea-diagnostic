@@ -31,6 +31,7 @@ import { isSupabaseEnabled, supabase } from "./utils/supabaseClient.js";
 import {
   getCaseRecordByCaseId,
   getCaseRecordsByEmail,
+  getReceiptRecordByReceiptId,
   isSupabaseCoreAuthorityEnabled,
 } from "./utils/supabaseCoreAuthorityStore.js";
 import {
@@ -1430,6 +1431,39 @@ app.get("/receipt-record", (req, res) => {
     return res.status(500).json({ error: "Failed to load receipt record" });
   }
 });
+
+app.get("/receipt/:receiptId", async (req, res) => {
+  const receiptId = String(req.params?.receiptId || "").trim();
+
+  if (!receiptId) {
+    return res.status(400).json({ error: "receiptId required" });
+  }
+
+  try {
+    const result = await getReceiptRecordByReceiptId(receiptId);
+
+    if (result?.disabled === true || (result?.ok === true && !result.data)) {
+      return res.status(404).json({ error: "receipt not found" });
+    }
+
+    if (!result?.ok) {
+      console.warn("[GET /receipt/:receiptId] authority read failed", {
+        receiptId,
+        error: result?.error ? "receipt_read_failed" : undefined,
+      });
+      return res.status(500).json({ error: "Failed to load receipt" });
+    }
+
+    return res.json(result.data);
+  } catch (error) {
+    console.error("[GET /receipt/:receiptId] error", {
+      receiptId,
+      message: error?.message || String(error),
+    });
+    return res.status(500).json({ error: "Failed to load receipt" });
+  }
+});
+
 app.post("/email/log", async (req, res) => {
   console.log("[email-log] received", req.body);
 
