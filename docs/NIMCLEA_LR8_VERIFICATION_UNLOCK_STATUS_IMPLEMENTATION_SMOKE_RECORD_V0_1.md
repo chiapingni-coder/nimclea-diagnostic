@@ -1,4 +1,4 @@
-﻿# LR8 VERIFICATION UNLOCK STATUS IMPLEMENTATION SMOKE RECORD
+# LR8 VERIFICATION UNLOCK STATUS IMPLEMENTATION SMOKE RECORD
 
 ## Record ID
 
@@ -101,12 +101,11 @@ Result:
   - Draft/unpaid path: receipt-ready without backend paid/activated/issued and without backend verification eligible/ready/issued does not satisfy `backendFormalVerificationGate`; formal verification remains locked / repair / not ready.
   - Backend-missing path: `verificationBackendAuthorityMissing` blocks `canOpenVerificationPage` and renders the authority-missing unavailable state.
   - Local-only path: inspected formal unlock aliases use `backendFormalVerificationGate`, not route/local/cache-only data.
-- Release-check result: NOT PASSED in this environment.
+- Release-check result: PASSED with FAIL 0.
   - Safe-to-commit subcheck passed with PASS 3, WARN 0, FAIL 0.
-  - Frontend build failed immediately in Vite with `[commonjs--resolver] spawn EPERM`.
-  - After the Vite failure, `scripts/release-check.ps1` also errored while calling `Write-FailureAttributionForStep` with an empty `FailureDetail`.
-  - Because release-check did not complete, the expected WARN-only final release gate result was not reached.
-- LR8 pass status: blocked by release-check failure. Do not advance this record as passed until release-check completes with FAIL 0.
+  - Frontend build completed as part of release-check.
+  - Expected WARN-only final release gate result was reached.
+- LR8 pass status: PASS for documentation-only verification unlock status implementation/smoke record.
 
 ## Risk / Stop Line
 
@@ -121,6 +120,5 @@ Result:
 
 ## Next Action
 
-- Resolve or rerun the release-check frontend build environment failure.
-- If LR8 then passes with release-check FAIL 0, move to LR9 verification unlock status closure scope record.
-
+- Proceed to LR9 verification unlock status closure scope record.
+- Do not broaden this LR8 result into full launch readiness, payment, storage, or AUTO3 implementation claims.
