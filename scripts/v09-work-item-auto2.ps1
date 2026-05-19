@@ -201,7 +201,36 @@ Write-Step "Blank-template marker check"
 $markerOutput = @(Select-String -Path $DocPath -Pattern $BlankTemplatePattern)
 if ($markerOutput.Count -gt 0) {
   $markerOutput | ForEach-Object { Write-Host $_ }
-  throw "Target record still contains blank-template markers."
+  Write-Host ""
+  Write-Host "=== AUTO2B terminal small-fix guard ==="
+
+  $Auto2SmallFixDoc = $null
+
+  if (Get-Variable -Name Doc -ErrorAction SilentlyContinue) {
+    $Auto2SmallFixDoc = $Doc
+  } elseif (Get-Variable -Name DocPath -ErrorAction SilentlyContinue) {
+    $Auto2SmallFixDoc = $DocPath
+  } elseif (Get-Variable -Name TargetPath -ErrorAction SilentlyContinue) {
+    $Auto2SmallFixDoc = $TargetPath
+  }
+
+  if ([string]::IsNullOrWhiteSpace($Auto2SmallFixDoc)) {
+    throw "AUTO2B small-fix could not resolve target doc path."
+  }
+
+  & (Join-Path $PSScriptRoot "auto2-record-small-fix.ps1") -Path $Auto2SmallFixDoc -Kind $Kind
+
+  $Auto2RemainingBlankMarkers = @(
+    Select-String -Path $Auto2SmallFixDoc `
+      -Pattern "^- Area:\s*$|^- Files inspected:\s*$|^- Files changed:\s*$|^- Runtime behavior affected:\s*$|^-\s*$"
+  )
+
+  if ($Auto2RemainingBlankMarkers.Count -gt 0) {
+    $Auto2RemainingBlankMarkers
+    throw "Target record still contains blank-template markers."
+  }
+
+  Write-Host "DONE: AUTO2B small-fix cleared blank-template markers."
 }
 Assert-MeaningfulResultMarker -Path $DocPath
 Write-Host "PASS: no blank-template markers found."
