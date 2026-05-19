@@ -5,8 +5,11 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$Kind,
 
-  [Parameter(Mandatory = $true)]
+  [Parameter(Mandatory = $false)]
   [string]$PromptFile,
+
+  [Parameter(Mandatory = $false)]
+  [string]$PromptText,
 
   [Parameter(Mandatory = $false)]
   [string]$Commit,
@@ -25,7 +28,7 @@ $DocPath = Join-Path "docs" "$Id.md"
 $NormalizedDocPath = $DocPath -replace "\\", "/"
 $Auto2RecordId = "NIMCLEA_V0_9_AUTO2_CODEX_FILL_PIPELINE_SCRIPT_RECORD_V0_1"
 $IsImplementingAuto2 = $Id -eq $Auto2RecordId
-$BlankTemplatePattern = "This record documents the decision, implementation, rehearsal, or validation result for this Nimclea work item\.|^- Area:\s*$|^- Files inspected:\s*$|^- Files changed:\s*$|^- Runtime behavior affected:\s*$|^-\s*$|Result:\s*$"
+$BlankTemplatePattern = "This record documents the decision, implementation, rehearsal, or validation result for this Nimclea work item\.|^- Area:\s*$|^- Files inspected:\s*$|^- Files changed:\s*$|^- Runtime behavior affected:\s*$|^-\s*$"
 
 function Write-Step {
   param([string]$Text)
@@ -83,12 +86,69 @@ function Assert-AllowedChangedFiles {
   }
 }
 
+function Assert-MeaningfulResultMarker {
+  param([string]$Path)
+
+  $lines = Get-Content -Path $Path
+  $resultLineIndexes = @()
+
+  for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match "^Result:\s*(.*)$") {
+      $resultLineIndexes += $i
+    }
+  }
+
+  if ($resultLineIndexes.Count -eq 0) {
+    throw "Target record is missing a Result marker."
+  }
+
+  foreach ($index in $resultLineIndexes) {
+    $content = ([regex]::Match($lines[$index], "^Result:\s*(.*)$")).Groups[1].Value.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($content)) {
+      for ($next = $index + 1; $next -lt $lines.Count; $next++) {
+        $candidate = $lines[$next].Trim()
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+          $content = $candidate
+          break
+        }
+      }
+    }
+
+    $isPlaceholder =
+      [string]::IsNullOrWhiteSpace($content) -or
+      $content -eq "-" -or
+      $content -match "^(TODO|TBD|N/A|NA|placeholder|pending)\b" -or
+      $content -match "^#+\s+"
+
+    if ($isPlaceholder) {
+      throw "Target record has a blank or placeholder Result marker."
+    }
+  }
+}
+
 Write-Step "Nimclea v0.9 AUTO2 work item"
 Write-Host "ID:          $Id"
 Write-Host "Kind:        $Kind"
 Write-Host "Doc:         $NormalizedDocPath"
-Write-Host "PromptFile:  $PromptFile"
+if (-not [string]::IsNullOrWhiteSpace($PromptFile)) {
+  Write-Host "PromptFile:  $PromptFile"
+}
+if (-not [string]::IsNullOrWhiteSpace($PromptText)) {
+  Write-Host "PromptText:  inline"
+}
 Write-Host "Push:        $($Push.IsPresent)"
+
+$HasPromptFile = -not [string]::IsNullOrWhiteSpace($PromptFile)
+$HasPromptText = -not [string]::IsNullOrWhiteSpace($PromptText)
+
+if (-not $HasPromptFile -and -not $HasPromptText) {
+  throw "Provide either -PromptFile or -PromptText."
+}
+
+if ($HasPromptFile -and $HasPromptText) {
+  throw "Provide only one of -PromptFile or -PromptText."
+}
 
 Require-File "scripts\new-record.ps1"
 Require-File "scripts\gate-doc.ps1"
@@ -104,10 +164,14 @@ if (-not (Test-Path $DocPath)) {
 }
 
 Require-File $DocPath
-Require-File $PromptFile
 
-$PromptFullPath = (Resolve-Path $PromptFile).Path
-$PromptBody = Get-Content -Path $PromptFullPath -Raw
+if ($HasPromptFile) {
+  Require-File $PromptFile
+  $PromptFullPath = (Resolve-Path $PromptFile).Path
+  $PromptBody = Get-Content -Path $PromptFullPath -Raw
+} else {
+  $PromptBody = $PromptText
+}
 
 $GuardedPrompt = @"
 Fill the Nimclea record at:
@@ -139,6 +203,7 @@ if ($markerOutput.Count -gt 0) {
   $markerOutput | ForEach-Object { Write-Host $_ }
   throw "Target record still contains blank-template markers."
 }
+Assert-MeaningfulResultMarker -Path $DocPath
 Write-Host "PASS: no blank-template markers found."
 
 Write-Step "Changed-file guard before gate-doc"
