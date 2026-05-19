@@ -727,7 +727,13 @@ async function loadSupabaseCaseSourcesForEmail(email, deletedCaseIds = new Set()
     }
 
     return {
-      cases: filteredCaseRows.map(normalizeSupabaseCaseRow),
+      cases: filteredCaseRows.map((row) => {
+        const normalizedRow = normalizeSupabaseCaseRow(row);
+
+        return helperRowsAreEmailScoped
+          ? { ...normalizedRow, _emailScopedByCleanAuthority: true }
+          : normalizedRow;
+      }),
       receiptRecords: receiptRows
         .filter((row) => {
           const caseId = String(row?.case_id || "").trim();
@@ -917,6 +923,10 @@ app.get("/cases", async (req, res) => {
           }
         : null;
 
+    const isEmailVisibleCase = (item = {}) =>
+      emailFromPersistedCase(item) === email ||
+      item?._emailScopedByCleanAuthority === true;
+
     const canonicalCaseIds = new Set(
       cases
         .filter((item) => {
@@ -951,7 +961,7 @@ app.get("/cases", async (req, res) => {
     cases.forEach((item) => {
       const caseId = caseIdOf(item);
       if (!caseId) return;
-      if (emailFromPersistedCase(item) !== email) return;
+      if (!isEmailVisibleCase(item)) return;
       if (isReceiptSnapshotSource(item)) return;
 
       addCandidate(item, { hasCanonicalCaseSource: true });
@@ -965,7 +975,7 @@ app.get("/cases", async (req, res) => {
     });
 
     cases.forEach((item) => {
-      if (emailFromPersistedCase(item) !== email) return;
+      if (!isEmailVisibleCase(item)) return;
 
       if (canSeedWorkspaceCase(item)) {
         addCandidate(item, { hasCanonicalCaseSource: true });
@@ -1176,6 +1186,7 @@ app.get("/cases", async (req, res) => {
         const {
           _hasCanonicalCaseSource,
           _allowStandaloneReceiptRecord,
+          _emailScopedByCleanAuthority,
           ...publicItem
         } = item;
 
@@ -1201,7 +1212,7 @@ app.get("/cases", async (req, res) => {
     durableCandidates.forEach((item) => {
       const caseId = caseIdOf(item);
       if (!caseId) return;
-      if (emailFromPersistedCase(item) !== email) return;
+      if (!isEmailVisibleCase(item)) return;
       if (isReceiptSnapshotSource(item)) return;
       if (isDeletedOrDiscardedCaseRecord(item)) return;
 
@@ -1230,6 +1241,7 @@ app.get("/cases", async (req, res) => {
         const {
           _hasCanonicalCaseSource,
           _allowStandaloneReceiptRecord,
+          _emailScopedByCleanAuthority,
           ...publicItem
         } = item;
 
