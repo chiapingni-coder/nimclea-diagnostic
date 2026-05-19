@@ -184,6 +184,21 @@ function summarizeProbeResult(result = {}) {
   };
 }
 
+function getAllowlistedAuthorityProbeCaseIds(rows = []) {
+  return Array.from(
+    new Set(
+      (Array.isArray(rows) ? rows : [])
+        .map((row) => String(row?.case_id || row?.caseId || row?.id || "").trim())
+        .filter((caseId) => AUTHORITY_PROBE_ALLOWED_CASE_IDS.has(caseId))
+    )
+  );
+}
+
+function getMissingAuthorityProbeCaseIds(caseIds = []) {
+  const foundIds = new Set(Array.isArray(caseIds) ? caseIds : []);
+  return Array.from(AUTHORITY_PROBE_ALLOWED_CASE_IDS).filter((caseId) => !foundIds.has(caseId));
+}
+
 app.get("/internal/rehearsal/authority-probe", async (req, res) => {
   if (!areRehearsalEndpointsEnabled()) {
     return res.status(404).json({ error: "not found" });
@@ -258,6 +273,74 @@ app.get("/internal/rehearsal/authority-probe", async (req, res) => {
       ...(foundCaseId ? { caseId: foundCaseId } : {}),
     },
   });
+});
+
+app.get("/internal/rehearsal/cases-email-final-assembly-observability", async (req, res) => {
+  if (!areRehearsalEndpointsEnabled()) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  const email = String(req.query?.email || DEFAULT_AUTHORITY_PROBE_EMAIL)
+    .trim()
+    .toLowerCase();
+
+  if (email !== DEFAULT_AUTHORITY_PROBE_EMAIL) {
+    return res.status(400).json({ error: "fixture_email_required" });
+  }
+
+  const expectedCaseIds = Array.from(AUTHORITY_PROBE_ALLOWED_CASE_IDS);
+  const response = {
+    success: true,
+    probe: "cases_email_final_assembly_observability",
+    rehearsal: true,
+    email,
+    expectedCaseIds,
+    helperLookup: {
+      attempted: false,
+      ok: false,
+      rowCount: 0,
+      allowlistedCaseIds: [],
+      missingExpectedCaseIds: expectedCaseIds,
+      error: undefined,
+    },
+    assembly: {
+      finalAllowlistedCaseIds: [],
+      missingExpectedCaseIds: expectedCaseIds,
+    },
+    runtimeReflection: {
+      routeReachable: true,
+    },
+    error: null,
+  };
+
+  try {
+    response.helperLookup.attempted = true;
+    const helperResult = await getCaseRecordsByEmail(email);
+    const helperRows = Array.isArray(helperResult.data) ? helperResult.data : [];
+    const helperAllowlistedCaseIds = getAllowlistedAuthorityProbeCaseIds(helperRows);
+
+    response.helperLookup.ok = helperResult.ok === true;
+    response.helperLookup.rowCount = helperRows.length;
+    response.helperLookup.allowlistedCaseIds = helperAllowlistedCaseIds;
+    response.helperLookup.missingExpectedCaseIds =
+      getMissingAuthorityProbeCaseIds(helperAllowlistedCaseIds);
+    response.helperLookup.error = sanitizeProbeError(helperResult.error);
+
+    const deletedCaseIds = await getDeletedCaseIdSet([]);
+    const supabaseSources = await loadSupabaseCaseSourcesForEmail(email, deletedCaseIds);
+    const assemblyAllowlistedCaseIds = getAllowlistedAuthorityProbeCaseIds(supabaseSources.cases);
+
+    response.assembly.finalAllowlistedCaseIds = assemblyAllowlistedCaseIds;
+    response.assembly.missingExpectedCaseIds =
+      getMissingAuthorityProbeCaseIds(assemblyAllowlistedCaseIds);
+
+    return res.json(response);
+  } catch (error) {
+    return res.json({
+      ...response,
+      error: sanitizeProbeError(error?.message || error) || "probe_failed",
+    });
+  }
 });
 
 function findLastMatchingRecord(records, caseId) {
