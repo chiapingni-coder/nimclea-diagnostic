@@ -262,6 +262,60 @@ if ($IsImplementingAuto2) {
 }
 Assert-AllowedChangedFiles -AllowedPaths $allowedFinal -Phase "after release-check"
 
+$implementationLikeKindsForChangedFileEnforcement = @(
+  "implementation",
+  "implementation_smoke",
+  "implementation-smoke",
+  "runtime",
+  "fix"
+)
+
+$normalizedKindForChangedFileEnforcement = $Kind.Trim().ToLowerInvariant()
+
+if ($implementationLikeKindsForChangedFileEnforcement -contains $normalizedKindForChangedFileEnforcement) {
+  Write-Step "Implementation changed-file enforcement"
+
+  $changedFilesForChangedFileEnforcement = @(
+    git status --short | ForEach-Object {
+      $line = $_
+      if ($line.Length -ge 4) {
+        $line.Substring(3).Trim()
+      } else {
+        $line.Trim()
+      }
+    } | ForEach-Object {
+      ($_ -replace "\\", "/").Trim()
+    } | Where-Object {
+      -not [string]::IsNullOrWhiteSpace($_)
+    }
+  )
+
+  $realImplementationFilesForChangedFileEnforcement = @(
+    $changedFilesForChangedFileEnforcement | Where-Object {
+      ($_ -notlike "docs/*.md") -and
+      ($_ -ne "scripts/check-release-gate.mjs")
+    }
+  )
+
+  if ($realImplementationFilesForChangedFileEnforcement.Count -eq 0) {
+    Write-Host ""
+    Write-Host "STOP: implementation changed-file enforcement failed."
+    Write-Host "Implementation-like work items require at least one non-doc, non-gate changed file."
+    Write-Host "This prevents paper implementation passes."
+    Write-Host ""
+    Write-Host "Changed files:"
+    git status --short
+    throw "implementation changed-file enforcement failed."
+  }
+
+  Write-Host "PASS: implementation changed-file enforcement found real implementation file changes:"
+  $realImplementationFilesForChangedFileEnforcement |
+    Sort-Object -Unique |
+    ForEach-Object {
+      Write-Host "  - $_"
+    }
+}
+
 if (-not $Push) {
   Write-Step "STOP before push"
   Write-Host "Checks completed. Review final git status, then push with:"
