@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 // import { evaluateCaseRecordStatus } from "../utils/verificationStatus";
@@ -2127,6 +2127,27 @@ const urlCaseId = String(
       caseBillingOverride?.receiptActivated === true) ||
     isBackendReceiptPaidOrActivated(backendCaseRecord);
 
+  const receiptAuthorityPending =
+    isReceiptCaseHydrating ||
+    !receiptRecordHydrationComplete ||
+    backendCaseLoading ||
+    backendCaseRepairing ||
+    isReceiptBackendSyncPending;
+
+  const receiptAuthorityAuthoritative =
+    backendCaseLookupComplete &&
+    receiptRecordHydrationComplete &&
+    !backendCaseLoading &&
+    !backendCaseRepairing &&
+    !isReceiptCaseHydrating &&
+    !isReceiptBackendSyncPending &&
+    !hasReceiptBackendAuthorityMissing &&
+    !backendCaseError &&
+    !backendCaseRepairFailed;
+
+  const receiptAuthorityReady =
+    receiptAuthorityAuthoritative && explicitBackendReceiptReady === true;
+
   const data = {
     ...rawData,
     ...sharedFlat,
@@ -2201,15 +2222,15 @@ const urlCaseId = String(
     "Open Verification Review",
 
   decisionStatus: (() => {
-    if (isReceiptCaseHydrating) return "Checking receipt status";
+    if (receiptAuthorityPending) return "Checking receipt status";
 
-    if (hasVerifiedAt) return "Verified";
+    if (hasVerifiedAt && receiptAuthorityReady) return "Verified";
 
-    if (explicitBackendReceiptReady || readinessContract.readinessLevel === "ready") {
+    if (receiptAuthorityReady) {
       return "READY FOR FORMAL DETERMINATION";
     }
 
-    if (readinessContract.readinessLevel === "pending_review") {
+    if (receiptAuthorityAuthoritative && readinessContract.readinessLevel === "pending_review") {
       return "Receipt Pending Review";
     }
 
@@ -2226,11 +2247,7 @@ const urlCaseId = String(
     if (isReceiptCaseHydrating) return;
 
     try {
-      const receiptReadyNow =
-        data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
-        data.decisionStatus === "Verified" ||
-        explicitBackendReceiptReady === true ||
-        readinessContract?.receiptReady === true;
+      const receiptReadyNow = receiptAuthorityReady === true;
 
       upsertCase({
         caseId: inferredCaseId,
@@ -2273,16 +2290,17 @@ const urlCaseId = String(
     } catch (e) {
       console.warn("Failed to persist case at receipt stage", e);
     }
-  }, [inferredCaseId, isReceiptCaseHydrating]);
+  }, [inferredCaseId, isReceiptCaseHydrating, receiptAuthorityReady]);
 
 const canShowFormalPaymentEntry =
-  data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
-  data.decisionStatus === "Verified" ||
-  returnedFromFailedVerification ||
-  routeDecision?.mode === "case_receipt" ||
-  routeDecision?.mode === "final_receipt" ||
-  receiptMode === "case_receipt" ||
-  receiptMode === "final_receipt";
+  receiptAuthorityReady &&
+  (data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+    data.decisionStatus === "Verified" ||
+    returnedFromFailedVerification ||
+    routeDecision?.mode === "case_receipt" ||
+    routeDecision?.mode === "final_receipt" ||
+    receiptMode === "case_receipt" ||
+    receiptMode === "final_receipt");
 
 const isVerified = data.verificationStatus === "passed";
 
@@ -2293,8 +2311,9 @@ const caseStatus = isVerified
   : "draft";
 
 const isReady =
-  data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
-  data.decisionStatus === "Verified";
+  receiptAuthorityReady &&
+  (data.decisionStatus === "READY FOR FORMAL DETERMINATION" ||
+    data.decisionStatus === "Verified");
 
 const summarySignals = Array.isArray(data.topSignals) ? data.topSignals : [];
 
@@ -2447,10 +2466,13 @@ const receiptReadinessAuthoritative =
   !isReceiptCaseHydrating &&
   !isReceiptBackendSyncPending;
 
+const hasAuthoritativeReadyReceipt =
+  receiptReadinessAuthoritative && hasReadyReceipt;
+
 const hasConfirmedNonReadyReceipt =
   hasReceiptCaseContext &&
   hasPilotResultContext &&
-  !hasReadyReceipt &&
+  !hasAuthoritativeReadyReceipt &&
   receiptReadinessAuthoritative &&
   (
     activeCurrentCase?.receiptEligible === false ||
@@ -2475,11 +2497,11 @@ const canRenderReceiptInsufficient =
   !receiptReadinessPending &&
   hasReceiptCaseContext &&
   hasPilotResultContext &&
-  !hasReadyReceipt &&
+  !hasAuthoritativeReadyReceipt &&
   !receiptHydrationFailed;
 const receiptDisplayState = receiptHydrationFailed
   ? "unable"
-  : hasReadyReceipt
+  : hasAuthoritativeReadyReceipt
   ? "ready"
   : canRenderReceiptInsufficient
   ? "insufficient"
@@ -5164,6 +5186,3 @@ if (!canRenderReceipt) {
     </div>
   );
 }
-
-
-
