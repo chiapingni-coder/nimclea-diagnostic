@@ -237,11 +237,57 @@ Write-Host "PASS: no blank-template markers found."
 
 Write-Step "Changed-file guard before gate-doc"
 $allowedBeforeGate = @($NormalizedDocPath)
+
+$implementationLikeKindsForEditBoundary = @(
+  "implementation",
+  "implementation_smoke",
+  "implementation-smoke",
+  "runtime",
+  "fix"
+)
+
+$normalizedKindForEditBoundary = $Kind.Trim().ToLowerInvariant()
+$isImplementationLikeForEditBoundary = $implementationLikeKindsForEditBoundary -contains $normalizedKindForEditBoundary
+
 if ($IsImplementingAuto2) {
   $allowedBeforeGate += "scripts/v09-work-item-auto2.ps1"
   $allowedBeforeGate += "docs/$Auto2RecordId.md"
 }
-Assert-AllowedChangedFiles -AllowedPaths $allowedBeforeGate -Phase "before gate-doc"
+
+if ($isImplementationLikeForEditBoundary) {
+  Write-Host "INFO: implementation edit-boundary alignment is active."
+
+  $implementationFilesForEditBoundary = @(
+    git status --short | ForEach-Object {
+      if ($_.Length -ge 4) { $_.Substring(3).Trim() } else { $_.Trim() }
+    } | ForEach-Object {
+      ($_ -replace "\\", "/").Trim()
+    } | Where-Object {
+      ($_ -like "backend/*.js") -or
+      ($_ -like "backend/**/*.js") -or
+      ($_ -like "frontend/*.js") -or
+      ($_ -like "frontend/**/*.js") -or
+      ($_ -like "frontend/*.jsx") -or
+      ($_ -like "frontend/**/*.jsx") -or
+      ($_ -like "frontend/*.ts") -or
+      ($_ -like "frontend/**/*.ts") -or
+      ($_ -like "frontend/*.tsx") -or
+      ($_ -like "frontend/**/*.tsx") -or
+      ($_ -like "scripts/*.ps1") -or
+      (($_ -like "scripts/*.mjs") -and ($_ -ne "scripts/check-release-gate.mjs"))
+    }
+  )
+
+  if ($implementationFilesForEditBoundary.Count -gt 0) {
+    Write-Host "INFO: allowed implementation files:"
+    $implementationFilesForEditBoundary | Sort-Object -Unique | ForEach-Object {
+      Write-Host "  - $_"
+    }
+    $allowedBeforeGate += $implementationFilesForEditBoundary
+  }
+}
+
+Assert-AllowedChangedFiles -AllowedPaths ($allowedBeforeGate | Sort-Object -Unique) -Phase "before gate-doc"
 
 Write-Step "Protect record in release gate"
 & ".\scripts\gate-doc.ps1" $DocPath
@@ -257,10 +303,45 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Step "Changed-file guard after release-check"
 $allowedFinal = @($NormalizedDocPath, "scripts/check-release-gate.mjs")
+
 if ($IsImplementingAuto2) {
   $allowedFinal += "scripts/v09-work-item-auto2.ps1"
 }
-Assert-AllowedChangedFiles -AllowedPaths $allowedFinal -Phase "after release-check"
+
+if ($isImplementationLikeForEditBoundary) {
+  Write-Host "INFO: implementation edit-boundary alignment is active after release-check."
+
+  $implementationFilesForFinalEditBoundary = @(
+    git status --short | ForEach-Object {
+      if ($_.Length -ge 4) { $_.Substring(3).Trim() } else { $_.Trim() }
+    } | ForEach-Object {
+      ($_ -replace "\\", "/").Trim()
+    } | Where-Object {
+      ($_ -like "backend/*.js") -or
+      ($_ -like "backend/**/*.js") -or
+      ($_ -like "frontend/*.js") -or
+      ($_ -like "frontend/**/*.js") -or
+      ($_ -like "frontend/*.jsx") -or
+      ($_ -like "frontend/**/*.jsx") -or
+      ($_ -like "frontend/*.ts") -or
+      ($_ -like "frontend/**/*.ts") -or
+      ($_ -like "frontend/*.tsx") -or
+      ($_ -like "frontend/**/*.tsx") -or
+      ($_ -like "scripts/*.ps1") -or
+      (($_ -like "scripts/*.mjs") -and ($_ -ne "scripts/check-release-gate.mjs"))
+    }
+  )
+
+  if ($implementationFilesForFinalEditBoundary.Count -gt 0) {
+    Write-Host "INFO: allowed implementation files after release-check:"
+    $implementationFilesForFinalEditBoundary | Sort-Object -Unique | ForEach-Object {
+      Write-Host "  - $_"
+    }
+    $allowedFinal += $implementationFilesForFinalEditBoundary
+  }
+}
+
+Assert-AllowedChangedFiles -AllowedPaths ($allowedFinal | Sort-Object -Unique) -Phase "after release-check"
 
 $implementationLikeKindsForChangedFileEnforcement = @(
   "implementation",
