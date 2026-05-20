@@ -14,6 +14,7 @@ import { buildReadinessContract } from "../utils/deterministicScore";
 import {
   hasBackendOwnedReceiptAccess,
   hasBackendOwnedVerificationAccess,
+  isBackendOwnedReceiptPaidOrActivated,
   isBackendReceiptPaidOrActivated,
   isBackendReceiptReady,
 } from "../utils/dataContractLifecycle";
@@ -610,13 +611,17 @@ function deriveCaseListState(item) {
   const diagnosticOnly = isDiagnosticOnlyCase(normalized, { evidenceEventCount });
   const diagnosticContinuation =
     diagnosticOnly || isDiagnosticContinuationCase(normalized);
-  const directBackendReceiptReady =
+  const strictBackendOwnedReceiptAuthority = hasBackendOwnedReceiptAccess(normalized);
+  const strictBackendOwnedVerificationAuthority =
+    hasBackendOwnedVerificationAccess(normalized);
+  const legacyBackendReceiptReadySignal =
     hasCanonicalBackendReceiptReadySignal(normalized) ||
     normalized?.receiptEligible === true ||
     normalized?.caseReceiptEligible === true ||
     normalizeCaseText(normalized?.receiptStatus) === "ready" ||
     normalizeCaseText(normalized?.status) === "receipt_ready" ||
     normalizeCaseText(normalized?.stage) === "receipt_ready";
+  const directBackendReceiptReady = strictBackendOwnedReceiptAuthority;
   const effectiveEventCaptured =
     diagnosticContinuation ? false : normalized?.eventCaptured === true || evidenceEventCount > 0;
   const explicitBackendReady = directBackendReceiptReady;
@@ -737,7 +742,7 @@ function deriveCaseListState(item) {
     hasIssuedReceiptObject ||
     hasNonEmptyText(normalized?.receiptId) ||
     trustedPaymentProgress;
-  const legacyReceiptReadySignal = explicitBackendReady;
+  const legacyReceiptReadySignal = legacyBackendReceiptReadySignal;
   const hasReceiptStageSignal = directBackendReceiptReady || hasReceiptNotReadyDisplaySignal;
 
   const receiptReady = directBackendReceiptReady;
@@ -746,9 +751,9 @@ function deriveCaseListState(item) {
     normalized?.paymentStatus === "checkout_created";
 
   const paid =
-    isBackendReceiptPaidOrActivated(normalized) ||
-    normalized?.paid === true ||
-    normalized?.paymentStatus === "paid";
+    isBackendOwnedReceiptPaidOrActivated(normalized) ||
+    ((strictBackendOwnedReceiptAuthority || strictBackendOwnedVerificationAuthority) &&
+      isBackendReceiptPaidOrActivated(normalized));
 
   const hasEvidenceEvent = evidenceEventCount > 0;
   const readinessDetailLabel =
@@ -762,7 +767,8 @@ function deriveCaseListState(item) {
       ? "Receipt failed"
       : "";
 
-  let displayStatus = normalized?.status || "draft";
+  let displayStatus =
+    legacyReceiptReadySignal && !receiptReady ? "Result ready" : normalized?.status || "draft";
 
   if (paid) {
     displayStatus = "Paid";

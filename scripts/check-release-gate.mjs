@@ -370,6 +370,7 @@ const requiredDocs = [
   'docs/NIMCLEA_LR35C_GREEN_CARD_HELPER_AUTHORITY_NARROWING_CANDIDATE_RECORD_V0_1.md',
   'docs/NIMCLEA_LR35D_GREEN_CARD_STRICT_HELPER_AUTHORITY_IMPLEMENTATION_SMOKE_RECORD_V0_1.md',
   'docs/NIMCLEA_LR35E_GREEN_CARD_PROBE_CLASSIFICATION_ALIGNMENT_RESMOKE_RECORD_V0_1.md',
+  'docs/NIMCLEA_LR35F_GREEN_CARD_UI_DISPLAY_PATH_STRICT_AUTHORITY_IMPLEMENTATION_SMOKE_RECORD_V0_1.md',
 ];
 
 for (const doc of requiredDocs) {
@@ -495,6 +496,10 @@ runExistingScript(
 runExistingScript(
   "scripts/check-green-card-helper-authority-boundary.mjs",
   "green-card helper authority boundary guard"
+);
+runExistingScript(
+  "scripts/check-cases-page-green-card-display-authority.mjs",
+  "CasesPage green-card display authority guard"
 );
 checkNoCaseDiagnosticModalGuard();
 
