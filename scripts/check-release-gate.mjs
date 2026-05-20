@@ -368,6 +368,7 @@ const requiredDocs = [
   'docs/NIMCLEA_LR35_EXISTING_SELF_ACCOUNT_GREEN_CARD_TRUTHFULNESS_IMPLEMENTATION_SMOKE_RECORD_V0_1.md',
   'docs/NIMCLEA_LR35B_GREEN_CARD_SOURCE_TRACKING_PROBE_RECORD_V0_1.md',
   'docs/NIMCLEA_LR35C_GREEN_CARD_HELPER_AUTHORITY_NARROWING_CANDIDATE_RECORD_V0_1.md',
+  'docs/NIMCLEA_LR35D_GREEN_CARD_STRICT_HELPER_AUTHORITY_IMPLEMENTATION_SMOKE_RECORD_V0_1.md',
 ];
 
 for (const doc of requiredDocs) {
@@ -489,6 +490,10 @@ runExistingScript(
 runExistingScript(
   "scripts/check-supabase-clean-authority-migration-draft.mjs",
   "Supabase clean authority migration draft guard"
+);
+runExistingScript(
+  "scripts/check-green-card-helper-authority-boundary.mjs",
+  "green-card helper authority boundary guard"
 );
 checkNoCaseDiagnosticModalGuard();
 
