@@ -62,7 +62,7 @@ Result:
   - `node scripts/check-receipt-readiness-transition-contract.mjs`: PASS 28 / WARN 0 / FAIL 0.
   - `node scripts/check-receipt-verification-contract.mjs`: PASS 5 / WARN 0 / FAIL 0.
   - `node scripts/check-verification-locked-contract.mjs`: PASS 4 / WARN 0 / FAIL 0.
-- LR24A also recorded that `.\scripts\release-check.ps1` did not pass because the frontend build failed with Vite `[commonjs--resolver] spawn EPERM`; therefore this LR25 closure does not claim full release-check passage.
+- LR24A final evidence was later repaired and release-check completed with PASS 248 / WARN 5 / FAIL 0 and Final result WARN. This LR25 closure remains narrow and does not claim full launch readiness.
 
 ## Risk / Stop Line
 
@@ -71,9 +71,9 @@ Result:
 - Stop if fragmentary, incomplete, missing, stale, local-only, fallback-only, non-authoritative, or status-text-only input can independently produce receipt ready/green display.
 - Stop if payment, checkout, route state, localStorage, local registry snapshots, generic status text, visual progress, or fallback-only data can independently create receipt readiness.
 - Stop if a future change downgrades valid canonical authority-backed receipt readiness behavior.
-- Stop if release-check remains FAIL and this LR25 closure is treated as release-check passage.
+- Stop if this LR25 closure is treated as broad release, launch, Stripe/payment, Supabase Storage, arbitrary user, or full end-to-end readiness.
 
 ## Next Action
 
 - Treat the LR25 closed scope as narrow: controlled/runtime receipt-readiness fragmentary input fail-closed behavior only.
-- Separately clear the Vite `spawn EPERM` frontend build blocker and rerun `.\scripts\release-check.ps1` before making any broader release or launch-readiness claim.
+- Next suitable step: proceed to the next narrow launch-readiness scope only after preserving the LR25 boundary: controlled/runtime receipt-readiness fragmentary input fail-closed closure only.
