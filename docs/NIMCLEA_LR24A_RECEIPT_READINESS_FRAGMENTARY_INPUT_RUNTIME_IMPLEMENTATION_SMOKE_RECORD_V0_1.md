@@ -32,6 +32,7 @@ Result classification: verified existing runtime behavior under the current sour
   - `scripts/check-receipt-readiness-transition-contract.mjs`
   - `scripts/check-receipt-verification-contract.mjs`
   - `scripts/check-verification-locked-contract.mjs`
+  - `scripts/check-receipt-pdf-deliverable-trust.mjs`
   - `scripts/check-release-gate.mjs`
   - `scripts/release-check.ps1`
   - `package.json`
@@ -63,7 +64,7 @@ Result classification: verified existing runtime behavior under the current sour
 - The shared contract utilities were inspected. They still compute descriptive/structural eligibility, but the inspected page runtime does not allow those local/derived fields to independently open the authoritative ready and verification unlock paths.
 - Existing guard scripts were inspected and then run.
 - No new runtime fix was needed because the current implementation already satisfies the narrow LR23 fail-closed rule.
-- `scripts/check-release-gate.mjs` was inspected. It currently protects LR23 and LR24, but not LR24A. This pass did not edit it because the hard rule for this prompt says to edit only this target docs record.
+- `scripts/check-release-gate.mjs` was inspected. It currently protects LR23, LR24, and LR24A. This pass did not edit it because the hard rule for this prompt says to edit only this target docs record.
 
 ## Acceptance Criteria
 
@@ -95,6 +96,7 @@ Get-Content -Raw scripts/check-receipt-readiness-visual-gate.mjs
 Get-Content -Raw scripts/check-receipt-readiness-transition-contract.mjs
 Get-Content -Raw scripts/check-receipt-verification-contract.mjs
 Get-Content -Raw scripts/check-verification-locked-contract.mjs
+Get-Content -Raw scripts/check-receipt-pdf-deliverable-trust.mjs
 Get-Content -Raw scripts/check-release-gate.mjs
 Get-Content -Raw scripts/release-check.ps1
 Get-Content -Raw package.json
@@ -112,23 +114,24 @@ Result:
 - `node scripts/check-receipt-readiness-transition-contract.mjs`: PASS 28 / WARN 0 / FAIL 0.
 - `node scripts/check-receipt-verification-contract.mjs`: PASS 5 / WARN 0 / FAIL 0.
 - `node scripts/check-verification-locked-contract.mjs`: PASS 4 / WARN 0 / FAIL 0.
-- `.\scripts\release-check.ps1`: FAIL during frontend build with Vite `[commonjs--resolver] spawn EPERM` after `git diff --check` passed and safe-to-commit reported PASS 3 / WARN 0 / FAIL 0. The Golden Case release gate step did not run because release-check stopped at the frontend build failure.
-- `git status --short` before record fill showed this LR24A docs record as untracked. No other file was changed by this pass.
+- `node scripts/check-receipt-pdf-deliverable-trust.mjs`: PASS 9 / WARN 0 / FAIL 0.
+- `.\scripts\release-check.ps1`: PASS 248 / WARN 5 / FAIL 0. Final result: WARN.
+- `git status --short` before this refill edit was clean.
 
 ## Result
 
-- Result: verified existing runtime behavior / release-check blocked by frontend build environment error.
+- Result: verified existing runtime behavior / release-check completed with PASS 248 / WARN 5 / FAIL 0 and Final result WARN.
 - Runtime changed: no.
 - Guard evidence supports that fragmentary or non-authoritative receipt readiness input cannot independently produce ready/green display or verification unlock in the inspected runtime.
 - The LR23/LR24 blocker is not closed by a new LR24A runtime patch; it is classified here as already satisfied by the existing LR18A-style authority-backed runtime behavior now present in the inspected source.
-- LR24A is not protected in `scripts/check-release-gate.mjs` by this pass because modifying that script would violate the hard rule to edit only this target docs record.
+- LR24A is protected in `scripts/check-release-gate.mjs` as inspected in this pass. No release-gate script edit was made in this turn.
 
 ## Boundaries / Non-Claims
 
 - Does not claim a new runtime implementation patch was made in LR24A.
 - Does not claim browser/manual UI smoke was run.
-- Does not claim release-check passed.
-- Does not claim `scripts/check-release-gate.mjs` protects LR24A.
+- Does not claim release-check is a full launch readiness pass; release-check completed with PASS 248 / WARN 5 / FAIL 0 and Final result WARN.
+- Does not claim a new `scripts/check-release-gate.mjs` edit was made in this turn.
 - Does not claim payment readiness, payment-provider readiness, Stripe production readiness, Supabase Storage readiness, receipt PDF delivery readiness, verification completion, launch readiness, external customer readiness, or external outreach readiness.
 - Does not claim any backend runtime, frontend runtime, Supabase migration, Supabase Storage, auth/RLS, or payment-provider change.
 - Does not claim local-only, fallback-only, status-text-only, stale, missing, or partial evidence can ever substitute for backend receipt authority.
@@ -140,10 +143,9 @@ Result:
 - Stop if `buttonState === "ready"` can be reached from local/paper status alone.
 - Stop if `backendFormalVerificationGate` can be bypassed by route state, localStorage, shared-contract defaults, generic status text, or fallback preview data.
 - Stop if a future change downgrades valid canonical backend paid/ready authority-backed receipt behavior.
-- Stop if LR24A is treated as release-gate protected before `scripts/check-release-gate.mjs` is updated in a scope that permits that edit.
+- Stop if LR24A is removed from release-gate protection.
 - Stop if release-check remains FAIL.
 
 ## Next Action
 
-- In a follow-up scope that permits editing `scripts/check-release-gate.mjs`, protect this LR24A record in the release gate.
 - Re-run `.\scripts\release-check.ps1` after the Vite `spawn EPERM` frontend build blocker is cleared.
