@@ -69,7 +69,7 @@ function buildTrace(record) {
     paymentStatusPaid: paymentStatus === "paid",
   };
 
-  const suspectedGreenSource = backendSignals.isBackendReceiptReady
+  const suspectedGreenSource = backendSignals.hasBackendOwnedReceiptAccess
     ? "backend_owned_ready"
     : backendSignals.isBackendReceiptPaidOrActivated
       ? "backend_owned_paid"
