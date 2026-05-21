@@ -49,6 +49,16 @@ const displayStatusBlock = compact(extractConst(source, "displayStatus"));
 const pendingAuthorityBlock = compact(extractConst(source, "pendingReceiptAuthority"));
 
 const PENDING_AUTHORITY_STATE = "case_plan_completed_pending_receipt_authority";
+const SYNTHESIS_OBSERVABILITY_KEYS = [
+  "hasReceiptPathContext",
+  "hasPilotOrCaseResultContext",
+  "legacyReceiptReadySignal",
+  "strictBackendOwnedReceiptAuthority",
+  "pendingReceiptAuthority",
+  "receiptReady",
+  "lifecycleState",
+  "displayStatus",
+];
 
 function deriveSyntheticMatrixState(fixture = {}) {
   const strictBackendOwnedReceiptAuthority = fixture.strictBackendOwnedReceiptAuthority === true;
@@ -67,45 +77,55 @@ function deriveSyntheticMatrixState(fixture = {}) {
       casePlanCompletedEvidence &&
       (hasReceiptPathContext || hasPilotOrCaseResultContext || legacyReceiptReadySignal)
   );
+  const synthesisInputs = {
+    hasReceiptPathContext,
+    hasPilotOrCaseResultContext,
+    legacyReceiptReadySignal,
+    strictBackendOwnedReceiptAuthority,
+    pendingReceiptAuthority,
+    receiptReady,
+  };
+  const withSynthesisInputs = (derived) => ({
+    ...synthesisInputs,
+    ...derived,
+  });
 
-  if (paid) return { receiptReady, lifecycleState: "paid", displayStatus: "Paid" };
+  if (paid) return withSynthesisInputs({ lifecycleState: "paid", displayStatus: "Paid" });
   if (checkoutStarted) {
-    return {
-      receiptReady,
+    return withSynthesisInputs({
       lifecycleState: "receipt_checkout_started",
       displayStatus: "Receipt checkout started",
-    };
+    });
   }
   if (receiptReady) {
-    return { receiptReady, lifecycleState: "receipt_ready", displayStatus: "Receipt ready" };
+    return withSynthesisInputs({
+      lifecycleState: "receipt_ready",
+      displayStatus: "Receipt ready",
+    });
   }
   if (pendingReceiptAuthority) {
-    return {
-      receiptReady,
+    return withSynthesisInputs({
       lifecycleState: PENDING_AUTHORITY_STATE,
       displayStatus: PENDING_AUTHORITY_STATE,
-    };
+    });
   }
   if (hasEvidenceEvent) {
-    return {
-      receiptReady,
+    return withSynthesisInputs({
       lifecycleState: "event_captured",
       displayStatus: `Event captured (${Number(fixture.evidenceEventCount || 0)})`,
-    };
+    });
   }
   if (diagnosticContinuation) {
-    return {
-      receiptReady,
+    return withSynthesisInputs({
       lifecycleState: "diagnostic_completed",
       displayStatus: "Diagnostic completed",
-    };
+    });
   }
 
-  return {
-    receiptReady,
+  return withSynthesisInputs({
     lifecycleState: fixture.status || "draft",
     displayStatus: fixture.status || "draft",
-  };
+  });
 }
 
 const syntheticMatrix = [
@@ -123,6 +143,33 @@ const syntheticMatrix = [
       receiptReady: false,
       lifecycleState: PENDING_AUTHORITY_STATE,
       displayStatus: PENDING_AUTHORITY_STATE,
+    },
+  },
+  {
+    name: "founder-like placeholder case plan receipt path without strict authority stays pending authority",
+    fixture: {
+      status: "diagnostic_completed",
+      diagnosticContinuation: true,
+      casePlanCompletedEvidence: true,
+      hasReceiptPathContext: true,
+      hasPilotOrCaseResultContext: true,
+      legacyReceiptReadySignal: false,
+      strictBackendOwnedReceiptAuthority: false,
+      fixtureKind: "founder_real_case_like_placeholder",
+    },
+    expected: {
+      hasReceiptPathContext: true,
+      hasPilotOrCaseResultContext: true,
+      legacyReceiptReadySignal: false,
+      strictBackendOwnedReceiptAuthority: false,
+      pendingReceiptAuthority: true,
+      receiptReady: false,
+      lifecycleState: PENDING_AUTHORITY_STATE,
+      displayStatus: PENDING_AUTHORITY_STATE,
+    },
+    expectedNot: {
+      lifecycleState: "diagnostic_completed",
+      displayStatus: "Diagnostic completed",
     },
   },
   {
@@ -218,14 +265,26 @@ check(
 
 for (const matrixCase of syntheticMatrix) {
   const actual = deriveSyntheticMatrixState(matrixCase.fixture);
-  const pass = Object.entries(matrixCase.expected).every(
+  const hasObservableSynthesisKeys = SYNTHESIS_OBSERVABILITY_KEYS.every((key) =>
+    Object.prototype.hasOwnProperty.call(actual, key)
+  );
+  const matchesExpected = Object.entries(matrixCase.expected).every(
     ([key, expectedValue]) => actual[key] === expectedValue
   );
+  const avoidsRejectedValues = Object.entries(matrixCase.expectedNot || {}).every(
+    ([key, rejectedValue]) => actual[key] !== rejectedValue
+  );
+  const pass = hasObservableSynthesisKeys && matchesExpected && avoidsRejectedValues;
 
   check(
     pass,
     `synthetic fixture matrix: ${matrixCase.name}`,
-    JSON.stringify({ expected: matrixCase.expected, actual })
+    JSON.stringify({
+      expected: matrixCase.expected,
+      expectedNot: matrixCase.expectedNot || {},
+      requiredObservableKeys: SYNTHESIS_OBSERVABILITY_KEYS,
+      actual,
+    })
   );
 }
 
