@@ -1024,6 +1024,13 @@ function getCaseDetailRoute(item, explicitCaseId = "") {
     return `${ROUTES.VERIFICATION}?caseId=${encodedCaseId}`;
   }
 
+  if (
+    derived.lifecycleState ===
+    CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE
+  ) {
+    return `${ROUTES.RECEIPT}?caseId=${encodedCaseId}`;
+  }
+
   if (derived.diagnosticOnly || isDiagnosticContinuationCase(normalized)) {
     return `${ROUTES.PILOT || "/pilot"}?caseId=${encodedCaseId}&from=case`;
   }
