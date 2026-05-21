@@ -789,11 +789,27 @@ function deriveCaseListState(item) {
   const hasReceiptStageSignal = directBackendReceiptReady || hasReceiptNotReadyDisplaySignal;
 
   const receiptReady = directBackendReceiptReady;
+  const hasEvidenceEvent = evidenceEventCount > 0;
+  const hasUnlandedReceiptPaymentEvidence = Boolean(
+    casePlanCompletedEvidence ||
+      hasReceiptPathContext ||
+      legacyReceiptReadySignal ||
+      hasConcreteReceiptProgress ||
+      trustedPaymentProgress
+  );
+  const hasHelperSynthesisCompletionSignal = Boolean(
+    casePlanCompletedEvidence ||
+      hasEvidenceEvent ||
+      diagnosticContinuation ||
+      hasPilotOrCaseResultContext
+  );
   const pendingReceiptAuthority = Boolean(
     !receiptReady &&
       !strictBackendOwnedReceiptAuthority &&
-      casePlanCompletedEvidence &&
-      (hasReceiptPathContext || hasPilotOrCaseResultContext || legacyReceiptReadySignal)
+      (casePlanCompletedEvidence ||
+        hasReceiptPathContext ||
+        hasUnlandedReceiptPaymentEvidence) &&
+      hasHelperSynthesisCompletionSignal
   );
 
   const checkoutStarted =
@@ -804,7 +820,6 @@ function deriveCaseListState(item) {
     ((strictBackendOwnedReceiptAuthority || strictBackendOwnedVerificationAuthority) &&
       isBackendReceiptPaidOrActivated(normalized));
 
-  const hasEvidenceEvent = evidenceEventCount > 0;
   const readinessDetailLabel =
     diagnosticContinuation
       ? ""
