@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ROUTES from "../routes";
 import { sanitizeText } from "../lib/sanitizeText";
@@ -3280,6 +3280,7 @@ export default function CasesPage() {
               });
               const shouldContinueDiagnostic =
                 !hasBackendAuthorityIssue &&
+                derived.lifecycleState !== CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE &&
                 (derived.diagnosticOnly || isDiagnosticContinuation) &&
                 !derived.hasReceiptStageSignal &&
                 !derived.receiptReady;
