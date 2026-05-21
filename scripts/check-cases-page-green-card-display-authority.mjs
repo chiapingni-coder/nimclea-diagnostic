@@ -173,6 +173,34 @@ const syntheticMatrix = [
     },
   },
   {
+    name: "non-founder multi-case completed-style signals without strict authority stay pending authority",
+    fixture: {
+      status: "diagnostic_completed",
+      diagnosticContinuation: true,
+      casePlanCompletedEvidence: true,
+      hasReceiptPathContext: true,
+      hasPilotOrCaseResultContext: true,
+      evidenceEventCount: 2,
+      legacyReceiptReadySignal: false,
+      strictBackendOwnedReceiptAuthority: false,
+      fixtureKind: "multi_case_regression_fixture",
+    },
+    expected: {
+      hasReceiptPathContext: true,
+      hasPilotOrCaseResultContext: true,
+      legacyReceiptReadySignal: false,
+      strictBackendOwnedReceiptAuthority: false,
+      pendingReceiptAuthority: true,
+      receiptReady: false,
+      lifecycleState: PENDING_AUTHORITY_STATE,
+      displayStatus: PENDING_AUTHORITY_STATE,
+    },
+    expectedNot: {
+      lifecycleState: "diagnostic_completed",
+      displayStatus: "Diagnostic completed",
+    },
+  },
+  {
     name: "legacy receipt-ready hint without strict receipt authority fails closed",
     fixture: {
       status: "diagnostic_completed",
