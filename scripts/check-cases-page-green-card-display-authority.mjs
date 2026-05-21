@@ -46,6 +46,118 @@ const legacyReadyBlock = compact(extractConst(source, "legacyBackendReceiptReady
 const directReadyBlock = compact(extractConst(source, "directBackendReceiptReady"));
 const paidBlock = compact(extractConst(source, "paid"));
 const displayStatusBlock = compact(extractConst(source, "displayStatus"));
+const pendingAuthorityBlock = compact(extractConst(source, "pendingReceiptAuthority"));
+
+const PENDING_AUTHORITY_STATE = "case_plan_completed_pending_receipt_authority";
+
+function deriveSyntheticMatrixState(fixture = {}) {
+  const strictBackendOwnedReceiptAuthority = fixture.strictBackendOwnedReceiptAuthority === true;
+  const receiptReady = strictBackendOwnedReceiptAuthority;
+  const paid = fixture.backendOwnedPaidOrActivated === true;
+  const checkoutStarted = fixture.paymentStatus === "checkout_created";
+  const casePlanCompletedEvidence = fixture.casePlanCompletedEvidence === true;
+  const hasReceiptPathContext = fixture.hasReceiptPathContext === true;
+  const hasPilotOrCaseResultContext = fixture.hasPilotOrCaseResultContext === true;
+  const legacyReceiptReadySignal = fixture.legacyReceiptReadySignal === true;
+  const hasEvidenceEvent = Number(fixture.evidenceEventCount || 0) > 0;
+  const diagnosticContinuation = fixture.diagnosticContinuation === true;
+  const pendingReceiptAuthority = Boolean(
+    !receiptReady &&
+      !strictBackendOwnedReceiptAuthority &&
+      casePlanCompletedEvidence &&
+      (hasReceiptPathContext || hasPilotOrCaseResultContext || legacyReceiptReadySignal)
+  );
+
+  if (paid) return { receiptReady, lifecycleState: "paid", displayStatus: "Paid" };
+  if (checkoutStarted) {
+    return {
+      receiptReady,
+      lifecycleState: "receipt_checkout_started",
+      displayStatus: "Receipt checkout started",
+    };
+  }
+  if (receiptReady) {
+    return { receiptReady, lifecycleState: "receipt_ready", displayStatus: "Receipt ready" };
+  }
+  if (pendingReceiptAuthority) {
+    return {
+      receiptReady,
+      lifecycleState: PENDING_AUTHORITY_STATE,
+      displayStatus: PENDING_AUTHORITY_STATE,
+    };
+  }
+  if (hasEvidenceEvent) {
+    return {
+      receiptReady,
+      lifecycleState: "event_captured",
+      displayStatus: `Event captured (${Number(fixture.evidenceEventCount || 0)})`,
+    };
+  }
+  if (diagnosticContinuation) {
+    return {
+      receiptReady,
+      lifecycleState: "diagnostic_completed",
+      displayStatus: "Diagnostic completed",
+    };
+  }
+
+  return {
+    receiptReady,
+    lifecycleState: fixture.status || "draft",
+    displayStatus: fixture.status || "draft",
+  };
+}
+
+const syntheticMatrix = [
+  {
+    name: "case plan completed with receipt path evidence but no strict receipt authority",
+    fixture: {
+      status: "diagnostic_completed",
+      diagnosticContinuation: true,
+      casePlanCompletedEvidence: true,
+      hasReceiptPathContext: true,
+      hasPilotOrCaseResultContext: true,
+      strictBackendOwnedReceiptAuthority: false,
+    },
+    expected: {
+      receiptReady: false,
+      lifecycleState: PENDING_AUTHORITY_STATE,
+      displayStatus: PENDING_AUTHORITY_STATE,
+    },
+  },
+  {
+    name: "legacy receipt-ready hint without strict receipt authority fails closed",
+    fixture: {
+      status: "diagnostic_completed",
+      diagnosticContinuation: true,
+      casePlanCompletedEvidence: true,
+      hasPilotOrCaseResultContext: true,
+      legacyReceiptReadySignal: true,
+      strictBackendOwnedReceiptAuthority: false,
+    },
+    expected: {
+      receiptReady: false,
+      lifecycleState: PENDING_AUTHORITY_STATE,
+      displayStatus: PENDING_AUTHORITY_STATE,
+    },
+  },
+  {
+    name: "strict backend-owned receipt authority may display green receipt-ready",
+    fixture: {
+      status: "diagnostic_completed",
+      diagnosticContinuation: true,
+      casePlanCompletedEvidence: true,
+      hasReceiptPathContext: true,
+      hasPilotOrCaseResultContext: true,
+      strictBackendOwnedReceiptAuthority: true,
+    },
+    expected: {
+      receiptReady: true,
+      lifecycleState: "receipt_ready",
+      displayStatus: "Receipt ready",
+    },
+  },
+];
 
 check(sourceExists, "CasesPage.jsx exists");
 check(
@@ -85,12 +197,37 @@ check(
   displayStatusBlock
 );
 check(
+  normalizedSource.includes(`const CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE = "${PENDING_AUTHORITY_STATE}"`) &&
+    normalizedSource.includes("function hasCasePlanCompletedEvidence") &&
+    pendingAuthorityBlock.includes("!receiptReady") &&
+    pendingAuthorityBlock.includes("!strictBackendOwnedReceiptAuthority") &&
+    pendingAuthorityBlock.includes("casePlanCompletedEvidence") &&
+    pendingAuthorityBlock.includes("hasReceiptPathContext") &&
+    displayStatusBlock.includes("pendingReceiptAuthority") &&
+    displayStatusBlock.includes("CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE"),
+  "case-plan completion without strict receipt authority has explicit pending-authority lifecycle state",
+  pendingAuthorityBlock
+);
+check(
   !normalizedSource.includes(
     "const directBackendReceiptReady = hasCanonicalBackendReceiptReadySignal(normalized) || normalized?.receiptEligible === true"
   ),
   "directBackendReceiptReady is not produced by canonical/legacy readiness shortcuts",
   directReadyBlock
 );
+
+for (const matrixCase of syntheticMatrix) {
+  const actual = deriveSyntheticMatrixState(matrixCase.fixture);
+  const pass = Object.entries(matrixCase.expected).every(
+    ([key, expectedValue]) => actual[key] === expectedValue
+  );
+
+  check(
+    pass,
+    `synthetic fixture matrix: ${matrixCase.name}`,
+    JSON.stringify({ expected: matrixCase.expected, actual })
+  );
+}
 
 const failed = checks.filter((item) => !item.pass);
 

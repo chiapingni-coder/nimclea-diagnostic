@@ -24,6 +24,8 @@ const EMAIL_STORAGE_KEY = "nimclea_email";
 const KNOWN_WORKSPACE_EMAILS_KEY = "nimclea_known_workspace_emails";
 const ARCHIVED_CASE_IDS_KEY = "nimclea_archived_case_ids";
 const DELETED_CASE_IDS_KEY = "nimclea_deleted_case_ids";
+const CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE =
+  "case_plan_completed_pending_receipt_authority";
 
 function getArchivedCaseIds() {
   try {
@@ -569,6 +571,45 @@ function hasCanonicalBackendReceiptReadySignal(item = {}) {
   return isBackendReceiptReady(normalizeCaseItem(item));
 }
 
+function hasCasePlanCompletedEvidence(item = {}) {
+  const normalized = normalizeCaseItem(item);
+  const casePlan = normalized?.casePlan || normalized?.case_plan || {};
+  const caseData = normalized?.caseData || normalized?.caseSchema || {};
+  const candidateValues = [
+    normalized?.lifecycleState,
+    normalized?.lifecycle_state,
+    normalized?.status,
+    normalized?.stage,
+    normalized?.currentStep,
+    normalized?.step,
+    normalized?.planStatus,
+    normalized?.casePlanStatus,
+    normalized?.case_plan_status,
+    casePlan?.status,
+    casePlan?.stage,
+    casePlan?.state,
+    caseData?.planStatus,
+    caseData?.casePlanStatus,
+    caseData?.case_plan_status,
+  ].map((value) => normalizeCaseText(value));
+
+  return Boolean(
+    normalized?.casePlanCompleted === true ||
+      normalized?.case_plan_completed === true ||
+      casePlan?.completed === true ||
+      casePlan?.isCompleted === true ||
+      candidateValues.some((value) =>
+        [
+          CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE,
+          "case_plan_completed",
+          "case_plan_complete",
+          "plan_completed",
+          "plan_complete",
+        ].includes(value)
+      )
+  );
+}
+
 function deriveCaseListState(item) {
   const normalized = normalizeCaseItem(item);
 
@@ -604,6 +645,7 @@ function deriveCaseListState(item) {
       readinessDetailLabel: "",
       diagnosticOnly: false,
       diagnosticContinuation: false,
+      lifecycleState: "backend_case_missing",
     };
   }
 
@@ -695,6 +737,7 @@ function deriveCaseListState(item) {
     ["receipt", "verification"].includes(currentStepText) ||
     ["receipt_page", "receipt_page_repair"].includes(sourceText) ||
     Boolean(receiptStatusText);
+  const casePlanCompletedEvidence = hasCasePlanCompletedEvidence(normalized);
   const hasReceiptNonReadySignal =
     normalized?.receiptEligible === false ||
     normalized?.caseReceiptEligible === false ||
@@ -746,6 +789,12 @@ function deriveCaseListState(item) {
   const hasReceiptStageSignal = directBackendReceiptReady || hasReceiptNotReadyDisplaySignal;
 
   const receiptReady = directBackendReceiptReady;
+  const pendingReceiptAuthority = Boolean(
+    !receiptReady &&
+      !strictBackendOwnedReceiptAuthority &&
+      casePlanCompletedEvidence &&
+      (hasReceiptPathContext || hasPilotOrCaseResultContext || legacyReceiptReadySignal)
+  );
 
   const checkoutStarted =
     normalized?.paymentStatus === "checkout_created";
@@ -768,7 +817,9 @@ function deriveCaseListState(item) {
       : "";
 
   let displayStatus =
-    legacyReceiptReadySignal && !receiptReady ? "Result ready" : normalized?.status || "draft";
+    legacyReceiptReadySignal && !receiptReady
+      ? "Result ready"
+      : normalized?.status || "draft";
 
   if (paid) {
     displayStatus = "Paid";
@@ -776,6 +827,8 @@ function deriveCaseListState(item) {
     displayStatus = "Receipt checkout started";
   } else if (receiptReady) {
     displayStatus = "Receipt ready";
+  } else if (pendingReceiptAuthority) {
+    displayStatus = CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE;
   } else if (hasReceiptNotReadyDisplaySignal) {
     if (readinessContract.readinessLevel === "pending_review") {
       displayStatus = "Receipt not ready · Pending review";
@@ -788,7 +841,10 @@ function deriveCaseListState(item) {
     }
   } else if (hasEvidenceEvent) {
     displayStatus = `Event captured (${evidenceEventCount})`;
-  } else if (diagnosticContinuation || isDiagnosticContinuationCase(normalized)) {
+  } else if (
+    !pendingReceiptAuthority &&
+    (diagnosticContinuation || isDiagnosticContinuationCase(normalized))
+  ) {
     displayStatus = "Diagnostic completed";
   }
 
@@ -817,6 +873,9 @@ function deriveCaseListState(item) {
     readinessDetailLabel,
     diagnosticOnly,
     diagnosticContinuation,
+    lifecycleState: pendingReceiptAuthority
+      ? CASE_PLAN_COMPLETED_PENDING_RECEIPT_AUTHORITY_STATE
+      : normalizeCaseText(displayStatus),
   };
 }
 
