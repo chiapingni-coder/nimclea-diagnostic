@@ -502,6 +502,10 @@ runExistingScript(
   "scripts/check-cases-page-green-card-display-authority.mjs",
   "CasesPage green-card display authority guard"
 );
+runExistingScript(
+  "scripts/check-auto-constitution-reality-guard.mjs",
+  "AUTO constitution reality guard"
+);
 checkNoCaseDiagnosticModalGuard();
 
 addResult("WARN", "receipt readiness UI smoke", "manual-only release area");
